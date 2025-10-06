@@ -1,0 +1,233 @@
+// src/features/attendance/AttendanceCell.tsx
+import React, { useState, useEffect, useRef } from 'react';
+import ReactDOM from 'react-dom';
+import { AttendanceStatus, AttendanceStatusCode } from '../../types';
+import { Check, Clock, AlertTriangle, BadgeCheck, MessageSquare, Save } from 'lucide-react';
+import { format } from 'date-fns';
+import { Tooltip } from '../../components/ui/Tooltip';
+import { statusColorPalette } from '../../config/theme';
+
+const getColorClasses = (colorName: string = 'red') => {
+    return {
+        bgText: `bg-${colorName}-100 text-${colorName}-800`,
+        border: `border-${colorName}-700`,
+        lightBorder: `border-${colorName}-400`,
+    };
+};
+
+const FichaTooltip = ({ ficha, isRestDay, statusCatalog }: { ficha: any, isRestDay: boolean, statusCatalog: AttendanceStatus[] }) => {
+    if (isRestDay) return <span>Día de descanso.</span>;
+    if (!ficha) return <span>Sin registro del checador para este día.</span>;
+    const formatTime = (dateString: string) => {
+        if (!dateString) return '--:--';
+        return format(new Date(dateString), 'HH:mm');
+    };
+    return (
+        <div className="text-left text-xs p-1">
+            <p><span className="font-semibold">Checador:</span> {statusCatalog.find(s => s.Abreviatura === ficha.EstatusChecadorAbrev)?.Descripcion || 'N/A'}</p>
+            <p><span className="font-semibold">Supervisor:</span> {statusCatalog.find(s => s.Abreviatura === ficha.EstatusSupervisorAbrev)?.Descripcion || 'Pendiente'}</p>
+            {ficha.Comentarios && <p className="mt-1 italic text-slate-500">"{ficha.Comentarios}"</p>}
+            <hr className="my-1 border-slate-200" />
+            <div className="flex items-center gap-2"> <Clock size={14}/> <span>{formatTime(ficha.HoraEntrada)} - {formatTime(ficha.HoraSalida)}</span> </div>
+            {ficha.EstatusAutorizacion === 'Autorizado' && <p className="text-green-600 font-semibold mt-1">Autorizado por RH</p>}
+        </div>
+    );
+};
+
+export const AttendanceCell = ({ 
+    cellId, 
+    isOpen, 
+    onToggleOpen, 
+    ficha, 
+    onStatusChange,
+    isRestDay, 
+    onDragStart, 
+    onDragEnter, 
+    isBeingDragged,
+    isAnyCellOpen, 
+    statusCatalog
+}: any) => {
+    const [isJustUpdated, setIsJustUpdated] = useState(false);
+    const wrapperRef = useRef<HTMLTableCellElement>(null);
+    const [panelStyle, setPanelStyle] = useState({});
+    const [panelPlacement, setPanelPlacement] = useState<'top' | 'bottom'>('bottom');
+    const [comment, setComment] = useState('');
+    const [justSaved, setJustSaved] = useState(false);
+
+    const finalStatus = isRestDay ? 'D' : ficha?.EstatusSupervisorAbrev || ficha?.EstatusChecadorAbrev || 'F';
+    const currentStatusConfig = statusCatalog.find((s: AttendanceStatus) => s.Abreviatura === finalStatus) || 
+                                (finalStatus === 'D' ? { ColorUI: 'slate', Descripcion: 'Día de Descanso', PermiteComentario: false } : { ColorUI: 'blue', Descripcion: 'Desconocido', PermiteComentario: true });
+                          
+    const colorClasses = statusColorPalette[currentStatusConfig.ColorUI] || statusColorPalette.slate;
+    
+    const needsSupervisorAction = !ficha?.EstatusSupervisorAbrev && !isRestDay;
+    const isAuthorized = ficha?.EstatusAutorizacion === 'Autorizado';
+
+    useEffect(() => {
+        if (ficha?.EstatusSupervisorAbrev) {
+            setIsJustUpdated(true);
+            const timer = setTimeout(() => setIsJustUpdated(false), 300);
+            return () => clearTimeout(timer);
+        }
+    }, [ficha?.EstatusSupervisorAbrev]);
+
+
+    useEffect(() => {
+        if (isOpen && wrapperRef.current) {
+            const cellRect = wrapperRef.current.getBoundingClientRect();
+            const panelWidth = 256;
+            const panelHeight = currentStatusConfig?.PermiteComentario ? 320 : 200; // Altura dinámica
+        
+            let top = cellRect.bottom + 8;
+            let newPlacement: 'top' | 'bottom' = 'bottom';
+
+            if (cellRect.bottom + panelHeight > window.innerHeight && cellRect.top > panelHeight + 8) {
+                top = cellRect.top - panelHeight - 8;
+                newPlacement = 'top';
+            }
+
+            let left = cellRect.left + cellRect.width / 2 - panelWidth / 2;
+            if (left < 8) left = 8;
+            if (left + panelWidth > window.innerWidth - 8) {
+                left = window.innerWidth - panelWidth - 8;
+            }
+
+            setPanelStyle({ top, left });
+            setPanelPlacement(newPlacement);
+            setComment(ficha?.Comentarios || '');
+        }
+    }, [isOpen, ficha, currentStatusConfig]);
+
+    const handleSelect = (newStatus: AttendanceStatusCode) => {
+        const selectedStatusConfig = statusCatalog.find((s: AttendanceStatus) => s.Abreviatura === newStatus);
+        // Si el nuevo estatus no permite comentarios, enviamos 'undefined' para no sobreescribir el comentario existente.
+        const commentToSend = selectedStatusConfig?.PermiteComentario ? comment : undefined;
+        onStatusChange(newStatus, commentToSend);
+    };
+    
+    const handleSaveComment = () => {
+        onStatusChange(finalStatus, comment);
+        setJustSaved(true);
+        setTimeout(() => setJustSaved(false), 1500);
+    };
+
+    const cellContent = (
+        <div className={`
+            relative w-24 h-16 mx-auto rounded-md font-bold text-lg flex items-center justify-center 
+            transition-all duration-200 group
+            ${isBeingDragged || isOpen ? 'ring-4 ring-blue-500/50' : ''}
+            ${isAuthorized ? 'opacity-80' : ''}
+            ${isJustUpdated ? 'animate-drop-in' : ''}
+            ${needsSupervisorAction 
+                ? `border-2 border-dashed ${colorClasses.lightBorder}`
+                : `border-b-4 ${colorClasses.border}`
+            }
+        `}>
+            <div className={`w-full h-full rounded-md ${colorClasses.bgText} ${needsSupervisorAction ? 'bg-opacity-40' : 'bg-opacity-90'} flex items-center justify-center shadow-inner-sm`}>
+                {finalStatus}
+            </div>
+            {isAuthorized && <BadgeCheck size={18} className="absolute top-1 right-1 text-white bg-green-600 rounded-full p-0.5" />}
+            {ficha?.Comentarios && <MessageSquare size={14} className="absolute bottom-1 left-1 text-black/40" title={ficha.Comentarios} />}
+            {ficha && ficha.EstatusChecadorAbrev === 'SES' && <AlertTriangle size={16} className="absolute bottom-1 right-1 text-black/40" title="E/S Incompleta" />}
+            {!isRestDay && !isAuthorized && !!ficha?.EstatusSupervisorAbrev && (
+                <>
+                    <div onMouseDown={(e) => { e.stopPropagation(); onDragStart(finalStatus, 'top'); }} className="absolute top-0 left-0 w-full h-4 bg-black/10 opacity-0 hover:opacity-100 transition-opacity cursor-ns-resize rounded-t-md" title="Arrastrar para rellenar (superior)"/>
+                    <div onMouseDown={(e) => { e.stopPropagation(); onDragStart(finalStatus, 'bottom'); }} className="absolute bottom-0 left-0 w-full h-4 bg-black/10 opacity-0 hover:opacity-100 transition-opacity cursor-ns-resize rounded-b-md" title="Arrastrar para rellenar (inferior)"/>
+                    <div onMouseDown={(e) => { e.stopPropagation(); onDragStart(finalStatus, 'left'); }} className="absolute left-0 top-0 h-full w-4 bg-black/10 opacity-0 hover:opacity-100 transition-opacity cursor-ew-resize rounded-l-md" title="Arrastrar para rellenar (izquierda)"/>
+                    <div onMouseDown={(e) => { e.stopPropagation(); onDragStart(finalStatus, 'right'); }} className="absolute right-0 top-0 h-full w-4 bg-black/10 opacity-0 hover:opacity-100 transition-opacity cursor-ew-resize rounded-r-md" title="Arrastrar para rellenar (derecha)"/>
+                </>
+            )}
+        </div>
+    );
+
+    const statusPanel = isOpen ? ReactDOM.createPortal(
+        <div 
+            className="fixed bg-white rounded-lg shadow-xl border z-50 p-2 w-64 animate-scale-in"
+            style={panelStyle}
+            onMouseDown={(e) => e.stopPropagation()}
+        >
+            <div className="grid grid-cols-3 gap-1">
+                {statusCatalog
+                    .filter((status: AttendanceStatus) => status.VisibleSupervisor)
+                    .map((status: AttendanceStatus) => {
+                        const { bgText: statusColor } = getColorClasses(status.ColorUI);
+                        return (
+                            <button key={status.EstatusId} onClick={() => handleSelect(status.Abreviatura as AttendanceStatusCode)}
+                                className={`p-1.5 rounded-md text-center group transition-transform hover:scale-105 focus:outline-none focus:ring-2 ring-[--theme-500] ${statusColor} relative`}>
+                                {finalStatus === status.Abreviatura && <Check size={14} className="absolute top-1 right-1 text-black/50" />}
+                                <span className="font-bold block text-lg">{status.Abreviatura}</span>
+                                <span className="text-xs block">{status.Descripcion}</span>
+                            </button>
+                        )
+                    })}
+            </div>
+            {currentStatusConfig?.PermiteComentario && (
+                <div className="mt-2 pt-2 border-t col-span-3">
+                    <div className="flex justify-between items-center mb-1">
+                        <label className="text-sm font-medium text-slate-600">Comentarios</label>
+                        <Tooltip text="Guardar Comentario" placement="top" offset={8} zIndex={60}>
+                            <button 
+                                onClick={handleSaveComment}
+                                disabled={justSaved}
+                                className={`p-1 rounded-md transition-all duration-200 ${justSaved ? 'bg-green-100 text-green-600' : 'text-slate-400 hover:bg-slate-200 hover:text-[--theme-500]'}`}
+                            >
+                                {justSaved ? <Check size={18} /> : <Save size={18} />}
+                            </button>
+                        </Tooltip>
+                    </div>
+                    <textarea
+                        className="w-full p-2 border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-[--theme-500] focus:outline-none"
+                        placeholder="Agregar una nota..."
+                        value={comment}
+                        onChange={(e) => setComment(e.target.value)}
+                        rows={3}
+                    />
+                </div>
+            )}
+        </div>,
+        document.body
+    ) : null;
+
+    const tooltipPlacement = panelPlacement === 'top' ? 'left' : 'top';
+
+    if (isRestDay || isAuthorized) {
+        const disabledContent = <div className="cursor-not-allowed group relative">{cellContent}</div>;
+        return (
+             <td className="p-1 align-middle" onMouseEnter={onDragEnter}>
+                {isBeingDragged 
+                    ? disabledContent
+                    : <Tooltip text={<FichaTooltip ficha={ficha} isRestDay={isRestDay} statusCatalog={statusCatalog} />} placement={tooltipPlacement} offset={isAuthorized ? 16 : 32}>
+                        {disabledContent}
+                      </Tooltip>
+                }
+            </td>
+        )
+    }
+
+    const button = (
+        <button
+            onClick={() => onToggleOpen(cellId)}
+            className={`w-full h-full rounded-lg transition-all duration-200 focus:outline-none focus-visible:ring-0 transform hover:-translate-y-0.5`}
+        >
+            {cellContent}
+        </button>
+    );
+
+    return (
+        <td
+            ref={wrapperRef}
+            className={`p-1 relative align-middle group status-cell-wrapper`}
+            onMouseEnter={onDragEnter}
+            onClick={(e) => e.stopPropagation()}
+        >
+            {isBeingDragged
+                ? button
+                : <Tooltip text={<FichaTooltip ficha={ficha} isRestDay={isRestDay} statusCatalog={statusCatalog} />} placement={tooltipPlacement} offset={32} disabled={isAnyCellOpen}>
+                    {button}
+                  </Tooltip>
+            }
+            {statusPanel}
+        </td>
+    );
+};
+
