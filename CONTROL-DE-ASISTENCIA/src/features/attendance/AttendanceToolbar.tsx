@@ -27,7 +27,7 @@ const DropdownSelect = ({ icon, value, onChange, options, placeholder, renderLab
         <div className="relative w-full md:w-56" ref={dropdownRef}>
             <button type="button" onClick={() => setIsOpen(!isOpen)} className="w-full flex items-center pl-3 pr-4 py-2 border border-slate-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[--theme-500] text-sm text-slate-700">
                 <span className="text-slate-400 mr-2">{icon}</span>
-                <span className="flex-grow text-left truncate">{renderLabel(value)}</span>
+                <span className="flex-grow text-left truncate">{renderLabel(String(value))}</span>
                 <ChevronDown size={16} className={`ml-1 text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
             </button>
             {isOpen && (
@@ -41,7 +41,7 @@ const DropdownSelect = ({ icon, value, onChange, options, placeholder, renderLab
                     {options.map(opt => (
                         <button key={opt.value} onClick={() => handleSelect(opt.value)} className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center justify-between">
                             <span className="truncate">{opt.label}</span>
-                            {value === opt.value && <Check size={16} className="text-[--theme-500]" />}
+                            {String(value) === opt.value && <Check size={16} className="text-[--theme-500]" />}
                         </button>
                     ))}
                 </div>
@@ -54,10 +54,10 @@ const DropdownSelect = ({ icon, value, onChange, options, placeholder, renderLab
 interface AttendanceToolbarProps {
     searchTerm: string;
     setSearchTerm: (value: string) => void;
-    selectedDepartment: string;
-    setSelectedDepartment: (value: string) => void;
-    selectedPayrollGroup: string;
-    setSelectedPayrollGroup: (value: string) => void;
+    selectedDepartment: any;
+    setSelectedDepartment: (value: any) => void;
+    selectedPayrollGroup: any;
+    setSelectedPayrollGroup: (value: any) => void;
     viewMode: 'week' | 'fortnight' | 'month';
     setViewMode: (value: 'week' | 'fortnight' | 'month') => void;
     rangeLabel: string;
@@ -82,20 +82,45 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
     user
 }) => {
 
-    // Usamos useMemo para procesar las opciones, mejorando el rendimiento.
+    // --- INICIO DE DEPURACIÓN ---
+    useEffect(() => {
+        console.groupCollapsed("===== DEPURANDO DATOS DE TOOLBAR =====");
+        console.log("Objeto User completo:", user);
+        
+        if (user && user.Departamentos) {
+            console.log("Datos de Departamentos recibidos:", JSON.stringify(user.Departamentos, null, 2));
+            if (user.Departamentos.length > 0) {
+                console.log("Ejemplo del primer departamento:", user.Departamentos[0]);
+                console.log("Propiedades disponibles:", Object.keys(user.Departamentos[0]));
+            }
+        } else {
+            console.warn("user.Departamentos no está disponible o está vacío.");
+        }
+        
+        if (user && user.GruposNomina) {
+            console.log("Datos de GruposNomina recibidos:", JSON.stringify(user.GruposNomina, null, 2));
+             if (user.GruposNomina.length > 0) {
+                console.log("Ejemplo del primer grupo:", user.GruposNomina[0]);
+                console.log("Propiedades disponibles:", Object.keys(user.GruposNomina[0]));
+            }
+        } else {
+            console.warn("user.GruposNomina no está disponible o está vacío.");
+        }
+        console.groupEnd();
+    }, [user]);
+    // --- FIN DE DEPURACIÓN ---
+
     const departmentOptions = useMemo(() => {
-        // CORRECCIÓN: Usamos las propiedades correctas 'DepartamentoId' y 'Nombre'.
         return user?.Departamentos?.map((d: any) => ({ 
-            value: d.DepartamentoId, // La API ahora envía el ID numérico
-            label: d.Nombre          // Y el nombre con mayúscula
+            value: String(d.DepartamentoId), 
+            label: d.Nombre
         })) || [];
     }, [user?.Departamentos]);
 
     const payrollGroupOptions = useMemo(() => {
-        // CORRECCIÓN: Usamos las propiedades correctas 'GrupoNominaId' y 'Nombre'.
         return user?.GruposNomina?.map((g: any) => ({ 
-            value: g.GrupoNominaId, // La API ahora envía el ID numérico
-            label: g.Nombre         // Y el nombre con mayúscula
+            value: String(g.GrupoNominaId), 
+            label: g.Nombre
         })) || [];
     }, [user?.GruposNomina]);
 
@@ -117,7 +142,7 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
                             onChange={setSelectedDepartment}
                             options={departmentOptions}
                             placeholder="Todos los Deptos."
-                            renderLabel={(val) => user?.Departamentos?.find((d: any) => d.DepartamentoId === val)?.Nombre || "Todos los Deptos."}
+                            renderLabel={(val) => user?.Departamentos?.find((d: any) => String(d.DepartamentoId) === val)?.Nombre || "Todos los Deptos."}
                             showAllOption={user?.Departamentos?.length > 1}
                         />
                      </Tooltip>
@@ -128,14 +153,14 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
                             onChange={setSelectedPayrollGroup}
                             options={payrollGroupOptions}
                             placeholder="Todos los Grupos"
-                            renderLabel={(val) => user?.GruposNomina?.find((g: any) => g.GrupoNominaId === val)?.Nombre || "Todos los Grupos"}
+                            renderLabel={(val) => user?.GruposNomina?.find((g: any) => String(g.GrupoNominaId) === val)?.Nombre || "Todos los Grupos"}
                             showAllOption={user?.GruposNomina?.length > 1}
                         />
                     </Tooltip>
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
-                     <div className="flex items-center rounded-lg border border-slate-300 p-0.5 bg-slate-100">
+                     <div className="flex items-center rounded-lg border border-slate-300 p-0-5 bg-slate-100">
                         {['week', 'fortnight', 'month'].map((mode) => (
                             <button key={mode} onClick={() => setViewMode(mode as any)}
                                 className={`px-3 py-1 rounded-md text-sm font-semibold transition-colors ${viewMode === mode ? 'bg-white text-[--theme-600] shadow-sm' : 'text-slate-500 hover:bg-slate-200'}`}

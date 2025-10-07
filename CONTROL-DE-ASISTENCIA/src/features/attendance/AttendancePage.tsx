@@ -51,18 +51,18 @@ export const AttendancePage = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [dragInfo, setDragInfo] = useState<{EmpleadoId: string, dayIndex: number, status: AttendanceStatusCode} | null>(null);
+    const [dragInfo, setDragInfo] = useState<{EmpleadoId: number, dayIndex: number, status: AttendanceStatusCode} | null>(null);
     const [draggedCells, setDraggedCells] = useState<string[]>([]);
     const [confirmation, setConfirmation] = useState<any>({ isOpen: false });
     const [openCellId, setOpenCellId] = useState<string | null>(null);
     
     const [selectedDepartment, setSelectedDepartment] = useState(() => 
-        user?.Departamentos?.length === 1 ? user.Departamentos[0].DepartamentoId : 'all'
+        user?.Departamentos?.length === 1 ? String(user.Departamentos[0].DepartamentoId) : 'all'
     );
     const [selectedPayrollGroup, setSelectedPayrollGroup] = useState(() => 
-        user?.GruposNomina?.length === 1 ? user.GruposNomina[0].GrupoNominaid : 'all'
+        user?.GruposNomina?.length === 1 ? String(user.GruposNomina[0].GrupoNominaId) : 'all'
     );
-    const [viewingEmployeeId, setViewingEmployeeId] = useState<string | null>(null);
+    const [viewingEmployeeId, setViewingEmployeeId] = useState<number | null>(null);
     const [viewMode, setViewMode] = useState<'week' | 'fortnight' | 'month'>('week');
     
     const [employeeColumnWidth, setEmployeeColumnWidth] = useState(() => {
@@ -192,16 +192,15 @@ export const AttendancePage = () => {
             });
 
             const [employeesRes, statusesRes] = await Promise.all([
-                    fetch(`${API_BASE_URL}/api/attendance/data-by-range?startDate=${startDate}&endDate=${endDate}`, { headers }),
-                    fetch(`${API_BASE_URL}/api/catalogs/attendance-statuses`, { headers })
-                ]);
+                fetch(`${API_BASE_URL}/api/attendance/data-by-range?startDate=${startDate}&endDate=${endDate}`, { headers }),
+                fetch(`${API_BASE_URL}/api/catalogs/attendance-statuses`, { headers })
+            ]);
 
             if (!employeesRes.ok || !statusesRes.ok) throw new Error('Error al cargar datos iniciales.');
             
             const employeesData = await employeesRes.json();
             setStatusCatalog(await statusesRes.json());
-            console.log('Employees Data:', employeesData);
-            setEmployees(employeesData.map((emp: any) => ({ ...emp, empleado: emp.EmpleadoId, horario: emp.horario ? emp.horario : '' })));
+            setEmployees(employeesData);
 
         } catch (err: any) { setError(err.message); } 
         finally { setIsLoading(false); }
@@ -221,14 +220,14 @@ export const AttendancePage = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const handleBulkStatusChange = async (updates: { EmpleadoId: string, fecha: Date, estatus: string, comentarios?: string}[]) => {
+    const handleBulkStatusChange = async (updates: { empleadoId: number, fecha: Date, estatus: string, comentarios?: string}[]) => {
         const token = getToken();
         if (!token || updates.length === 0) return;
         const originalEmployees = JSON.parse(JSON.stringify(employees));
         setEmployees(prev => {
             const newEmployees = [...prev];
-            updates.forEach(({ EmpleadoId, fecha, estatus, comentarios }) => {
-                const empIndex = newEmployees.findIndex(e => e.EmpleadoId === EmpleadoId);
+            updates.forEach(({ empleadoId, fecha, estatus, comentarios }) => {
+                const empIndex = newEmployees.findIndex(e => e.EmpleadoId === empleadoId);
                 if (empIndex > -1) {
                     const newFichas = [...newEmployees[empIndex].FichasSemana];
                     const recordIndex = newFichas.findIndex(f => f.Fecha.substring(0, 10) === format(fecha, 'yyyy-MM-dd'));
@@ -253,12 +252,12 @@ export const AttendancePage = () => {
             return newEmployees;
         });
         try {
-             await Promise.all(updates.map(({ EmpleadoId, fecha, estatus, comentarios }) =>
+             await Promise.all(updates.map(({ empleadoId, fecha, estatus, comentarios }) =>
                 fetch(`${API_BASE_URL}/api/attendance`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                     body: JSON.stringify({ 
-                        EmpleadoId, 
+                        empleadoId, 
                         fecha: format(fecha, 'yyyy-MM-dd'), 
                         estatusSupervisor: estatus,
                         comentarios 
@@ -304,7 +303,7 @@ export const AttendancePage = () => {
              await fetch(`${API_BASE_URL}/api/attendance/approve-week`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ EmpleadoId: employee.EmpleadoId, weekStartDate: format(dateRange[0], 'yyyy-MM-dd') }),
+                body: JSON.stringify({ empleadoId: employee.EmpleadoId, weekStartDate: format(dateRange[0], 'yyyy-MM-dd') }),
             });
             addNotification('Semana Aprobada', `Se aceptaron las sugerencias para ${employee.NombreCompleto}`, 'success');
         } catch(e) {
@@ -317,15 +316,15 @@ export const AttendancePage = () => {
         setOpenCellId(prev => (prev === cellId ? null : cellId));
     };
     
-    const handleDragStart = (EmpleadoId: string, dayIndex: number, status: AttendanceStatusCode) => {
+    const handleDragStart = (EmpleadoId: number, dayIndex: number, status: AttendanceStatusCode) => {
         setOpenCellId(null);
         setDragInfo({ EmpleadoId, dayIndex, status });
     };
 
-    const handleDragEnter = (targetEmpleadoId: string, targetDayIndex: number) => {
+    const handleDragEnter = (targetEmpleadoId: number, targetDayIndex: number) => {
         if (!dragInfo) return;
         const newDraggedCells: string[] = [];
-        const empIds = filteredEmployees.map(e => e.empleado);
+        const empIds = filteredEmployees.map(e => e.EmpleadoId);
         const startEmpIndex = empIds.indexOf(dragInfo.EmpleadoId);
         const endEmpIndex = empIds.indexOf(targetEmpleadoId);
         const startDayIndex = dragInfo.dayIndex;
@@ -352,15 +351,16 @@ export const AttendancePage = () => {
         }
         const updates = draggedCells
             .map(cellId => {
-                const [EmpleadoId, dayIndexStr] = cellId.split('-');
+                const [empleadoIdStr, dayIndexStr] = cellId.split('-');
+                const empleadoId = parseInt(empleadoIdStr, 10);
                 const dayIndex = parseInt(dayIndexStr, 10);
-                const employee = employees.find(e => e.EmpleadoId === EmpleadoId);
+                const employee = employees.find(e => e.EmpleadoId === empleadoId);
                 if (!employee || isRestDay(employee.horario, dateRange[dayIndex])) return null;
                 const ficha = employee.FichasSemana.find((f: any) => f.Fecha.substring(0, 10) === format(dateRange[dayIndex], 'yyyy-MM-dd'));
                 if(ficha?.EstatusAutorizacion === 'Autorizado') return null;
-                return { EmpleadoId, fecha: dateRange[dayIndex], estatus: dragInfo.status };
+                return { empleadoId, fecha: dateRange[dayIndex], estatus: dragInfo.status };
             })
-            .filter(Boolean) as { EmpleadoId: string, fecha: Date, estatus: string }[];
+            .filter(Boolean) as { empleadoId: number, fecha: Date, estatus: string }[];
 
         if(updates.length > 0){
             handleBulkStatusChange(updates);
@@ -374,8 +374,8 @@ export const AttendancePage = () => {
         const searchWords = searchTerm.toLowerCase().split(' ').filter(word => word);
 
         return employees.filter(emp => {
-            const departmentMatch = selectedDepartment === 'all' || emp.DepartamentoId === selectedDepartment;
-            const payrollGroupMatch = selectedPayrollGroup === 'all' || emp.GrupoNominaid === selectedPayrollGroup;
+            const departmentMatch = selectedDepartment === 'all' || String(emp.departamento_id) === selectedDepartment;
+            const payrollGroupMatch = selectedPayrollGroup === 'all' || String(emp.grupo_nomina_id) === selectedPayrollGroup;
 
             if (!departmentMatch || !payrollGroupMatch) {
                 return false;
@@ -463,8 +463,8 @@ export const AttendancePage = () => {
                                                         </div>
                                                     </div>
                                                     <div className="grid grid-cols-3 gap-x-3 text-xs text-slate-500 mt-1 w-full">
-                                                         <Tooltip text={`ID: ${emp.EmpleadoId}`}>
-                                                            <p className="font-mono col-span-1 truncate">ID: {emp.EmpleadoId}</p>
+                                                         <Tooltip text={`ID: ${emp.CodRef}`}>
+                                                            <p className="font-mono col-span-1 truncate">ID: {emp.CodRef}</p>
                                                          </Tooltip>
                                                          <Tooltip text={emp.puesto_descripcion || 'No asignado'}>
                                                             <p className="col-span-1 flex items-center gap-1.5 truncate">
@@ -510,7 +510,7 @@ export const AttendancePage = () => {
                                                 isRestDay={isRestDay(emp.horario, day)}
                                                 onStatusChange={(newStatus: AttendanceStatusCode, newComment?: string) => {
                                                     handleBulkStatusChange([{ 
-                                                        EmpleadoId: emp.EmpleadoId, 
+                                                        empleadoId: emp.EmpleadoId, 
                                                         fecha: day, 
                                                         estatus: newStatus,
                                                         comentarios: newComment 
