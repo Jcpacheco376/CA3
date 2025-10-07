@@ -51,16 +51,16 @@ export const AttendancePage = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [dragInfo, setDragInfo] = useState<{empleadoId: string, dayIndex: number, status: AttendanceStatusCode} | null>(null);
+    const [dragInfo, setDragInfo] = useState<{EmpleadoId: string, dayIndex: number, status: AttendanceStatusCode} | null>(null);
     const [draggedCells, setDraggedCells] = useState<string[]>([]);
     const [confirmation, setConfirmation] = useState<any>({ isOpen: false });
     const [openCellId, setOpenCellId] = useState<string | null>(null);
     
     const [selectedDepartment, setSelectedDepartment] = useState(() => 
-        user?.Departamentos?.length === 1 ? user.Departamentos[0].departamento : 'all'
+        user?.Departamentos?.length === 1 ? user.Departamentos[0].DepartamentoId : 'all'
     );
     const [selectedPayrollGroup, setSelectedPayrollGroup] = useState(() => 
-        user?.GruposNomina?.length === 1 ? user.GruposNomina[0].grupo_nomina : 'all'
+        user?.GruposNomina?.length === 1 ? user.GruposNomina[0].GrupoNominaid : 'all'
     );
     const [viewingEmployeeId, setViewingEmployeeId] = useState<string | null>(null);
     const [viewMode, setViewMode] = useState<'week' | 'fortnight' | 'month'>('week');
@@ -200,8 +200,8 @@ export const AttendancePage = () => {
             
             const employeesData = await employeesRes.json();
             setStatusCatalog(await statusesRes.json());
-            
-            setEmployees(employeesData.map((emp: any) => ({ ...emp, empleado: emp.empleado.trim(), horario: emp.horario ? emp.horario.trim() : '' })));
+            console.log('Employees Data:', employeesData);
+            setEmployees(employeesData.map((emp: any) => ({ ...emp, empleado: emp.EmpleadoId, horario: emp.horario ? emp.horario : '' })));
 
         } catch (err: any) { setError(err.message); } 
         finally { setIsLoading(false); }
@@ -221,14 +221,14 @@ export const AttendancePage = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const handleBulkStatusChange = async (updates: { empleadoId: string, fecha: Date, estatus: string, comentarios?: string}[]) => {
+    const handleBulkStatusChange = async (updates: { EmpleadoId: string, fecha: Date, estatus: string, comentarios?: string}[]) => {
         const token = getToken();
         if (!token || updates.length === 0) return;
         const originalEmployees = JSON.parse(JSON.stringify(employees));
         setEmployees(prev => {
             const newEmployees = [...prev];
-            updates.forEach(({ empleadoId, fecha, estatus, comentarios }) => {
-                const empIndex = newEmployees.findIndex(e => e.empleado === empleadoId);
+            updates.forEach(({ EmpleadoId, fecha, estatus, comentarios }) => {
+                const empIndex = newEmployees.findIndex(e => e.EmpleadoId === EmpleadoId);
                 if (empIndex > -1) {
                     const newFichas = [...newEmployees[empIndex].FichasSemana];
                     const recordIndex = newFichas.findIndex(f => f.Fecha.substring(0, 10) === format(fecha, 'yyyy-MM-dd'));
@@ -253,12 +253,12 @@ export const AttendancePage = () => {
             return newEmployees;
         });
         try {
-             await Promise.all(updates.map(({ empleadoId, fecha, estatus, comentarios }) =>
+             await Promise.all(updates.map(({ EmpleadoId, fecha, estatus, comentarios }) =>
                 fetch(`${API_BASE_URL}/api/attendance`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                     body: JSON.stringify({ 
-                        empleadoId, 
+                        EmpleadoId, 
                         fecha: format(fecha, 'yyyy-MM-dd'), 
                         estatusSupervisor: estatus,
                         comentarios 
@@ -275,7 +275,7 @@ export const AttendancePage = () => {
         setConfirmation({
             isOpen: true,
             title: 'Aprobar Semana',
-            message: `¿Estás seguro de que quieres aceptar todas las sugerencias del checador para ${employee.nombre_completo}? Los cambios que ya hayas hecho manualmente no se verán afectados.`,
+            message: `¿Estás seguro de que quieres aceptar todas las sugerencias del checador para ${employee.NombreCompleto}? Los cambios que ya hayas hecho manualmente no se verán afectados.`,
             onConfirm: () => executeQuickApprove(employee),
         });
     };
@@ -287,7 +287,7 @@ export const AttendancePage = () => {
         const originalEmployees = JSON.parse(JSON.stringify(employees));
         setEmployees(prevEmployees => 
             prevEmployees.map(emp => {
-                if (emp.empleado === employee.empleado) {
+                if (emp.EmpleadoId === employee.EmpleadoId) {
                     const newFichasSemana = emp.FichasSemana.map((ficha: any) => {
                         if (ficha.EstatusChecadorAbrev && !ficha.EstatusSupervisorAbrev) {
                             return { ...ficha, EstatusSupervisorAbrev: ficha.EstatusChecadorAbrev };
@@ -304,9 +304,9 @@ export const AttendancePage = () => {
              await fetch(`${API_BASE_URL}/api/attendance/approve-week`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ empleadoId: employee.empleado, weekStartDate: format(dateRange[0], 'yyyy-MM-dd') }),
+                body: JSON.stringify({ EmpleadoId: employee.EmpleadoId, weekStartDate: format(dateRange[0], 'yyyy-MM-dd') }),
             });
-            addNotification('Semana Aprobada', `Se aceptaron las sugerencias para ${employee.nombre_completo}`, 'success');
+            addNotification('Semana Aprobada', `Se aceptaron las sugerencias para ${employee.NombreCompleto}`, 'success');
         } catch(e) {
             addNotification('Error', 'No se pudo aprobar la semana.', 'error');
             setEmployees(originalEmployees);
@@ -317,16 +317,16 @@ export const AttendancePage = () => {
         setOpenCellId(prev => (prev === cellId ? null : cellId));
     };
     
-    const handleDragStart = (empleadoId: string, dayIndex: number, status: AttendanceStatusCode) => {
+    const handleDragStart = (EmpleadoId: string, dayIndex: number, status: AttendanceStatusCode) => {
         setOpenCellId(null);
-        setDragInfo({ empleadoId, dayIndex, status });
+        setDragInfo({ EmpleadoId, dayIndex, status });
     };
 
     const handleDragEnter = (targetEmpleadoId: string, targetDayIndex: number) => {
         if (!dragInfo) return;
         const newDraggedCells: string[] = [];
         const empIds = filteredEmployees.map(e => e.empleado);
-        const startEmpIndex = empIds.indexOf(dragInfo.empleadoId);
+        const startEmpIndex = empIds.indexOf(dragInfo.EmpleadoId);
         const endEmpIndex = empIds.indexOf(targetEmpleadoId);
         const startDayIndex = dragInfo.dayIndex;
         const endDayIndex = targetDayIndex;
@@ -344,7 +344,7 @@ export const AttendancePage = () => {
             setDraggedCells([]);
             return;
         }
-        const startCellId = `${dragInfo.empleadoId}-${dragInfo.dayIndex}`;
+        const startCellId = `${dragInfo.EmpleadoId}-${dragInfo.dayIndex}`;
         if (draggedCells.length === 1 && draggedCells[0] === startCellId) {
             setDragInfo(null);
             setDraggedCells([]);
@@ -352,15 +352,15 @@ export const AttendancePage = () => {
         }
         const updates = draggedCells
             .map(cellId => {
-                const [empleadoId, dayIndexStr] = cellId.split('-');
+                const [EmpleadoId, dayIndexStr] = cellId.split('-');
                 const dayIndex = parseInt(dayIndexStr, 10);
-                const employee = employees.find(e => e.empleado === empleadoId);
+                const employee = employees.find(e => e.EmpleadoId === EmpleadoId);
                 if (!employee || isRestDay(employee.horario, dateRange[dayIndex])) return null;
                 const ficha = employee.FichasSemana.find((f: any) => f.Fecha.substring(0, 10) === format(dateRange[dayIndex], 'yyyy-MM-dd'));
                 if(ficha?.EstatusAutorizacion === 'Autorizado') return null;
-                return { empleadoId, fecha: dateRange[dayIndex], estatus: dragInfo.status };
+                return { EmpleadoId, fecha: dateRange[dayIndex], estatus: dragInfo.status };
             })
-            .filter(Boolean) as { empleadoId: string, fecha: Date, estatus: string }[];
+            .filter(Boolean) as { EmpleadoId: string, fecha: Date, estatus: string }[];
 
         if(updates.length > 0){
             handleBulkStatusChange(updates);
@@ -374,8 +374,8 @@ export const AttendancePage = () => {
         const searchWords = searchTerm.toLowerCase().split(' ').filter(word => word);
 
         return employees.filter(emp => {
-            const departmentMatch = selectedDepartment === 'all' || emp.departamento_id === selectedDepartment;
-            const payrollGroupMatch = selectedPayrollGroup === 'all' || emp.grupo_nomina_id === selectedPayrollGroup;
+            const departmentMatch = selectedDepartment === 'all' || emp.DepartamentoId === selectedDepartment;
+            const payrollGroupMatch = selectedPayrollGroup === 'all' || emp.GrupoNominaid === selectedPayrollGroup;
 
             if (!departmentMatch || !payrollGroupMatch) {
                 return false;
@@ -385,7 +385,7 @@ export const AttendancePage = () => {
                 return true;
             }
 
-            const targetText = (emp.nombre_completo + ' ' + emp.empleado).toLowerCase();
+            const targetText = (emp.NombreCompleto + ' ' + emp.EmpleadoId).toLowerCase();
             return searchWords.every(word => targetText.includes(word));
         });
     }, [employees, searchTerm, selectedDepartment, selectedPayrollGroup]);
@@ -442,16 +442,16 @@ export const AttendancePage = () => {
                             const progress = workingDays.length > 0 ? (completedDays / workingDays.length) * 100 : 0;
 
                             return (
-                                <tr key={emp.empleado} className="group">
+                                <tr key={emp.EmpleadoId} className="group">
                                     <td className="p-2 text-left sticky left-0 bg-white group-hover:bg-slate-50 z-10 shadow-sm align-top">
                                         <div className="w-full" style={{ minWidth: `${EMPLOYEE_CONTENT_MIN_WIDTH}px`, maxWidth: `${EMPLOYEE_CONTENT_MAX_WIDTH}px` }}>
                                             <div className="flex items-start justify-between">
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-start justify-between">
-                                                        <p className="font-semibold text-slate-800 truncate" title={emp.nombre_completo}>{emp.nombre_completo}</p>
+                                                        <p className="font-semibold text-slate-800 truncate" title={emp.NombreCompleto}>{emp.NombreCompleto}</p>
                                                         <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-2">
                                                             <Tooltip text="Ver Ficha de Empleado">
-                                                                <button onClick={() => setViewingEmployeeId(emp.empleado)} className="p-1 rounded-md text-slate-400 hover:text-[--theme-500] hover:bg-slate-200">
+                                                                <button onClick={() => setViewingEmployeeId(emp.EmpleadoId)} className="p-1 rounded-md text-slate-400 hover:text-[--theme-500] hover:bg-slate-200">
                                                                     <Contact size={18}/>
                                                                 </button>
                                                             </Tooltip>
@@ -463,8 +463,8 @@ export const AttendancePage = () => {
                                                         </div>
                                                     </div>
                                                     <div className="grid grid-cols-3 gap-x-3 text-xs text-slate-500 mt-1 w-full">
-                                                         <Tooltip text={`ID: ${emp.empleado}`}>
-                                                            <p className="font-mono col-span-1 truncate">ID: {emp.empleado}</p>
+                                                         <Tooltip text={`ID: ${emp.EmpleadoId}`}>
+                                                            <p className="font-mono col-span-1 truncate">ID: {emp.EmpleadoId}</p>
                                                          </Tooltip>
                                                          <Tooltip text={emp.puesto_descripcion || 'No asignado'}>
                                                             <p className="col-span-1 flex items-center gap-1.5 truncate">
@@ -497,7 +497,7 @@ export const AttendancePage = () => {
                                     {dateRange.map((day, dayIndex) => {
                                         const formattedDay = format(day, 'yyyy-MM-dd');
                                         const ficha = emp.FichasSemana.find((f: any) => f.Fecha.substring(0, 10) === formattedDay);
-                                        const cellId = `${emp.empleado}-${dayIndex}`;
+                                        const cellId = `${emp.EmpleadoId}-${dayIndex}`;
                                         return (
                                             <AttendanceCell
                                                 key={cellId}
@@ -510,15 +510,15 @@ export const AttendancePage = () => {
                                                 isRestDay={isRestDay(emp.horario, day)}
                                                 onStatusChange={(newStatus: AttendanceStatusCode, newComment?: string) => {
                                                     handleBulkStatusChange([{ 
-                                                        empleadoId: emp.empleado, 
+                                                        EmpleadoId: emp.EmpleadoId, 
                                                         fecha: day, 
                                                         estatus: newStatus,
                                                         comentarios: newComment 
                                                     }]);
                                                     setOpenCellId(null);
                                                 }}
-                                                onDragStart={(status: AttendanceStatusCode) => handleDragStart(emp.empleado, dayIndex, status)}
-                                                onDragEnter={() => handleDragEnter(emp.empleado, dayIndex)}
+                                                onDragStart={(status: AttendanceStatusCode) => handleDragStart(emp.EmpleadoId, dayIndex, status)}
+                                                onDragEnter={() => handleDragEnter(emp.EmpleadoId, dayIndex)}
                                                 isBeingDragged={draggedCells.includes(cellId)}
                                                 isAnyCellOpen={openCellId !== null}
                                                 statusCatalog={statusCatalog}

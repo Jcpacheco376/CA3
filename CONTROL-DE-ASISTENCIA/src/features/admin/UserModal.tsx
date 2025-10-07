@@ -94,8 +94,13 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
                     throw new Error('No se pudieron cargar los datos necesarios.');
                 }
                 
-                setAllDepartamentos(await deptoRes.json());
-                setAllGruposNomina(await grupoRes.json());
+                const deptoData = await deptoRes.json();
+                console.log('Departamentos:', deptoData);
+                setAllDepartamentos(deptoData);
+
+                const grupoData = await grupoRes.json();
+                console.log('Grupos de Nomina:', grupoData);
+                setAllGruposNomina(grupoData);
 
                 if (nextIdRes) {
                     const { NextUsuarioId } = await nextIdRes.json();
@@ -128,7 +133,7 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
 
     const handleMultiSelectChange = (item: any, listName: 'Departamentos' | 'GruposNomina') => {
         const currentList = (formData as any)[listName] || [];
-        const itemIdField = listName === 'Departamentos' ? 'departamento' : 'grupo_nomina';
+        const itemIdField = listName === 'Departamentos' ? 'DepartamentoId' : 'GrupoNominaId';
         const itemId = item[itemIdField];
         const itemIndex = currentList.findIndex((i: any) => i[itemIdField] === itemId);
 
@@ -250,13 +255,13 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
                         <div className="border border-slate-200 p-4 rounded-lg">
                             <h3 className="font-semibold text-slate-800 mb-3">Departamentos</h3>
                             <div className="max-h-32 overflow-y-auto space-y-2 p-1">
-                               <CatalogSection title="Departamentos" items={allDepartamentos} selectedItems={formData.Departamentos} onSelect={(item: any) => handleMultiSelectChange(item, 'Departamentos')} keyField="departamento" labelField="nombre" loading={catalogsLoading} error={catalogsError} />
+                               <CatalogSection title="Departamentos" items={allDepartamentos} selectedItems={formData.Departamentos} onSelect={(item: any) => handleMultiSelectChange(item, 'Departamentos')} keyField="DepartamentoId" labelField="Nombre" loading={catalogsLoading} error={catalogsError} />
                             </div>
                         </div>
                         <div className="border border-slate-200 p-4 rounded-lg">
                             <h3 className="font-semibold text-slate-800 mb-3">Grupos de Nómina</h3>
                             <div className="max-h-32 overflow-y-auto space-y-2 p-1">
-                                 <CatalogSection title="Grupos de Nómina" items={allGruposNomina} selectedItems={formData.GruposNomina} onSelect={(item: any) => handleMultiSelectChange(item, 'GruposNomina')} keyField="grupo_nomina" labelField="nombre" loading={catalogsLoading} error={catalogsError} />
+                                 <CatalogSection title="Grupos de Nómina" items={allGruposNomina} selectedItems={formData.GruposNomina} onSelect={(item: any) => handleMultiSelectChange(item, 'GruposNomina')} keyField="GrupoNominaId" labelField="Nombre" loading={catalogsLoading} error={catalogsError} />
                             </div>
                         </div>
                     </div>

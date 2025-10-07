@@ -155,14 +155,14 @@ export const UsersPage = () => {
                                      <td className="p-3">
                                         <div className="flex flex-wrap gap-1">
                                             {u.Departamentos?.map(depto => (
-                                                <span key={depto.departamento} className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">{depto.nombre}</span>
+                                                <span key={depto.DepartamentoId} className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">{depto.Nombre}</span>
                                             ))}
                                         </div>
                                     </td>
                                     <td className="p-3">
                                         <div className="flex flex-wrap gap-1">
                                             {u.GruposNomina?.map(grupo => (
-                                                <span key={grupo.grupo_nomina} className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full">{grupo.nombre}</span>
+                                                <span key={grupo.GrupoNominaId} className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full">{grupo.Nombre}</span>
                                             ))}
                                         </div>
                                     </td>

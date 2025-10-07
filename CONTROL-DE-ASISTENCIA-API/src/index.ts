@@ -286,7 +286,7 @@ app.get('/api/departamentos', authMiddleware, async (req: any, res) => {
     if (!req.user.permissions['catalogo.departamentos.read']) return res.status(403).json({ message: 'No tienes permiso para ver los departamentos.' });
     try {
         const pool = await sql.connect(dbConfig);
-        const result = await pool.request().query('SELECT departamentoid, nombre FROM CatalogoDepartamentos WHERE Activo=1');
+        const result = await pool.request().query('SELECT DepartamentoId, Nombre FROM CatalogoDepartamentos WHERE Activo=1');
         res.json(result.recordset);
     } catch (err) { res.status(500).json({ message: 'Error al obtener departamentos.' }); }
 });
@@ -295,7 +295,7 @@ app.get('/api/grupos-nomina', authMiddleware, async (req: any, res) => {
     if (!req.user.permissions['catalogo.gruposNomina.read']) return res.status(403).json({ message: 'No tienes permiso para ver los grupos de nómina.' });
     try {
         const pool = await sql.connect(dbConfig);
-        const result = await pool.request().query('SELECT gruponominaid, nombre FROM CatalogoGruposNomina WHERE Activo=1');
+        const result = await pool.request().query('SELECT GrupoNominaId, Nombre FROM CatalogoGruposNomina WHERE Activo=1');
         res.json(result.recordset);
     } catch (err) { res.status(500).json({ message: 'Error al obtener grupos de nómina.' }); }
 });
@@ -335,7 +335,7 @@ app.post('/api/grupos-nomina', authMiddleware, async (req: any, res) => {
     try {
         const pool = await sql.connect(dbConfig);
         await pool.request().input('GrupoNominaId', sql.NVarChar, grupo_nomina).input('Nombre', sql.NVarChar, nombre)
-            .input('Abreviatura', sql.NVarChar, abreviatura).input('Status', sql.NVarChar, status).execute('sp_GruposNomina_Save');
+            .input('Abreviatura', sql.NVarChar, abreviatura).input('Activo', sql.Bit, status).execute('sp_GruposNomina_Save');
         res.status(201).json({ message: 'Grupo de nómina guardado con éxito' });
     } catch (err) { res.status(500).json({ message: 'Error al guardar el grupo de nómina.' }); }
 });

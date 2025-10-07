@@ -1,5 +1,5 @@
 // src/features/attendance/AttendanceToolbar.tsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, Search as SearchIcon, Briefcase, Building, ChevronDown, Check } from 'lucide-react';
 import { Button } from '../../components/ui/Modal';
 import { Tooltip } from '../../components/ui/Tooltip';
@@ -66,6 +66,7 @@ interface AttendanceToolbarProps {
     user: any;
 }
 
+
 export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
     searchTerm,
     setSearchTerm,
@@ -80,11 +81,29 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
     handleDateNext,
     user
 }) => {
+
+    // Usamos useMemo para procesar las opciones, mejorando el rendimiento.
+    const departmentOptions = useMemo(() => {
+        // CORRECCIÓN: Usamos las propiedades correctas 'DepartamentoId' y 'Nombre'.
+        return user?.Departamentos?.map((d: any) => ({ 
+            value: d.DepartamentoId, // La API ahora envía el ID numérico
+            label: d.Nombre          // Y el nombre con mayúscula
+        })) || [];
+    }, [user?.Departamentos]);
+
+    const payrollGroupOptions = useMemo(() => {
+        // CORRECCIÓN: Usamos las propiedades correctas 'GrupoNominaId' y 'Nombre'.
+        return user?.GruposNomina?.map((g: any) => ({ 
+            value: g.GrupoNominaId, // La API ahora envía el ID numérico
+            label: g.Nombre         // Y el nombre con mayúscula
+        })) || [];
+    }, [user?.GruposNomina]);
+
     return (
         <div className="p-4 border-b border-slate-200">
             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                 <div className="flex flex-col md:flex-row items-center gap-2 w-full flex-grow">
-                    <Tooltip text="Busca por nombre, apellido o ID de empleado. Puedes escribir palabras en cualquier orden.">
+                    <Tooltip text="Busca por nombre, apellido o ID de empleado.">
                          <div className="relative w-full md:max-w-xs">
                             <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
                             <input type="text" placeholder="Buscar empleado..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
@@ -96,9 +115,9 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
                             icon={<Building size={16}/>}
                             value={selectedDepartment}
                             onChange={setSelectedDepartment}
-                            options={user?.Departamentos?.map((d: any) => ({ value: d.departamento, label: d.nombre })) || []}
+                            options={departmentOptions}
                             placeholder="Todos los Deptos."
-                            renderLabel={(val) => user?.Departamentos?.find((d: any) => d.departamento === val)?.nombre || "Todos los Deptos."}
+                            renderLabel={(val) => user?.Departamentos?.find((d: any) => d.DepartamentoId === val)?.Nombre || "Todos los Deptos."}
                             showAllOption={user?.Departamentos?.length > 1}
                         />
                      </Tooltip>
@@ -107,9 +126,9 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
                             icon={<Briefcase size={16}/>}
                             value={selectedPayrollGroup}
                             onChange={setSelectedPayrollGroup}
-                            options={user?.GruposNomina?.map((g: any) => ({ value: g.grupo_nomina, label: g.nombre })) || []}
+                            options={payrollGroupOptions}
                             placeholder="Todos los Grupos"
-                            renderLabel={(val) => user?.GruposNomina?.find((g: any) => g.grupo_nomina === val)?.nombre || "Todos los Grupos"}
+                            renderLabel={(val) => user?.GruposNomina?.find((g: any) => g.GrupoNominaId === val)?.Nombre || "Todos los Grupos"}
                             showAllOption={user?.GruposNomina?.length > 1}
                         />
                     </Tooltip>

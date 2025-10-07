@@ -244,7 +244,7 @@ export const SchedulePage = () => {
             const payrollGroupMatch = selectedPayrollGroup === 'all' || emp.grupo_nomina_id === selectedPayrollGroup;
             if (!departmentMatch || !payrollGroupMatch) return false;
             if (searchWords.length === 0) return true;
-            const targetText = (emp.nombre_completo + ' ' + emp.empleado).toLowerCase();
+            const targetText = (emp.NombreCompleto + ' ' + emp.EmpleadoId).toLowerCase();
             return searchWords.every(word => targetText.includes(word));
         });
     }, [employees, searchTerm, selectedDepartment, selectedPayrollGroup]);
@@ -318,7 +318,7 @@ export const SchedulePage = () => {
                                         <div className="flex items-start justify-between">
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-start justify-between">
-                                                    <p className="font-semibold text-slate-800 truncate" title={emp.nombre_completo}>{emp.nombre_completo}</p>
+                                                    <p className="font-semibold text-slate-800 truncate" title={emp.NombreCompleto}>{emp.NombreCompleto}</p>
                                                     <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-2">
                                                         <Tooltip text="Ver Ficha de Empleado">
                                                             <button onClick={() => setViewingEmployeeId(emp.empleado)} className="p-1 rounded-md text-slate-400 hover:text-[--theme-500] hover:bg-slate-200">

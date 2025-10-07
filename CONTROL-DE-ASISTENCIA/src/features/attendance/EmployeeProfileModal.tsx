@@ -1,3 +1,4 @@
+// src/features/attendance/EmployeeProfileModal.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { API_BASE_URL } from '../../config/api';
 import { format, startOfWeek, endOfWeek, differenceInYears, isWithinInterval } from 'date-fns';
@@ -16,6 +17,7 @@ export const EmployeeProfileModal = ({ employeeId, onClose, getToken, user }: { 
     const cardRef = useRef<HTMLDivElement>(null);
 
     const arrayBufferToBase64 = (buffer: { type: string, data: number[] }) => {
+        if (!buffer || !buffer.data) return '';
         let binary = '';
         const bytes = new Uint8Array(buffer.data);
         for (let i = 0; i < bytes.byteLength; i++) {
@@ -31,7 +33,8 @@ export const EmployeeProfileModal = ({ employeeId, onClose, getToken, user }: { 
             const token = getToken();
             if (!token) { setError("Sesión no válida."); setIsLoading(false); return; }
             try {
-                await new Promise(resolve => setTimeout(resolve, 10));
+                // Pequeño delay para que la UI de carga sea perceptible
+                await new Promise(resolve => setTimeout(resolve, 300));
                 const res = await fetch(`${API_BASE_URL}/api/employees/${employeeId}/profile`, { headers: { 'Authorization': `Bearer ${token}` } });
                 if (!res.ok) {
                     const errorData = await res.json();
@@ -99,7 +102,7 @@ export const EmployeeProfileModal = ({ employeeId, onClose, getToken, user }: { 
         if (!birthDateStr) return result;
     
         const today = new Date();
-        today.setHours(0, 0, 0, 0); // Normalize today to midnight
+        today.setHours(0, 0, 0, 0);
     
         const birthDateParts = birthDateStr.split('T')[0].split('-');
         const birthDate = new Date(Date.UTC(parseInt(birthDateParts[0]), parseInt(birthDateParts[1]) - 1, parseInt(birthDateParts[2])));
@@ -135,8 +138,8 @@ export const EmployeeProfileModal = ({ employeeId, onClose, getToken, user }: { 
             <div className="flex flex-col items-center justify-center text-center p-8"><AlertCircle className="w-12 h-12 text-red-400 mb-4" /><h4 className="text-lg font-semibold text-slate-800">Error al Cargar</h4><p className="text-slate-500 mt-1">{error}</p></div>
         );
         
-        const photoSrc = !isLoading && employeeData?.imagen ? `data:image/jpeg;base64,${arrayBufferToBase64(employeeData.imagen)}` : `https://placehold.co/128x128/e2e8f0/64748b?text=${!isLoading ? (employeeData?.nombre_completo?.[0] || '?') : ''}`;
-        const birthdayStatus = isLoading ? {isToday: false, isThisWeek: false, isThisMonth: false} : getBirthdayStatus(employeeData.fecha_nacimiento);
+        const photoSrc = !isLoading && employeeData?.Imagen ? `data:image/jpeg;base64,${arrayBufferToBase64(employeeData.Imagen)}` : `https://placehold.co/128x128/e2e8f0/64748b?text=${!isLoading ? (employeeData?.NombreCompleto?.[0] || '?') : ''}`;
+        const birthdayStatus = isLoading ? {isToday: false, isThisWeek: false, isThisMonth: false} : getBirthdayStatus(employeeData.FechaNacimiento);
 
         return (
              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 p-6 pt-4">
@@ -155,7 +158,7 @@ export const EmployeeProfileModal = ({ employeeId, onClose, getToken, user }: { 
                         {isLoading ? (
                              <><div className="h-5 bg-slate-300/70 rounded w-48 mx-auto mt-2"></div><div className="h-4 bg-slate-200/70 rounded w-32 mx-auto mt-1.5"></div></>
                         ) : (
-                            <><h3 className="text-lg font-bold text-slate-900">{employeeData.nombre_completo}</h3><p className="text-sm text-slate-500">{employeeData.puesto_descripcion}</p></>
+                            <><h3 className="text-lg font-bold text-slate-900">{employeeData.NombreCompleto}</h3><p className="text-sm text-slate-500">{employeeData.puesto_descripcion}</p></>
                         )}
                     </div>
                 </div>
@@ -163,18 +166,18 @@ export const EmployeeProfileModal = ({ employeeId, onClose, getToken, user }: { 
                     <dl className="grid grid-cols-2 gap-x-4 gap-y-5">
                         {isLoading ? <><SkeletonItem /><SkeletonItem /><SkeletonItem /><SkeletonItem /><SkeletonItem /><SkeletonItem /><SkeletonItem /><SkeletonItem /></> : (
                             <>
-                                <InfoItem icon={<CalendarIcon size={14}/>} label="Fecha de Ingreso" value={employeeData.fecha_ingreso ? format(new Date(employeeData.fecha_ingreso), 'd MMM yyyy', { locale: es }) : null} />
-                                <InfoItem icon={<Cake size={14}/>} label="Edad" value={getAge(employeeData.fecha_nacimiento)}>
+                                <InfoItem icon={<CalendarIcon size={14}/>} label="Fecha de Ingreso" value={employeeData.FechaIngreso ? format(new Date(employeeData.FechaIngreso), 'd MMM yyyy', { locale: es }) : null} />
+                                <InfoItem icon={<Cake size={14}/>} label="Edad" value={getAge(employeeData.FechaNacimiento)}>
                                     {birthdayStatus.isToday && <span className="text-xs font-bold text-pink-500 bg-pink-100 px-2 py-0.5 rounded-full">¡HOY!</span>}
                                     {!birthdayStatus.isToday && birthdayStatus.isThisWeek && <span className="text-xs text-slate-500">(cumple esta semana)</span>}
                                     {!birthdayStatus.isToday && !birthdayStatus.isThisWeek && birthdayStatus.isThisMonth && <span className="text-xs text-slate-500">(cumple este mes)</span>}
                                 </InfoItem>
-                                <InfoItem icon={<Fingerprint size={14}/>} label="CURP" value={employeeData.curp} />
-                                <InfoItem icon={<Hash size={14}/>} label="NSS" value={employeeData.nss} />
-                                <InfoItem icon={<Badge size={14}/>} label="RFC" value={employeeData.rfc} />
+                                <InfoItem icon={<Fingerprint size={14}/>} label="CURP" value={employeeData.CURP} />
+                                <InfoItem icon={<Hash size={14}/>} label="NSS" value={employeeData.NSS} />
+                                <InfoItem icon={<Badge size={14}/>} label="RFC" value={employeeData.RFC} />
                                 <InfoItem icon={<Building size={14}/>} label="Departamento" value={employeeData.departamento_nombre} />
                                 <InfoItem icon={<Briefcase size={14}/>} label="Grupo Nómina" value={employeeData.grupo_nomina_nombre} />
-                                <InfoItem icon={<User size={14}/>} label="Sexo" value={employeeData.sexo === 'M' ? 'Masculino' : 'Femenino'}>{employeeData.sexo === 'M' ? <Mars size={14} className="text-blue-500" /> : <Venus size={14} className="text-pink-500" />}</InfoItem>
+                                <InfoItem icon={<User size={14}/>} label="Sexo" value={employeeData.Sexo === 'M' ? 'Masculino' : 'Femenino'}>{employeeData.Sexo === 'M' ? <Mars size={14} className="text-blue-500" /> : <Venus size={14} className="text-pink-500" />}</InfoItem>
                             </>
                         )}
                     </dl>
@@ -187,7 +190,6 @@ export const EmployeeProfileModal = ({ employeeId, onClose, getToken, user }: { 
     const positionStyle = { top: `${position.y}px`, left: `${position.x}px`, transform: cardTransform };
     const themeName = user?.Theme || 'indigo';
     const themeColors = themes[themeName];
-
 
     return (
         <div ref={cardRef} className={`fixed bg-white rounded-xl shadow-2xl z-40 w-[600px] animate-scale-in overflow-hidden`} style={positionStyle}>
