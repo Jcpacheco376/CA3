@@ -385,7 +385,7 @@ app.post('/api/attendance', authMiddleware, async (req: any, res) => {
         const pool = await sql.connect(dbConfig);
         // --- USA EL PROCEDIMIENTO DE GUARDADO DEL SUPERVISOR ACTUALIZADO ---
         await pool.request()
-            .input('EmpleadoId', sql.NVarChar, empleadoId)
+            .input('EmpleadoId', sql.Int, empleadoId)
             .input('Fecha', sql.Date, new Date(fecha))
             .input('EstatusSupervisorAbrev', sql.NVarChar, estatusSupervisor) // Envía la abreviatura
             .input('Comentarios', sql.NVarChar, comentarios || null)
@@ -412,7 +412,7 @@ app.post('/api/attendance/approve-week', authMiddleware, async (req: any, res) =
         const pool = await sql.connect(dbConfig);
         await pool.request()
             .input('SupervisorId', sql.Int, req.user.usuarioId)
-            .input('EmpleadoId', sql.NVarChar, empleadoId)
+            .input('EmpleadoId', sql.Int, empleadoId)
             .input('FechaInicioSemana', sql.Date, new Date(weekStartDate))
             .execute('sp_FichasAsistencia_ApproveWeek');
         
@@ -555,7 +555,7 @@ app.get('/api/employees/:employeeId/profile', authMiddleware, async (req: any, r
     if (!employeeId) return res.status(400).json({ message: 'El ID del empleado es requerido.' });
     try {
         const pool = await sql.connect(dbConfig);
-        const result = await pool.request().input('EmpleadoId', sql.NVarChar, employeeId).execute('sp_Empleados_GetDatos');
+        const result = await pool.request().input('EmpleadoId', sql.Int, employeeId).execute('sp_Empleados_GetDatos');
         if (result.recordset.length === 0) return res.status(404).json({ message: 'Empleado no encontrado.' });
         res.json(result.recordset[0]);
     } catch (err: any) {
@@ -599,7 +599,7 @@ app.post('/api/schedules/assignments', authMiddleware, async (req: any, res) => 
             const { empleadoId, fecha, horarioId } = assignment;
             if (!empleadoId || !fecha) return;
             await new sql.Request(transaction)
-                .input('EmpleadoId', sql.NVarChar, empleadoId).input('Fecha', sql.Date, new Date(fecha))
+                .input('EmpleadoId', sql.Int, empleadoId).input('Fecha', sql.Date, new Date(fecha))
                 .input('HorarioAbreviatura', sql.NVarChar, horarioId).input('SupervisorId', sql.Int, req.user.usuarioId)
                 .execute('sp_HorariosTemporales_Upsert');
         }));
@@ -617,9 +617,12 @@ app.post('/api/catalogs/schedules', authMiddleware, async (req: any, res) => {
     try {
         const pool = await sql.connect(dbConfig);
         const result = await pool.request()
-            .input('HorarioId', sql.Int, HorarioId || 0).input('Abreviatura', sql.NVarChar, Abreviatura)
-            .input('Nombre', sql.NVarChar, Nombre).input('MinutosTolerancia', sql.Int, MinutosTolerancia)
-            .input('ColorUI', sql.NVarChar, ColorUI).input('Activo', sql.Bit, Activo)
+            .input('HorarioId', sql.Int, HorarioId || 0)
+            .input('Abreviatura', sql.NVarChar, Abreviatura)
+            .input('Nombre', sql.NVarChar, Nombre)
+            .input('MinutosTolerancia', sql.Int, MinutosTolerancia)
+            .input('ColorUI', sql.NVarChar, ColorUI)
+            .input('Activo', sql.Bit, Activo)
             .input('DetallesJSON', sql.NVarChar, JSON.stringify(Detalles || [])).execute('sp_CatalogoHorarios_Upsert');
         res.status(200).json({ message: 'Horario guardado correctamente.', horarioId: result.recordset[0].HorarioId });
     } catch (err: any) { res.status(409).json({ message: err.message }); }
