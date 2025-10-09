@@ -340,36 +340,36 @@ app.post('/api/grupos-nomina', authMiddleware, async (req: any, res) => {
     } catch (err) { res.status(500).json({ message: 'Error al guardar el grupo de nómina.' }); }
 });
 
-// Endpoint para obtener los datos de la semana de un supervisor
-app.get('/api/attendance/weekly-data', authMiddleware, async (req: any, res) => {
-    if (!req.user.permissions['reportesAsistencia.read.own'] && !req.user.permissions['reportesAsistencia.read.all']) {
-        return res.status(403).json({ message: 'No tienes permiso para ver los reportes de asistencia.' });
-    }
-    const { weekStartDate } = req.query;
-    if (!weekStartDate || typeof weekStartDate !== 'string') {
-        return res.status(400).json({ message: 'La fecha de inicio de semana es requerida.' });
-    }
+// // Endpoint para obtener los datos de la semana de un supervisor
+// app.get('/api/attendance/weekly-data', authMiddleware, async (req: any, res) => {
+//     if (!req.user.permissions['reportesAsistencia.read.own'] && !req.user.permissions['reportesAsistencia.read.all']) {
+//         return res.status(403).json({ message: 'No tienes permiso para ver los reportes de asistencia.' });
+//     }
+//     const { weekStartDate } = req.query;
+//     if (!weekStartDate || typeof weekStartDate !== 'string') {
+//         return res.status(400).json({ message: 'La fecha de inicio de semana es requerida.' });
+//     }
 
-    try {
-        const pool = await sql.connect(dbConfig);
-        // --- USA EL PROCEDIMIENTO ACTUALIZADO ---
-        const result = await pool.request()
-            .input('UsuarioId', sql.Int, req.user.usuarioId)
-            .input('FechaInicioSemana', sql.Date, new Date(weekStartDate))
-            .execute('sp_FichasAsistencia_GetSemana');
+//     try {
+//         const pool = await sql.connect(dbConfig);
+//         // --- USA EL PROCEDIMIENTO ACTUALIZADO ---
+//         const result = await pool.request()
+//             .input('UsuarioId', sql.Int, req.user.usuarioId)
+//             .input('FechaInicioSemana', sql.Date, new Date(weekStartDate))
+//             .execute('sp_FichasAsistencia_GetSemana');
 
-        // Parseamos el JSON de las fichas para cada empleado
-        const data = result.recordset.map(emp => ({
-            ...emp,
-            FichasSemana: emp.FichasSemana ? JSON.parse(emp.FichasSemana) : []
-        }));
+//         // Parseamos el JSON de las fichas para cada empleado
+//         const data = result.recordset.map(emp => ({
+//             ...emp,
+//             FichasSemana: emp.FichasSemana ? JSON.parse(emp.FichasSemana) : []
+//         }));
 
-        res.json(data);
-    } catch (err: any) {
-        console.error('Error al obtener datos de asistencia semanal:', err);
-        res.status(500).json({ message: err.message || 'Error al obtener los datos de asistencia.' });
-    }
-});
+//         res.json(data);
+//     } catch (err: any) {
+//         console.error('Error al obtener datos de asistencia semanal:', err);
+//         res.status(500).json({ message: err.message || 'Error al obtener los datos de asistencia.' });
+//     }
+// });
 
 app.post('/api/attendance', authMiddleware, async (req: any, res) => {
     if (!req.user.permissions['reportesAsistencia.update']) {
