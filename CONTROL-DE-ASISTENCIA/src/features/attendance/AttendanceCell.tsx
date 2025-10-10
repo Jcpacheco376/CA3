@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { Tooltip } from '../../components/ui/Tooltip';
 import { statusColorPalette } from '../../config/theme';
 
+
 const getColorClasses = (colorName: string = 'red') => {
     return {
         bgText: `bg-${colorName}-100 text-${colorName}-800`,
@@ -18,12 +19,15 @@ const getColorClasses = (colorName: string = 'red') => {
 const FichaTooltip = ({ ficha, isRestDay, statusCatalog }: { ficha: any, isRestDay: boolean, statusCatalog: AttendanceStatus[] }) => {
     if (isRestDay) return <span>Día de descanso.</span>;
     if (!ficha) return <span>Sin registro del checador para este día.</span>;
+
     const formatTime = (dateString: string) => {
         if (!dateString) return '--:--';
         return format(new Date(dateString), 'HH:mm');
     };
+
     return (
         <div className="text-left text-xs p-1">
+            {ficha.ProcesamientoAbierto && <p className="font-semibold text-amber-600 mb-1">Turno en progreso...</p>}
             <p><span className="font-semibold">Checador:</span> {statusCatalog.find(s => s.Abreviatura === ficha.EstatusChecadorAbrev)?.Descripcion || 'N/A'}</p>
             <p><span className="font-semibold">Supervisor:</span> {statusCatalog.find(s => s.Abreviatura === ficha.EstatusSupervisorAbrev)?.Descripcion || 'Pendiente'}</p>
             {ficha.Comentarios && <p className="mt-1 italic text-slate-500">"{ficha.Comentarios}"</p>}
@@ -58,10 +62,11 @@ export const AttendanceCell = ({
     const currentStatusConfig = statusCatalog.find((s: AttendanceStatus) => s.Abreviatura === finalStatus) || 
                                 (finalStatus === 'D' ? { ColorUI: 'slate', Descripcion: 'Día de Descanso', PermiteComentario: false } : { ColorUI: 'blue', Descripcion: 'Desconocido', PermiteComentario: true });
                           
-    const colorClasses = statusColorPalette[currentStatusConfig.ColorUI] || statusColorPalette.slate;
+    const colorClasses = statusColorPalette[currentStatusConfig.ColorUI as keyof typeof statusColorPalette] || statusColorPalette.slate;
     
     const needsSupervisorAction = !ficha?.EstatusSupervisorAbrev && !isRestDay;
     const isAuthorized = ficha?.EstatusAutorizacion === 'Autorizado';
+    const isProcessing = ficha?.ProcesamientoAbierto;
 
     useEffect(() => {
         if (ficha?.EstatusSupervisorAbrev) {
@@ -76,7 +81,7 @@ export const AttendanceCell = ({
         if (isOpen && wrapperRef.current) {
             const cellRect = wrapperRef.current.getBoundingClientRect();
             const panelWidth = 256;
-            const panelHeight = currentStatusConfig?.PermiteComentario ? 320 : 200; // Altura dinámica
+            const panelHeight = currentStatusConfig?.PermiteComentario ? 320 : 200;
         
             let top = cellRect.bottom + 8;
             let newPlacement: 'top' | 'bottom' = 'bottom';
@@ -100,7 +105,6 @@ export const AttendanceCell = ({
 
     const handleSelect = (newStatus: AttendanceStatusCode) => {
         const selectedStatusConfig = statusCatalog.find((s: AttendanceStatus) => s.Abreviatura === newStatus);
-        // Si el nuevo estatus no permite comentarios, enviamos 'undefined' para no sobreescribir el comentario existente.
         const commentToSend = selectedStatusConfig?.PermiteComentario ? comment : undefined;
         onStatusChange(newStatus, commentToSend);
     };
@@ -111,25 +115,39 @@ export const AttendanceCell = ({
         setTimeout(() => setJustSaved(false), 1500);
     };
 
+    const handleToggle = () => {
+        if (isProcessing || isAuthorized) return;
+        onToggleOpen(cellId);
+    };
+
     const cellContent = (
         <div className={`
             relative w-24 h-16 mx-auto rounded-md font-bold text-lg flex items-center justify-center 
             transition-all duration-200 group
             ${isBeingDragged || isOpen ? 'ring-4 ring-blue-500/50' : ''}
-            ${isAuthorized ? 'opacity-80' : ''}
+            ${isAuthorized ? 'opacity-70' : ''}
+            ${isProcessing ? '' : 'hover:-translate-y-0.5'}
             ${isJustUpdated ? 'animate-drop-in' : ''}
-            ${needsSupervisorAction 
+            ${needsSupervisorAction && !isProcessing
                 ? `border-2 border-dashed ${colorClasses.lightBorder}`
                 : `border-b-4 ${colorClasses.border}`
             }
         `}>
-            <div className={`w-full h-full rounded-md ${colorClasses.bgText} ${needsSupervisorAction ? 'bg-opacity-40' : 'bg-opacity-90'} flex items-center justify-center shadow-inner-sm`}>
+            <div className={`w-full h-full rounded-md ${colorClasses.bgText} ${needsSupervisorAction && !isProcessing ? 'bg-opacity-40' : 'bg-opacity-90'} flex items-center justify-center shadow-inner-sm`}>
                 {finalStatus}
             </div>
+            
+            {isProcessing && (
+                <Tooltip text="Turno en progreso. El estatus final se calculará al registrar la salida.">
+                    <Clock size={16} className="absolute bottom-1 right-1 text-amber-600 animate-pulse" />
+                </Tooltip>
+            )}
+
             {isAuthorized && <BadgeCheck size={18} className="absolute top-1 right-1 text-white bg-green-600 rounded-full p-0.5" />}
             {ficha?.Comentarios && <MessageSquare size={14} className="absolute bottom-1 left-1 text-black/40" title={ficha.Comentarios} />}
-            {ficha && ficha.EstatusChecadorAbrev === 'SES' && <AlertTriangle size={16} className="absolute bottom-1 right-1 text-black/40" title="E/S Incompleta" />}
-            {!isRestDay && !isAuthorized && !!ficha?.EstatusSupervisorAbrev && (
+            {ficha && ficha.EstatusChecadorAbrev === 'SES' && !isProcessing && <AlertTriangle size={16} className="absolute bottom-1 right-1 text-black/40" title="E/S Incompleta" />}
+            
+            {!isRestDay && !isAuthorized && !isProcessing && !!ficha?.EstatusSupervisorAbrev && (
                 <>
                     <div onMouseDown={(e) => { e.stopPropagation(); onDragStart(finalStatus, 'top'); }} className="absolute top-0 left-0 w-full h-4 bg-black/10 opacity-0 hover:opacity-100 transition-opacity cursor-ns-resize rounded-t-md" title="Arrastrar para rellenar (superior)"/>
                     <div onMouseDown={(e) => { e.stopPropagation(); onDragStart(finalStatus, 'bottom'); }} className="absolute bottom-0 left-0 w-full h-4 bg-black/10 opacity-0 hover:opacity-100 transition-opacity cursor-ns-resize rounded-b-md" title="Arrastrar para rellenar (inferior)"/>
@@ -140,7 +158,7 @@ export const AttendanceCell = ({
         </div>
     );
 
-    const statusPanel = isOpen ? ReactDOM.createPortal(
+    const statusPanel = isOpen && !isProcessing && !isAuthorized ? ReactDOM.createPortal(
         <div 
             className="fixed bg-white rounded-lg shadow-xl border z-50 p-2 w-64 animate-scale-in"
             style={panelStyle}
@@ -190,24 +208,10 @@ export const AttendanceCell = ({
 
     const tooltipPlacement = panelPlacement === 'top' ? 'left' : 'top';
 
-    if (isRestDay || isAuthorized) {
-        const disabledContent = <div className="cursor-not-allowed group relative">{cellContent}</div>;
-        return (
-             <td className="p-1 align-middle" onMouseEnter={onDragEnter}>
-                {isBeingDragged 
-                    ? disabledContent
-                    : <Tooltip text={<FichaTooltip ficha={ficha} isRestDay={isRestDay} statusCatalog={statusCatalog} />} placement={tooltipPlacement} offset={isAuthorized ? 16 : 32}>
-                        {disabledContent}
-                      </Tooltip>
-                }
-            </td>
-        )
-    }
-
-    const button = (
+    const wrapperContent = (
         <button
-            onClick={() => onToggleOpen(cellId)}
-            className={`w-full h-full rounded-lg transition-all duration-200 focus:outline-none focus-visible:ring-0 transform hover:-translate-y-0.5`}
+            onClick={handleToggle}
+            className={`w-full h-full rounded-lg transition-all duration-200 focus:outline-none focus-visible:ring-0`}
         >
             {cellContent}
         </button>
@@ -220,12 +224,9 @@ export const AttendanceCell = ({
             onMouseEnter={onDragEnter}
             onClick={(e) => e.stopPropagation()}
         >
-            {isBeingDragged
-                ? button
-                : <Tooltip text={<FichaTooltip ficha={ficha} isRestDay={isRestDay} statusCatalog={statusCatalog} />} placement={tooltipPlacement} offset={32} disabled={isAnyCellOpen}>
-                    {button}
-                  </Tooltip>
-            }
+            <Tooltip text={<FichaTooltip ficha={ficha} isRestDay={isRestDay} statusCatalog={statusCatalog} />} placement={tooltipPlacement} offset={32} disabled={isAnyCellOpen}>
+                {wrapperContent}
+            </Tooltip>
             {statusPanel}
         </td>
     );
