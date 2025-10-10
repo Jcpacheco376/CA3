@@ -1,0 +1,68 @@
+import { Request, Response } from 'express';
+import sql from 'mssql';
+import { dbConfig } from '../../config/database';
+
+export const getSchedules = async (req: any, res: Response) => {
+    if (!req.user.permissions['catalogo.horarios.read']) return res.status(403).json({ message: 'Acceso denegado.' });
+    try {
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request().execute('sp_Horarios_GetAll');
+        res.json(result.recordset);
+    } catch (err: any) { res.status(500).json({ message: 'Error al obtener catálogo de horarios.', error: err.message }); }
+};
+
+export const getScheduleAssignments = async (req: any, res: Response) => {
+    if (!req.user.permissions['catalogo.horarios.read']) return res.status(403).json({ message: 'Acceso denegado.' });
+    const { startDate, endDate } = req.query;
+    if (!startDate || !endDate) return res.status(400).json({ message: 'Se requieren fechas de inicio y fin.' });
+    try {
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request()
+            .input('UsuarioId', sql.Int, req.user.usuarioId)
+            .input('FechaInicio', sql.Date, startDate as string)
+            .input('FechaFin', sql.Date, endDate as string)
+            .execute('sp_HorariosTemporales_GetByPeriodo');
+        res.json(result.recordset.map(emp => ({ ...emp, HorariosAsignados: emp.HorariosAsignados ? JSON.parse(emp.HorariosAsignados) : [] })));
+    } catch (err: any) { res.status(500).json({ message: err.message || 'Error al obtener los datos.' }); }
+};
+
+export const saveScheduleAssignments = async (req: any, res: Response) => {
+    if (!req.user.permissions['catalogo.horarios.assign']) return res.status(403).json({ message: 'Acceso denegado.' });
+    const assignments = req.body;
+    if (!Array.isArray(assignments)) return res.status(400).json({ message: 'Se esperaba un arreglo de asignaciones.' });
+    const pool = await sql.connect(dbConfig);
+    const transaction = new sql.Transaction(pool);
+    try {
+        await transaction.begin();
+        await Promise.all(assignments.map(async (assignment) => {
+            const { empleadoId, fecha, horarioId } = assignment;
+            if (!empleadoId || !fecha) return;
+            await new sql.Request(transaction)
+                .input('EmpleadoId', sql.Int, empleadoId).input('Fecha', sql.Date, new Date(fecha))
+                .input('HorarioAbreviatura', sql.NVarChar, horarioId).input('SupervisorId', sql.Int, req.user.usuarioId)
+                .execute('sp_HorariosTemporales_Upsert');
+        }));
+        await transaction.commit();
+        res.status(200).json({ message: 'Asignaciones guardadas correctamente.' });
+    } catch (err: any) {
+        await transaction.rollback();
+        res.status(500).json({ message: err.message || 'Error al guardar las asignaciones.' });
+    }
+};
+
+export const upsertSchedule = async (req: any, res: Response) => {
+    if (!req.user.permissions['catalogo.horarios.manage']) return res.status(403).json({ message: 'Acceso denegado.' });
+    const { HorarioId, Abreviatura, Nombre, MinutosTolerancia, ColorUI, Activo, Detalles } = req.body;
+    try {
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request()
+            .input('HorarioId', sql.Int, HorarioId || 0)
+            .input('Abreviatura', sql.NVarChar, Abreviatura)
+            .input('Nombre', sql.NVarChar, Nombre)
+            .input('MinutosTolerancia', sql.Int, MinutosTolerancia)
+            .input('ColorUI', sql.NVarChar, ColorUI)
+            .input('Activo', sql.Bit, Activo)
+            .input('DetallesJSON', sql.NVarChar, JSON.stringify(Detalles || [])).execute('sp_CatalogoHorarios_Upsert');
+        res.status(200).json({ message: 'Horario guardado correctamente.', horarioId: result.recordset[0].HorarioId });
+    } catch (err: any) { res.status(409).json({ message: err.message }); }
+};
