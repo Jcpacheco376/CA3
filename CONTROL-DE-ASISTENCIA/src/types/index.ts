@@ -24,8 +24,8 @@ export interface User {
     Email: string;
     EstaActivo: boolean;
     Roles: Role[];
-    Departamentos?: { departamento: string, nombre: string }[];
-    GruposNomina?: { grupo_nomina: string, nombre: string }[];
+    Departamentos?: { DepartamentoId: string, nombre: string }[];
+    GruposNomina?: { GrupoNominaId: string, nombre: string }[];
     permissions?: { [key: string]: string[] };
     Theme?: string;
     AnimationsEnabled?: boolean;

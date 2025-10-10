@@ -112,6 +112,26 @@ export const AttendancePage = () => {
         return { dateRange: range, rangeLabel: label };
     }, [currentDate, viewMode]);
 
+    const filteredEmployees = useMemo(() => {
+        const searchWords = searchTerm.toLowerCase().split(' ').filter(word => word);
+
+        return employees.filter(emp => {
+            const departmentMatch = selectedDepartment === 'all' || String(emp.departamento_id) === selectedDepartment;
+            const payrollGroupMatch = selectedPayrollGroup === 'all' || String(emp.grupo_nomina_id) === selectedPayrollGroup;
+
+            if (!departmentMatch || !payrollGroupMatch) {
+                return false;
+            }
+
+            if (searchWords.length === 0) {
+                return true;
+            }
+
+            const targetText = (emp.NombreCompleto + ' ' + emp.EmpleadoId).toLowerCase();
+            return searchWords.every(word => targetText.includes(word));
+        });
+    }, [employees, searchTerm, selectedDepartment, selectedPayrollGroup]);
+
     const handleDatePrev = () => {
         setCurrentDate(prevDate => {
             switch(viewMode) {
@@ -220,37 +240,66 @@ export const AttendancePage = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const handleBulkStatusChange = async (updates: { empleadoId: number, fecha: Date, estatus: string, comentarios?: string}[]) => {
+    const handleBulkStatusChange = useCallback(async (updates: { empleadoId: number, fecha: Date, estatus: string, comentarios?: string }[]) => {
         const token = getToken();
         if (!token || updates.length === 0) return;
-        const originalEmployees = JSON.parse(JSON.stringify(employees));
-        setEmployees(prev => {
-            const newEmployees = [...prev];
-            updates.forEach(({ empleadoId, fecha, estatus, comentarios }) => {
-                const empIndex = newEmployees.findIndex(e => e.EmpleadoId === empleadoId);
-                if (empIndex > -1) {
-                    const newFichas = [...newEmployees[empIndex].FichasSemana];
-                    const recordIndex = newFichas.findIndex(f => f.Fecha.substring(0, 10) === format(fecha, 'yyyy-MM-dd'));
-                    if (recordIndex > -1) {
-                        const updatedFicha = { ...newFichas[recordIndex], EstatusSupervisorAbrev: estatus };
-                        if (comentarios !== undefined) {
-                            updatedFicha.Comentarios = comentarios;
-                        }
-                        newFichas[recordIndex] = updatedFicha;
-                    } else {
-                        newFichas.push({ 
-                            Fecha: fecha.toISOString(), 
-                            EstatusSupervisorAbrev: estatus, 
-                            Comentarios: comentarios,
-                            EstatusChecadorAbrev: null, 
-                            EstatusAutorizacion: 'Pendiente' 
-                        });
-                    }
-                    newEmployees[empIndex].FichasSemana = newFichas;
+
+        const originalEmployees = employees;
+
+        setEmployees(prevEmployees => {
+            const updatesMap = new Map<number, { fecha: string; estatus: string; comentarios?: string }[]>();
+            updates.forEach(u => {
+                const dateStr = format(u.fecha, 'yyyy-MM-dd');
+                if (!updatesMap.has(u.empleadoId)) {
+                    updatesMap.set(u.empleadoId, []);
                 }
+                updatesMap.get(u.empleadoId)!.push({ fecha: dateStr, estatus: u.estatus, comentarios: u.comentarios });
             });
-            return newEmployees;
+
+            return prevEmployees.map(emp => {
+                if (!updatesMap.has(emp.EmpleadoId)) {
+                    return emp;
+                }
+
+                const empUpdates = updatesMap.get(emp.EmpleadoId)!;
+                const newFichasSemana = [...emp.FichasSemana];
+                let fichasChanged = false;
+
+                empUpdates.forEach(update => {
+                    const recordIndex = newFichasSemana.findIndex(f => f.Fecha.substring(0, 10) === update.fecha);
+                    
+                    if (recordIndex > -1) {
+                        const newFicha = { 
+                            ...newFichasSemana[recordIndex], 
+                            EstatusSupervisorAbrev: update.estatus 
+                        };
+                        if (update.comentarios !== undefined) {
+                            newFicha.Comentarios = update.comentarios;
+                        }
+                        if (newFichasSemana[recordIndex] !== newFicha) {
+                            newFichasSemana[recordIndex] = newFicha;
+                            fichasChanged = true;
+                        }
+                    } else {
+                        newFichasSemana.push({
+                            Fecha: new Date(update.fecha).toISOString(),
+                            EstatusSupervisorAbrev: update.estatus,
+                            Comentarios: update.comentarios,
+                            EstatusChecadorAbrev: null,
+                            EstatusAutorizacion: 'Pendiente'
+                        });
+                        fichasChanged = true;
+                    }
+                });
+
+                if (!fichasChanged) {
+                    return emp;
+                }
+
+                return { ...emp, FichasSemana: newFichasSemana };
+            });
         });
+
         try {
              await Promise.all(updates.map(({ empleadoId, fecha, estatus, comentarios }) =>
                 fetch(`${API_BASE_URL}/api/attendance`, {
@@ -268,7 +317,17 @@ export const AttendancePage = () => {
             addNotification('Error al Guardar', 'Algunos cambios no se pudieron guardar. Reintentando...', 'error');
             setEmployees(originalEmployees);
         }
-    };
+    }, [employees, getToken, addNotification]);
+
+    const handleStatusChange = useCallback((empleadoId: number, fecha: Date, newStatus: AttendanceStatusCode, newComment?: string) => {
+        handleBulkStatusChange([{ 
+            empleadoId,
+            fecha,
+            estatus: newStatus,
+            comentarios: newComment
+        }]);
+        setOpenCellId(null);
+    }, [handleBulkStatusChange]);
     
     const handleQuickApprove = (employee: any) => {
         setConfirmation({
@@ -312,16 +371,16 @@ export const AttendancePage = () => {
         }
     };
     
-    const handleToggleOpen = (cellId: string) => {
+    const handleToggleOpen = useCallback((cellId: string) => {
         setOpenCellId(prev => (prev === cellId ? null : cellId));
-    };
+    }, []);
     
-    const handleDragStart = (EmpleadoId: number, dayIndex: number, status: AttendanceStatusCode) => {
+    const handleDragStart = useCallback((EmpleadoId: number, dayIndex: number, status: AttendanceStatusCode) => {
         setOpenCellId(null);
         setDragInfo({ EmpleadoId, dayIndex, status });
-    };
+    }, []);
 
-    const handleDragEnter = (targetEmpleadoId: number, targetDayIndex: number) => {
+    const handleDragEnter = useCallback((targetEmpleadoId: number, targetDayIndex: number) => {
         if (!dragInfo) return;
         const newDraggedCells: string[] = [];
         const empIds = filteredEmployees.map(e => e.EmpleadoId);
@@ -335,7 +394,7 @@ export const AttendancePage = () => {
             }
         }
         setDraggedCells(newDraggedCells);
-    };
+    }, [dragInfo, filteredEmployees]);
 
     const handleDragEnd = () => {
         if (!dragInfo || draggedCells.length === 0) {
@@ -368,28 +427,8 @@ export const AttendancePage = () => {
         }
         setDragInfo(null);
         setDraggedCells([]);
-    };
+    }; 
     
-    const filteredEmployees = useMemo(() => {
-        const searchWords = searchTerm.toLowerCase().split(' ').filter(word => word);
-
-        return employees.filter(emp => {
-            const departmentMatch = selectedDepartment === 'all' || String(emp.departamento_id) === selectedDepartment;
-            const payrollGroupMatch = selectedPayrollGroup === 'all' || String(emp.grupo_nomina_id) === selectedPayrollGroup;
-
-            if (!departmentMatch || !payrollGroupMatch) {
-                return false;
-            }
-
-            if (searchWords.length === 0) {
-                return true;
-            }
-
-            const targetText = (emp.NombreCompleto + ' ' + emp.EmpleadoId).toLowerCase();
-            return searchWords.every(word => targetText.includes(word));
-        });
-    }, [employees, searchTerm, selectedDepartment, selectedPayrollGroup]);
-
     const isBirthdayInPeriod = (birthDateStr: string, period: Date[]): boolean => {
         if (!birthDateStr || period.length === 0) return false;
         const birthDate = new Date(birthDateStr);
@@ -463,7 +502,7 @@ export const AttendancePage = () => {
                                                         </div>
                                                     </div>
                                                     <div className="grid grid-cols-3 gap-x-3 text-xs text-slate-500 mt-1 w-full">
-                                                         <Tooltip text={`ID: ${emp.CodRef}`}>
+                                                         <Tooltip text={`ID: ${emp.CodRef}`}> 
                                                             <p className="font-mono col-span-1 truncate">ID: {emp.CodRef}</p>
                                                          </Tooltip>
                                                          <Tooltip text={emp.puesto_descripcion || 'No asignado'}>
@@ -505,19 +544,11 @@ export const AttendancePage = () => {
                                                 isToday={isTodayDateFns(day)}
                                                 isOpen={openCellId === cellId}
                                                 onToggleOpen={handleToggleOpen}
-                                                ficha={ficha}
+                                                 ficha={ficha}
                                                 viewMode={viewMode}
                                                 isRestDay={isRestDay(emp.horario, day)}
-                                                onStatusChange={(newStatus: AttendanceStatusCode, newComment?: string) => {
-                                                    handleBulkStatusChange([{ 
-                                                        empleadoId: emp.EmpleadoId, 
-                                                        fecha: day, 
-                                                        estatus: newStatus,
-                                                        comentarios: newComment 
-                                                    }]);
-                                                    setOpenCellId(null);
-                                                }}
-                                                onDragStart={(status: AttendanceStatusCode) => handleDragStart(emp.EmpleadoId, dayIndex, status)}
+                                                onStatusChange={(newStatus, newComment) => handleStatusChange(emp.EmpleadoId, day, newStatus, newComment)}
+                                                onDragStart={(status) => handleDragStart(emp.EmpleadoId, dayIndex, status)}
                                                 onDragEnter={() => handleDragEnter(emp.EmpleadoId, dayIndex)}
                                                 isBeingDragged={draggedCells.includes(cellId)}
                                                 isAnyCellOpen={openCellId !== null}
@@ -572,4 +603,3 @@ export const AttendancePage = () => {
         </div>
     );
 };
-
