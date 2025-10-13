@@ -141,6 +141,23 @@ export const getSchedulesCatalog = async (req: any, res: Response) => {
     } catch (err: any) { res.status(500).json({ message: 'Error al obtener el catálogo de horarios.', error: err.message }); }
 };
 
+export const upsertScheduleCatalog = async (req: any, res: Response) => {
+    if (!req.user.permissions['catalogo.horarios.manage']) return res.status(403).json({ message: 'Acceso denegado.' });
+    const { HorarioId, Abreviatura, Nombre, MinutosTolerancia, ColorUI, Activo, Detalles } = req.body;
+    try {
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request()
+            .input('HorarioId', sql.Int, HorarioId || 0)
+            .input('Abreviatura', sql.NVarChar, Abreviatura)
+            .input('Nombre', sql.NVarChar, Nombre)
+            .input('MinutosTolerancia', sql.Int, MinutosTolerancia)
+            .input('ColorUI', sql.NVarChar, ColorUI)
+            .input('Activo', sql.Bit, Activo)
+            .input('DetallesJSON', sql.NVarChar, JSON.stringify(Detalles || [])).execute('sp_CatalogoHorarios_Upsert');
+        res.status(200).json({ message: 'Horario guardado correctamente.', horarioId: result.recordset[0].HorarioId });
+    } catch (err: any) { res.status(409).json({ message: err.message }); }
+};
+
 export const deleteScheduleCatalog = async (req: any, res: Response) => {
     if (!req.user.permissions['catalogo.horarios.manage']) return res.status(403).json({ message: 'Acceso denegado.' });
     try {

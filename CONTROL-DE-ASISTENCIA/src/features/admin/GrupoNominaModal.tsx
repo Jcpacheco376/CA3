@@ -85,7 +85,7 @@ export const GrupoNominaModal = ({ isOpen, onClose, onSave, grupoNomina }: any) 
         }
 
         try {
-            const response = await fetch(`${API_BASE_URL}/api/grupos-nomina`, {
+            const response = await fetch(`${API_BASE_URL}api/catalogs/grupos-nomina`, {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',

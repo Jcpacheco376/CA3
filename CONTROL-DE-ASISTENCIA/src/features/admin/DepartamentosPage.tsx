@@ -37,7 +37,7 @@ export const DepartamentosPage = () => {
         setIsLoading(true);
         setError(null);
         try {
-            const res = await fetch(`${API_BASE_URL}/api/departamentos/management`, { headers });
+            const res = await fetch(`${API_BASE_URL}/api/catalogs/departamentos/management`, { headers });
             if (!res.ok) {
                 const errorData = await res.json().catch(() => ({}));
                 throw new Error(errorData.message || 'Error al cargar los datos.');

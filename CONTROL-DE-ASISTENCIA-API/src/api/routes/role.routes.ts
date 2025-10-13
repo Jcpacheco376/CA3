@@ -12,4 +12,5 @@ router.get('/', authMiddleware, getAllRoles);
 router.post('/', authMiddleware, upsertRole);
 router.get('/permissions', authMiddleware, getAllPermissions);
 
+
 export default router;

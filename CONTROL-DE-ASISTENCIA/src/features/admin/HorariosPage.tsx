@@ -1,55 +1,71 @@
 // src/features/admin/HorariosPage.tsx
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useAuth } from '../auth/AuthContext.tsx';
 import { useNotification } from '../../context/NotificationContext.tsx';
 import { API_BASE_URL } from '../../config/api.ts';
-import { Plus, Loader2, AlertTriangle, Edit, Trash2, CheckCircle, XCircle } from 'lucide-react';
+import { Loader2, AlertTriangle, CheckCircle, XCircle, Edit } from 'lucide-react';
 import { HorarioModal } from './HorarioModal.tsx';
-import { Tooltip } from '../../components/ui/Tooltip.tsx';
+import { Tooltip, InfoIcon } from '../../components/ui/Tooltip.tsx';
 import { Button, Modal } from '../../components/ui/Modal.tsx';
+import { PencilIcon, PlusCircleIcon } from '../../components/ui/Icons.tsx';
+import { themes } from '../../config/theme.ts';
 
-// Componente para el modal de confirmación, siguiendo el patrón de la aplicación
-const ConfirmationModal = ({ confirmation, setConfirmation }: { confirmation: any, setConfirmation: (config: any) => void }) => {
-    if (!confirmation.isOpen) return null;
+// --- COMPONENTES AUXILIARES ---
 
-    const footer = (
-        <>
-            <Button variant="secondary" onClick={() => setConfirmation({ isOpen: false })}>Cancelar</Button>
-            <Button 
-                variant="danger" 
-                onClick={() => { 
-                    confirmation.onConfirm(); 
-                    setConfirmation({ isOpen: false }); 
-                }}
-            >
-                Desactivar
-            </Button>
-        </>
+const JornadaSemanalVisual = ({ detalles }: { detalles: any[] }) => {
+    const dias = [
+        { abr: 'L', full: 'Lunes' },
+        { abr: 'M', full: 'Martes' },
+        { abr: 'X', full: 'Miércoles' },
+        { abr: 'J', full: 'Jueves' },
+        { abr: 'V', full: 'Viernes' },
+        { abr: 'S', full: 'Sábado' },
+        { abr: 'D', full: 'Domingo' }
+    ];
+    const diasLaborales = new Set(
+        (detalles || [])
+            .filter(d => d.EsDiaLaboral)
+            .map(d => d.DiaSemana - 1)
     );
 
+    if (!detalles || detalles.length === 0) {
+        return <span className="text-xs text-slate-400">No definido</span>;
+    }
+
     return (
-        <Modal isOpen={confirmation.isOpen} onClose={() => setConfirmation({ isOpen: false })} title={confirmation.title} footer={footer} size="lg">
-            <div className="flex items-start">
-                <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
-                    <AlertTriangle className="h-6 w-6 text-red-600" aria-hidden="true" />
-                </div>
-                <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
-                    <p className="text-sm text-slate-500">{confirmation.message}</p>
-                </div>
-            </div>
-        </Modal>
+        <div className="flex overflow-hidden rounded-md border border-slate-200 w-fit divide-x divide-slate-200">
+            {dias.map((dia, index) => (
+                <Tooltip key={index} text={dia.full}>
+                    <span
+                        className={`
+                            w-7 h-7 flex items-center justify-center text-xs font-semibold
+                            transition-colors duration-150
+                            ${diasLaborales.has(index)
+                                ? 'bg-sky-500 text-white'
+                                : 'bg-white text-slate-500'
+                            }
+                        `}
+                    >
+                        {dia.abr}
+                    </span>
+                </Tooltip>
+            ))}
+        </div>
     );
 };
 
+
+// --- COMPONENTE PRINCIPAL ---
+
 export const HorariosPage = () => {
-    const { getToken, can } = useAuth();
+    const { getToken, can, user } = useAuth();
     const { addNotification } = useNotification();
     const [horarios, setHorarios] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedHorario, setSelectedHorario] = useState<any | null>(null);
-    const [confirmation, setConfirmation] = useState<any>({ isOpen: false });
+    const [searchTerm, setSearchTerm] = useState('');
 
     const canManage = can('catalogo.horarios.manage');
     const canRead = can('catalogo.horarios.read');
@@ -102,36 +118,17 @@ export const HorariosPage = () => {
 
     const handleSave = () => {
         handleCloseModal();
-        fetchHorarios(); // Recargar la lista después de guardar
+        fetchHorarios();
     };
 
-    const handleDelete = (horario: any) => {
-        setConfirmation({
-            isOpen: true,
-            title: 'Desactivar Horario',
-            message: `¿Estás seguro de que quieres desactivar el horario "${horario.Nombre}"? Esta acción no se puede deshacer.`,
-            onConfirm: () => executeDelete(horario.HorarioId),
-        });
-    };
-
-    const executeDelete = async (horarioId: number) => {
-        const token = getToken();
-        try {
-            const response = await fetch(`${API_BASE_URL}/api/catalogs/schedules/${horarioId}`, {
-                method: 'DELETE',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.message || 'No se pudo desactivar el horario.');
-            }
-            addNotification('Horario Desactivado', 'El horario ha sido marcado como inactivo.', 'success');
-            fetchHorarios();
-        } catch (err: any) {
-            addNotification('Error', err.message, 'error');
-        }
-    };
+    const filteredHorarios = useMemo(() => {
+        if (!searchTerm.trim()) return horarios;
+        const lowercasedFilter = searchTerm.toLowerCase();
+        return horarios.filter(h =>
+            (h.Nombre?.toLowerCase().includes(lowercasedFilter)) ||
+            (h.Abreviatura?.toLowerCase().includes(lowercasedFilter))
+        );
+    }, [horarios, searchTerm]);
     
     const renderContent = () => {
         if (isLoading) {
@@ -141,47 +138,47 @@ export const HorariosPage = () => {
             return <div className="text-center p-8 text-red-600 bg-red-50 rounded-lg"><AlertTriangle className="mx-auto mb-2" />{error}</div>;
         }
         return (
-            <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
-                <table className="w-full text-sm text-left text-slate-500">
-                    <thead className="text-xs text-slate-700 uppercase bg-slate-50">
+            <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+                <table className="w-full text-sm">
+                    <thead className="bg-slate-50">
                         <tr>
-                            <th scope="col" className="px-6 py-3">Abreviatura</th>
-                            <th scope="col" className="px-6 py-3">Nombre del Horario</th>
-                            <th scope="col" className="px-6 py-3 text-center">Tolerancia (min)</th>
-                            <th scope="col" className="px-6 py-3 text-center">Estado</th>
-                            {canManage && <th scope="col" className="px-6 py-3 text-right">Acciones</th>}
+                            <th className="p-3 text-left font-semibold text-slate-600">ID</th>
+                            <th className="p-3 text-left font-semibold text-slate-600">Abreviatura</th>
+                            <th className="p-3 text-left font-semibold text-slate-600">Nombre del Horario</th>
+                            <th className="p-3 text-left font-semibold text-slate-600">Jornada Semanal</th>
+                            <th className="p-3 text-center font-semibold text-slate-600">Tolerancia (min)</th>
+                            <th className="p-3 text-center font-semibold text-slate-600">Estado</th>
+                            {canManage && <th className="p-3 text-center font-semibold text-slate-600">Acciones</th>}
                         </tr>
                     </thead>
                     <tbody>
-                        {horarios.map((horario) => (
-                            <tr key={horario.HorarioId} className="bg-white border-b hover:bg-slate-50">
-                                <td className="px-6 py-4 font-bold text-slate-900">
-                                    <span className="px-2 py-1 rounded-md text-xs font-semibold" style={{ backgroundColor: `${horario.ColorUI}20`, color: horario.ColorUI }}>
+                        {filteredHorarios.map((horario) => (
+                            <tr key={horario.HorarioId} className="border-t border-slate-200 hover:bg-slate-50">
+                                <td className="p-3 font-medium text-slate-800">{horario.HorarioId}</td>
+                                <td className="p-3 font-medium text-slate-800">
+                                    <span className="px-2 py-1 rounded-md text-xs font-semibold" style={{ 
+                                        backgroundColor: themes[horario.ColorUI as keyof typeof themes]?.[100] || '#EFF6FF',
+                                        color: themes[horario.ColorUI as keyof typeof themes]?.[600] || '#2563EB' 
+                                    }}>
                                         {horario.Abreviatura}
                                     </span>
                                 </td>
-                                <td className="px-6 py-4">{horario.Nombre}</td>
-                                <td className="px-6 py-4 text-center">{horario.MinutosTolerancia}</td>
-                                <td className="px-6 py-4 text-center">
+                                <td className="p-3 font-medium text-slate-800">{horario.Nombre}</td>
+                                <td className="p-3"><JornadaSemanalVisual detalles={horario.Detalles} /></td>
+                                <td className="p-3 text-center">{horario.MinutosTolerancia}</td>
+                                <td className="p-3 text-center">
                                     {horario.Activo ? 
                                         <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800"><CheckCircle size={14} /> Activo</span> :
                                         <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800"><XCircle size={14} /> Inactivo</span>
                                     }
                                 </td>
                                 {canManage && (
-                                    <td className="px-6 py-4 text-right space-x-2">
+                                    <td className="p-3 text-center">
                                         <Tooltip text="Editar Horario">
-                                            <button onClick={() => handleOpenModal(horario)} className="p-2 text-slate-500 hover:text-blue-600 rounded-full hover:bg-blue-100 transition-colors">
-                                                <Edit size={16} />
+                                            <button onClick={() => handleOpenModal(horario)} className="p-2 text-slate-500 hover:text-[--theme-500] rounded-full hover:bg-slate-100 transition-colors">
+                                                <PencilIcon />
                                             </button>
                                         </Tooltip>
-                                        {horario.Activo && (
-                                            <Tooltip text="Desactivar Horario">
-                                                <button onClick={() => handleDelete(horario)} className="p-2 text-slate-500 hover:text-red-600 rounded-full hover:bg-red-100 transition-colors">
-                                                    <Trash2 size={16} />
-                                                </button>
-                                            </Tooltip>
-                                        )}
                                     </td>
                                 )}
                             </tr>
@@ -206,22 +203,34 @@ export const HorariosPage = () => {
 
     return (
         <div className="space-y-6">
-            <header className="flex justify-between items-center">
-                <div>
+             <header className="mb-6">
+                <div className="flex items-center space-x-3">
                     <h1 className="text-3xl font-bold text-slate-800">Catálogo de Horarios</h1>
-                    <p className="text-slate-500 mt-1">Define y administra los horarios de trabajo de la empresa.</p>
+                    <Tooltip text="Define y administra los horarios de trabajo de la empresa.">
+                        <span><InfoIcon /></span>
+                    </Tooltip>
+                </div>
+            </header>
+            
+            <div className="flex justify-between items-center mb-4">
+                <div className="max-w-xs">
+                     <input
+                        type="text"
+                        placeholder="Buscar por Nombre o ID..."
+                        value={searchTerm}
+                        onChange={e => setSearchTerm(e.target.value)}
+                        className="w-full pl-4 pr-4 py-2 border border-slate-300 rounded-lg"
+                    />
                 </div>
                 {canManage && (
                     <Button onClick={() => handleOpenModal(null)}>
-                        <Plus className="mr-2" size={18} />
+                        <PlusCircleIcon />
                         Nuevo Horario
                     </Button>
                 )}
-            </header>
+            </div>
 
             {renderContent()}
-
-            <ConfirmationModal confirmation={confirmation} setConfirmation={setConfirmation} />
 
             {isModalOpen && (
                 <HorarioModal
@@ -234,4 +243,3 @@ export const HorariosPage = () => {
         </div>
     );
 };
-

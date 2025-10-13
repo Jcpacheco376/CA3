@@ -79,8 +79,8 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
             setCatalogsError(null);
             try {
                 const requests = [
-                    fetch(`${API_BASE_URL}/api/departamentos`, { headers }),
-                    fetch(`${API_BASE_URL}/api/grupos-nomina`, { headers })
+                    fetch(`${API_BASE_URL}/api/catalogs/departamentos`, { headers }),
+                    fetch(`${API_BASE_URL}/api/catalogs/grupos-nomina`, { headers })
                 ];
                 
                 if (!user) {

@@ -33,7 +33,7 @@ export const RolesPage = () => {
         try {
             const [rolesResponse, permissionsResponse] = await Promise.all([
                 fetch(`${API_BASE_URL}/api/roles`, { headers }),
-                fetch(`${API_BASE_URL}/api/permissions`, { headers })
+                fetch(`${API_BASE_URL}/api/roles/permissions`, { headers })
             ]);
 
             if (!rolesResponse.ok || !permissionsResponse.ok) {
@@ -175,4 +175,3 @@ export const RolesPage = () => {
         </div>
     );
 };
-
