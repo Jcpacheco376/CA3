@@ -1,0 +1,12 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const attendance_controller_1 = require("../controllers/attendance.controller");
+const auth_middleware_1 = require("../middlewares/auth.middleware");
+const router = (0, express_1.Router)();
+router.post('/', auth_middleware_1.authMiddleware, attendance_controller_1.saveAttendance);
+router.post('/approve-week', auth_middleware_1.authMiddleware, attendance_controller_1.approveWeek);
+router.post('/ensure-week', auth_middleware_1.authMiddleware, attendance_controller_1.ensureWeek);
+router.post('/ensure-range', auth_middleware_1.authMiddleware, attendance_controller_1.ensureRange);
+router.get('/data-by-range', auth_middleware_1.authMiddleware, attendance_controller_1.getDataByRange);
+exports.default = router;

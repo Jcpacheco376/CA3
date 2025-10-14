@@ -11,7 +11,7 @@ export const saveAttendance = async (req: any, res: Response) => {
     if (!empleadoId || !fecha || !estatusSupervisor) {
         return res.status(400).json({ message: 'Faltan parámetros requeridos.' });
     }
-
+    console.log(req.body);
     try {
         const pool = await sql.connect(dbConfig);
         await pool.request()
