@@ -1,13 +1,19 @@
-
+Archivo .gitignore para el monorepo CA3
+Ignorar el archivo de variables de entorno de la API.
+La barra al inicio asegura que la ruta es relativa a la raíz del proyecto.
 /CONTROL-DE-ASISTENCIA-API/.env
 
+Ignorar las dependencias de Node en ambos proyectos.
+El patrón '**/node_modules' ignora cualquier carpeta node_modules en cualquier subdirectorio.
 **/node_modules
 
+Ignorar las carpetas de compilación de ambos proyectos.
 **/dist
 
+Archivos de log y temporales de PM2
 *.log
 .pm2
 
-
+Archivos del sistema operativo
 .DS_Store
 Thumbs.db
