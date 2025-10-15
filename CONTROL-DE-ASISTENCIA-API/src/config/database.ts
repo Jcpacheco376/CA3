@@ -4,10 +4,11 @@ import dotenv from 'dotenv';
 dotenv.config();
 
 export const dbConfig: sql.config = {
-    user: process.env.DB_USER || 'sa',
-    password: process.env.DB_PASSWORD || 'sist3m4sSQL',
-    server: process.env.DB_SERVER || '192.168.0.223',
-    database: process.env.DB_NAME || 'CA',
+    user: process.env.DB_USER ,
+    password: process.env.DB_PASSWORD ,
+    server: String(process.env.DB_SERVER) ,
+    port: Number(process.env.DB_PORT) ,
+    database: process.env.DB_NAME ,
     options: {
         encrypt: process.env.DB_ENCRYPT === 'true',
         trustServerCertificate: process.env.DB_TRUST_SERVER_CERTIFICATE === 'true'
