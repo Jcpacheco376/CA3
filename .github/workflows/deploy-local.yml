@@ -9,9 +9,18 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: 1. Descargar código fuente
-        uses: actions/checkout@v3
+      # 0) Git: permitir rutas largas (no toca el registro del sistema)
+      - name: 0. Git longpaths (solo Git)
+        run: git config --global core.longpaths true
 
+      # 1) Checkout usando git y con path corto para evitar ...\CA3\CA3\
+      - name: 1. Descargar código fuente
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0      # fuerza ruta git en lugar de tar.gz
+          path: src           # evita la duplicación del nombre del repo
+
+      # 2) Mapear X: al workspace (que ahora es corto por 'path: src')
       - name: 2. Mapear ruta de trabajo a una unidad virtual
         run: |
           subst X: "${{ github.workspace }}"
@@ -65,4 +74,4 @@ jobs:
       - name: 10. Limpiar mapeo
         if: always()
         run: |
-          subst X:
+          subst X: /D
