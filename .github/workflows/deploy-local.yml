@@ -2,7 +2,8 @@ name: Desplegar en Servidor Local (Windows)
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
   build-and-deploy:
@@ -12,16 +13,14 @@ jobs:
       SRC_DIR: ${{ github.workspace }}\s  # subcarpeta corta dentro del workspace
 
     steps:
-      # 0) Preparar entorno Git robusto (sin tocar registro de Windows)
-      - name: 0. Preparar Git (longpaths + safe.directory)
+      - name: "0. Preparar Git (longpaths + safe.directory)"
         shell: powershell
         run: |
           git --version
           git config --global core.longpaths true
           git config --global --add safe.directory '*'
 
-      # 1) Traer repo manualmente al workspace en ruta corta: <workspace>\s
-      - name: 1. Obtener código (sin actions/checkout)
+      - name: "1. Obtener código (sin actions/checkout)"
         shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}
@@ -30,46 +29,44 @@ jobs:
         run: |
           if (Test-Path "$env:SRC_DIR") { Remove-Item -Path "$env:SRC_DIR" -Recurse -Force -ErrorAction SilentlyContinue }
           New-Item -ItemType Directory -Force -Path "$env:SRC_DIR" | Out-Null
-
-          # Clonado mínimo y checkout exacto del commit del push
           git init "$env:SRC_DIR"
           cd "$env:SRC_DIR"
           git remote add origin "https://x-access-token:$env:GH_TOKEN@github.com/$env:REPO"
           git fetch --no-tags --depth=1 origin "$env:REF"
           git checkout --force FETCH_HEAD
-
-          # (Opcional) Mostrar árbol corto para diagnosticar si lo deseas
           git rev-parse --short HEAD
 
-      # 2) Mapear X: al subdirectorio corto
-      - name: 2. Mapear ruta de trabajo a X:
+      - name: "2. Mapear ruta de trabajo a X:"
+        shell: powershell
         run: |
           subst X: "${{ env.SRC_DIR }}"
 
-      - name: 3. Configurar Node.js
+      - name: "3. Configurar Node.js"
         uses: actions/setup-node@v3
         with:
           node-version: '18'
           cache: 'npm'
           cache-dependency-path: '**/package-lock.json'
 
-      - name: 4. Frontend - Instalar y construir
-        working-directory: X:\CONTROL-DE-ASISTENCIA
+      - name: "4. Frontend - Instalar y construir"
+        working-directory: ${{ env.SRC_DIR }}\CONTROL-DE-ASISTENCIA
         run: |
           npm install
           npm run build
 
-      - name: 5. Frontend - Copiar archivos
-        run: robocopy X:\\CONTROL-DE-ASISTENCIA\\build D:\\CA\\frontend-asistencia /E /PURGE
+      - name: "5. Frontend - Copiar archivos"
+        shell: powershell
+        run: |
+          robocopy "${{ env.SRC_DIR }}\CONTROL-DE-ASISTENCIA\build" "D:\CA\frontend-asistencia" /E /PURGE
 
-      - name: 6. API - Instalar y construir
-        working-directory: X:\CONTROL-DE-ASISTENCIA-API
+      - name: "6. API - Instalar y construir"
+        working-directory: ${{ env.SRC_DIR }}\CONTROL-DE-ASISTENCIA-API
         run: |
           npm install
           npm run build
 
-      - name: 7. API - Crear archivo .env
-        working-directory: X:\CONTROL-DE-ASISTENCIA-API
+      - name: "7. API - Crear archivo .env"
+        working-directory: ${{ env.SRC_DIR }}\CONTROL-DE-ASISTENCIA-API
         shell: powershell
         run: |
           Remove-Item -Path .env -ErrorAction SilentlyContinue
@@ -82,17 +79,21 @@ jobs:
           Add-Content -Path .env -Value "LOCAL_IP=192.168.0.141"
           Add-Content -Path .env -Value "FRONTEND_URL=URL_DE_TU_FRONTEND"
 
-      - name: 8. API - Copiar archivos
+      - name: "8. API - Copiar archivos"
+        shell: powershell
         run: |
-          robocopy X:\\CONTROL-DE-ASISTENCIA-API D:\\CA\\api-asistencia dist /E
-          robocopy X:\\CONTROL-DE-ASISTENCIA-API D:\\CA\\api-asistencia node_modules /E
-          copy X:\\CONTROL-DE-ASISTENCIA-API\\package.json D:\\CA\\api-asistencia\\package.json
-          copy X:\\CONTROL-DE-ASISTENCIA-API\\.env D:\\CA\\api-asistencia\\.env
+          robocopy "${{ env.SRC_DIR }}\CONTROL-DE-ASISTENCIA-API" "D:\CA\api-asistencia" dist /E
+          robocopy "${{ env.SRC_DIR }}\CONTROL-DE-ASISTENCIA-API" "D:\CA\api-asistencia" node_modules /E
+          Copy-Item -Path "${{ env.SRC_DIR }}\CONTROL-DE-ASISTENCIA-API\package.json" -Destination "D:\CA\api-asistencia\package.json" -Force
+          Copy-Item -Path "${{ env.SRC_DIR }}\CONTROL-DE-ASISTENCIA-API\.env" -Destination "D:\CA\api-asistencia\.env" -Force
 
-      - name: 9. API - Reiniciar
-        run: pm2 restart api-asistencia || pm2 start D:\\CA\\api-asistencia\\dist\\index.js --name api-asistencia
+      - name: "9. API - Reiniciar"
+        shell: powershell
+        run: |
+          pm2 restart api-asistencia || pm2 start "D:\CA\api-asistencia\dist\index.js" --name api-asistencia
 
-      - name: 10. Limpiar mapeo
+      - name: "10. Limpiar mapeo"
         if: always()
+        shell: powershell
         run: |
           subst X: /D
