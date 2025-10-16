@@ -1,62 +1,81 @@
+# Nombre del flujo de trabajo
 name: Desplegar en Servidor Local (Windows)
 
+# Se activa al hacer 'push' a la rama 'main'
 on:
   push:
     branches: [ main ]
 
+# Definición del trabajo a realizar
 jobs:
   build-and-deploy:
+    # Se ejecuta en tu servidor local
     runs-on: self-hosted
 
     steps:
       # Paso 1: Descargar el código a la ubicación por defecto del runner.
+      # Esto respeta las reglas de seguridad del runner.
       - name: 1. Descargar código fuente
         uses: actions/checkout@v3
 
-      # CAMBIO CLAVE: Mapeamos la ruta de trabajo larga a una unidad virtual corta (X:)
-      # Esto resuelve el problema de la longitud de la ruta de forma limpia.
+      # Paso 2: Mapear la ruta de trabajo larga a una unidad virtual corta (X:).
+      # Esta es la solución definitiva para el problema de la longitud de la ruta en Windows.
       - name: 2. Mapear ruta de trabajo a una unidad virtual
         run: subst X: "${{ github.workspace }}"
 
+      # Paso 3: Configurar Node.js para los siguientes pasos.
+      - name: 3. Configurar Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
+
       # --- SECCIÓN DEL FRONTEND ---
-      - name: 3. Frontend - Instalar y construir
-        # Ahora trabajamos desde la ruta súper corta X:
+      - name: 4. Frontend - Instalar y construir
+        # Trabajamos desde la unidad virtual corta X:
         working-directory: X:\CONTROL-DE-ASISTENCIA
         run: |
           npm install
           npm run build
 
-      - name: 4. Frontend - Copiar archivos
+      - name: 5. Frontend - Copiar archivos a su destino final
         run: robocopy X:\\CONTROL-DE-ASISTENCIA\\build D:\\CA\\frontend-asistencia /E /PURGE
 
       # --- SECCIÓN DE LA API (BACKEND) ---
-      - name: 5. API - Instalar y construir
+      - name: 6. API - Instalar y construir
         working-directory: X:\CONTROL-DE-ASISTENCIA-API
         run: |
           npm install
           npm run build
 
-      - name: 6. API - Crear archivo .env
+      - name: 7. API - Crear archivo .env de producción
         working-directory: X:\CONTROL-DE-ASISTENCIA-API
+        # Usamos 'powershell' que es compatible con tu servidor.
         shell: powershell
         run: |
           Remove-Item -Path .env -ErrorAction SilentlyContinue
           Add-Content -Path .env -Value "DB_USER=${{ secrets.DB_USER }}"
           Add-Content -Path .env -Value "DB_PASSWORD=${{ secrets.DB_PASSWORD }}"
-          # ... (resto de las variables de entorno) ...
+          Add-Content -Path .env -Value "DB_SERVER=${{ secrets.DB_SERVER }}"
+          Add-Content -Path .env -Value "DB_DATABASE=CA"
+          Add-Content -Path .env -Value "JWT_SECRET=${{ secrets.JWT_SECRET }}"
+          Add-Content -Path .env -Value "API_PORT=3001"
           Add-Content -Path .env -Value "LOCAL_IP=192.168.0.141"
+          Add-Content -Path .env -Value "FRONTEND_URL=URL_DE_TU_FRONTEND"
 
-      - name: 7. API - Copiar archivos a su destino
+      - name: 8. API - Copiar archivos a su destino final
         run: |
           robocopy X:\\CONTROL-DE-ASISTENCIA-API D:\\CA\\api-asistencia dist /E
           robocopy X:\\CONTROL-DE-ASISTENCIA-API D:\\CA\\api-asistencia node_modules /E
           copy X:\\CONTROL-DE-ASISTENCIA-API\\package.json D:\\CA\\api-asistencia\\package.json
           copy X:\\CONTROL-DE-ASISTENCIA-API\\.env D:\\CA\\api-asistencia\\.env
 
-      - name: 8. API - Reiniciar con PM2
+      - name: 9. API - Reiniciar la aplicación con PM2
         run: pm2 restart api-asistencia || pm2 start D:\\CA\\api-asistencia\\dist\\index.js --name api-asistencia
       
-      # Paso final: Liberar la unidad virtual para no dejar rastros.
-      - name: 9. Limpiar mapeo de unidad virtual
+      # Paso 10: Limpiar el mapeo de la unidad virtual para no dejar rastros.
+      # Se ejecuta siempre, incluso si un paso anterior falla.
+      - name: 10. Limpiar mapeo de unidad virtual
         if: always()
         run: subst X: /D
