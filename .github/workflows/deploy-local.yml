@@ -1,35 +1,82 @@
-name: Desplegar en Servidor Local
+# Nombre del flujo de trabajo que verás en la pestaña "Actions" de GitHub
+name: Desplegar en Servidor Local (Windows)
 
+# --- Disparador ---
+# Esto le dice a GitHub cuándo debe ejecutar este flujo de trabajo.
 on:
+  # Se activa cada vez que haces un 'push' a la rama 'main'.
   push:
-    branches: [ main ] # Se activa al hacer push a la rama 'main'
+    branches: [ main ]
 
+# --- Trabajos (Jobs) ---
+# Un flujo de trabajo se compone de uno o más "trabajos" que se pueden ejecutar en paralelo o secuencialmente.
 jobs:
+  # Nombramos nuestro trabajo 'build-and-deploy'.
   build-and-deploy:
-    runs-on: self-hosted # ¡Le dice que use tu runner!
+    # ¡LA CLAVE! Esto le dice a GitHub que ejecute este trabajo en tu servidor local
+    # que has configurado como un 'runner'.
+    runs-on: self-hosted
+
+    # --- Pasos (Steps) ---
+    # Estos son los comandos que el runner ejecutará en tu servidor, en orden.
     steps:
-    - name: 1. Descargar el código más reciente
-      uses: actions/checkout@v3
+      # Paso 1: Descargar el código más reciente del repositorio.
+      - name: 1. Descargar el código fuente
+        uses: actions/checkout@v3
 
-    - name: 2. Configurar Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: '18'
+      # Paso 2: Configurar el entorno de Node.js en el runner.
+      - name: 2. Configurar Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18' # Puedes ajustar la versión de Node.js si es necesario.
+          cache: 'npm' # Habilita el caché para acelerar futuras instalaciones.
+          cache-dependency-path: '**/package-lock.json'
 
-    - name: 3. Construir el Frontend
-      run: |
-        cd CONTROL-DE-ASISTENCIA
-        npm install
-        npm run build
 
-    - name: 4. Construir la API
-      run: |
-        cd CONTROL-DE-ASISTENCIA-API
-        npm install
-        npm run build
+      # --- SECCIÓN DEL FRONTEND ---
+      - name: 3. Frontend - Instalar dependencias
+        run: cd CONTROL-DE-ASISTENCIA && npm install
 
-    - name: 5. Copiar archivos y reiniciar API
-      run: |
-        # Aquí irían los comandos para copiar los 'build' a C:\aplicaciones\...
-        # Y al final, el comando para reiniciar pm2
-        pm2 restart api-asistencia
+      - name: 4. Frontend - Construir para producción
+        run: cd CONTROL-DE-ASISTENCIA && npm run build
+
+      - name: 5. Frontend - Copiar archivos al servidor web
+        # Robocopy es un comando de Windows robusto para copiar archivos.
+        # /E copia subdirectorios (incluyendo los vacíos).
+        # /PURGE elimina archivos en el destino que ya no existen en el origen.
+        run: robocopy .\\CONTROL-DE-ASISTENCIA\\build D:\\CA\\frontend-asistencia /E /PURGE
+
+
+      # --- SECCIÓN DE LA API (BACKEND) ---
+      - name: 6. API - Instalar dependencias
+        run: cd CONTROL-DE-ASISTENCIA-API && npm install
+
+      - name: 7. API - Construir para producción
+        run: cd CONTROL-DE-ASISTENCIA-API && npm run build
+      
+      - name: 8. API - Crear archivo .env de producción
+        # Este paso crea dinámicamente el archivo .env en el runner
+        # usando los secretos que configuraste en GitHub. ¡Es 100% seguro!
+        shell: pwsh
+        run: |
+          cd CONTROL-DE-ASISTENCIA-API
+          Remove-Item -Path .env -ErrorAction SilentlyContinue
+          Add-Content -Path .env -Value "DB_USER=${{ secrets.DB_USER }}"
+          Add-Content -Path .env -Value "DB_PASSWORD=${{ secrets.DB_PASSWORD }}"
+          Add-Content -Path .env -Value "DB_SERVER=${{ secrets.DB_SERVER }}"
+          Add-Content -Path .env -Value "DB_DATABASE=CA"
+          Add-Content -Path .env -Value "JWT_SECRET=${{ secrets.JWT_SECRET }}"
+          Add-Content -Path .env -Value "API_PORT=3001"
+          Add-Content -Path .env -Value "LOCAL_IP=192.168.0.141"
+          Add-Content -Path .env -Value "FRONTEND_URL=URL_DE_TU_FRONTEND"
+      
+      - name: 9. API - Copiar archivos a su carpeta de destino
+        run: |
+          robocopy .\\CONTROL-DE-ASISTENCIA-API D:\\CA\\api-asistencia dist /E
+          robocopy .\\CONTROL-DE-ASISTENCIA-API D:\\CA\\api-asistencia node_modules /E
+          copy .\\CONTROL-DE-ASISTENCIA-API\\package.json D:\\CA\\api-asistencia\\package.json
+          copy .\\CONTROL-DE-ASISTENCIA-API\\.env D:\\CA\\api-asistencia\\.env
+
+      - name: 10. API - Reiniciar la aplicación con PM2
+        # El comando final que reinicia tu API para aplicar los cambios.
+        run: pm2 restart api-asistencia || pm2 start D:\\aplicaciones\\api-asistencia\\dist\\index.js --name api-asistencia
