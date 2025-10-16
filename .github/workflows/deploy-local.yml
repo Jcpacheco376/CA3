@@ -9,23 +9,15 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      # CAMBIO CLAVE 1: Eliminamos la acción actions/checkout@v3.
-      # En su lugar, clonaremos el repositorio manualmente en una ruta corta.
       - name: 1. Clonar repositorio en una ruta corta
-        shell: pwsh
+        # AJUSTADO: Cambiamos pwsh por powershell
+        shell: powershell
         run: |
-          # Habilitamos el soporte para rutas largas solo para esta sesión de git.
           git config --global core.longpaths true
-          
-          # Definimos nuestra ruta de trabajo corta.
           $workdir = "D:\work-ca3"
-          
-          # Si la carpeta ya existe de una ejecución anterior, la eliminamos para un clon limpio.
           if (Test-Path $workdir) {
-            Remove-Item -Recurse -Force $workdir
+            Remove-Item -Recourse -Force $workdir
           }
-          
-          # Clonamos el repositorio directamente en nuestra ruta corta.
           git clone https://github.com/${{ github.repository }}.git $workdir
 
       - name: 2. Configurar Node.js
@@ -35,14 +27,11 @@ jobs:
           cache: 'npm'
           cache-dependency-path: '**/package-lock.json'
       
-      # CAMBIO CLAVE 2: Todos los comandos ahora usan la ruta corta '$workdir'.
-      # Hemos establecido la ruta de trabajo por defecto para todos los pasos siguientes.
       - name: Establecer directorio de trabajo
         run: echo "D:\work-ca3" | Out-File -FilePath $env:GITHUB_WORKSPACE -Encoding utf8 -Append
         
       # --- SECCIÓN DEL FRONTEND ---
       - name: 3. Frontend - Instalar y construir
-        # 'working-directory' le dice a este paso que se ejecute dentro de la carpeta del frontend.
         working-directory: D:\work-ca3\CONTROL-DE-ASISTENCIA
         run: |
           npm install
@@ -60,7 +49,8 @@ jobs:
 
       - name: 6. API - Crear archivo .env
         working-directory: D:\work-ca3\CONTROL-DE-ASISTENCIA-API
-        shell: pwsh
+        # AJUSTADO: Cambiamos pwsh por powershell
+        shell: powershell
         run: |
           Remove-Item -Path .env -ErrorAction SilentlyContinue
           Add-Content -Path .env -Value "DB_USER=${{ secrets.DB_USER }}"
@@ -69,7 +59,7 @@ jobs:
           Add-Content -Path .env -Value "DB_DATABASE=CA"
           Add-Content -Path .env -Value "JWT_SECRET=${{ secrets.JWT_SECRET }}"
           Add-Content -Path .env -Value "API_PORT=3001"
-          Add-Content -Path .env -Value "LOCAL_IP=192.168.0.141"
+          Add-Content -Path .env -Value "LOCAL_IP=192.1G8.0.141"
           Add-Content -Path .env -Value "FRONTEND_URL=URL_DE_TU_FRONTEND"
 
       - name: 7. API - Copiar archivos a su destino
@@ -82,12 +72,10 @@ jobs:
       - name: 8. API - Reiniciar con PM2
         run: pm2 restart api-asistencia || pm2 start D:\\CA\\api-asistencia\\dist\\index.js --name api-asistencia
       
-      # CAMBIO CLAVE 3: Un paso de limpieza al final.
-      # Esto elimina la carpeta de trabajo temporal para mantener el servidor limpio.
       - name: 9. Limpiar directorio de trabajo
-        if: always() # Se ejecuta incluso si los pasos anteriores fallan.
-        shell: pwsh
+        if: always()
+        shell: powershell
         run: |
           if (Test-Path "D:\work-ca3") {
-            Remove-Item -Recurse -Force "D:\work-ca3"
+            Remove-Item -Recourse -Force "D:\work-ca3"
           }
