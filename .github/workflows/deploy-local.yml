@@ -1,27 +1,20 @@
-# Nombre del flujo de trabajo
 name: Desplegar en Servidor Local (Windows)
 
-# Se activa al hacer 'push' a la rama 'main'
 on:
   push:
     branches: [ main ]
 
-# Definición del trabajo a realizar
 jobs:
   build-and-deploy:
-    # Se ejecuta en tu servidor local
     runs-on: self-hosted
 
     steps:
-      # Paso 1: Descargar el código a la ubicación por defecto del runner.
       - name: 1. Descargar código fuente
         uses: actions/checkout@v3
 
-      # Paso 2: Mapear la ruta de trabajo larga a una unidad virtual corta (X:).
       - name: 2. Mapear ruta de trabajo a una unidad virtual
         run: subst X: "${{ github.workspace }}"
 
-      # Paso 3: Configurar Node.js para los siguientes pasos.
       - name: 3. Configurar Node.js
         uses: actions/setup-node@v3
         with:
@@ -29,25 +22,21 @@ jobs:
           cache: 'npm'
           cache-dependency-path: '**/package-lock.json'
 
-      # Paso 4: Frontend - Instalar y construir
       - name: 4. Frontend - Instalar y construir
         working-directory: X:\CONTROL-DE-ASISTENCIA
         run: |
           npm install
           npm run build
 
-      # Paso 5: Frontend - Copiar archivos a su destino final
       - name: 5. Frontend - Copiar archivos
         run: robocopy X:\\CONTROL-DE-ASISTENCIA\\build D:\\CA\\frontend-asistencia /E /PURGE
 
-      # Paso 6: API - Instalar y construir
       - name: 6. API - Instalar y construir
         working-directory: X:\CONTROL-DE-ASISTENCIA-API
         run: |
           npm install
           npm run build
 
-      # Paso 7: API - Crear archivo .env de producción
       - name: 7. API - Crear archivo .env
         working-directory: X:\CONTROL-DE-ASISTENCIA-API
         shell: powershell
@@ -62,7 +51,6 @@ jobs:
           Add-Content -Path .env -Value "LOCAL_IP=192.168.0.141"
           Add-Content -Path .env -Value "FRONTEND_URL=URL_DE_TU_FRONTEND"
 
-      # Paso 8: API - Copiar archivos a su destino final
       - name: 8. API - Copiar archivos
         run: |
           robocopy X:\\CONTROL-DE-ASISTENCIA-API D:\\CA\\api-asistencia dist /E
@@ -70,11 +58,9 @@ jobs:
           copy X:\\CONTROL-DE-ASISTENCIA-API\\package.json D:\\CA\\api-asistencia\\package.json
           copy X:\\CONTROL-DE-ASISTENCIA-API\\.env D:\\CA\\api-asistencia\\.env
 
-      # Paso 9: API - Reiniciar la aplicación con PM2
       - name: 9. API - Reiniciar
         run: pm2 restart api-asistencia || pm2 start D:\\CA\\api-asistencia\\dist\\index.js --name api-asistencia
       
-      # Paso 10: Limpiar el mapeo de la unidad virtual para no dejar rastros.
       - name: 10. Limpiar mapeo
         if: always()
         run: subst X: /D
