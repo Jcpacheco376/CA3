@@ -9,29 +9,25 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: 1. Clonar repositorio en una ruta corta
-        # AJUSTADO: Cambiamos pwsh por powershell
-        shell: powershell
-        run: |
-          git config --global core.longpaths true
-          $workdir = "D:\work-ca3"
-          if (Test-Path $workdir) {
-            Remove-Item -Recourse -Force $workdir
-          }
-          git clone https://github.com/${{ github.repository }}.git $workdir
+      # CAMBIO CLAVE: Volvemos a usar la acción oficial checkout.
+      # Le añadimos el parámetro 'path' para forzar la clonación en una ruta corta y predecible.
+      # Esto resuelve el error 'git not found' y 'PathTooLongException' de una vez.
+      - name: 1. Descargar código fuente en una ruta corta
+        uses: actions/checkout@v3
+        with:
+          path: 'D:\work-ca3'
 
       - name: 2. Configurar Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
           cache: 'npm'
-          cache-dependency-path: '**/package-lock.json'
+          # Apuntamos a la ruta corta para que el caché funcione correctamente.
+          cache-dependency-path: 'D:\work-ca3\**/package-lock.json'
       
-      - name: Establecer directorio de trabajo
-        run: echo "D:\work-ca3" | Out-File -FilePath $env:GITHUB_WORKSPACE -Encoding utf8 -Append
-        
       # --- SECCIÓN DEL FRONTEND ---
       - name: 3. Frontend - Instalar y construir
+        # 'working-directory' le dice a este paso dónde ejecutarse.
         working-directory: D:\work-ca3\CONTROL-DE-ASISTENCIA
         run: |
           npm install
@@ -49,7 +45,6 @@ jobs:
 
       - name: 6. API - Crear archivo .env
         working-directory: D:\work-ca3\CONTROL-DE-ASISTENCIA-API
-        # AJUSTADO: Cambiamos pwsh por powershell
         shell: powershell
         run: |
           Remove-Item -Path .env -ErrorAction SilentlyContinue
@@ -59,7 +54,7 @@ jobs:
           Add-Content -Path .env -Value "DB_DATABASE=CA"
           Add-Content -Path .env -Value "JWT_SECRET=${{ secrets.JWT_SECRET }}"
           Add-Content -Path .env -Value "API_PORT=3001"
-          Add-Content -Path .env -Value "LOCAL_IP=192.1G8.0.141"
+          Add-Content -Path .env -Value "LOCAL_IP=192.168.0.141"
           Add-Content -Path .env -Value "FRONTEND_URL=URL_DE_TU_FRONTEND"
 
       - name: 7. API - Copiar archivos a su destino
@@ -72,10 +67,13 @@ jobs:
       - name: 8. API - Reiniciar con PM2
         run: pm2 restart api-asistencia || pm2 start D:\\CA\\api-asistencia\\dist\\index.js --name api-asistencia
       
+      # CORREGIDO: Arreglamos el error de dedo de 'Recourse' a 'Recurse'.
+      # Este paso ya no es estrictamente necesario porque checkout limpia la carpeta,
+      # pero lo dejamos como una medida extra de limpieza.
       - name: 9. Limpiar directorio de trabajo
         if: always()
         shell: powershell
         run: |
           if (Test-Path "D:\work-ca3") {
-            Remove-Item -Recourse -Force "D:\work-ca3"
+            Remove-Item -Recurse -Force "D:\work-ca3"
           }
