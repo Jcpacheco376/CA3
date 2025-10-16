@@ -1,4 +1,4 @@
-- name: "1. Descargar y extraer zipball del commit (robusto TLS/redirect)"
+name: "1. Descargar y extraer zipball del commit (robusto TLS/redirect)"
   shell: powershell
   env:
     GH_TOKEN: ${{ github.token }}
