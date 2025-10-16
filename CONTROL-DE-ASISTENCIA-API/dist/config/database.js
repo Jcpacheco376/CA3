@@ -8,10 +8,11 @@ const mssql_1 = __importDefault(require("mssql"));
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
 exports.dbConfig = {
-    user: process.env.DB_USER || 'sa',
-    password: process.env.DB_PASSWORD || 'sist3m4sSQL',
-    server: process.env.DB_SERVER || '192.168.0.223',
-    database: process.env.DB_NAME || 'CA',
+    user: process.env.DB_USER,
+    password: process.env.DB_PASSWORD,
+    server: process.env.DB_SERVER || '',
+    port: Number(process.env.DB_PORT) || 1433,
+    database: process.env.DB_DATABASE,
     options: {
         encrypt: process.env.DB_ENCRYPT === 'true',
         trustServerCertificate: process.env.DB_TRUST_SERVER_CERTIFICATE === 'true'
@@ -24,6 +25,7 @@ exports.poolPromise = new mssql_1.default.ConnectionPool(exports.dbConfig)
     return pool;
 })
     .catch(err => {
-    console.error('Database Connection Failed! Bad Config: ', err);
+    console.error('¡Falló la conexión a la base de datos! Configuración incorrecta: ', err);
     throw err;
 });
+//janeth 90

@@ -43,7 +43,7 @@ const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         const loginResult = yield pool.request()
             .input('Identificador', mssql_1.default.NVarChar, username)
             .input('Password', mssql_1.default.NVarChar, password)
-            .execute('dbo.sp_Usuario_ValidarLogin');
+            .execute('sp_Usuario_ValidarLogin');
         if (loginResult.recordset.length === 0) {
             return res.status(401).json({ message: 'Credenciales inválidas' });
         }

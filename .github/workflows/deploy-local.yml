@@ -1,0 +1,35 @@
+name: Desplegar en Servidor Local
+
+on:
+  push:
+    branches: [ main ] # Se activa al hacer push a la rama 'main'
+
+jobs:
+  build-and-deploy:
+    runs-on: self-hosted # ¡Le dice que use tu runner!
+    steps:
+    - name: 1. Descargar el código más reciente
+      uses: actions/checkout@v3
+
+    - name: 2. Configurar Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+
+    - name: 3. Construir el Frontend
+      run: |
+        cd CONTROL-DE-ASISTENCIA
+        npm install
+        npm run build
+
+    - name: 4. Construir la API
+      run: |
+        cd CONTROL-DE-ASISTENCIA-API
+        npm install
+        npm run build
+
+    - name: 5. Copiar archivos y reiniciar API
+      run: |
+        # Aquí irían los comandos para copiar los 'build' a C:\aplicaciones\...
+        # Y al final, el comando para reiniciar pm2
+        pm2 restart api-asistencia
