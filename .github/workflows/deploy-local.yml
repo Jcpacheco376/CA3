@@ -9,16 +9,15 @@ on:
     branches: [ main ]
 
 # --- Trabajos (Jobs) ---
-# Un flujo de trabajo se compone de uno o más "trabajos" que se pueden ejecutar en paralelo o secuencialmente.
+# Un flujo de trabajo se compone de uno o más "trabajos".
 jobs:
   # Nombramos nuestro trabajo 'build-and-deploy'.
   build-and-deploy:
-    # ¡LA CLAVE! Esto le dice a GitHub que ejecute este trabajo en tu servidor local
-    # que has configurado como un 'runner'.
+    # ¡LA CLAVE! Le dice a GitHub que ejecute este trabajo en tu servidor local.
     runs-on: self-hosted
 
     # --- Pasos (Steps) ---
-    # Estos son los comandos que el runner ejecutará en tu servidor, en orden.
+    # Los comandos que el runner ejecutará en tu servidor, en orden.
     steps:
       # Paso 1: Descargar el código más reciente del repositorio.
       - name: 1. Descargar el código fuente
@@ -28,10 +27,9 @@ jobs:
       - name: 2. Configurar Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: '18' # Puedes ajustar la versión de Node.js si es necesario.
-          cache: 'npm' # Habilita el caché para acelerar futuras instalaciones.
+          node-version: '18'
+          cache: 'npm'
           cache-dependency-path: '**/package-lock.json'
-
 
       # --- SECCIÓN DEL FRONTEND ---
       - name: 3. Frontend - Instalar dependencias
@@ -41,11 +39,8 @@ jobs:
         run: cd CONTROL-DE-ASISTENCIA && npm run build
 
       - name: 5. Frontend - Copiar archivos al servidor web
-        # Robocopy es un comando de Windows robusto para copiar archivos.
-        # /E copia subdirectorios (incluyendo los vacíos).
-        # /PURGE elimina archivos en el destino que ya no existen en el origen.
+        # AJUSTADO: La ruta ahora apunta a D:\CA\frontend-asistencia
         run: robocopy .\\CONTROL-DE-ASISTENCIA\\build D:\\CA\\frontend-asistencia /E /PURGE
-
 
       # --- SECCIÓN DE LA API (BACKEND) ---
       - name: 6. API - Instalar dependencias
@@ -55,8 +50,7 @@ jobs:
         run: cd CONTROL-DE-ASISTENCIA-API && npm run build
       
       - name: 8. API - Crear archivo .env de producción
-        # Este paso crea dinámicamente el archivo .env en el runner
-        # usando los secretos que configuraste en GitHub. ¡Es 100% seguro!
+        # Este paso crea dinámicamente el archivo .env usando los secretos de GitHub.
         shell: pwsh
         run: |
           cd CONTROL-DE-ASISTENCIA-API
@@ -71,6 +65,7 @@ jobs:
           Add-Content -Path .env -Value "FRONTEND_URL=URL_DE_TU_FRONTEND"
       
       - name: 9. API - Copiar archivos a su carpeta de destino
+        # AJUSTADO: Todas las rutas ahora apuntan a D:\CA\api-asistencia
         run: |
           robocopy .\\CONTROL-DE-ASISTENCIA-API D:\\CA\\api-asistencia dist /E
           robocopy .\\CONTROL-DE-ASISTENCIA-API D:\\CA\\api-asistencia node_modules /E
@@ -78,5 +73,5 @@ jobs:
           copy .\\CONTROL-DE-ASISTENCIA-API\\.env D:\\CA\\api-asistencia\\.env
 
       - name: 10. API - Reiniciar la aplicación con PM2
-        # El comando final que reinicia tu API para aplicar los cambios.
-        run: pm2 restart api-asistencia || pm2 start D:\\aplicaciones\\api-asistencia\\dist\\index.js --name api-asistencia
+        # AJUSTADO: El comando de inicio ahora usa la ruta correcta en D:
+        run: pm2 restart api-asistencia || pm2 start D:\\CA\\api-asistencia\\dist\\index.js --name api-asistencia
