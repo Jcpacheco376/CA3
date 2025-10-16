@@ -9,34 +9,32 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      # Paso 1: Descargar el código fuente.
-      # La acción checkout descargará el código en un archivo .tar.gz
       - name: 1. Descargar código fuente
         uses: actions/checkout@v3
 
-      # --- SECCIÓN DEL FRONTEND ---
-      - name: 2. Frontend - Instalar y construir
-        # Usamos 'default' para que los comandos se ejecuten en la carpeta raíz del proyecto
-        defaults:
-          run:
-            working-directory: .\\CONTROL-DE-ASISTENCIA
+      - name: 2. Configurar Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: '**/package-lock.json'
+
+      - name: 3. Frontend - Instalar y construir
+        working-directory: .\\CONTROL-DE-ASISTENCIA
         run: |
           npm install
           npm run build
 
-      - name: 3. Frontend - Copiar archivos a su destino
+      - name: 4. Frontend - Copiar archivos
         run: robocopy .\\CONTROL-DE-ASISTENCIA\\build D:\\CA\\frontend-asistencia /E /PURGE
 
-      # --- SECCIÓN DE LA API (BACKEND) ---
-      - name: 4. API - Instalar y construir
-        defaults:
-          run:
-            working-directory: .\\CONTROL-DE-ASISTENCIA-API
+      - name: 5. API - Instalar y construir
+        working-directory: .\\CONTROL-DE-ASISTENCIA-API
         run: |
           npm install
           npm run build
 
-      - name: 5. API - Crear archivo .env de producción
+      - name: 6. API - Crear archivo .env
         working-directory: .\\CONTROL-DE-ASISTENCIA-API
         shell: powershell
         run: |
@@ -50,12 +48,12 @@ jobs:
           Add-Content -Path .env -Value "LOCAL_IP=192.168.0.141"
           Add-Content -Path .env -Value "FRONTEND_URL=URL_DE_TU_FRONTEND"
 
-      - name: 6. API - Copiar archivos a su destino final
+      - name: 7. API - Copiar archivos
         run: |
           robocopy .\\CONTROL-DE-ASISTENCIA-API D:\\CA\\api-asistencia dist /E
           robocopy .\\CONTROL-DE-ASISTENCIA-API D:\\CA\\api-asistencia node_modules /E
           copy .\\CONTROL-DE-ASISTENCIA-API\\package.json D:\\CA\\api-asistencia\\package.json
           copy .\\CONTROL-DE-ASISTENCIA-API\\.env D:\\CA\\api-asistencia\\.env
 
-      - name: 7. API - Reiniciar la aplicación con PM2
+      - name: 8. API - Reiniciar
         run: pm2 restart api-asistencia || pm2 start D:\\CA\\api-asistencia\\dist\\index.js --name api-asistencia
