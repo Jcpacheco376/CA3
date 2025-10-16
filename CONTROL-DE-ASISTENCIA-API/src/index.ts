@@ -18,14 +18,28 @@
 
 import express from 'express';
 import cors from 'cors';
-// CORREGIDO: Importa CORS_ORIGIN
 import { PORT, LOCAL_IP, CORS_ORIGIN } from './config';
 import apiRouter from './api/routes';
 
 const app = express();
 
-// CORREGIDO: Usa la variable CORS_ORIGIN
-app.use(cors({ origin: CORS_ORIGIN }));
+const allowedOrigins = [
+    CORS_ORIGIN,                 // La URL principal desde tu archivo .env
+    'http://localhost:5173'      // Mantenemos localhost para desarrollo local
+];
+
+const corsOptions = {
+    origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
+        } else {
+            callback(new Error('No permitido por CORS'));
+        }
+    }
+};
+
+app.use(cors(corsOptions));
+//app.use(cors({ origin: CORS_ORIGIN }));
 app.use(express.json());
 
 app.use('/api', apiRouter);
