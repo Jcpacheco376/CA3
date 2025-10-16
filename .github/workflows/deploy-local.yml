@@ -8,38 +8,43 @@ jobs:
   build-and-deploy:
     runs-on: self-hosted
 
+    env:
+      SRC_DIR: ${{ github.workspace }}\s  # subcarpeta corta dentro del workspace
+
     steps:
-      # 0) Aseguramos 'tar' en PATH ANTES del checkout para que no use ZipFile
-      - name: 0. Asegurar tar en PATH (Windows / Git for Windows)
+      # 0) Preparar entorno Git robusto (sin tocar registro de Windows)
+      - name: 0. Preparar Git (longpaths + safe.directory)
         shell: powershell
         run: |
-          $paths = @(
-            'C:\Windows\System32',                    # tar.exe integrado en Windows 10/11
-            'C:\Program Files\Git\usr\bin',          # tar de Git for Windows
-            'C:\Program Files\Git\bin'
-          ) | Where-Object { Test-Path $_ }
-
-          foreach ($p in $paths) { 
-            "$p" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8 
-          }
-
-          # (Opcional) Git tolera rutas profundas sin tocar el registro del SO
+          git --version
           git config --global core.longpaths true
+          git config --global --add safe.directory '*'
 
-          # Diagnóstico (no falla si no hay tar; solo imprime si existe)
-          try { tar --version } catch { Write-Host 'tar no disponible aún' }
-
-      # 1) Checkout: evitar \REPO\REPO usando path: '.'  y preferir el camino git/tar
-      - name: 1. Descargar código fuente
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0     # favorece camino 'git' en vez de descarga .tar.gz
-          path: .            # evita carpeta duplicada ...\CA3\CA3\...
-
-      # 2) Mapear X: al workspace (más corto ahora)
-      - name: 2. Mapear ruta de trabajo a una unidad virtual
+      # 1) Traer repo manualmente al workspace en ruta corta: <workspace>\s
+      - name: 1. Obtener código (sin actions/checkout)
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          REF: ${{ github.sha }}
         run: |
-          subst X: "${{ github.workspace }}"
+          if (Test-Path "$env:SRC_DIR") { Remove-Item -Path "$env:SRC_DIR" -Recurse -Force -ErrorAction SilentlyContinue }
+          New-Item -ItemType Directory -Force -Path "$env:SRC_DIR" | Out-Null
+
+          # Clonado mínimo y checkout exacto del commit del push
+          git init "$env:SRC_DIR"
+          cd "$env:SRC_DIR"
+          git remote add origin "https://x-access-token:$env:GH_TOKEN@github.com/$env:REPO"
+          git fetch --no-tags --depth=1 origin "$env:REF"
+          git checkout --force FETCH_HEAD
+
+          # (Opcional) Mostrar árbol corto para diagnosticar si lo deseas
+          git rev-parse --short HEAD
+
+      # 2) Mapear X: al subdirectorio corto
+      - name: 2. Mapear ruta de trabajo a X:
+        run: |
+          subst X: "${{ env.SRC_DIR }}"
 
       - name: 3. Configurar Node.js
         uses: actions/setup-node@v3
