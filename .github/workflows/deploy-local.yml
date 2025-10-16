@@ -1,59 +1,67 @@
-# Nombre del flujo de trabajo que verás en la pestaña "Actions" de GitHub
 name: Desplegar en Servidor Local (Windows)
 
-# --- Disparador ---
-# Esto le dice a GitHub cuándo debe ejecutar este flujo de trabajo.
 on:
-  # Se activa cada vez que haces un 'push' a la rama 'main'.
   push:
     branches: [ main ]
 
-# --- Trabajos (Jobs) ---
-# Un flujo de trabajo se compone de uno o más "trabajos".
 jobs:
-  # Nombramos nuestro trabajo 'build-and-deploy'.
   build-and-deploy:
-    # ¡LA CLAVE! Le dice a GitHub que ejecute este trabajo en tu servidor local.
     runs-on: self-hosted
 
-    # --- Pasos (Steps) ---
-    # Los comandos que el runner ejecutará en tu servidor, en orden.
     steps:
-      # Paso 1: Descargar el código más reciente del repositorio.
-      - name: 1. Descargar el código fuente
-        uses: actions/checkout@v3
+      # CAMBIO CLAVE 1: Eliminamos la acción actions/checkout@v3.
+      # En su lugar, clonaremos el repositorio manualmente en una ruta corta.
+      - name: 1. Clonar repositorio en una ruta corta
+        shell: pwsh
+        run: |
+          # Habilitamos el soporte para rutas largas solo para esta sesión de git.
+          git config --global core.longpaths true
+          
+          # Definimos nuestra ruta de trabajo corta.
+          $workdir = "D:\work-ca3"
+          
+          # Si la carpeta ya existe de una ejecución anterior, la eliminamos para un clon limpio.
+          if (Test-Path $workdir) {
+            Remove-Item -Recurse -Force $workdir
+          }
+          
+          # Clonamos el repositorio directamente en nuestra ruta corta.
+          git clone https://github.com/${{ github.repository }}.git $workdir
 
-      # Paso 2: Configurar el entorno de Node.js en el runner.
       - name: 2. Configurar Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
           cache: 'npm'
           cache-dependency-path: '**/package-lock.json'
-
+      
+      # CAMBIO CLAVE 2: Todos los comandos ahora usan la ruta corta '$workdir'.
+      # Hemos establecido la ruta de trabajo por defecto para todos los pasos siguientes.
+      - name: Establecer directorio de trabajo
+        run: echo "D:\work-ca3" | Out-File -FilePath $env:GITHUB_WORKSPACE -Encoding utf8 -Append
+        
       # --- SECCIÓN DEL FRONTEND ---
-      - name: 3. Frontend - Instalar dependencias
-        run: cd CONTROL-DE-ASISTENCIA && npm install
+      - name: 3. Frontend - Instalar y construir
+        # 'working-directory' le dice a este paso que se ejecute dentro de la carpeta del frontend.
+        working-directory: D:\work-ca3\CONTROL-DE-ASISTENCIA
+        run: |
+          npm install
+          npm run build
 
-      - name: 4. Frontend - Construir para producción
-        run: cd CONTROL-DE-ASISTENCIA && npm run build
-
-      - name: 5. Frontend - Copiar archivos al servidor web
-        # AJUSTADO: La ruta ahora apunta a D:\CA\frontend-asistencia
-        run: robocopy .\\CONTROL-DE-ASISTENCIA\\build D:\\CA\\frontend-asistencia /E /PURGE
+      - name: 4. Frontend - Copiar archivos
+        run: robocopy D:\\work-ca3\\CONTROL-DE-ASISTENCIA\\build D:\\CA\\frontend-asistencia /E /PURGE
 
       # --- SECCIÓN DE LA API (BACKEND) ---
-      - name: 6. API - Instalar dependencias
-        run: cd CONTROL-DE-ASISTENCIA-API && npm install
+      - name: 5. API - Instalar y construir
+        working-directory: D:\work-ca3\CONTROL-DE-ASISTENCIA-API
+        run: |
+          npm install
+          npm run build
 
-      - name: 7. API - Construir para producción
-        run: cd CONTROL-DE-ASISTENCIA-API && npm run build
-      
-      - name: 8. API - Crear archivo .env de producción
-        # Este paso crea dinámicamente el archivo .env usando los secretos de GitHub.
+      - name: 6. API - Crear archivo .env
+        working-directory: D:\work-ca3\CONTROL-DE-ASISTENCIA-API
         shell: pwsh
         run: |
-          cd CONTROL-DE-ASISTENCIA-API
           Remove-Item -Path .env -ErrorAction SilentlyContinue
           Add-Content -Path .env -Value "DB_USER=${{ secrets.DB_USER }}"
           Add-Content -Path .env -Value "DB_PASSWORD=${{ secrets.DB_PASSWORD }}"
@@ -63,15 +71,23 @@ jobs:
           Add-Content -Path .env -Value "API_PORT=3001"
           Add-Content -Path .env -Value "LOCAL_IP=192.168.0.141"
           Add-Content -Path .env -Value "FRONTEND_URL=URL_DE_TU_FRONTEND"
-      
-      - name: 9. API - Copiar archivos a su carpeta de destino
-        # AJUSTADO: Todas las rutas ahora apuntan a D:\CA\api-asistencia
-        run: |
-          robocopy .\\CONTROL-DE-ASISTENCIA-API D:\\CA\\api-asistencia dist /E
-          robocopy .\\CONTROL-DE-ASISTENCIA-API D:\\CA\\api-asistencia node_modules /E
-          copy .\\CONTROL-DE-ASISTENCIA-API\\package.json D:\\CA\\api-asistencia\\package.json
-          copy .\\CONTROL-DE-ASISTENCIA-API\\.env D:\\CA\\api-asistencia\\.env
 
-      - name: 10. API - Reiniciar la aplicación con PM2
-        # AJUSTADO: El comando de inicio ahora usa la ruta correcta en D:
+      - name: 7. API - Copiar archivos a su destino
+        run: |
+          robocopy D:\\work-ca3\\CONTROL-DE-ASISTENCIA-API D:\\CA\\api-asistencia dist /E
+          robocopy D:\\work-ca3\\CONTROL-DE-ASISTENCIA-API D:\\CA\\api-asistencia node_modules /E
+          copy D:\\work-ca3\\CONTROL-DE-ASISTENCIA-API\\package.json D:\\CA\\api-asistencia\\package.json
+          copy D:\\work-ca3\\CONTROL-DE-ASISTENCIA-API\\.env D:\\CA\\api-asistencia\\.env
+
+      - name: 8. API - Reiniciar con PM2
         run: pm2 restart api-asistencia || pm2 start D:\\CA\\api-asistencia\\dist\\index.js --name api-asistencia
+      
+      # CAMBIO CLAVE 3: Un paso de limpieza al final.
+      # Esto elimina la carpeta de trabajo temporal para mantener el servidor limpio.
+      - name: 9. Limpiar directorio de trabajo
+        if: always() # Se ejecuta incluso si los pasos anteriores fallan.
+        shell: pwsh
+        run: |
+          if (Test-Path "D:\work-ca3") {
+            Remove-Item -Recurse -Force "D:\work-ca3"
+          }
