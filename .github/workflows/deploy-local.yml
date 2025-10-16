@@ -9,33 +9,62 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      - name: 1. Descargar código fuente
-        uses: actions/checkout@v3
+      # 0) Aseguramos 'tar' en PATH ANTES del checkout para que no use ZipFile
+      - name: 0. Asegurar tar en PATH (Windows / Git for Windows)
+        shell: powershell
+        run: |
+          $paths = @(
+            'C:\Windows\System32',                    # tar.exe integrado en Windows 10/11
+            'C:\Program Files\Git\usr\bin',          # tar de Git for Windows
+            'C:\Program Files\Git\bin'
+          ) | Where-Object { Test-Path $_ }
 
-      - name: 2. Configurar Node.js
+          foreach ($p in $paths) { 
+            "$p" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8 
+          }
+
+          # (Opcional) Git tolera rutas profundas sin tocar el registro del SO
+          git config --global core.longpaths true
+
+          # Diagnóstico (no falla si no hay tar; solo imprime si existe)
+          try { tar --version } catch { Write-Host 'tar no disponible aún' }
+
+      # 1) Checkout: evitar \REPO\REPO usando path: '.'  y preferir el camino git/tar
+      - name: 1. Descargar código fuente
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0     # favorece camino 'git' en vez de descarga .tar.gz
+          path: .            # evita carpeta duplicada ...\CA3\CA3\...
+
+      # 2) Mapear X: al workspace (más corto ahora)
+      - name: 2. Mapear ruta de trabajo a una unidad virtual
+        run: |
+          subst X: "${{ github.workspace }}"
+
+      - name: 3. Configurar Node.js
         uses: actions/setup-node@v3
         with:
           node-version: '18'
           cache: 'npm'
           cache-dependency-path: '**/package-lock.json'
 
-      - name: 3. Frontend - Instalar y construir
-        working-directory: .\\CONTROL-DE-ASISTENCIA
+      - name: 4. Frontend - Instalar y construir
+        working-directory: X:\CONTROL-DE-ASISTENCIA
         run: |
           npm install
           npm run build
 
-      - name: 4. Frontend - Copiar archivos
-        run: robocopy .\\CONTROL-DE-ASISTENCIA\\build D:\\CA\\frontend-asistencia /E /PURGE
+      - name: 5. Frontend - Copiar archivos
+        run: robocopy X:\\CONTROL-DE-ASISTENCIA\\build D:\\CA\\frontend-asistencia /E /PURGE
 
-      - name: 5. API - Instalar y construir
-        working-directory: .\\CONTROL-DE-ASISTENCIA-API
+      - name: 6. API - Instalar y construir
+        working-directory: X:\CONTROL-DE-ASISTENCIA-API
         run: |
           npm install
           npm run build
 
-      - name: 6. API - Crear archivo .env
-        working-directory: .\\CONTROL-DE-ASISTENCIA-API
+      - name: 7. API - Crear archivo .env
+        working-directory: X:\CONTROL-DE-ASISTENCIA-API
         shell: powershell
         run: |
           Remove-Item -Path .env -ErrorAction SilentlyContinue
@@ -48,12 +77,17 @@ jobs:
           Add-Content -Path .env -Value "LOCAL_IP=192.168.0.141"
           Add-Content -Path .env -Value "FRONTEND_URL=URL_DE_TU_FRONTEND"
 
-      - name: 7. API - Copiar archivos
+      - name: 8. API - Copiar archivos
         run: |
-          robocopy .\\CONTROL-DE-ASISTENCIA-API D:\\CA\\api-asistencia dist /E
-          robocopy .\\CONTROL-DE-ASISTENCIA-API D:\\CA\\api-asistencia node_modules /E
-          copy .\\CONTROL-DE-ASISTENCIA-API\\package.json D:\\CA\\api-asistencia\\package.json
-          copy .\\CONTROL-DE-ASISTENCIA-API\\.env D:\\CA\\api-asistencia\\.env
+          robocopy X:\\CONTROL-DE-ASISTENCIA-API D:\\CA\\api-asistencia dist /E
+          robocopy X:\\CONTROL-DE-ASISTENCIA-API D:\\CA\\api-asistencia node_modules /E
+          copy X:\\CONTROL-DE-ASISTENCIA-API\\package.json D:\\CA\\api-asistencia\\package.json
+          copy X:\\CONTROL-DE-ASISTENCIA-API\\.env D:\\CA\\api-asistencia\\.env
 
-      - name: 8. API - Reiniciar
+      - name: 9. API - Reiniciar
         run: pm2 restart api-asistencia || pm2 start D:\\CA\\api-asistencia\\dist\\index.js --name api-asistencia
+
+      - name: 10. Limpiar mapeo
+        if: always()
+        run: |
+          subst X: /D
