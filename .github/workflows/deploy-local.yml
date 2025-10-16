@@ -13,7 +13,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: 2. Mapear ruta de trabajo a una unidad virtual
-        run: subst X: "${{ github.workspace }}"
+   	run: 'subst X: "${{ github.workspace }}"'
 
       - name: 3. Configurar Node.js
         uses: actions/setup-node@v3
