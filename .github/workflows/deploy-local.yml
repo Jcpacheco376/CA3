@@ -9,46 +9,35 @@ jobs:
     runs-on: self-hosted
 
     steps:
-      # 0) Git: permitir rutas largas (no toca el registro del sistema)
-      - name: 0. Git longpaths (solo Git)
-        run: git config --global core.longpaths true
-
-      # 1) Checkout usando git y con path corto para evitar ...\CA3\CA3\
+      # Paso 1: Descargar el código fuente.
+      # La acción checkout descargará el código en un archivo .tar.gz
       - name: 1. Descargar código fuente
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0      # fuerza ruta git en lugar de tar.gz
-          path: src           # evita la duplicación del nombre del repo
+        uses: actions/checkout@v3
 
-      # 2) Mapear X: al workspace (que ahora es corto por 'path: src')
-      - name: 2. Mapear ruta de trabajo a una unidad virtual
-        run: |
-          subst X: "${{ github.workspace }}"
-
-      - name: 3. Configurar Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: '18'
-          cache: 'npm'
-          cache-dependency-path: '**/package-lock.json'
-
-      - name: 4. Frontend - Instalar y construir
-        working-directory: X:\CONTROL-DE-ASISTENCIA
+      # --- SECCIÓN DEL FRONTEND ---
+      - name: 2. Frontend - Instalar y construir
+        # Usamos 'default' para que los comandos se ejecuten en la carpeta raíz del proyecto
+        defaults:
+          run:
+            working-directory: .\\CONTROL-DE-ASISTENCIA
         run: |
           npm install
           npm run build
 
-      - name: 5. Frontend - Copiar archivos
-        run: robocopy X:\\CONTROL-DE-ASISTENCIA\\build D:\\CA\\frontend-asistencia /E /PURGE
+      - name: 3. Frontend - Copiar archivos a su destino
+        run: robocopy .\\CONTROL-DE-ASISTENCIA\\build D:\\CA\\frontend-asistencia /E /PURGE
 
-      - name: 6. API - Instalar y construir
-        working-directory: X:\CONTROL-DE-ASISTENCIA-API
+      # --- SECCIÓN DE LA API (BACKEND) ---
+      - name: 4. API - Instalar y construir
+        defaults:
+          run:
+            working-directory: .\\CONTROL-DE-ASISTENCIA-API
         run: |
           npm install
           npm run build
 
-      - name: 7. API - Crear archivo .env
-        working-directory: X:\CONTROL-DE-ASISTENCIA-API
+      - name: 5. API - Crear archivo .env de producción
+        working-directory: .\\CONTROL-DE-ASISTENCIA-API
         shell: powershell
         run: |
           Remove-Item -Path .env -ErrorAction SilentlyContinue
@@ -61,17 +50,12 @@ jobs:
           Add-Content -Path .env -Value "LOCAL_IP=192.168.0.141"
           Add-Content -Path .env -Value "FRONTEND_URL=URL_DE_TU_FRONTEND"
 
-      - name: 8. API - Copiar archivos
+      - name: 6. API - Copiar archivos a su destino final
         run: |
-          robocopy X:\\CONTROL-DE-ASISTENCIA-API D:\\CA\\api-asistencia dist /E
-          robocopy X:\\CONTROL-DE-ASISTENCIA-API D:\\CA\\api-asistencia node_modules /E
-          copy X:\\CONTROL-DE-ASISTENCIA-API\\package.json D:\\CA\\api-asistencia\\package.json
-          copy X:\\CONTROL-DE-ASISTENCIA-API\\.env D:\\CA\\api-asistencia\\.env
+          robocopy .\\CONTROL-DE-ASISTENCIA-API D:\\CA\\api-asistencia dist /E
+          robocopy .\\CONTROL-DE-ASISTENCIA-API D:\\CA\\api-asistencia node_modules /E
+          copy .\\CONTROL-DE-ASISTENCIA-API\\package.json D:\\CA\\api-asistencia\\package.json
+          copy .\\CONTROL-DE-ASISTENCIA-API\\.env D:\\CA\\api-asistencia\\.env
 
-      - name: 9. API - Reiniciar
+      - name: 7. API - Reiniciar la aplicación con PM2
         run: pm2 restart api-asistencia || pm2 start D:\\CA\\api-asistencia\\dist\\index.js --name api-asistencia
-
-      - name: 10. Limpiar mapeo
-        if: always()
-        run: |
-          subst X: /D
