@@ -9,71 +9,81 @@ jobs:
   build-and-deploy:
     runs-on: self-hosted
 
-    env:
-      # Ruta corta dentro del workspace temporal
-      SRC_DIR: '${{ runner.temp }}\src-short'
-
     steps:
-      - name: "0. Descargar ZIP del repo vía API (sin checkout / sin git)"
+      # 0) Crear mapeo S: -> D:\actions-runner\_work (ruta cortísima para todo)
+      - name: "0. Mapear S: al root del workspace"
+        shell: powershell
+        run: |
+          $root = (Resolve-Path "$env:GITHUB_WORKSPACE\..\..").Path
+          subst S: "$root"
+          New-Item -ItemType Directory -Force -Path 'S:\tmp' | Out-Null
+          New-Item -ItemType Directory -Force -Path 'S:\s'   | Out-Null
+          # Persistimos vars para el resto de pasos
+          "SRC_DIR=S:\s"   | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          "ZIP_DIR=S:\tmp" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      # 1) Descargar ZIP del commit exacto y extraer a S:\s (sin checkout / sin git)
+      - name: "1. Descargar y extraer zipball del commit"
         shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}
-          OWNER_REPO: ${{ github.repository }}   # owner/repo
-          REF: ${{ github.sha }}                 # commit exacto
+          OWNER_REPO: ${{ github.repository }}
+          REF: ${{ github.sha }}
         run: |
-          if (Test-Path "$env:SRC_DIR") { Remove-Item -Path "$env:SRC_DIR" -Recurse -Force -ErrorAction SilentlyContinue }
-          New-Item -ItemType Directory -Force -Path "$env:SRC_DIR" | Out-Null
-
-          $zipPath = Join-Path $env:RUNNER_TEMP "repo.zip"
+          $zipPath = Join-Path $env:ZIP_DIR "repo.zip"
           $headers = @{
             Authorization = "Bearer $env:GH_TOKEN"
             "X-GitHub-Api-Version" = "2022-11-28"
             "User-Agent" = "actions"
           }
-          $zipUrl = "https://api.github.com/repos/$env:OWNER_REPO/zipball/$env:REF"
-          Invoke-WebRequest -Uri $zipUrl -Headers $headers -OutFile $zipPath
+          $url = "https://api.github.com/repos/$env:OWNER_REPO/zipball/$env:REF"
+          Invoke-WebRequest -Uri $url -Headers $headers -OutFile $zipPath
 
+          # Extraer a ruta corta S:\s
+          Remove-Item -Path $env:SRC_DIR -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -ItemType Directory -Force -Path $env:SRC_DIR | Out-Null
           Expand-Archive -Path $zipPath -DestinationPath $env:SRC_DIR -Force
 
-          # Mover contenido desde la carpeta 'owner-repo-<hash>' al raíz de SRC_DIR
-          $root = Get-ChildItem -LiteralPath $env:SRC_DIR | Where-Object { $_.PSIsContainer } | Select-Object -First 1
-          if ($null -ne $root) {
-            Get-ChildItem -LiteralPath $root.FullName -Force | ForEach-Object {
+          # Mover contenido de 'owner-repo-<hash>' al raíz de S:\s
+          $inner = Get-ChildItem -LiteralPath $env:SRC_DIR | Where-Object { $_.PSIsContainer } | Select-Object -First 1
+          if ($null -ne $inner) {
+            Get-ChildItem -LiteralPath $inner.FullName -Force | ForEach-Object {
               Move-Item -LiteralPath $_.FullName -Destination $env:SRC_DIR -Force
             }
-            Remove-Item -LiteralPath $root.FullName -Recurse -Force
+            Remove-Item -LiteralPath $inner.FullName -Recurse -Force
           }
 
-      - name: "1. Mapear ruta de trabajo a X:"
+      # 2) Mapear X: a S:\s para conservar tus rutas X:\...
+      - name: "2. Mapear ruta de trabajo a X:"
         shell: powershell
         run: |
           subst X: '${{ env.SRC_DIR }}'
 
-      - name: "2. Configurar Node.js"
+      - name: "3. Configurar Node.js"
         uses: actions/setup-node@v3
         with:
           node-version: '18'
           cache: 'npm'
           cache-dependency-path: '**/package-lock.json'
 
-      - name: "3. Frontend - Instalar y construir"
+      - name: "4. Frontend - Instalar y construir"
         working-directory: '${{ env.SRC_DIR }}\CONTROL-DE-ASISTENCIA'
         run: |
           npm install
           npm run build
 
-      - name: "4. Frontend - Copiar archivos"
+      - name: "5. Frontend - Copiar archivos"
         shell: powershell
         run: |
           robocopy '${{ env.SRC_DIR }}\CONTROL-DE-ASISTENCIA\build' 'D:\CA\frontend-asistencia' /E /PURGE
 
-      - name: "5. API - Instalar y construir"
+      - name: "6. API - Instalar y construir"
         working-directory: '${{ env.SRC_DIR }}\CONTROL-DE-ASISTENCIA-API'
         run: |
           npm install
           npm run build
 
-      - name: "6. API - Crear archivo .env"
+      - name: "7. API - Crear archivo .env"
         working-directory: '${{ env.SRC_DIR }}\CONTROL-DE-ASISTENCIA-API'
         shell: powershell
         run: |
@@ -87,7 +97,7 @@ jobs:
           Add-Content -Path .env -Value "LOCAL_IP=192.168.0.141"
           Add-Content -Path .env -Value "FRONTEND_URL=URL_DE_TU_FRONTEND"
 
-      - name: "7. API - Copiar archivos"
+      - name: "8. API - Copiar archivos"
         shell: powershell
         run: |
           robocopy '${{ env.SRC_DIR }}\CONTROL-DE-ASISTENCIA-API' 'D:\CA\api-asistencia' dist /E
@@ -95,13 +105,14 @@ jobs:
           Copy-Item -Path '${{ env.SRC_DIR }}\CONTROL-DE-ASISTENCIA-API\package.json' -Destination 'D:\CA\api-asistencia\package.json' -Force
           Copy-Item -Path '${{ env.SRC_DIR }}\CONTROL-DE-ASISTENCIA-API\.env' -Destination 'D:\CA\api-asistencia\.env' -Force
 
-      - name: "8. API - Reiniciar"
+      - name: "9. API - Reiniciar"
         shell: powershell
         run: |
           pm2 restart api-asistencia || pm2 start 'D:\CA\api-asistencia\dist\index.js' --name api-asistencia
 
-      - name: "9. Limpiar mapeo"
-        if: ${{ always() }}       # <<<<<< FIX REAL
+      - name: "10. Limpiar mapeos"
+        if: ${{ always() }}
         shell: powershell
         run: |
           subst X: /D
+          subst S: /D
