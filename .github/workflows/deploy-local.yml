@@ -9,9 +9,9 @@ jobs:
   build-and-deploy:
     runs-on: self-hosted
 
-    # Usamos una ruta CORTA dentro de _work\_temp para minimizar profundidad
     env:
-      SRC_DIR: ${{ runner.temp }}\src-short   # p.ej. D:\actions-runner\_work\_temp\src-short
+      # Ruta corta dentro del workspace temporal
+      SRC_DIR: '${{ runner.temp }}\src-short'
 
     steps:
       - name: "0. Descargar ZIP del repo vía API (sin checkout / sin git)"
@@ -19,13 +19,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           OWNER_REPO: ${{ github.repository }}   # owner/repo
-          REF: ${{ github.sha }}                 # commit exacto del push
+          REF: ${{ github.sha }}                 # commit exacto
         run: |
-          # Preparar destino corto
           if (Test-Path "$env:SRC_DIR") { Remove-Item -Path "$env:SRC_DIR" -Recurse -Force -ErrorAction SilentlyContinue }
           New-Item -ItemType Directory -Force -Path "$env:SRC_DIR" | Out-Null
 
-          # Descargar ZIP a _temp
           $zipPath = Join-Path $env:RUNNER_TEMP "repo.zip"
           $headers = @{
             Authorization = "Bearer $env:GH_TOKEN"
@@ -35,10 +33,9 @@ jobs:
           $zipUrl = "https://api.github.com/repos/$env:OWNER_REPO/zipball/$env:REF"
           Invoke-WebRequest -Uri $zipUrl -Headers $headers -OutFile $zipPath
 
-          # Extraer ZIP (Expand-Archive maneja .zip sin depender de tar ni git)
           Expand-Archive -Path $zipPath -DestinationPath $env:SRC_DIR -Force
 
-          # El zipball crea carpeta "owner-repo-<hash>": mover contenido a SRC_DIR raíz
+          # Mover contenido desde la carpeta 'owner-repo-<hash>' al raíz de SRC_DIR
           $root = Get-ChildItem -LiteralPath $env:SRC_DIR | Where-Object { $_.PSIsContainer } | Select-Object -First 1
           if ($null -ne $root) {
             Get-ChildItem -LiteralPath $root.FullName -Force | ForEach-Object {
@@ -50,7 +47,7 @@ jobs:
       - name: "1. Mapear ruta de trabajo a X:"
         shell: powershell
         run: |
-          subst X: "${{ env.SRC_DIR }}"
+          subst X: '${{ env.SRC_DIR }}'
 
       - name: "2. Configurar Node.js"
         uses: actions/setup-node@v3
@@ -60,7 +57,7 @@ jobs:
           cache-dependency-path: '**/package-lock.json'
 
       - name: "3. Frontend - Instalar y construir"
-        working-directory: X:\CONTROL-DE-ASISTENCIA
+        working-directory: '${{ env.SRC_DIR }}\CONTROL-DE-ASISTENCIA'
         run: |
           npm install
           npm run build
@@ -68,16 +65,16 @@ jobs:
       - name: "4. Frontend - Copiar archivos"
         shell: powershell
         run: |
-          robocopy "X:\CONTROL-DE-ASISTENCIA\build" "D:\CA\frontend-asistencia" /E /PURGE
+          robocopy '${{ env.SRC_DIR }}\CONTROL-DE-ASISTENCIA\build' 'D:\CA\frontend-asistencia' /E /PURGE
 
       - name: "5. API - Instalar y construir"
-        working-directory: X:\CONTROL-DE-ASISTENCIA-API
+        working-directory: '${{ env.SRC_DIR }}\CONTROL-DE-ASISTENCIA-API'
         run: |
           npm install
           npm run build
 
       - name: "6. API - Crear archivo .env"
-        working-directory: X:\CONTROL-DE-ASISTENCIA-API
+        working-directory: '${{ env.SRC_DIR }}\CONTROL-DE-ASISTENCIA-API'
         shell: powershell
         run: |
           Remove-Item -Path .env -ErrorAction SilentlyContinue
@@ -93,18 +90,18 @@ jobs:
       - name: "7. API - Copiar archivos"
         shell: powershell
         run: |
-          robocopy "X:\CONTROL-DE-ASISTENCIA-API" "D:\CA\api-asistencia" dist /E
-          robocopy "X:\CONTROL-DE-ASISTENCIA-API" "D:\CA\api-asistencia" node_modules /E
-          Copy-Item -Path "X:\CONTROL-DE-ASISTENCIA-API\package.json" -Destination "D:\CA\api-asistencia\package.json" -Force
-          Copy-Item -Path "X:\CONTROL-DE-ASISTENCIA-API\.env" -Destination "D:\CA\api-asistencia\.env" -Force
+          robocopy '${{ env.SRC_DIR }}\CONTROL-DE-ASISTENCIA-API' 'D:\CA\api-asistencia' dist /E
+          robocopy '${{ env.SRC_DIR }}\CONTROL-DE-ASISTENCIA-API' 'D:\CA\api-asistencia' node_modules /E
+          Copy-Item -Path '${{ env.SRC_DIR }}\CONTROL-DE-ASISTENCIA-API\package.json' -Destination 'D:\CA\api-asistencia\package.json' -Force
+          Copy-Item -Path '${{ env.SRC_DIR }}\CONTROL-DE-ASISTENCIA-API\.env' -Destination 'D:\CA\api-asistencia\.env' -Force
 
       - name: "8. API - Reiniciar"
         shell: powershell
         run: |
-          pm2 restart api-asistencia || pm2 start "D:\CA\api-asistencia\dist\index.js" --name api-asistencia
+          pm2 restart api-asistencia || pm2 start 'D:\CA\api-asistencia\dist\index.js' --name api-asistencia
 
       - name: "9. Limpiar mapeo"
-        if: always()
+        if: ${{ always() }}       # <<<<<< FIX REAL
         shell: powershell
         run: |
           subst X: /D
