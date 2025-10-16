@@ -1,0 +1,15 @@
+{
+  "devDependencies": {
+    "dotenv-cli": "^10.0.0"
+  }
+}
+"scripts": {
+  "deploy": "dotenv -e .env.deploy -- npm run deploy:script",
+  "deploy:script": "npm run build:all && npm run copy:all && npm run restart:api",
+
+  "build:all": "npm run build --workspace=CONTROL-DE-ASISTENCIA && npm run build --workspace=CONTROL-DE-ASISTENCIA-API",
+
+  "copy:all": "robocopy .\\CONTROL-DE-ASISTENCIA\\build \\\\%DEPLOY_HOST%\\%FRONTEND_PATH% /E /PURGE && robocopy .\\CONTROL-DE-ASISTENCIA-API \\\\%DEPLOY_HOST%\\%API_PATH% dist node_modules package.json /E /PURGE && copy .\\CONTROL-DE-ASISTENCIA-API\\.env.production \\\\%DEPLOY_HOST%\\%API_PATH%\\.env /Y",
+
+  "restart:api": "psexec \\\\%DEPLOY_HOST% -u %DEPLOY_USER% -p %DEPLOY_PASSWORD% pm2 restart api-asistencia"
+},
