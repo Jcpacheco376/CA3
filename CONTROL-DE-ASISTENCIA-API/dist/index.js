@@ -1,19 +1,8 @@
 "use strict";
-// import express from 'express';
-// import cors from 'cors';
-// import { PORT, LOCAL_IP } from './config';
 var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-// import apiRouter from './api/routes';
-// const app = express();
-// app.use(cors({ origin: `http://${LOCAL_IP}:5173` }));
-// app.use(express.json());
-// app.use('/api', apiRouter);
-// app.listen(PORT, '0.0.0.0', () => {
-//     console.log(`🚀 Servidor de la API corriendo en http://${LOCAL_IP}:${PORT}`);
-// });
 const express_1 = __importDefault(require("express"));
 const cors_1 = __importDefault(require("cors"));
 const config_1 = require("./config");
