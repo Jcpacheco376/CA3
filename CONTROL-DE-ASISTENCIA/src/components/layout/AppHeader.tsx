@@ -6,6 +6,7 @@ import { useNotification } from '../../context/NotificationContext.tsx';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 
+
 const NotificationPanel = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
     const { notifications, markAllAsRead, clearNotifications, markOneAsRead } = useNotification();
     const panelRef = useRef<HTMLDivElement>(null);

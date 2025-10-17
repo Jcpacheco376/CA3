@@ -1,8 +1,7 @@
 {
   "devDependencies": {
     "dotenv-cli": "^10.0.0"
-  }
-}
+  },
 "scripts": {
   "deploy:local": "npm run build:all && npm run copy:local && npm run restart:api",
   "deploy:prod": "echo 'Despliegue a producción (Render) se maneja automáticamente al hacer push a la rama main.'",
@@ -12,4 +11,6 @@
   "copy:local": "dotenv -e .env.deploy -- robocopy .\\CONTROL-DE-ASISTENCIA\\build \\\\%DEPLOY_HOST%\\%FRONTEND_PATH% /E /PURGE && dotenv -e .env.deploy -- robocopy .\\CONTROL-DE-ASISTENCIA-API \\\\%DEPLOY_HOST%\\%API_PATH% dist node_modules package.json /E /PURGE && dotenv -e .env.deploy -- copy .\\CONTROL-DE-ASISTENCIA-API\\.env.production \\\\%DEPLOY_HOST%\\%API_PATH%\\.env /Y",
   
   "restart:api": "dotenv -e .env.deploy -- psexec \\\\%DEPLOY_HOST% -u %DEPLOY_USER% -p %DEPLOY_PASSWORD% pm2 restart api-asistencia"
-},
+}
+
+}
