@@ -1,8 +1,21 @@
 {
+  "name": "ca3-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "CONTROL-DE-ASISTENCIA",
+    "CONTROL-DE-ASISTENCIA-API"
+  ],
+"scripts": {
+    "deploy:local": "npm run build:all && deploy.bat",
+    "deploy:prod": "echo 'Despliegue a producción (Render) se maneja automáticamente al hacer push a la rama main.'",
+    "build:all": "npm run build --workspaces"
+},
   "devDependencies": {
     "dotenv-cli": "^10.0.0"
   }
 }
+<<<<<<< Updated upstream
 "scripts": {
   "deploy": "dotenv -e .env.deploy -- npm run deploy:script",
   "deploy:script": "npm run build:all && npm run copy:all && npm run restart:api",
@@ -13,3 +26,5 @@
 
   "restart:api": "psexec \\\\%DEPLOY_HOST% -u %DEPLOY_USER% -p %DEPLOY_PASSWORD% pm2 restart api-asistencia"
 },
+=======
+>>>>>>> Stashed changes

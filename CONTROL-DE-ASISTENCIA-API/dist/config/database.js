@@ -28,4 +28,3 @@ exports.poolPromise = new mssql_1.default.ConnectionPool(exports.dbConfig)
     console.error('¡Falló la conexión a la base de datos! Configuración incorrecta: ', err);
     throw err;
 });
-//janeth 90
