@@ -6,23 +6,22 @@ import apiRouter from './api/routes';
 
 const app = express();
 
-const allowedOrigins = [
-    CORS_ORIGIN,                 // La URL principal desde tu archivo .env
-    'http://localhost:5173'      // Mantenemos localhost para desarrollo local
-];
+// const allowedOrigins = [
+//     CORS_ORIGIN,                 // La URL principal desde tu archivo .env
+//     'http://localhost:5173'      // Mantenemos localhost para desarrollo local
+// ];
 
 const corsOptions = {
     origin: (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
-        if (!origin || allowedOrigins.includes(origin)) {
+        // IMPORTANTE: Cambiamos la lógica para que use la nueva variable
+        if (!origin || ALLOWED_ORIGINS.includes(origin)) {
             callback(null, true);
         } else {
             callback(new Error('No permitido por CORS'));
         }
     }
 };
-
 app.use(cors(corsOptions));
-//app.use(cors({ origin: CORS_ORIGIN }));
 app.use(express.json());
 
 app.use('/api', apiRouter);
