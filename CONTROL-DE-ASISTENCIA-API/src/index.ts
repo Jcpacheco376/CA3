@@ -1,4 +1,4 @@
-
+//src/index.ts
 import express from 'express';
 import cors from 'cors';
 import { PORT, LOCAL_IP, CORS_ORIGIN } from './config';
