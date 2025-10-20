@@ -1,76 +1,31 @@
-name: "1. Descargar y extraer zipball del commit (robusto TLS/redirect)"
-  shell: powershell
-  env:
-    GH_TOKEN: ${{ github.token }}
-    OWNER_REPO: ${{ github.repository }}
-    REF: ${{ github.sha }}
-  run: |
-    # 1) TLS 1.2 para PowerShell 5 y mejorar estabilidad
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    [System.Net.ServicePointManager]::Expect100Continue = $false
+name: Desplegar con Docker en Servidor Local
 
-    # 2) Paths y headers
-    $zipPath = Join-Path $env:ZIP_DIR "repo.zip"
-    if (Test-Path $zipPath) { Remove-Item -Path $zipPath -Force -ErrorAction SilentlyContinue }
-    $url = "https://api.github.com/repos/$env:OWNER_REPO/zipball/$env:REF"
-    $ua  = "actions"
-    $auth= "Bearer $env:GH_TOKEN"
+on:
+  push:
+    branches: [ main ]
 
-    # 3) Downloader preferido: curl.exe (mejor con redirects/CDN)
-    $downloaded = $false
-    $curl = (Get-Command curl.exe -ErrorAction SilentlyContinue)
-    if ($curl) {
-      & $curl.Path -L --retry 5 --retry-delay 2 ^
-        -H "Authorization: $auth" ^
-        -H "X-GitHub-Api-Version: 2022-11-28" ^
-        -H "User-Agent: $ua" ^
-        -o "$zipPath" "$url"
-      if (Test-Path $zipPath) { $downloaded = $true }
-    }
+jobs:
+  build-and-deploy:
+    runs-on: self-hosted
 
-    # 4) Fallback 1: BITS (tolerante a redes)
-    if (-not $downloaded) {
-      try {
-        Start-BitsTransfer -Source $url -Destination $zipPath -Description "repo.zip" -DisplayName "repo.zip" -RetryInterval 5 -ErrorAction Stop
-        $downloaded = (Test-Path $zipPath)
-      } catch {
-        # ignorar, probaremos IWR
-      }
-    }
+    steps:
+      - name: 1. Descargar código fuente
+        uses: actions/checkout@v3
 
-    # 5) Fallback 2: Invoke-WebRequest con redirecciones/timeout
-    if (-not $downloaded) {
-      try {
-        $headers = @{
-          Authorization          = $auth
-          "X-GitHub-Api-Version" = "2022-11-28"
-          "User-Agent"           = $ua
-        }
-        Invoke-WebRequest -Uri $url -Headers $headers -OutFile $zipPath -MaximumRedirection 10 -TimeoutSec 600 -UseBasicParsing
-        $downloaded = (Test-Path $zipPath)
-      } catch {
-        Write-Host "Invoke-WebRequest falló: $($_.Exception.Message)"
-      }
-    }
+      - name: 2. Iniciar sesión en Docker Hub (Opcional, recomendado)
+        # Ve a hub.docker.com, crea una cuenta y luego crea los secretos
+        # DOCKERHUB_USERNAME y DOCKERHUB_TOKEN en GitHub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    if (-not $downloaded) {
-      throw "No se pudo descargar el zip del repo."
-    }
-
-    # 6) Extraer a ruta corta y reubicar contenido
-    Remove-Item -Path $env:SRC_DIR -Recurse -Force -ErrorAction SilentlyContinue
-    New-Item -ItemType Directory -Force -Path $env:SRC_DIR | Out-Null
-    Expand-Archive -Path $zipPath -DestinationPath $env:SRC_DIR -Force
-
-    $inner = Get-ChildItem -LiteralPath $env:SRC_DIR | Where-Object { $_.PSIsContainer } | Select-Object -First 1
-    if ($null -ne $inner) {
-      Get-ChildItem -LiteralPath $inner.FullName -Force | ForEach-Object {
-        Move-Item -LiteralPath $_.FullName -Destination $env:SRC_DIR -Force
-      }
-      Remove-Item -LiteralPath $inner.FullName -Recurse -Force
-    }
-
-    # 7) Validación básica
-    if (-not (Test-Path (Join-Path $env:SRC_DIR 'package.json'))) {
-      Write-Host "Advertencia: no se encontró package.json en SRC_DIR; verifique estructura."
-    }
+      - name: 3. Construir y Desplegar con Docker Compose
+        # Pasamos los secretos como variables de entorno al comando
+        run: |
+          docker-compose up --build -d
+        env:
+          DB_USER: ${{ secrets.DB_USER }}
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          DB_SERVER: ${{ secrets.DB_SERVER }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}

@@ -37,7 +37,7 @@ export const GruposNominaPage = () => {
         setIsLoading(true);
         setError(null);
         try {
-            const res = await fetch(`${API_BASE_URL}/api/catalogs/grupos-nomina/management`, { headers });
+            const res = await fetch(`${API_BASE_URL}/catalogs/grupos-nomina/management`, { headers });
             if (!res.ok) {
                 const errorData = await res.json().catch(() => ({}));
                 throw new Error(errorData.message || 'Error al cargar los datos.');

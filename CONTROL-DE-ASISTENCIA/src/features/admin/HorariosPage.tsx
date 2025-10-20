@@ -86,7 +86,7 @@ export const HorariosPage = () => {
         }
 
         try {
-            const response = await fetch(`${API_BASE_URL}/api/catalogs/schedules`, {
+            const response = await fetch(`${API_BASE_URL}/catalogs/schedules`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (!response.ok) {

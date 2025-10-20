@@ -74,7 +74,7 @@ export const ProfessionalSidebar = ({ onLogout, activeView, setActiveView, menuC
                  <button onClick={() => setIsAutoCollapse(prev => !prev)} className={`p-2 rounded-md hover:bg-gray-100 ${isAutoCollapse ? 'text-[--theme-500]' : 'text-slate-500'}`} title="Activar/Desactivar menú automático">
                     <Menu size={20} />
                 </button>
-                {!isCollapsed && <h1 className="text-xl font-bold text-slate-800 truncate">Control de Asistencia</h1>}
+                {!isCollapsed && <h1 className="text-xl font-bold text-slate-800 truncate">Control de Asistencia v2 </h1>}
             </div>
             
             <button onClick={() => setIsManuallyCollapsed(prev => !prev)} className={`absolute top-5 -right-[10px] z-20 text-slate-400 hover:text-[--theme-500] ${animationsEnabled ? 'transition-colors' : ''}`} title="Contraer/Expandir menú">

@@ -24,7 +24,7 @@ export const EstatusAsistenciaPage = () => {
         
         setIsLoading(true);
         try {
-            const res = await fetch(`${API_BASE_URL}/api/catalogs/attendance-statuses/management`, {
+            const res = await fetch(`${API_BASE_URL}/catalogs/attendance-statuses/management`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             if (!res.ok) throw new Error((await res.json()).message);
@@ -48,7 +48,7 @@ export const EstatusAsistenciaPage = () => {
     const handleSave = async (status: AttendanceStatus) => {
         const token = getToken();
         try {
-            const response = await fetch(`${API_BASE_URL}/api/catalogs/attendance-statuses`, {
+            const response = await fetch(`${API_BASE_URL}/catalogs/attendance-statuses`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify(status),

@@ -35,7 +35,7 @@ export const EmployeeProfileModal = ({ employeeId, onClose, getToken, user }: { 
             try {
                 // Pequeño delay para que la UI de carga sea perceptible
                 await new Promise(resolve => setTimeout(resolve, 300));
-                const res = await fetch(`${API_BASE_URL}/api/employees/${employeeId}/profile`, { headers: { 'Authorization': `Bearer ${token}` } });
+                const res = await fetch(`${API_BASE_URL}/employees/${employeeId}/profile`, { headers: { 'Authorization': `Bearer ${token}` } });
                 if (!res.ok) {
                     const errorData = await res.json();
                     throw new Error(errorData.message || 'No se pudo cargar la información del empleado.');

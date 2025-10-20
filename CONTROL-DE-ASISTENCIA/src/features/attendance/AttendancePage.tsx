@@ -205,15 +205,15 @@ export const AttendancePage = () => {
         const endDate = format(dateRange[dateRange.length - 1], 'yyyy-MM-dd');
 
         try {
-            await fetch(`${API_BASE_URL}/api/attendance/ensure-range`, {
+            await fetch(`${API_BASE_URL}/attendance/ensure-range`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', ...headers },
                 body: JSON.stringify({ startDate, endDate })
             });
 
             const [employeesRes, statusesRes] = await Promise.all([
-                fetch(`${API_BASE_URL}/api/attendance/data-by-range?startDate=${startDate}&endDate=${endDate}`, { headers }),
-                fetch(`${API_BASE_URL}/api/catalogs/attendance-statuses`, { headers })
+                fetch(`${API_BASE_URL}/attendance/data-by-range?startDate=${startDate}&endDate=${endDate}`, { headers }),
+                fetch(`${API_BASE_URL}/catalogs/attendance-statuses`, { headers })
             ]);
 
             if (!employeesRes.ok || !statusesRes.ok) throw new Error('Error al cargar datos iniciales.');
@@ -302,7 +302,7 @@ export const AttendancePage = () => {
 
         try {
              await Promise.all(updates.map(({ empleadoId, fecha, estatus, comentarios }) =>
-                fetch(`${API_BASE_URL}/api/attendance`, {
+                fetch(`${API_BASE_URL}/attendance`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                     body: JSON.stringify({ 

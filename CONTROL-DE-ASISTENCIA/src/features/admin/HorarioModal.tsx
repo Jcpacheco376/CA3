@@ -148,7 +148,7 @@ export const HorarioModal = ({ isOpen, onClose, onSave, horario }: { isOpen: boo
         const token = getToken();
 
         try {
-            const response = await fetch(`${API_BASE_URL}/api/catalogs/schedules`, {
+            const response = await fetch(`${API_BASE_URL}/catalogs/schedules`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
