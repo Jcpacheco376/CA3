@@ -31,8 +31,8 @@ export const UsersPage = () => {
         setIsLoading(true);
         try {
             const [usersResponse, rolesResponse] = await Promise.all([
-                fetch(`${API_BASE_URL}/api/users`, { headers }),
-                fetch(`${API_BASE_URL}/api/roles`, { headers })
+                fetch(`${API_BASE_URL}/users`, { headers }),
+                fetch(`${API_BASE_URL}/roles`, { headers })
             ]);
 
             if (!usersResponse.ok || !rolesResponse.ok) {
@@ -77,7 +77,7 @@ export const UsersPage = () => {
         const payload = { ...userToSave, Password: password };
 
         try {
-            const response = await fetch(`${API_BASE_URL}/api/users`, {
+            const response = await fetch(`${API_BASE_URL}/users`, {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',

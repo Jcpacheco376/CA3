@@ -130,8 +130,8 @@ export const SchedulePage = () => {
 
         try {
             const [assignmentsRes, schedulesRes] = await Promise.all([
-                fetch(`${API_BASE_URL}/api/schedules/assignments?startDate=${startDate}&endDate=${endDate}`, { headers }),
-                fetch(`${API_BASE_URL}/api/schedules`, { headers })
+                fetch(`${API_BASE_URL}/schedules/assignments?startDate=${startDate}&endDate=${endDate}`, { headers }),
+                fetch(`${API_BASE_URL}/schedules`, { headers })
             ]);
 
             if (!assignmentsRes.ok) throw new Error(`Error ${assignmentsRes.status} al cargar asignaciones.`);
@@ -188,7 +188,7 @@ export const SchedulePage = () => {
         });
 
         try {
-            const res = await fetch(`${API_BASE_URL}/api/schedules/assignments`, {
+            const res = await fetch(`${API_BASE_URL}/schedules/assignments`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify(updates),

@@ -37,7 +37,7 @@ export const ForcePasswordChangeModal = ({ user }: { user: User }) => {
 
         setSaveStatus('loading');
         try {
-            const response = await fetch(`${API_BASE_URL}/api/users/${user.UsuarioId}/password`, {
+            const response = await fetch(`${API_BASE_URL}/users/${user.UsuarioId}/password`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ password: newPassword }),

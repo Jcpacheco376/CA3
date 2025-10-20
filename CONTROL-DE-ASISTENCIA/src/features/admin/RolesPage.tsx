@@ -32,8 +32,8 @@ export const RolesPage = () => {
         setIsLoading(true);
         try {
             const [rolesResponse, permissionsResponse] = await Promise.all([
-                fetch(`${API_BASE_URL}/api/roles`, { headers }),
-                fetch(`${API_BASE_URL}/api/roles/permissions`, { headers })
+                fetch(`${API_BASE_URL}/roles`, { headers }),
+                fetch(`${API_BASE_URL}/roles/permissions`, { headers })
             ]);
 
             if (!rolesResponse.ok || !permissionsResponse.ok) {
@@ -75,7 +75,7 @@ export const RolesPage = () => {
         }
 
         try {
-            const response = await fetch(`${API_BASE_URL}/api/roles`, {
+            const response = await fetch(`${API_BASE_URL}/roles`, {
                 method: 'POST',
                 headers: { 
                     'Content-Type': 'application/json',

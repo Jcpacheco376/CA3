@@ -2,8 +2,6 @@
 setlocal enabledelayedexpansion
 
 echo Leyendo variables de configuracion...
-
-REM Lee el archivo .env.deploy de forma segura
 for /f "usebackq tokens=1,* delims==" %%A in (".env.deploy") do (
     set "%%A=%%B"
 )
@@ -16,27 +14,35 @@ echo Servidor destino: %DEPLOY_HOST%
 echo.
 
 echo --- 1. Copiando Frontend ---
+REM Paso 1A: Copia los archivos de la app (dist) y borra los viejos
 robocopy ".\CONTROL-DE-ASISTENCIA\dist" "\\%DEPLOY_HOST%\%FRONTEND_PATH%" /E /PURGE
+REM Paso 1B: Copia el web.config para que no sea borrado por PURGE
+copy ".\CONTROL-DE-ASISTENCIA\web.config" "\\%DEPLOY_HOST%\%FRONTEND_PATH%\web.config"
 echo Frontend copiado.
 echo.
 
-echo --- 2. Copiando API ---
+echo --- 2. Copiando API (Codigo y Configuracion) ---
 robocopy ".\CONTROL-DE-ASISTENCIA-API\dist" "\\%DEPLOY_HOST%\%API_PATH%\dist" /E /PURGE
-robocopy ".\CONTROL-DE-ASISTENCIA-API\node_modules" "\\%DEPLOY_HOST%\%API_PATH%\node_modules" /E /PURGE
 copy ".\CONTROL-DE-ASISTENCIA-API\package.json" "\\%DEPLOY_HOST%\%API_PATH%\package.json"
-copy ".\CONTROL-DE-ASISTENCIA-API\.env.production" "\\%DEPLOY_HOST%\%API_PATH%\.env"
+copy ".\CONTROL-DE-ASISTENCIA-API\.env.production" "\\%DEPLOY_HOST%\%API_PATH%\dist\.env"
 echo API copiada.
 echo.
 
-echo --- 3. Reiniciando API en el servidor ---
-REM psexec se conecta y ejecuta el comando 'pm2 restart' dentro de un cmd remoto para asegurar que encuentre PM2
-psexec \\%DEPLOY_HOST% -u %DEPLOY_USER% -p %DEPLOY_PASSWORD% cmd /c "pm2 restart CAAPI"
+echo --- 3. Instalando dependencias remotamente EN EL SERVIDOR ---
+psexec \\%DEPLOY_HOST% -u %DEPLOY_USER% -p %DEPLOY_PASSWORD% cmd /c "cd /d D:\CA\api-asistencia && npm install --production"
+echo Dependencias de API instaladas en el servidor.
+echo.
+
+echo --- 4. Iniciando/Reiniciando API en el servidor (Version Robusta) ---
+set "PM2_PATH=C:\Users\%DEPLOY_USER%\AppData\Roaming\npm\pm2.cmd"
+set "PM2_COMMAND=%PM2_PATH% restart CAAPI || %PM2_PATH% start dist/index.js --name CAAPI"
+psexec \\%DEPLOY_HOST% -u %DEPLOY_USER% -p %DEPLOY_PASSWORD% cmd /c "cd /d D:\CA\api-asistencia && %PM2_COMMAND%"
 if %errorlevel% neq 0 (
     echo.
-    echo ERROR: Falla al reiniciar la API. Verifique sus credenciales, la ruta de red y que el proceso 'api-asistencia' exista en PM2.
+    echo ERROR: Falla al iniciar la API.
     goto :eof
 )
-echo API reiniciada exitosamente.
+echo API iniciada/reiniciada exitosamente.
 echo.
 
 echo =================================

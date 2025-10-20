@@ -136,13 +136,13 @@ export const UserProfileModal = ({ isOpen, onClose, user, setTheme }: any) => {
         const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
         
         try {
-            const prefPromise = fetch(`${API_BASE_URL}/api/users/${user.UsuarioId}/preferences`, {
+            const prefPromise = fetch(`${API_BASE_URL}/users/${user.UsuarioId}/preferences`, {
                 method: 'PUT',
                 headers,
                 body: JSON.stringify({ theme: preferences.theme, animationsEnabled: preferences.animationsEnabled }),
             });
 
-            const passPromise = newPassword ? fetch(`${API_BASE_URL}/api/users/${user.UsuarioId}/password`, {
+            const passPromise = newPassword ? fetch(`${API_BASE_URL}/users/${user.UsuarioId}/password`, {
                 method: 'PUT',
                 headers,
                 body: JSON.stringify({ password: newPassword }),
