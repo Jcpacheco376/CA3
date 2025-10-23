@@ -170,9 +170,10 @@ exports.getSchedulesCatalog = getSchedulesCatalog;
 const upsertScheduleCatalog = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     if (!req.user.permissions['catalogo.horarios.manage'])
         return res.status(403).json({ message: 'Acceso denegado.' });
-    const { HorarioId, Abreviatura, Nombre, MinutosTolerancia, ColorUI, Activo, Detalles } = req.body;
+    const { HorarioId, Abreviatura, Nombre, MinutosTolerancia, ColorUI, Activo, EsRotativo, Detalles } = req.body;
     try {
         const pool = yield mssql_1.default.connect(database_1.dbConfig);
+        console.log(req.body);
         const result = yield pool.request()
             .input('HorarioId', mssql_1.default.Int, HorarioId || 0)
             .input('Abreviatura', mssql_1.default.NVarChar, Abreviatura)
@@ -180,6 +181,7 @@ const upsertScheduleCatalog = (req, res) => __awaiter(void 0, void 0, void 0, fu
             .input('MinutosTolerancia', mssql_1.default.Int, MinutosTolerancia)
             .input('ColorUI', mssql_1.default.NVarChar, ColorUI)
             .input('Activo', mssql_1.default.Bit, Activo)
+            .input('esRotativo', mssql_1.default.Bit, EsRotativo)
             .input('DetallesJSON', mssql_1.default.NVarChar, JSON.stringify(Detalles || [])).execute('sp_CatalogoHorarios_Upsert');
         res.status(200).json({ message: 'Horario guardado correctamente.', horarioId: result.recordset[0].HorarioId });
     }

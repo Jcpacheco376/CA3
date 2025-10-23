@@ -1,55 +1,81 @@
-// src/features/admin/HorariosPage.tsx
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useAuth } from '../auth/AuthContext.tsx';
-import { useNotification } from '../../context/NotificationContext.tsx';
-import { API_BASE_URL } from '../../config/api.ts';
-import { Loader2, AlertTriangle, CheckCircle, XCircle, Edit } from 'lucide-react';
-import { HorarioModal } from './HorarioModal.tsx';
-import { Tooltip, InfoIcon } from '../../components/ui/Tooltip.tsx';
-import { Button, Modal } from '../../components/ui/Modal.tsx';
-import { PencilIcon, PlusCircleIcon } from '../../components/ui/Icons.tsx';
-import { themes } from '../../config/theme.ts';
+import { useAuth } from '../auth/AuthContext'; // Removed .tsx
+import { useNotification } from '../../context/NotificationContext'; // Removed .tsx
+import { API_BASE_URL } from '../../config/api'; // Removed .ts
+import { Loader2, AlertTriangle, CheckCircle, XCircle, Edit, RotateCw } from 'lucide-react'; // Added RotateCw
+import { HorarioModal } from './HorarioModal'; // Removed .tsx
+import { Tooltip, InfoIcon } from '../../components/ui/Tooltip'; // Removed .tsx
+import { Button, Modal } from '../../components/ui/Modal'; // Removed .tsx
+import { PencilIcon, PlusCircleIcon } from '../../components/ui/Icons'; // Removed .tsx
+import { themes } from '../../config/theme'; // Removed .ts
 
 // --- COMPONENTES AUXILIARES ---
+// Updated JornadaSemanalVisual for a cohesive Rotativo style with matching colors
+const JornadaSemanalVisual = ({ detalles, esRotativo }: { detalles: any[], esRotativo: boolean | number | undefined }) => { // Allow boolean, number or undefined
+    const isActuallyRotativo = esRotativo === true || esRotativo === 1;
 
-const JornadaSemanalVisual = ({ detalles }: { detalles: any[] }) => {
-    const dias = [
-        { abr: 'L', full: 'Lunes' },
-        { abr: 'M', full: 'Martes' },
-        { abr: 'X', full: 'Miércoles' },
-        { abr: 'J', full: 'Jueves' },
-        { abr: 'V', full: 'Viernes' },
-        { abr: 'S', full: 'Sábado' },
-        { abr: 'D', full: 'Domingo' }
-    ];
-    const diasLaborales = new Set(
-        (detalles || [])
-            .filter(d => d.EsDiaLaboral)
-            .map(d => d.DiaSemana - 1)
-    );
-
-    if (!detalles || detalles.length === 0) {
-        return <span className="text-xs text-slate-400">No definido</span>;
-    }
-
+    // Use the same outer container structure for consistency
     return (
-        <div className="flex overflow-hidden rounded-md border border-slate-200 w-fit divide-x divide-slate-200">
-            {dias.map((dia, index) => (
-                <Tooltip key={index} text={dia.full}>
-                    <span
-                        className={`
-                            w-7 h-7 flex items-center justify-center text-xs font-semibold
-                            transition-colors duration-150
-                            ${diasLaborales.has(index)
-                                ? 'bg-sky-500 text-white'
-                                : 'bg-white text-slate-500'
-                            }
-                        `}
-                    >
-                        {dia.abr}
-                    </span>
+        <div className="flex overflow-hidden rounded-md border border-slate-200 w-fit divide-x divide-slate-200 h-7"> {/* Base container with fixed height */}
+            {isActuallyRotativo ? (
+                // Single unified capsule style for Rotativo, using sky-500 and white text
+                 <Tooltip text="Horario Rotativo">
+                    {/* Changed colors to bg-sky-500 and text-white */}
+                    <div className="flex items-center justify-center px-4 h-full bg-sky-500 text-white text-xs font-semibold w-[196px]"> {/* w-7 * 7 days = 196px */}
+                        <RotateCw size={14} className="mr-1.5"/> Rotativo
+                    </div>
                 </Tooltip>
-            ))}
+            ) : (
+                // Existing logic for non-rotating schedules
+                <>
+                    {(() => { // IIFE to avoid conditional rendering issues with map
+                        const dias = [
+                            { abr: 'L', full: 'Lunes' },
+                            { abr: 'M', full: 'Martes' },
+                            { abr: 'X', full: 'Miércoles' },
+                            { abr: 'J', full: 'Jueves' },
+                            { abr: 'V', full: 'Viernes' },
+                            { abr: 'S', full: 'Sábado' },
+                            { abr: 'D', full: 'Domingo' }
+                        ];
+                        const diasLaborales = new Set(
+                            (detalles || [])
+                                .filter(d => d.EsDiaLaboral)
+                                .map(d => d.DiaSemana - 1)
+                        );
+
+                        // Main container for the weekly capsules - ensure h-full
+                        const weeklyCapsules = (
+                             <div className="flex divide-x divide-slate-200 h-full"> {/* Removed w-fit, added h-full */}
+                                {dias.map((dia, index) => (
+                                    <Tooltip key={index} text={dia.full}>
+                                        <span
+                                            className={`
+                                                w-7 h-full flex items-center justify-center text-xs font-semibold
+                                                transition-colors duration-150
+                                                ${diasLaborales.has(index)
+                                                    ? 'bg-sky-500 text-white' // Color Laboral
+                                                    : 'bg-white text-slate-500' // Color Descanso
+                                                }
+                                            `}
+                                        >
+                                            {dia.abr}
+                                        </span>
+                                    </Tooltip>
+                                ))}
+                            </div>
+                        );
+
+                        // Handle 'No definido' case separately but maintain height and width
+                        if (!detalles || detalles.length === 0) {
+                            return <div className="flex items-center justify-center px-3 h-full bg-slate-50 text-slate-400 text-xs italic w-[196px]">No definido</div>;
+                        }
+
+                        return weeklyCapsules; // Render the weekly view
+
+                    })()}
+                </>
+            )}
         </div>
     );
 };
@@ -94,6 +120,16 @@ export const HorariosPage = () => {
                 throw new Error(errorData.message || 'No se pudo cargar el catálogo de horarios.');
             }
             const data = await response.json();
+             // ***** LOG: Check the exact structure and casing of EsRotativo here *****
+             // ***** Log the entire data array and the first item if available *****
+            // console.log("[HorariosPage] fetchHorarios - Raw data received:", data);
+            // if (data && data.length > 0) {
+            //     console.log("[HorariosPage] fetchHorarios - First item check:", data[0]);
+            //     console.log(`[HorariosPage] fetchHorarios - Does first item have 'EsRotativo'?`, data[0].hasOwnProperty('EsRotativo'));
+            //     console.log(`[HorariosPage] fetchHorarios - Value of 'EsRotativo':`, data[0].EsRotativo);
+            //     console.log(`[HorariosPage] fetchHorarios - Does first item have 'esRotativo'?`, data[0].hasOwnProperty('esRotativo'));
+            //     console.log(`[HorariosPage] fetchHorarios - Value of 'esRotativo':`, data[0].esRotativo);
+            // }
             setHorarios(data);
         } catch (err: any) {
             setError(err.message);
@@ -129,7 +165,7 @@ export const HorariosPage = () => {
             (h.Abreviatura?.toLowerCase().includes(lowercasedFilter))
         );
     }, [horarios, searchTerm]);
-    
+
     const renderContent = () => {
         if (isLoading) {
             return <div className="flex justify-center items-center p-8"><Loader2 className="animate-spin mr-2" /> Cargando horarios...</div>;
@@ -152,37 +188,42 @@ export const HorariosPage = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        {filteredHorarios.map((horario) => (
-                            <tr key={horario.HorarioId} className="border-t border-slate-200 hover:bg-slate-50">
-                                <td className="p-3 font-medium text-slate-800">{horario.HorarioId}</td>
-                                <td className="p-3 font-medium text-slate-800">
-                                    <span className="px-2 py-1 rounded-md text-xs font-semibold" style={{ 
-                                        backgroundColor: themes[horario.ColorUI as keyof typeof themes]?.[100] || '#EFF6FF',
-                                        color: themes[horario.ColorUI as keyof typeof themes]?.[600] || '#2563EB' 
-                                    }}>
-                                        {horario.Abreviatura}
-                                    </span>
-                                </td>
-                                <td className="p-3 font-medium text-slate-800">{horario.Nombre}</td>
-                                <td className="p-3"><JornadaSemanalVisual detalles={horario.Detalles} /></td>
-                                <td className="p-3 text-center">{horario.MinutosTolerancia}</td>
-                                <td className="p-3 text-center">
-                                    {horario.Activo ? 
-                                        <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800"><CheckCircle size={14} /> Activo</span> :
-                                        <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800"><XCircle size={14} /> Inactivo</span>
-                                    }
-                                </td>
-                                {canManage && (
-                                    <td className="p-3 text-center">
-                                        <Tooltip text="Editar Horario">
-                                            <button onClick={() => handleOpenModal(horario)} className="p-2 text-slate-500 hover:text-[--theme-500] rounded-full hover:bg-slate-100 transition-colors">
-                                                <PencilIcon />
-                                            </button>
-                                        </Tooltip>
+                        {filteredHorarios.map((horario) => {
+                             // ***** LOG: Check the value being passed for each row *****
+                             // console.log(`[HorariosPage] Rendering row for HorarioId ${horario.HorarioId}, esRotativo prop value:`, horario.esRotativo, typeof horario.esRotativo);
+                             return (
+                                <tr key={horario.HorarioId} className="border-t border-slate-200 hover:bg-slate-50">
+                                    <td className="p-3 font-medium text-slate-800">{horario.HorarioId}</td>
+                                    <td className="p-3 font-medium text-slate-800">
+                                        <span className="px-2 py-1 rounded-md text-xs font-semibold" style={{
+                                            backgroundColor: themes[horario.ColorUI as keyof typeof themes]?.[100] || '#EFF6FF',
+                                            color: themes[horario.ColorUI as keyof typeof themes]?.[600] || '#2563EB'
+                                        }}>
+                                            {horario.Abreviatura}
+                                        </span>
                                     </td>
-                                )}
-                            </tr>
-                        ))}
+                                    <td className="p-3 font-medium text-slate-800">{horario.Nombre}</td>
+                                    {/* Pass esRotativo (camelCase) to JornadaSemanalVisual */}
+                                    <td className="p-3"><JornadaSemanalVisual detalles={horario.Detalles} esRotativo={horario.esRotativo} /></td>
+                                    <td className="p-3 text-center">{horario.MinutosTolerancia}</td>
+                                    <td className="p-3 text-center">
+                                        {horario.Activo ?
+                                            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800"><CheckCircle size={14} /> Activo</span> :
+                                            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800"><XCircle size={14} /> Inactivo</span>
+                                        }
+                                    </td>
+                                    {canManage && (
+                                        <td className="p-3 text-center">
+                                            <Tooltip text="Editar Horario">
+                                                <button onClick={() => handleOpenModal(horario)} className="p-2 text-slate-500 hover:text-[--theme-500] rounded-full hover:bg-slate-100 transition-colors">
+                                                    <PencilIcon />
+                                                </button>
+                                            </Tooltip>
+                                        </td>
+                                    )}
+                                </tr>
+                             );
+                        })}
                     </tbody>
                 </table>
             </div>
@@ -201,8 +242,21 @@ export const HorariosPage = () => {
         );
     }
 
+    // Add keyframes for gradient animation
+    const styles = `
+        @keyframes gradient-x {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+        }
+        .animate-gradient-x {
+            background-size: 200% 200%;
+            animation: gradient-x 3s ease infinite;
+        }
+    `;
+
     return (
         <div className="space-y-6">
+             <style>{styles}</style> {/* Inject animation styles */}
              <header className="mb-6">
                 <div className="flex items-center space-x-3">
                     <h1 className="text-3xl font-bold text-slate-800">Catálogo de Horarios</h1>
@@ -211,7 +265,7 @@ export const HorariosPage = () => {
                     </Tooltip>
                 </div>
             </header>
-            
+
             <div className="flex justify-between items-center mb-4">
                 <div className="max-w-xs">
                      <input
@@ -243,3 +297,4 @@ export const HorariosPage = () => {
         </div>
     );
 };
+

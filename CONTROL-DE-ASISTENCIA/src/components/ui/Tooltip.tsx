@@ -1,5 +1,4 @@
-// src/components/ui/Tooltip.tsx
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react'; // <--- Añadido useEffect aquí
 import ReactDOM from 'react-dom';
 
 export const InfoIcon = () => (
@@ -90,10 +89,35 @@ export const Tooltip = ({
         </div>
     );
 
+    const [isMounted, setIsMounted] = useState(false);
+    
+    useEffect(() => { // <-- Error estaba aquí, faltaba importar useEffect
+        setIsMounted(true);
+        let portalRoot = document.getElementById('portal-root-tooltip');
+        if (!portalRoot) {
+            portalRoot = document.createElement('div');
+            portalRoot.id = 'portal-root-tooltip';
+            document.body.appendChild(portalRoot);
+        }
+        return () => {
+             // Optional: clean up portal root if it's empty
+             if (portalRoot && portalRoot.children.length === 0) {
+                 // portalRoot.remove(); // Comentado para evitar posibles problemas si se desmonta rápido
+             }
+        }
+    }, [])
+
+
+    if (!isMounted) {
+        return <>{target}</>;
+    }
+
+
     return (
         <>
             {target}
-            {ReactDOM.createPortal(tooltipContent, document.body)}
+            {ReactDOM.createPortal(tooltipContent, document.getElementById('portal-root-tooltip')!)}
         </>
     );
 };
+

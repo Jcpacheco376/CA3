@@ -143,9 +143,12 @@ export const getSchedulesCatalog = async (req: any, res: Response) => {
 
 export const upsertScheduleCatalog = async (req: any, res: Response) => {
     if (!req.user.permissions['catalogo.horarios.manage']) return res.status(403).json({ message: 'Acceso denegado.' });
-    const { HorarioId, Abreviatura, Nombre, MinutosTolerancia, ColorUI, Activo, Detalles } = req.body;
+    const { HorarioId, Abreviatura, Nombre, MinutosTolerancia, ColorUI, Activo, EsRotativo, DetallesJSON } = req.body;
     try {
-        const pool = await sql.connect(dbConfig);
+         const pool = await sql.connect(dbConfig);
+        //console.log('Received Body:', req.body); // Log the received body
+        //console.log('DetallesJSON String:', DetallesJSON); // Log the string received
+
         const result = await pool.request()
             .input('HorarioId', sql.Int, HorarioId || 0)
             .input('Abreviatura', sql.NVarChar, Abreviatura)
@@ -153,8 +156,16 @@ export const upsertScheduleCatalog = async (req: any, res: Response) => {
             .input('MinutosTolerancia', sql.Int, MinutosTolerancia)
             .input('ColorUI', sql.NVarChar, ColorUI)
             .input('Activo', sql.Bit, Activo)
-            .input('DetallesJSON', sql.NVarChar, JSON.stringify(Detalles || [])).execute('sp_CatalogoHorarios_Upsert');
-        res.status(200).json({ message: 'Horario guardado correctamente.', horarioId: result.recordset[0].HorarioId });
+            .input('esRotativo', sql.Bit, EsRotativo ?? false) 
+            .input('DetallesJSON', sql.NVarChar, DetallesJSON || '[]')
+            .execute('sp_CatalogoHorarios_Upsert');
+
+        const returnedHorarioId = result.recordset && result.recordset.length > 0 ? result.recordset[0].HorarioId : null;
+
+        res.status(200).json({
+             message: 'Horario guardado correctamente.',
+             horarioId: returnedHorarioId
+        });
     } catch (err: any) { res.status(409).json({ message: err.message }); }
 };
 
