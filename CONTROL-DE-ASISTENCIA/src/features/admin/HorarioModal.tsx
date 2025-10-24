@@ -1,14 +1,43 @@
 import React, { useState, useEffect, useMemo } from 'react'; // Added useMemo
-import { Modal, Button } from '../../components/ui/Modal.tsx'; // Re-added .tsx
-import { useAuth } from '../auth/AuthContext.tsx'; // Re-added .tsx
-import { useNotification } from '../../context/NotificationContext.tsx'; // Re-added .tsx
-import { API_BASE_URL } from '../../config/api.ts'; // Re-added .ts
-// Import AlertTriangle
+// Added .tsx/.ts back to imports
+import { Modal, Button } from '../../components/ui/Modal.tsx';
+import { useAuth } from '../auth/AuthContext.tsx';
+import { useNotification } from '../../context/NotificationContext.tsx';
+import { API_BASE_URL } from '../../config/api.ts';
+// Import AlertTriangle, Sun, Moon, Sunset
 import { Loader2, AlertTriangle, Clock, Coffee, Sun, Moon, Sunset, RotateCw, XCircle } from 'lucide-react';
-import { themes, statusColorPalette } from '../../config/theme.ts'; // Re-added .ts
-import { Tooltip } from '../../components/ui/Tooltip.tsx'; // Re-added .tsx
+import { themes, statusColorPalette } from '../../config/theme.ts';
+import { Tooltip } from '../../components/ui/Tooltip.tsx';
 
+// Keep diasSemana for non-rotativo mode
 const diasSemana = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"];
+
+// --- Helper Function for Turno Icon ---
+const getTurnoIcon = (turno: 'M' | 'V' | 'N' | string | null | undefined, size = 16) => {
+    switch (turno) {
+        case 'M':
+            return <Sun size={size} className="text-amber-500 shrink-0" title="Matutino" />;
+        case 'V':
+            return <Sunset size={size} className="text-orange-500 shrink-0" title="Vespertino" />;
+        case 'N':
+            return <Moon size={size} className="text-indigo-500 shrink-0" title="Nocturno" />;
+        default:
+            return null;
+    }
+};
+
+// --- Helper function to determine turno from time ---
+const determineTurnoFromTime = (horaEntrada: string): 'M' | 'V' | 'N' | null => {
+    if (!horaEntrada || horaEntrada === '00:00') return null;
+    try {
+        const hour = parseInt(horaEntrada.split(':')[0], 10);
+        if (hour >= 5 && hour < 12) return 'M';
+        if (hour >= 12 && hour < 20) return 'V';
+        if ((hour >= 20 && hour <= 23) || (hour >= 0 && hour < 5)) return 'N'; // Include early morning as Nocturno
+    } catch { return null; }
+    return null;
+};
+
 
 // --- Helper function to calculate hours ---
 const calculateDailyHours = (dia: any): number => {
@@ -188,78 +217,105 @@ export const HorarioModal = ({ isOpen, onClose, onSave, horario }: { isOpen: boo
     const isNew = !horario;
     const theme = themes[user?.Theme as keyof typeof themes] || themes.indigo;
 
-     // Calculate total weekly hours
+     // Calculate total weekly hours (only relevant for non-rotativo)
     const totalWeeklyHours = useMemo(() => {
-        if (!formData || !formData.Detalles) return 0;
+        // ... (totalWeeklyHours calculation remains the same) ...
+        if (!formData || !formData.Detalles || formData.esRotativo) return 0; // Return 0 if rotativo
         return formData.Detalles.reduce((total: number, dia: any) => total + calculateDailyHours(dia), 0);
+    }, [formData]);
+
+    // --- Calculate Preview Turno Icon ---
+    const previewTurno = useMemo(() => {
+        if (!formData || !formData.Detalles || formData.esRotativo) {
+            return null; // No icon for rotativo or if data isn't ready
+        }
+        const activeDays = formData.Detalles.filter((dia: any) => dia.EsDiaLaboral);
+        if (activeDays.length === 0) {
+            return null; // No icon if no days are active
+        }
+        const firstTurno = determineTurnoFromTime(activeDays[0].HoraEntrada);
+        if (!firstTurno) {
+            return null; // No icon if the first active day has invalid time
+        }
+        // Check if all active days have the same turno
+        const allSameTurno = activeDays.every((dia: any) => determineTurnoFromTime(dia.HoraEntrada) === firstTurno);
+
+        return allSameTurno ? firstTurno : null; // Return turno only if all match
+
     }, [formData]);
 
 
     useEffect(() => {
-        const initialDetails = diasSemana.map((_, index) => ({
-            DiaSemana: index + 1, EsDiaLaboral: false, TieneComida: false,
+        // ... (useEffect logic remains the same) ...
+        const initialDetails = Array.from({ length: 7 }).map((_, index) => ({ // Always initialize 7 slots
+            DiaSemana: index + 1, // Keep DiaSemana for potential DB mapping, even if label changes
+            EsDiaLaboral: false, TieneComida: false,
             HoraEntrada: '00:00', HoraSalida: '00:00', HoraInicioComida: '00:00', HoraFinComida: '00:00'
         }));
 
         if (isOpen) {
              setSelectedDayIndex(0);
              // ******** LOG: Mostrar el objeto horario completo que llega como prop ********
-             console.log('[HorarioModal] useEffect - Horario prop recibido:', horario);
+             // console.log('[HorarioModal] useEffect - Horario prop recibido:', horario);
 
              if (horario) {
-                const detailsMap = new Map(horario.Detalles.map((d: any) => [d.DiaSemana, d]));
-                const fullDetails = initialDetails.map(d => {
-                    const detail = detailsMap.get(d.DiaSemana);
+                // Ensure there are always 7 detail slots, filling missing ones if needed
+                const detailsMap = new Map(horario.Detalles?.map((d: any) => [d.DiaSemana, d]) || []);
+                const fullDetails = initialDetails.map(initialD => {
+                    const detail = detailsMap.get(initialD.DiaSemana);
                     if (detail) {
                         const horaInicioComida = detail.HoraInicioComida ? detail.HoraInicioComida.substring(0, 5) : '00:00';
                         return {
-                            ...detail, TieneComida: horaInicioComida !== '00:00',
+                            ...initialD, // Start with initial structure
+                            ...detail, // Overwrite with DB data
+                            TieneComida: horaInicioComida !== '00:00',
                             HoraEntrada: detail.HoraEntrada ? detail.HoraEntrada.substring(0, 5) : '00:00',
                             HoraSalida: detail.HoraSalida ? detail.HoraSalida.substring(0, 5) : '00:00',
                             HoraInicioComida: horaInicioComida,
                             HoraFinComida: detail.HoraFinComida ? detail.HoraFinComida.substring(0, 5) : '00:00',
                         };
-                    } return d;
+                    } return initialD; // Use initial if no corresponding detail found
                 });
+
 
                  // --- ROBUST CHECK with LOGS ---
                  let isRotativoValue = false;
                  let rawValue = undefined; // Para ver el valor original
 
                  // ******** LOG: Verificar si existe 'esRotativo' (camelCase) ********
-                 console.log(`[HorarioModal] useEffect - ¿Existe horario.esRotativo?`, horario.hasOwnProperty('esRotativo'), `- Valor:`, horario.esRotativo);
+                // console.log(`[HorarioModal] useEffect - ¿Existe horario.esRotativo?`, horario.hasOwnProperty('esRotativo'), `- Valor:`, horario.esRotativo);
                  if (horario.hasOwnProperty('esRotativo')) {
                     rawValue = horario.esRotativo;
                     isRotativoValue = horario.esRotativo === true || horario.esRotativo === 1;
                  }
                  // ******** LOG: Verificar si existe 'EsRotativo' (PascalCase) si el anterior no existe ********
                  else if (horario.hasOwnProperty('EsRotativo')) {
-                     console.log(`[HorarioModal] useEffect - ¿Existe horario.EsRotativo?`, horario.hasOwnProperty('EsRotativo'), `- Valor:`, horario.EsRotativo);
+                     // console.log(`[HorarioModal] useEffect - ¿Existe horario.EsRotativo?`, horario.hasOwnProperty('EsRotativo'), `- Valor:`, horario.EsRotativo);
                      rawValue = horario.EsRotativo;
                     isRotativoValue = horario.EsRotativo === true || horario.EsRotativo === 1;
                  } else {
                      // ******** LOG: Si no existe ninguna de las dos ********
-                     console.log('[HorarioModal] useEffect - No se encontró la propiedad esRotativo ni EsRotativo en el objeto horario.');
+                     // console.log('[HorarioModal] useEffect - No se encontró la propiedad esRotativo ni EsRotativo en el objeto horario.');
                  }
 
                  // ******** LOG: Mostrar el valor final que se asignará al estado ********
-                 console.log('[HorarioModal] useEffect - Valor original leído:', rawValue, '- Valor booleano final asignado a formData.esRotativo:', isRotativoValue);
+                 // console.log('[HorarioModal] useEffect - Valor original leído:', rawValue, '- Valor booleano final asignado a formData.esRotativo:', isRotativoValue);
 
                 setFormData({
                     ...horario,
                     CodRef: horario.CodRef || '',
-                    Detalles: fullDetails,
+                    Detalles: fullDetails, // Use the merged/filled details
                     esRotativo: isRotativoValue // Use the explicitly checked boolean value
                  });
             } else {
-                console.log('[HorarioModal] useEffect - Creando nuevo horario (isNew=true)');
+                // console.log('[HorarioModal] useEffect - Creando nuevo horario (isNew=true)');
                 setFormData({
                     HorarioId: 0, CodRef: '', Abreviatura: '', Nombre: '', MinutosTolerancia: 10, ColorUI: 'sky',
-                    Activo: true, esRotativo: false, Detalles: initialDetails
+                    Activo: true, esRotativo: false, Detalles: initialDetails // Start with 7 empty slots
                 });
             }
         } else {
-             console.log('[HorarioModal] useEffect - El modal se cerró o no está abierto.');
+             // console.log('[HorarioModal] useEffect - El modal se cerró o no está abierto.');
         }
     }, [horario, isOpen]);
 
@@ -269,13 +325,11 @@ export const HorarioModal = ({ isOpen, onClose, onSave, horario }: { isOpen: boo
         const checked = (e.target as HTMLInputElement).checked;
         setFormData((prev: any) => {
              const newState = { ...prev, [name]: type === 'checkbox' ? checked : value };
-            if (name === 'esRotativo') {
-                 setSelectedDayIndex(0);
-                 if (checked) {
-                    newState.Detalles = newState.Detalles.map((dia: any, index: number) => index === 0 ? dia :
-                        { ...dia, EsDiaLaboral: false, TieneComida: false, HoraEntrada: '00:00', HoraSalida: '00:00', HoraInicioComida: '00:00', HoraFinComida: '00:00' });
-                }
-            } return newState;
+            // REMOVED the logic that resets days 2-7 when switching esRotativo
+             if (name === 'esRotativo') {
+                 setSelectedDayIndex(0); // Optionally reset focus to the first item
+             }
+             return newState;
         });
     };
 
@@ -299,15 +353,13 @@ export const HorarioModal = ({ isOpen, onClose, onSave, horario }: { isOpen: boo
         // ... (handleSubmit function remains the same) ...
         e.preventDefault();
         if (!formData.Nombre) { setError("El Nombre es obligatorio."); return; }
-        if (formData.esRotativo && (!formData.Detalles[0] || !formData.Detalles[0].EsDiaLaboral)) { setError(`La plantilla base (Lunes/Rotativo) debe ser día laboral.`); return; }
+        // Keep validation simple: If rotativo, at least the first 'turno' must be laboral? Or remove this validation?
+        // Let's remove it for now, supervisor can decide later.
+        // if (formData.esRotativo && (!formData.Detalles[0] || !formData.Detalles[0].EsDiaLaboral)) { setError(`La plantilla base (Lunes/Rotativo) debe ser día laboral.`); return; }
 
         setIsSaving(true); setError(null); const token = getToken();
-        let dataToSend = { ...formData };
-
-        if (dataToSend.esRotativo) {
-             dataToSend = { ...dataToSend, Detalles: dataToSend.Detalles.map((dia: any, index: number) => index === 0 ? dia :
-                { ...dia, EsDiaLaboral: false, TieneComida: false, HoraEntrada: '00:00', HoraSalida: '00:00', HoraInicioComida: '00:00', HoraFinComida: '00:00' }) };
-        }
+        // Send all 7 details regardless of rotativo status. SP handles logic.
+        const dataToSend = { ...formData };
 
         const detallesJson = JSON.stringify(dataToSend.Detalles);
         const finalBody: any = {
@@ -315,7 +367,7 @@ export const HorarioModal = ({ isOpen, onClose, onSave, horario }: { isOpen: boo
              ColorUI: dataToSend.ColorUI, Activo: dataToSend.Activo, EsRotativo: dataToSend.esRotativo, DetallesJSON: detallesJson
         };
          // ******** LOG: Mostrar el body final que se enviará a la API ********
-         console.log('[HorarioModal] handleSubmit - Enviando a la API:', finalBody);
+         // console.log('[HorarioModal] handleSubmit - Enviando a la API:', finalBody);
 
         try {
             const response = await fetch(`${API_BASE_URL}/catalogs/schedules`, {
@@ -331,7 +383,7 @@ export const HorarioModal = ({ isOpen, onClose, onSave, horario }: { isOpen: boo
     const selectedDayDetailsForPreview = formData.Detalles ? formData.Detalles[selectedDayIndex] : null;
 
      // ******** LOG: Mostrar el valor de formData.esRotativo antes de renderizar el ToggleSwitch ********
-     console.log('[HorarioModal] Render - Valor de formData.esRotativo:', formData?.esRotativo);
+     // console.log('[HorarioModal] Render - Valor de formData.esRotativo:', formData?.esRotativo);
 
 
     const modalFooter = (
@@ -346,15 +398,29 @@ export const HorarioModal = ({ isOpen, onClose, onSave, horario }: { isOpen: boo
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={horario ? 'Editar Horario' : 'Nuevo Horario'} footer={modalFooter} size="3xl">
             <form onSubmit={handleSubmit} className="space-y-4">
-                {/* ... (Rest of the form remains the same) ... */}
                 {error && ( <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg relative" role="alert"><AlertTriangle className="inline-block w-5 h-5 mr-2" /> <span className="block sm:inline">{error}</span></div> )}
                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                      <div><label htmlFor="HorarioId" className="block text-sm font-medium text-slate-700">ID</label><input type="text" name="HorarioId" id="HorarioId" value={formData.HorarioId} readOnly disabled className="mt-1 block w-full p-2 border border-slate-300 rounded-md bg-slate-100" /></div>
                      <div><label htmlFor="CodRef" className="block text-sm font-medium text-slate-700">Referencia</label><input type="text" name="CodRef" id="CodRef" value={formData.CodRef} onChange={handleChange} maxLength={50} className="mt-1 block w-full p-2 border border-slate-300 rounded-md focus:border-indigo-500 focus:ring-indigo-500" /></div>
                      <div><label htmlFor="MinutosTolerancia" className="block text-sm font-medium text-slate-700">Minutos de Tolerancia</label><input type="number" name="MinutosTolerancia" id="MinutosTolerancia" value={formData.MinutosTolerancia} onChange={handleChange} required className="mt-1 block w-full p-2 border border-slate-300 rounded-md focus:border-indigo-500 focus:ring-indigo-500" /></div>
                  </div>
+                 {/* Nombre del Horario with Preview Icon */}
                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                     <div className="md:col-span-2"><label htmlFor="Nombre" className="block text-sm font-medium text-slate-700">Nombre del Horario</label><input type="text" name="Nombre" id="Nombre" value={formData.Nombre} onChange={handleChange} required className="mt-1 block w-full p-2 border border-slate-300 rounded-md focus:border-indigo-500 focus:ring-indigo-500" /></div>
+                     <div className="md:col-span-2">
+                        <label htmlFor="Nombre" className="block text-sm font-medium text-slate-700">Nombre del Horario</label>
+                        <div className="flex items-center gap-2 mt-1">
+                             {/* Preview Turno Icon */}
+                             {getTurnoIcon(previewTurno)}
+                             <input
+                                type="text"
+                                name="Nombre"
+                                id="Nombre"
+                                value={formData.Nombre}
+                                onChange={handleChange} required
+                                className="block w-full p-2 border border-slate-300 rounded-md focus:border-indigo-500 focus:ring-indigo-500"
+                             />
+                        </div>
+                    </div>
                      <div><label htmlFor="Abreviatura" className="block text-sm font-medium text-slate-700">Abreviatura (Opcional)</label><input type="text" name="Abreviatura" id="Abreviatura" value={formData.Abreviatura} onChange={handleChange} maxLength={10} className="mt-1 block w-full p-2 border border-slate-300 rounded-md focus:border-indigo-500 focus:ring-indigo-500" /></div>
                  </div>
                  <div className="flex items-center gap-2 pt-2">
@@ -368,9 +434,11 @@ export const HorarioModal = ({ isOpen, onClose, onSave, horario }: { isOpen: boo
                      <div className="flex items-center justify-center pt-5 md:pt-0"><HorarioPreview selectedDayData={selectedDayDetailsForPreview} colorUI={formData.ColorUI} esRotativo={!!formData.esRotativo} scheduleName={formData.Nombre} /></div>
                 </div>
                 <div className="space-y-4 pt-4 border-t">
-                     {/* Weekly total hours */}
+                     {/* Weekly total hours and Title */}
                      <div className="flex justify-between items-center mb-2">
-                         <h3 className="text-lg font-medium text-slate-900">Definición de {formData.esRotativo ? 'Plantilla de Horario Rotativo' : 'Días de la Semana'}</h3>
+                         {/* Changed Title based on esRotativo */}
+                         <h3 className="text-lg font-medium text-slate-900">Definición de {formData.esRotativo ? 'Turnos Rotativos' : 'Días de la Semana'}</h3>
+                          {/* Only show weekly total if NOT rotativo */}
                          {!formData.esRotativo && (
                             <div className="text-right">
                                 <span className="text-sm font-medium text-slate-500">Total Semanal: </span>
@@ -379,34 +447,38 @@ export const HorarioModal = ({ isOpen, onClose, onSave, horario }: { isOpen: boo
                          )}
                      </div>
 
+                    {/* Always render 7 items, labels change based on esRotativo */}
                     {formData.Detalles.map((dia: any, index: number) => {
-                         if (formData.esRotativo && index !== 0) return null;
+                         // Removed the conditional rendering based on esRotativo
                          const isSelected = index === selectedDayIndex;
                          const dailyHours = calculateDailyHours(dia);
                          const hoursWarning = dia.EsDiaLaboral && (dailyHours >= 10 || (dailyHours > 0 && dailyHours <= 4));
                          const warningTooltip = dailyHours > 10 ? "Jornada de 10 horas o má." : "Jornada de 4 horas o menos.";
+                         // Determine label based on esRotativo
+                         const dayLabel = formData.esRotativo ? `Turno ${index + 1}` : diasSemana[index];
 
                          return (
-                            <div key={dia.DiaSemana} onClick={() => setSelectedDayIndex(index)}
-                                 className={`grid grid-cols-12 gap-x-4 items-center p-3 rounded-lg border cursor-pointer transition-all duration-150 ${ isSelected ? 'ring-2 ring-indigo-400 bg-indigo-50 border-indigo-300' : (formData.esRotativo ? 'bg-indigo-50/50 border-indigo-200 hover:bg-indigo-100' : 'bg-slate-50 border-slate-200 hover:bg-slate-100') }`}>
+                            <div key={index} onClick={() => setSelectedDayIndex(index)} // Use index as key when labels can repeat
+                                 className={`grid grid-cols-12 gap-x-4 items-center p-3 rounded-lg border cursor-pointer transition-all duration-150 ${ isSelected ? 'ring-2 ring-indigo-400 bg-indigo-50 border-indigo-300' : 'bg-slate-50 border-slate-200 hover:bg-slate-100' }`}>
                                 <div className="col-span-2 space-y-2"> {/* Reduced from col-span-3 */}
                                     <label className="flex items-center space-x-2 font-semibold text-slate-700 cursor-pointer">
                                         <input type="checkbox" checked={dia.EsDiaLaboral} onChange={(e) => handleDetailChange(index, 'EsDiaLaboral', e.target.checked)}
-                                               className="h-4 w-4 rounded text-indigo-600 border-gray-300 focus:ring-indigo-500" disabled={formData.esRotativo && index !== 0} />
-                                        <span className="truncate">{formData.esRotativo ? 'Rotativo' : diasSemana[index]}</span>
+                                               className="h-4 w-4 rounded text-indigo-600 border-gray-300 focus:ring-indigo-500" />
+                                        {/* Use dynamic label */}
+                                        <span className="truncate">{dayLabel}</span>
                                     </label>
                                     <label className="flex items-center space-x-2 pl-6 text-sm text-slate-500 cursor-pointer">
-                                        <input type="checkbox" checked={dia.TieneComida} disabled={!dia.EsDiaLaboral || (formData.esRotativo && index !== 0)}
+                                        <input type="checkbox" checked={dia.TieneComida} disabled={!dia.EsDiaLaboral}
                                                onChange={(e) => handleDetailChange(index, 'TieneComida', e.target.checked)} className="h-4 w-4 rounded text-indigo-600 border-gray-300 focus:ring-indigo-500 disabled:cursor-not-allowed" />
                                         <span>Comida</span>
                                     </label>
                                 </div>
                                  {/* Increased col-span for time inputs */}
                                 <div className="col-span-8 grid grid-cols-4 gap-x-3" onClick={(e) => e.stopPropagation()}>
-                                    <TimeInput icon={<Sun size={16}/>} label="Entrada" value={dia.HoraEntrada} onChange={(e) => handleDetailChange(index, 'HoraEntrada', e.target.value)} disabled={!dia.EsDiaLaboral || (formData.esRotativo && index !== 0)} onFocus={() => setSelectedDayIndex(index)}/>
-                                    <TimeInput icon={<Coffee size={16}/>} label="Ini. Comida" value={dia.HoraInicioComida} onChange={(e) => handleDetailChange(index, 'HoraInicioComida', e.target.value)} disabled={!dia.EsDiaLaboral || !dia.TieneComida || (formData.esRotativo && index !== 0)} onFocus={() => setSelectedDayIndex(index)} />
-                                    <TimeInput icon={<Coffee size={16}/>} label="Fin Comida" value={dia.HoraFinComida} onChange={(e) => handleDetailChange(index, 'HoraFinComida', e.target.value)} disabled={!dia.EsDiaLaboral || !dia.TieneComida || (formData.esRotativo && index !== 0)} onFocus={() => setSelectedDayIndex(index)} />
-                                    <TimeInput icon={<Moon size={16}/>} label="Salida" value={dia.HoraSalida} onChange={(e) => handleDetailChange(index, 'HoraSalida', e.target.value)} disabled={!dia.EsDiaLaboral || (formData.esRotativo && index !== 0)} onFocus={() => setSelectedDayIndex(index)} />
+                                    <TimeInput icon={<Sun size={16}/>} label="Entrada" value={dia.HoraEntrada} onChange={(e) => handleDetailChange(index, 'HoraEntrada', e.target.value)} disabled={!dia.EsDiaLaboral} onFocus={() => setSelectedDayIndex(index)}/>
+                                    <TimeInput icon={<Coffee size={16}/>} label="Ini. Comida" value={dia.HoraInicioComida} onChange={(e) => handleDetailChange(index, 'HoraInicioComida', e.target.value)} disabled={!dia.EsDiaLaboral || !dia.TieneComida} onFocus={() => setSelectedDayIndex(index)} />
+                                    <TimeInput icon={<Coffee size={16}/>} label="Fin Comida" value={dia.HoraFinComida} onChange={(e) => handleDetailChange(index, 'HoraFinComida', e.target.value)} disabled={!dia.EsDiaLaboral || !dia.TieneComida} onFocus={() => setSelectedDayIndex(index)} />
+                                    <TimeInput icon={<Moon size={16}/>} label="Salida" value={dia.HoraSalida} onChange={(e) => handleDetailChange(index, 'HoraSalida', e.target.value)} disabled={!dia.EsDiaLaboral} onFocus={() => setSelectedDayIndex(index)} />
                                 </div>
                                  {/* New column for daily hours */}
                                  <div className="col-span-2 flex items-center justify-end text-right pr-1">
@@ -445,4 +517,9 @@ const TimeInput = ({ label, value, onChange, disabled, icon, onFocus }: any) => 
             className="w-full text-sm rounded-md border-slate-300 p-2 focus:border-indigo-500 focus:ring-indigo-500 disabled:bg-slate-200 disabled:cursor-not-allowed" />
     </div>
 );
+
+
+
+//a161465
+//MGW10008
 

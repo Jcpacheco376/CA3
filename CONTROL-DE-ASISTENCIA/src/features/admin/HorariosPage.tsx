@@ -1,81 +1,103 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useAuth } from '../auth/AuthContext'; // Removed .tsx
-import { useNotification } from '../../context/NotificationContext'; // Removed .tsx
-import { API_BASE_URL } from '../../config/api'; // Removed .ts
-import { Loader2, AlertTriangle, CheckCircle, XCircle, Edit, RotateCw } from 'lucide-react'; // Added RotateCw
-import { HorarioModal } from './HorarioModal'; // Removed .tsx
-import { Tooltip, InfoIcon } from '../../components/ui/Tooltip'; // Removed .tsx
-import { Button, Modal } from '../../components/ui/Modal'; // Removed .tsx
-import { PencilIcon, PlusCircleIcon } from '../../components/ui/Icons'; // Removed .tsx
-import { themes } from '../../config/theme'; // Removed .ts
+// Removed .tsx/.ts from imports
+import { useAuth } from '../auth/AuthContext';
+import { useNotification } from '../../context/NotificationContext';
+import { API_BASE_URL } from '../../config/api';
+// Added Coffee, Sun, Sunset, Moon icons
+import { Loader2, AlertTriangle, CheckCircle, XCircle, Edit, RotateCw, Coffee, Sun, Moon, Sunset } from 'lucide-react';
+import { HorarioModal } from './HorarioModal';
+import { Tooltip, InfoIcon } from '../../components/ui/Tooltip';
+import { Button, Modal } from '../../components/ui/Modal';
+import { PencilIcon, PlusCircleIcon } from '../../components/ui/Icons';
+import { themes } from '../../config/theme';
+
+// --- Helper Function for Turno Icon ---
+const getTurnoIcon = (turno: 'M' | 'V' | 'N' | string | null | undefined, size = 16) => {
+    switch (turno) {
+        case 'M':
+            return <Sun size={size} className="text-amber-500 shrink-0" title="Matutino" />;
+        case 'V':
+            return <Sunset size={size} className="text-orange-500 shrink-0" title="Vespertino" />;
+        case 'N':
+            return <Moon size={size} className="text-indigo-500 shrink-0" title="Nocturno" />;
+        default:
+            return null;
+    }
+};
+
 
 // --- COMPONENTES AUXILIARES ---
-// Updated JornadaSemanalVisual for a cohesive Rotativo style with matching colors
+// Updated JornadaSemanalVisual for Rotativo: Show 7 capsules with numbers and detailed tooltips
 const JornadaSemanalVisual = ({ detalles, esRotativo }: { detalles: any[], esRotativo: boolean | number | undefined }) => { // Allow boolean, number or undefined
     const isActuallyRotativo = esRotativo === true || esRotativo === 1;
 
-    // Use the same outer container structure for consistency
+    // Common container style
+    const containerClasses = "flex overflow-hidden rounded-md border border-slate-200 w-fit divide-x divide-slate-200 h-7";
+
+    // Handle 'No definido' case first
+    if (!detalles || detalles.length === 0) {
+        if (isActuallyRotativo) {
+             // Use containerClasses for consistent height and border
+             return <div className={`flex items-center justify-center px-3 bg-slate-100 text-slate-500 text-xs italic ${containerClasses}`}>Rotativo (sin turnos definidos)</div>;
+        }
+        // If not rotativo and no details
+         // Use containerClasses for consistent height and border
+        return <div className={`flex items-center justify-center px-3 bg-slate-50 text-slate-400 text-xs italic ${containerClasses}`}>No definido</div>;
+    }
+
+    // Determine which labels and tooltips to use
+    const items = Array.from({ length: 7 }).map((_, index) => {
+        const detail = detalles.find(d => d.DiaSemana === index + 1); // Find detail by DiaSemana
+        const isLaboral = detail?.EsDiaLaboral || false;
+        // Use HoraInicioComida to determine if meal included, similar to modal logic
+        const tieneComida = detail?.HoraInicioComida && detail.HoraInicioComida.substring(0, 5) !== '00:00';
+        const label = isActuallyRotativo ? `${index + 1}` : ["L", "M", "X", "J", "V", "S", "D"][index];
+        const baseTooltipText = isActuallyRotativo ? `Turno ${index + 1}` : ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"][index];
+        // Use sky blue for laboral days in both modes
+        const colorClass = isLaboral ? 'bg-sky-500 text-white' : 'bg-white text-slate-500';
+
+        // --- Enhanced Tooltip Content ---
+        let tooltipJsxContent;
+        if (isLaboral && detail) {
+            tooltipJsxContent = (
+                <div className='text-xs text-left p-1'>
+                    <p className='font-semibold mb-1 border-b border-slate-600'>{baseTooltipText}</p>
+                    {/* Ensure HoraEntrada and HoraSalida exist before substring */}
+                    <p>{detail.HoraEntrada?.substring(0,5) ?? '??:??'} - {detail.HoraSalida?.substring(0,5) ?? '??:??'}</p>
+                    {/* Use derived tieneComida for tooltip */}
+                    {tieneComida && (
+                        <p className='flex items-center gap-1 text-amber-600'><Coffee size={12}/> Con comida</p>
+                    )}
+                </div>
+            );
+        } else {
+             tooltipJsxContent = (
+                 <div className='text-xs text-left p-1'>
+                    <p className='font-semibold mb-1 border-b border-slate-600'>{baseTooltipText}</p>
+                    <p className='text-slate-400'>Descanso</p>
+                 </div>
+             );
+        }
+        // --- End Enhanced Tooltip Content ---
+
+        return { index, label, tooltipJsxContent, colorClass }; // Use tooltipJsxContent
+    });
+
     return (
-        <div className="flex overflow-hidden rounded-md border border-slate-200 w-fit divide-x divide-slate-200 h-7"> {/* Base container with fixed height */}
-            {isActuallyRotativo ? (
-                // Single unified capsule style for Rotativo, using sky-500 and white text
-                 <Tooltip text="Horario Rotativo">
-                    {/* Changed colors to bg-sky-500 and text-white */}
-                    <div className="flex items-center justify-center px-4 h-full bg-sky-500 text-white text-xs font-semibold w-[196px]"> {/* w-7 * 7 days = 196px */}
-                        <RotateCw size={14} className="mr-1.5"/> Rotativo
-                    </div>
+        <div className={containerClasses}>
+            {items.map(item => (
+                <Tooltip key={item.index} text={item.tooltipJsxContent}> {/* Pass JSX directly */}
+                    <span
+                        className={`
+                            w-7 h-full flex items-center justify-center text-xs font-semibold
+                            transition-colors duration-150
+                            ${item.colorClass}
+                        `}
+                    >
+                        {item.label}
+                    </span>
                 </Tooltip>
-            ) : (
-                // Existing logic for non-rotating schedules
-                <>
-                    {(() => { // IIFE to avoid conditional rendering issues with map
-                        const dias = [
-                            { abr: 'L', full: 'Lunes' },
-                            { abr: 'M', full: 'Martes' },
-                            { abr: 'X', full: 'Miércoles' },
-                            { abr: 'J', full: 'Jueves' },
-                            { abr: 'V', full: 'Viernes' },
-                            { abr: 'S', full: 'Sábado' },
-                            { abr: 'D', full: 'Domingo' }
-                        ];
-                        const diasLaborales = new Set(
-                            (detalles || [])
-                                .filter(d => d.EsDiaLaboral)
-                                .map(d => d.DiaSemana - 1)
-                        );
-
-                        // Main container for the weekly capsules - ensure h-full
-                        const weeklyCapsules = (
-                             <div className="flex divide-x divide-slate-200 h-full"> {/* Removed w-fit, added h-full */}
-                                {dias.map((dia, index) => (
-                                    <Tooltip key={index} text={dia.full}>
-                                        <span
-                                            className={`
-                                                w-7 h-full flex items-center justify-center text-xs font-semibold
-                                                transition-colors duration-150
-                                                ${diasLaborales.has(index)
-                                                    ? 'bg-sky-500 text-white' // Color Laboral
-                                                    : 'bg-white text-slate-500' // Color Descanso
-                                                }
-                                            `}
-                                        >
-                                            {dia.abr}
-                                        </span>
-                                    </Tooltip>
-                                ))}
-                            </div>
-                        );
-
-                        // Handle 'No definido' case separately but maintain height and width
-                        if (!detalles || detalles.length === 0) {
-                            return <div className="flex items-center justify-center px-3 h-full bg-slate-50 text-slate-400 text-xs italic w-[196px]">No definido</div>;
-                        }
-
-                        return weeklyCapsules; // Render the weekly view
-
-                    })()}
-                </>
-            )}
+            ))}
         </div>
     );
 };
@@ -97,6 +119,7 @@ export const HorariosPage = () => {
     const canRead = can('catalogo.horarios.read');
 
     const fetchHorarios = useCallback(async () => {
+        // ... (fetchHorarios logic remains the same) ...
         if (!canRead) {
             setError("No tienes permiso para ver este catálogo.");
             setIsLoading(false);
@@ -120,16 +143,15 @@ export const HorariosPage = () => {
                 throw new Error(errorData.message || 'No se pudo cargar el catálogo de horarios.');
             }
             const data = await response.json();
-             // ***** LOG: Check the exact structure and casing of EsRotativo here *****
-             // ***** Log the entire data array and the first item if available *****
-            // console.log("[HorariosPage] fetchHorarios - Raw data received:", data);
-            // if (data && data.length > 0) {
-            //     console.log("[HorariosPage] fetchHorarios - First item check:", data[0]);
-            //     console.log(`[HorariosPage] fetchHorarios - Does first item have 'EsRotativo'?`, data[0].hasOwnProperty('EsRotativo'));
-            //     console.log(`[HorariosPage] fetchHorarios - Value of 'EsRotativo':`, data[0].EsRotativo);
-            //     console.log(`[HorariosPage] fetchHorarios - Does first item have 'esRotativo'?`, data[0].hasOwnProperty('esRotativo'));
-            //     console.log(`[HorariosPage] fetchHorarios - Value of 'esRotativo':`, data[0].esRotativo);
-            // }
+             // ***** LOG: Check the exact structure and casing of EsRotativo AND turno here *****
+            console.log("[HorariosPage] fetchHorarios - Raw data received:", data);
+            if (data && data.length > 0) {
+                 console.log("[HorariosPage] fetchHorarios - First item check:", data[0]);
+                 console.log(`[HorariosPage] fetchHorarios - Does first item have 'esRotativo'?`, data[0].hasOwnProperty('esRotativo'));
+                 console.log(`[HorariosPage] fetchHorarios - Value of 'esRotativo':`, data[0].esRotativo);
+                 console.log(`[HorariosPage] fetchHorarios - Does first item have 'turno'?`, data[0].hasOwnProperty('turno'));
+                 console.log(`[HorariosPage] fetchHorarios - Value of 'turno':`, data[0].turno);
+            }
             setHorarios(data);
         } catch (err: any) {
             setError(err.message);
@@ -158,6 +180,7 @@ export const HorariosPage = () => {
     };
 
     const filteredHorarios = useMemo(() => {
+        // ... (filteredHorarios logic remains the same) ...
         if (!searchTerm.trim()) return horarios;
         const lowercasedFilter = searchTerm.toLowerCase();
         return horarios.filter(h =>
@@ -167,6 +190,7 @@ export const HorariosPage = () => {
     }, [horarios, searchTerm]);
 
     const renderContent = () => {
+        // ... (renderContent logic remains the same) ...
         if (isLoading) {
             return <div className="flex justify-center items-center p-8"><Loader2 className="animate-spin mr-2" /> Cargando horarios...</div>;
         }
@@ -202,7 +226,14 @@ export const HorariosPage = () => {
                                             {horario.Abreviatura}
                                         </span>
                                     </td>
-                                    <td className="p-3 font-medium text-slate-800">{horario.Nombre}</td>
+                                    {/* Display Turno Icon next to Nombre */}
+                                    <td className="p-3 font-medium text-slate-800">
+                                        <div className="flex items-center gap-2">
+                                            {/* Conditionally render icon only if NOT rotativo and turno is valid */}
+                                            {(!horario.esRotativo && horario.turno) && getTurnoIcon(horario.turno)}
+                                            <span>{horario.Nombre}</span>
+                                        </div>
+                                    </td>
                                     {/* Pass esRotativo (camelCase) to JornadaSemanalVisual */}
                                     <td className="p-3"><JornadaSemanalVisual detalles={horario.Detalles} esRotativo={horario.esRotativo} /></td>
                                     <td className="p-3 text-center">{horario.MinutosTolerancia}</td>
@@ -231,11 +262,12 @@ export const HorariosPage = () => {
     };
 
     if (!canRead) {
+        // ... (Access denied message remains the same) ...
         return (
             <div className="flex items-center justify-center h-full">
                 <div className="text-center p-8 text-red-600 bg-red-50 rounded-lg">
                     <AlertTriangle className="mx-auto mb-2 h-10 w-10" />
-                    <h2 className="text-lg font-semibold">Acceso Denegado</h2>
+                    <h2 className="text-lg font-semibold">Acceso Deniedo</h2>
                     <p>No tienes permiso para ver este catálogo. Contacta a un administrador.</p>
                 </div>
             </div>
@@ -258,6 +290,7 @@ export const HorariosPage = () => {
         <div className="space-y-6">
              <style>{styles}</style> {/* Inject animation styles */}
              <header className="mb-6">
+                {/* ... (Header remains the same) ... */}
                 <div className="flex items-center space-x-3">
                     <h1 className="text-3xl font-bold text-slate-800">Catálogo de Horarios</h1>
                     <Tooltip text="Define y administra los horarios de trabajo de la empresa.">
@@ -267,6 +300,7 @@ export const HorariosPage = () => {
             </header>
 
             <div className="flex justify-between items-center mb-4">
+                {/* ... (Search and New Button remain the same) ... */}
                 <div className="max-w-xs">
                      <input
                         type="text"
@@ -287,6 +321,7 @@ export const HorariosPage = () => {
             {renderContent()}
 
             {isModalOpen && (
+                // ... (Modal remains the same) ...
                 <HorarioModal
                     isOpen={isModalOpen}
                     onClose={handleCloseModal}
