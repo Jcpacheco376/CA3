@@ -1,3 +1,4 @@
+// src/features/attendance/HorariosModal.tsx
 import React, { useState, useEffect, useMemo } from 'react'; // Added useMemo
 // Added .tsx/.ts back to imports
 import { Modal, Button } from '../../components/ui/Modal.tsx';
@@ -519,7 +520,4 @@ const TimeInput = ({ label, value, onChange, disabled, icon, onFocus }: any) => 
 );
 
 
-
-//a161465
-//MGW10008
 
