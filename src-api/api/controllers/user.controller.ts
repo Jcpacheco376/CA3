@@ -1,0 +1,91 @@
+import { Request, Response } from 'express';
+import sql from 'mssql';
+import { dbConfig } from '../../config/database';
+
+export const getNextUserId = async (req: any, res: Response) => {
+    if (!req.user.permissions['usuarios.create']) {
+        return res.status(403).json({ message: 'Acceso denegado.' });
+    }
+    try {
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request().execute('sp_Usuarios_GetNextId');
+        res.json(result.recordset[0]);
+    } catch (err) {
+        res.status(500).json({ message: 'Error al obtener el siguiente ID de usuario.' });
+    }
+};
+
+export const createUser = async (req: any, res: Response) => {
+    if (!req.user.permissions['usuarios.create'] && !req.user.permissions['usuarios.update']) {
+        return res.status(403).json({ message: 'Acceso denegado.' });
+    }
+    const { UsuarioId, NombreCompleto, NombreUsuario, Email, Password, EstaActivo, Roles, Departamentos, GruposNomina } = req.body;
+    
+    try {
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request()
+            .input('UsuarioId', sql.Int, UsuarioId || 0)
+            .input('NombreCompleto', sql.NVarChar, NombreCompleto)
+            .input('NombreUsuario', sql.NVarChar, NombreUsuario)
+            .input('Email', sql.NVarChar, Email)
+            .input('Password', sql.NVarChar, Password)
+            .input('EstaActivo', sql.Bit, EstaActivo)
+            .input('RolesJSON', sql.NVarChar, JSON.stringify(Roles || []))
+            .input('DepartamentosJSON', sql.NVarChar, JSON.stringify(Departamentos || []))
+            .input('GruposNominaJSON', sql.NVarChar, JSON.stringify(GruposNomina || []))
+            .execute('sp_Usuarios_Upsert');
+            
+        res.status(200).json({ message: 'Usuario guardado correctamente.', user: result.recordset[0] });
+
+    } catch (err: any) {
+        console.error('Error al guardar el usuario:', err.message);
+        // Usamos un código 409 (Conflict) para errores de duplicados y otros errores de negocio.
+        res.status(409).json({ message: err.message });
+    }
+};
+
+export const getAllUsers = async (req: any, res: Response) => {
+    if (!req.user.permissions['usuarios.read']) return res.status(403).json({ message: 'Acceso denegado.' });
+    try {
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request().execute('sp_Usuarios_GetAll');
+        const users = (result.recordset || []).map(user => ({
+            ...user,
+            Roles: user.Roles ? JSON.parse(user.Roles) : [],
+            Departamentos: user.Departamentos ? JSON.parse(user.Departamentos) : [],
+            GruposNomina: user.GruposNomina ? JSON.parse(user.GruposNomina) : []
+        }));
+        res.json(users); // Siempre responde con un arreglo, aunque esté vacío
+    } catch (err) {
+        console.error('Error en /api/users:', err);
+        res.status(500).json({ 
+            message: 'Error al obtener usuarios.', 
+            error: (err && typeof err === 'object' && 'message' in err) ? (err as any).message : String(err)
+        });
+    }
+};
+
+export const updateUserPreferences = async (req: any, res: Response) => {
+    const { userId } = req.params;
+    const { theme, animationsEnabled } = req.body;
+    try {
+        const pool = await sql.connect(dbConfig);
+        await pool.request().input('UsuarioId', sql.Int, userId).input('Theme', sql.NVarChar, theme)
+            .input('AnimationsEnabled', sql.Bit, animationsEnabled).execute('sp_Usuario_ActualizarPreferencias');
+        res.status(200).json({ message: 'Preferencias actualizadas.' });
+    } catch (err) { res.status(500).json({ message: 'Error al guardar las preferencias.' }); }
+};
+
+export const updateUserPassword = async (req: any, res: Response) => {
+    const { userId } = req.params;
+    const { password } = req.body;
+    if (!password || password.length < 6) return res.status(400).json({ message: 'La contraseña debe tener al menos 6 caracteres.' });
+    try {
+        const pool = await sql.connect(dbConfig);
+        await pool.request()
+            .input('UsuarioId', sql.Int, userId)
+            .input('NuevoPassword', sql.NVarChar, password)
+            .execute('sp_Usuario_ActualizarPassword');
+        res.status(200).json({ message: 'Contraseña actualizada correctamente.' });
+    } catch (err) { res.status(500).json({ message: 'Error al actualizar la contraseña.' }); }
+};

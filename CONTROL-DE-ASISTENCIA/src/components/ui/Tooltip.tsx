@@ -14,7 +14,8 @@ export const Tooltip = ({
     offset = 8, 
     delay = 100,
     zIndex = 50, // <-- Nueva propiedad zIndex
-    disabled = false
+    disabled = false,
+    className
 }: { 
     text: React.ReactNode; 
     children: React.ReactNode; 
@@ -22,7 +23,8 @@ export const Tooltip = ({
     offset?: number, 
     delay?: number,
     zIndex?: number, // <-- Nueva propiedad zIndex
-    disabled?: boolean
+    disabled?: boolean,
+    className?: string
 }) => {
     const [visible, setVisible] = useState(false);
     const [position, setPosition] = useState({ top: 0, left: 0 });
@@ -82,7 +84,7 @@ export const Tooltip = ({
 
     const tooltipContent = (
         <div
-            className={`fixed bg-slate-800 text-white text-xs rounded-md p-2 shadow-lg transition-opacity duration-200 ${getTooltipPositionClasses()} ${visible && !disabled ? 'opacity-100' : 'opacity-0'}`}
+            className={`fixed bg-slate-800 text-white text-xs rounded-md p-2 shadow-lg transition-opacity duration-200 ${getTooltipPositionClasses()} ${visible && !disabled ? 'opacity-100' : 'opacity-0'} ${className || ''}`}
             style={{ top: position.top, left: position.left, pointerEvents: 'none', zIndex }} // <-- zIndex aplicado aquí
         >
             {text}

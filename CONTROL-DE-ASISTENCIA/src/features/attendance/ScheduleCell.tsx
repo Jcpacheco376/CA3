@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ReactDOM from 'react-dom';
-// ¡FIX IMPORTACIONES! Se eliminan extensiones .tsx/.ts OTRA VEZ
 import { Tooltip } from '../../components/ui/Tooltip';
-import { Sun, Moon, Sunset, Coffee, RotateCw, X, Check, AlertTriangle, XCircle } from 'lucide-react'; // Added XCircle
+// MODIFICACIÓN: Importar Clock y XCircle para el nuevo diseño del panel
+import { Sun, Moon, Sunset, Coffee, RotateCw, X, Check, AlertTriangle, Clock, XCircle } from 'lucide-react';
 import { themes, statusColorPalette } from '../../config/theme';
-import { getDay as getDayOfWeek } from 'date-fns'; // 0=Dom, 1=Lun, ...
+import { getDay as getDayOfWeek } from 'date-fns';
 
 // --- Helper: Icono de Turno ---
 const getTurnoIcon = (turno: 'M' | 'V' | 'N' | string | null | undefined, size = 14) => {
@@ -28,88 +28,143 @@ const determineTurnoFromTime = (horaEntrada: string): 'M' | 'V' | 'N' | null => 
     return null;
 };
 
+// --- MODIFICACIÓN: Componente de Tooltip Mejorado ---
+const ScheduleTooltipContent = React.memo(({ details, horario, tipo, scheduleData }: { details: any, horario: any, tipo: string, scheduleData: any }) => {
+    let title = "Horario Base";
+    let scheduleName = horario?.Nombre || "";
+    let hours = "";
+    let hasMeal = false;
+    let tolerance = horario?.MinutosTolerancia;
+    const conflict = scheduleData?.EstatusConflictivo;
 
-// --- Helper: Ficha de Horario Visual ---
+    if (tipo === 'descanso') {
+        title = scheduleData?.TipoAsignacion === 'D' ? "Descanso (Asignado)" : "Descanso (Horario)";
+        scheduleName = "";
+        tolerance = undefined;
+    } else if (tipo === 'rotativo') {
+        title = "Excepción: Turno Rotativo";
+        scheduleName = `${horario?.Nombre || 'Rotativo'} (Turno ${details?.DiaSemana || '?'})`;
+    } else if (tipo === 'fijo') {
+        title = "Excepción: Horario Fijo";
+    }
+
+    if (details?.EsDiaLaboral) {
+        const entrada = details.HoraEntrada ? details.HoraEntrada.substring(0, 5) : '??:??';
+        const salida = details.HoraSalida ? details.HoraSalida.substring(0, 5) : '??:??';
+        hours = `${entrada} - ${salida}`;
+        hasMeal = details.TieneComida;
+    }
+
+    return (
+        <div className="p-1.5 text-xs text-left w-52">
+            {/* Título (Base, Excepción, etc.) */}
+            <p className="font-bold text-white mb-1.5">{title}</p>
+            
+            {/* Nombre y Abreviatura */}
+            {scheduleName && (
+                <p className="text-slate-200">{scheduleName} ({horario?.Abreviatura || 'N/A'})</p>
+            )}
+            
+            {/* Horas (si aplica) */}
+            {hours && (
+                <div className="flex items-center gap-2 mt-1.5 pt-1.5 border-t border-slate-600">
+                    <span className="font-semibold text-lg text-white">{hours}</span>
+                    {/* Arreglo del bug '0': usar ternario explícito */}
+                    {hasMeal ? <Coffee size={14} className="text-amber-200 shrink-0" title="Incluye comida"/> : null}
+                </div>
+            )}
+
+            {/* Tolerancia (si aplica) */}
+            {tolerance !== undefined && (
+                 <div className="flex items-center gap-1.5 mt-1 text-slate-300">
+                    <Clock size={12} className="shrink-0" />
+                    <span>Tolerancia: {tolerance} min.</span>
+                </div>
+            )}
+            
+            {/* Conflicto (si existe) */}
+            {conflict && (
+                <div className="flex items-center gap-2 mt-1.5 pt-1.5 border-t border-orange-700">
+                    <AlertTriangle size={14} className="text-orange-300 shrink-0" />
+                    <span className="text-orange-300 font-semibold">{conflict}</span>
+                </div>
+            )}
+        </div>
+    );
+});
+
+
+// --- Helper: Ficha de Horario Visual (Diseño Original - Sin Cambios) ---
 const SchedulePreviewCard = React.memo(({ details, horario, tipo }: { details: any, horario: any, tipo: 'fijo' | 'rotativo' | 'descanso' | 'default' }) => {
 
     const colorKey = horario?.ColorUI || 'slate';
     const theme = statusColorPalette[colorKey as keyof typeof statusColorPalette] || statusColorPalette.slate;
     const { bgText, border } = theme;
     const esRotativo = horario?.EsRotativo || tipo === 'rotativo';
+    
     let content;
-    let tooltipText = horario?.Nombre || 'Horario';
 
-    if (tipo === 'descanso') {
+    // --- Caso 1: Descanso ---
+    if (tipo === 'descanso' || !details || !details.EsDiaLaboral) {
         content = <span className="text-sm font-semibold text-slate-600 leading-tight">Descanso</span>;
-        tooltipText = "Descanso Asignado";
-    } else if (tipo === 'default' || tipo === 'fijo' || tipo === 'rotativo') {
-         // Lógica unificada para mostrar detalles
-         tooltipText = tipo === 'default' ? `Predeterminado: ${horario?.Nombre || 'Horario'}` : tooltipText;
-
-        if (!details || !details.EsDiaLaboral) {
-            content = <span className="text-sm font-semibold text-slate-600 leading-tight">Descanso</span>;
-            tooltipText += ` (Descanso)`;
-        } else {
-            // ¡FIX! Asegurarse que HoraEntrada/Salida existen antes de substring
-            const entrada = details.HoraEntrada ? details.HoraEntrada.substring(0, 5) : '??:??';
-            const salida = details.HoraSalida ? details.HoraSalida.substring(0, 5) : '??:??';
-            tooltipText += ` (${entrada} - ${salida})`;
-            content = (
-                <div className="flex items-center justify-center gap-2 h-full px-2 py-1 w-full">
-                    <div className="flex flex-col items-center justify-center text-center">
-                        <span className="text-[16px] font-semibold leading-tight block w-full text-center">{entrada}</span>
-                        <span className="text-[10px] leading-tight text-slate-500 block w-full text-center">-</span>
-                        <span className="text-[16px] font-semibold leading-tight block w-full text-center">{salida}</span>
-                    </div>
-                    <div className="flex flex-col items-center justify-center gap-1.5 pl-2">
-                        {getTurnoIcon(determineTurnoFromTime(details.HoraEntrada))}
-                        {/* ¡FIX! Acceso seguro a TieneComida */}
-                        {details?.TieneComida && <Coffee size={14} className="text-amber-700 shrink-0" title="Incluye comida" />}
-                    </div>
-                </div>
-            );
-        }
+    
+    // --- Caso 2: Día Laboral ---
     } else {
-         // Fallback por si acaso
-         content = <span className="text-sm font-semibold text-slate-500">N/A</span>;
-         tooltipText = "No asignado";
+        const entrada = details.HoraEntrada ? details.HoraEntrada.substring(0, 5) : '??:??';
+        const salida = details.HoraSalida ? details.HoraSalida.substring(0, 5) : '??:??';
+        
+        content = (
+            <div className="flex items-center justify-center gap-2 h-full px-2 py-1 w-full">
+                {/* Horas (Layout Original) */}
+                <div className="flex flex-col items-center justify-center text-center">
+                    <span className="text-[16px] font-semibold leading-tight block w-full text-center">{entrada}</span>
+                    <span className="text-[10px] leading-tight text-slate-500 block w-full text-center">-</span>
+                    <span className="text-[16px] font-semibold leading-tight block w-full text-center">{salida}</span>
+                </div>
+                {/* Iconos (Layout Original) */}
+                <div className="flex flex-col items-center justify-center gap-1.5 pl-2">
+                    {getTurnoIcon(determineTurnoFromTime(details.HoraEntrada))}
+                    {details?.TieneComida ? <Coffee size={14} className="text-amber-700 shrink-0" title="Incluye comida" /> : null}
+                </div>
+            </div>
+        );
     }
 
     return (
-        <Tooltip text={tooltipText}>
-            <div className={`relative w-24 h-16 mx-auto rounded-md font-bold flex items-center justify-center transition-all duration-200 border-b-4 ${border}`}>
-                {esRotativo && tipo !== 'rotativo' && (
-                    <div className="absolute top-1 right-1 text-slate-500 opacity-70">
-                        <RotateCw size={10} title="Horario Rotativo"/>
-                    </div>
-                )}
-                <div className={`w-full h-full rounded-md ${bgText} bg-opacity-90 flex items-center justify-center shadow-inner-sm overflow-hidden`}>
-                    {content}
+        // MODIFICACIÓN: Se quita el Tooltip de aquí para ponerlo en el componente padre
+        <div className={`relative w-24 h-16 mx-auto rounded-md font-bold flex items-center justify-center transition-all duration-200 border-b-4 ${border}`}>
+            {esRotativo && tipo !== 'rotativo' && (
+                <div className="absolute top-1 right-1 text-slate-500 opacity-70">
+                    <RotateCw size={10} title="Horario Rotativo"/>
                 </div>
+            )}
+            <div className={`w-full h-full rounded-md ${bgText} bg-opacity-90 flex items-center justify-center shadow-inner-sm overflow-hidden`}>
+                {content}
             </div>
-        </Tooltip>
+        </div>
     );
 });
 
 
-// --- COMPONENTE: Panel de Selección de Turno (Zona 1 - Pop-up de Celda) ---
+// --- MODIFICACIÓN: Panel de Selección de Turno (Mejora Visual) ---
 const ScheduleSelectionPanel = React.memo(({
     isOpen,
     panelStyle,
-    allRotativoTurns, // Array de { horario, turno }
-    onSelect, // Recibe { tipoAsignacion, horarioId, detalleId }
-    onClose
+    allRotativoTurns,
+    onSelect,
+    onClose,
+    currentSelection // Necesario para saber qué resaltar
 }: {
     isOpen: boolean,
     panelStyle: React.CSSProperties,
     allRotativoTurns: any[],
     onSelect: (payload: any) => void,
-    onClose: () => void
+    onClose: () => void,
+    currentSelection: { tipo: string, id: number | null }
 }) => {
 
     const panelRef = useRef<HTMLDivElement>(null);
 
-    // Cerrar al hacer clic fuera
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (isOpen && panelRef.current && !panelRef.current.contains(event.target as Node)) {
@@ -124,80 +179,96 @@ const ScheduleSelectionPanel = React.memo(({
 
     if (!isOpen) return null;
 
+    // Estados de selección para los botones de acción
+    const isBaseSelected = currentSelection.tipo === 'default';
+    const isDescansoSelected = currentSelection.tipo === 'D';
+
     return ReactDOM.createPortal(
         <div
             ref={panelRef}
-            className="fixed bg-white rounded-lg shadow-xl border p-4 w-96 animate-scale-in z-[100]"
+            className="fixed bg-white rounded-xl shadow-2xl border p-4 w-96 animate-scale-in z-[100]"
             style={panelStyle}
             onMouseDown={(e) => e.stopPropagation()}
         >
-            <button onClick={onClose} className="absolute top-2 right-2 p-1 text-slate-400 hover:text-slate-600">
+            <button onClick={onClose} className="absolute top-2.5 right-2.5 p-1 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors">
                 <X size={18} />
             </button>
 
-            {/* --- Opciones de Excepción --- */}
-            <div className="mb-3">
-                <h4 className="text-sm font-semibold text-slate-800 mb-2">Asignaciones Rápidas (Este día)</h4>
+            <h4 className="text-base font-semibold text-slate-800 mb-3">Asignar Turno para este Día</h4>
+
+            {/* --- Lista de Turnos Rotativos (Ahora es lo principal) --- */}
+            {allRotativoTurns.length > 0 ? (
+                <div className="space-y-1 max-h-64 overflow-y-auto pr-1 mb-3">
+                    {allRotativoTurns.map(({ horario, turno }) => {
+                         const entrada = turno.HoraEntrada ? turno.HoraEntrada.substring(0, 5) : '??:??';
+                         const salida = turno.HoraSalida ? turno.HoraSalida.substring(0, 5) : '??:??';
+                         const turnoLabel = `Turno ${turno.DiaSemana}`;
+                         const colorKey = horario?.ColorUI || 'slate';
+                         const theme = statusColorPalette[colorKey as keyof typeof statusColorPalette] || statusColorPalette.slate;
+                         const isSelected = currentSelection.tipo === 'T' && currentSelection.id === turno.HorarioDetalleId;
+
+                        return (
+                            <button
+                                key={turno.HorarioDetalleId}
+                                onClick={() => onSelect({
+                                    tipoAsignacion: 'T',
+                                    detalleId: turno.HorarioDetalleId
+                                })}
+                                className={`w-full text-left p-2 rounded-lg flex items-center gap-3 transition-all border
+                                    ${isSelected 
+                                        ? 'bg-blue-50 border-blue-400 ring-1 ring-blue-300' // Estado seleccionado
+                                        : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50' // Estado normal
+                                    }
+                                `}
+                                title={`${horario.Nombre} - ${turnoLabel} (${entrada} - ${salida})`}
+                            >
+                                {/* Icono coloreado */}
+                                <span
+                                    className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${theme.bgText} bg-opacity-90`}
+                                >
+                                     {getTurnoIcon(determineTurnoFromTime(turno.HoraEntrada), 16)}
+                                </span>
+                                {/* Nombre y Turno */}
+                                <span className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold text-slate-800 truncate">{horario.Nombre}</p>
+                                    <p className="text-xs text-slate-500">{turnoLabel}</p>
+                                </span>
+                                {/* Horas */}
+                                <span className="text-sm font-semibold text-slate-600">{entrada} - {salida}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+            ) : (
+                <p className="text-sm text-slate-500 text-center p-4 bg-slate-50 rounded-md mb-3">No hay turnos rotativos definidos.</p>
+            )}
+
+            {/* --- Opciones de Excepción (Ahora secundarias, al final) --- */}
+            <div className="pt-3 border-t">
                 <div className="flex gap-2">
-                    {/* Botón: Usar Predeterminado */}
                     <button
-                        onClick={() => onSelect({ tipoAsignacion: null })} // Enviar null borra la excepción
-                        className="flex-1 p-2 rounded-md text-center group transition-all hover:bg-slate-200 bg-slate-100 text-slate-600"
+                        onClick={() => onSelect({ tipoAsignacion: null })}
+                        className={`flex-1 p-2 rounded-md text-center group transition-all
+                            ${isBaseSelected
+                                ? 'bg-slate-200 border border-slate-400'
+                                : 'bg-slate-100 hover:bg-slate-200 border border-transparent'
+                            }
+                        `}
                     >
-                        <span className="font-bold block text-sm">Usar Predeterminado</span>
-                        <span className="text-xs block">Quitar excepción</span>
+                        <span className="font-semibold block text-sm text-slate-700">Usar Base</span>
                     </button>
-                    {/* Botón: Marcar Descanso */}
                     <button
-                        onClick={() => onSelect({ tipoAsignacion: 'D' })} // Enviar 'D' marca descanso
-                        className="flex-1 p-2 rounded-md text-center group transition-all hover:bg-rose-200 bg-rose-100 text-rose-700"
+                        onClick={() => onSelect({ tipoAsignacion: 'D' })}
+                        className={`flex-1 p-2 rounded-md text-center group transition-all
+                            ${isDescansoSelected
+                                ? 'bg-rose-200 border border-rose-400'
+                                : 'bg-rose-100 hover:bg-rose-200 border border-transparent'
+                            }
+                        `}
                     >
-                        <span className="font-bold block text-sm">Marcar Descanso</span>
-                        <span className="text-xs block">Asignar descanso</span>
+                        <span className="font-semibold block text-sm text-rose-700">Descanso</span>
                     </button>
                 </div>
-            </div>
-
-            {/* --- Lista de Turnos Rotativos (Simplificada) --- */}
-            <div>
-                <h4 className="text-sm font-semibold text-slate-800 mb-2">Turnos Rotativos (Este día)</h4>
-                {allRotativoTurns.length > 0 ? (
-                    <div className="space-y-1 max-h-60 overflow-y-auto pr-2">
-                        {allRotativoTurns.map(({ horario, turno }) => {
-                             // Estilo simple: Icono, Nombre Horario (Turno X), E/S
-                             const entrada = turno.HoraEntrada ? turno.HoraEntrada.substring(0, 5) : '??:??';
-                             const salida = turno.HoraSalida ? turno.HoraSalida.substring(0, 5) : '??:??';
-                             const turnoLabel = `Turno ${turno.DiaSemana}`; // Asumiendo que DiaSemana es el identificador
-                             const colorKey = horario?.ColorUI || 'slate';
-                             const theme = statusColorPalette[colorKey as keyof typeof statusColorPalette] || statusColorPalette.slate;
-
-                            return (
-                                <button
-                                    key={turno.HorarioDetalleId}
-                                    onClick={() => onSelect({
-                                        tipoAsignacion: 'T',
-                                        detalleId: turno.HorarioDetalleId // Solo necesitamos el ID del detalle
-                                    })}
-                                    className="w-full text-left p-2 rounded-md flex items-center gap-3 transition-colors hover:bg-slate-100 focus:outline-none focus:ring-2 ring-offset-1 ring-[--theme-500]"
-                                    title={`${horario.Nombre} - ${turnoLabel} (${entrada} - ${salida})`}
-                                >
-                                    <span
-                                        className="w-5 h-5 rounded flex items-center justify-center shrink-0"
-                                        style={{ backgroundColor: theme.bgLight }}
-                                    >
-                                         {getTurnoIcon(determineTurnoFromTime(turno.HoraEntrada), 14)}
-                                    </span>
-                                    <span className="flex-1 text-sm font-medium text-slate-700 truncate">
-                                        {horario.Nombre} ({turnoLabel})
-                                    </span>
-                                    <span className="text-xs font-mono text-slate-500">{entrada} - {salida}</span>
-                                </button>
-                            );
-                        })}
-                    </div>
-                ) : (
-                    <p className="text-sm text-slate-500 text-center p-4 bg-slate-50 rounded-md">No hay turnos rotativos definidos.</p>
-                )}
             </div>
         </div>,
         document.body
@@ -219,12 +290,18 @@ export const ScheduleCell = ({
     isToday,
     canAssign,
     viewMode,
+    className // MODIFICACIÓN: Aceptar className para los separadores de semana
 }: any) => {
 
     const wrapperRef = useRef<HTMLTableCellElement>(null);
     const [panelStyle, setPanelStyle] = useState({});
+    const [panelPlacement, setPanelPlacement] = useState<'top' | 'bottom'>('bottom');
 
-    // --- 1. Lógica de Datos: Determinar qué mostrar ---
+    // --- MODIFICACIÓN: Estado y Ref para la animación ---
+    const [isJustUpdated, setIsJustUpdated] = useState(false);
+    const isFirstRender = useRef(true);
+    // --- FIN MODIFICACIÓN ---
+
     const { displayDetails, displayHorario, displayType } = useMemo(() => {
         let diaSemana = getDayOfWeek(day);
         if (diaSemana === 0) diaSemana = 7;
@@ -258,10 +335,8 @@ export const ScheduleCell = ({
              tipo = 'descanso';
         }
 
-        // Fallback robusto si 'details' no se encuentra o el horario no tiene turnos definidos
         if (!details) {
-            details = { EsDiaLaboral: false }; // Asumir descanso si no hay info
-            // Si no era un descanso explícito ('D'), pero no hay detalles, se trata como descanso
+            details = { EsDiaLaboral: false };
             if (tipo !== 'descanso') tipo = 'descanso';
         }
 
@@ -269,7 +344,6 @@ export const ScheduleCell = ({
 
     }, [scheduleData, horarioDefaultId, scheduleCatalog, day]);
 
-    // --- 2. Lógica de UI: Extraer turnos rotativos para el panel ---
     const allRotativoTurns = useMemo(() => {
         if (!canAssign) return [];
         const turns: any[] = [];
@@ -286,15 +360,17 @@ export const ScheduleCell = ({
     }, [scheduleCatalog, canAssign]);
 
 
-    // --- 3. Manejadores de Eventos ---
     useEffect(() => {
         if (isOpen && wrapperRef.current) {
             const cellRect = wrapperRef.current.getBoundingClientRect();
             const panelHeight = 400; // Aprox
             const panelWidth = 384; // w-96
             let top = cellRect.bottom + 8;
+            let newPlacement: 'top' | 'bottom' = 'bottom';
+
             if (cellRect.bottom + panelHeight > window.innerHeight && cellRect.top > panelHeight) {
                 top = cellRect.top - panelHeight - 8;
+                newPlacement = 'top';
             }
             let left = cellRect.left + cellRect.width / 2 - panelWidth / 2;
             if (left < 8) left = 8;
@@ -302,59 +378,107 @@ export const ScheduleCell = ({
                 left = window.innerWidth - panelWidth - 8;
             }
             setPanelStyle({ top, left });
+            setPanelPlacement(newPlacement);
         }
      }, [isOpen]);
 
-    // Clic en la celda
+    // --- MODIFICACIÓN: useEffect para disparar la animación ---
+    useEffect(() => {
+        // No animar en la carga inicial de la página
+        if (isFirstRender.current) {
+            isFirstRender.current = false;
+            return;
+        }
+
+        // Si el scheduleData cambia (por la actualización optimista), activar la animación
+        setIsJustUpdated(true);
+        
+        // Resetear el estado de la animación después de que termine
+        const timer = setTimeout(() => {
+            setIsJustUpdated(false);
+        }, 300); // Duración de la animación (asegúrate que coincida con tu CSS)
+
+        return () => clearTimeout(timer);
+    }, [scheduleData]); // Se dispara cuando el objeto scheduleData cambia
+    // --- FIN MODIFICACIÓN ---
+
+
     const handleToggle = () => {
-        // DEBUG: Confirmar que handleToggle se llama
-        console.log('handleToggle called for cell:', cellId);
         if (scheduleData?.EstatusConflictivo || !canAssign) return;
         onToggleOpen(cellId);
     };
 
-    // Selección en el panel (Acción 1)
     const handleSelectInPanel = (payload: any) => {
-        onScheduleChange(payload); // { tipoAsignacion, horarioId, detalleId }
+        onScheduleChange(payload);
         onToggleOpen(null); // Cerrar panel
     };
 
-    // --- 4. Renderizado ---
+    // --- MODIFICACIÓN: Determinar la selección actual para el panel ---
+    const currentSelection = useMemo(() => {
+        if (scheduleData?.TipoAsignacion === 'T') {
+            return { tipo: 'T', id: scheduleData.HorarioDetalleIdAplicable };
+        }
+        if (scheduleData?.TipoAsignacion === 'D') {
+            return { tipo: 'D', id: null };
+        }
+        if (scheduleData?.TipoAsignacion === 'H') {
+            // No tenemos un botón para 'H' en el panel, así que se trata como 'default' (no seleccionado)
+            return { tipo: 'H', id: scheduleData.HorarioIdAplicable };
+        }
+        // Si TipoAsignacion es null, es 'default'
+        return { tipo: 'default', id: null };
+    }, [scheduleData]);
+
     const isConflict = !!scheduleData?.EstatusConflictivo;
     const cellWidthClass = viewMode === 'week' ? 'min-w-[7rem]' : 'min-w-[5rem]';
+    const tooltipPlacement = panelPlacement === 'top' ? 'left' : 'top';
+
+    const wrapperContent = (
+        <button
+            onClick={handleToggle}
+            className={`w-full h-full rounded-lg transition-all duration-200 focus:outline-none focus:visible:ring-0
+                ${isConflict ? 'cursor-not-allowed opacity-70' : ''}
+                ${canAssign && !isConflict ? 'hover:scale-105' : 'cursor-default'}
+                ${isJustUpdated ? 'animate-drop-in' : ''} {/* MODIFICACIÓN: Clase de animación aplicada */}
+            `}
+            disabled={!canAssign && !isConflict}
+        >
+            {isConflict ? (
+                // El tooltip de conflicto se manejará con el <Tooltip> de abajo
+                <SchedulePreviewCard
+                    details={displayDetails}
+                    horario={displayHorario}
+                    tipo={displayType}
+                />
+            ) : (
+                <SchedulePreviewCard
+                    details={displayDetails}
+                    horario={displayHorario}
+                    tipo={displayType}
+                />
+            )}
+        </button>
+    );
 
     return (
         <td
             ref={wrapperRef}
-            className={`p-1 relative align-middle group ${cellWidthClass} ${isToday ? 'bg-sky-50/50' : ''}`}
-            // onDragEnter={() => {}} // Eliminado, no usamos drag en celda
-            // ¡FIX CLICK! Eliminado stopPropagation de aquí
+            className={`p-1 relative align-middle group ${cellWidthClass} ${isToday ? 'bg-sky-50/50' : ''} ${className || ''}`}
         >
-            <button
-                onClick={handleToggle} // Este es el clic principal
-                className={`w-full h-full rounded-lg transition-all duration-200 focus:outline-none focus:visible:ring-0
-                    ${isConflict ? 'cursor-not-allowed opacity-70' : ''}
-                    ${canAssign && !isConflict ? 'hover:scale-105' : 'cursor-default'}
-                `}
-                disabled={!canAssign && !isConflict} // Solo deshabilita si no puede asignar Y no hay conflicto
+            {/* MODIFICACIÓN: El <Tooltip> ahora envuelve la ficha y usa el componente de contenido mejorado */}
+            <Tooltip 
+                text={<ScheduleTooltipContent 
+                    details={displayDetails} 
+                    horario={displayHorario} 
+                    tipo={displayType} 
+                    scheduleData={scheduleData} 
+                />} 
+                placement={tooltipPlacement} 
+                offset={32} 
+                disabled={isOpen} // Desactivar el tooltip si el panel está abierto
             >
-                {isConflict ? (
-                    <Tooltip text={`Conflicto: ${scheduleData.EstatusConflictivo}`}>
-                        <div className="relative w-24 h-16 mx-auto rounded-md font-bold flex items-center justify-center transition-all duration-200 border-b-4 border-orange-400">
-                             <div className="w-full h-full rounded-md bg-orange-100 bg-opacity-90 flex flex-col items-center justify-center shadow-inner-sm overflow-hidden p-1 text-center">
-                                <AlertTriangle size={24} className="text-orange-600" />
-                                <span className="text-xs font-semibold text-orange-700 mt-1 leading-tight">{scheduleData.EstatusConflictivo}</span>
-                             </div>
-                         </div>
-                    </Tooltip>
-                ) : (
-                    <SchedulePreviewCard
-                        details={displayDetails}
-                        horario={displayHorario}
-                        tipo={displayType}
-                    />
-                )}
-            </button>
+                {wrapperContent}
+            </Tooltip>
 
             <ScheduleSelectionPanel
                 isOpen={isOpen}
@@ -362,6 +486,7 @@ export const ScheduleCell = ({
                 allRotativoTurns={allRotativoTurns}
                 onSelect={handleSelectInPanel}
                 onClose={() => onToggleOpen(null)}
+                currentSelection={currentSelection} // <-- MODIFICACIÓN: Pasar el estado actual
             />
         </td>
     );

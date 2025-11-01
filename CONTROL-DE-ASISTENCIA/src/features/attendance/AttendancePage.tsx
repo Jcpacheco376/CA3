@@ -47,24 +47,25 @@ export const AttendancePage = () => {
     const { addNotification } = useNotification();
     const [currentDate, setCurrentDate] = useState(new Date());
     const [employees, setEmployees] = useState<any[]>([]);
+    const [scheduleCatalog, setScheduleCatalog] = useState<any[]>([]);
     const [statusCatalog, setStatusCatalog] = useState<AttendanceStatus[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [dragInfo, setDragInfo] = useState<{EmpleadoId: number, dayIndex: number, status: AttendanceStatusCode} | null>(null);
+    const [dragInfo, setDragInfo] = useState<{ EmpleadoId: number, dayIndex: number, status: AttendanceStatusCode } | null>(null);
     const [draggedCells, setDraggedCells] = useState<string[]>([]);
     const [confirmation, setConfirmation] = useState<any>({ isOpen: false });
     const [openCellId, setOpenCellId] = useState<string | null>(null);
-    
-    const [selectedDepartment, setSelectedDepartment] = useState(() => 
+
+    const [selectedDepartment, setSelectedDepartment] = useState(() =>
         user?.Departamentos?.length === 1 ? String(user.Departamentos[0].DepartamentoId) : 'all'
     );
-    const [selectedPayrollGroup, setSelectedPayrollGroup] = useState(() => 
+    const [selectedPayrollGroup, setSelectedPayrollGroup] = useState(() =>
         user?.GruposNomina?.length === 1 ? String(user.GruposNomina[0].GrupoNominaId) : 'all'
     );
     const [viewingEmployeeId, setViewingEmployeeId] = useState<number | null>(null);
     const [viewMode, setViewMode] = useState<'week' | 'fortnight' | 'month'>('week');
-    
+
     const [employeeColumnWidth, setEmployeeColumnWidth] = useState(() => {
         try {
             const savedWidth = localStorage.getItem(COLUMN_WIDTH_STORAGE_KEY);
@@ -77,8 +78,8 @@ export const AttendancePage = () => {
     const { dateRange, rangeLabel } = useMemo(() => {
         let start, end;
         let label = '';
-        
-        switch(viewMode) {
+
+        switch (viewMode) {
             case 'fortnight':
                 const dayOfMonth = currentDate.getDate();
                 if (dayOfMonth <= 15) {
@@ -105,7 +106,7 @@ export const AttendancePage = () => {
 
         const range = [];
         let day = start;
-        while(day <= end) {
+        while (day <= end) {
             range.push(day);
             day = addDays(day, 1);
         }
@@ -134,7 +135,7 @@ export const AttendancePage = () => {
 
     const handleDatePrev = () => {
         setCurrentDate(prevDate => {
-            switch(viewMode) {
+            switch (viewMode) {
                 case 'fortnight':
                     const day = prevDate.getDate();
                     if (day <= 15) {
@@ -149,10 +150,10 @@ export const AttendancePage = () => {
             }
         });
     };
-    
+
     const handleDateNext = () => {
         setCurrentDate(prevDate => {
-            switch(viewMode) {
+            switch (viewMode) {
                 case 'fortnight':
                     const day = prevDate.getDate();
                     if (day <= 15) {
@@ -197,7 +198,7 @@ export const AttendancePage = () => {
         if (!user || dateRange.length === 0) return;
         const token = getToken();
         if (!token) { setError("Sesión inválida."); setIsLoading(false); return; }
-        
+
         setIsLoading(true);
         setError(null);
         const headers = { 'Authorization': `Bearer ${token}` };
@@ -205,25 +206,29 @@ export const AttendancePage = () => {
         const endDate = format(dateRange[dateRange.length - 1], 'yyyy-MM-dd');
 
         try {
-            await fetch(`${API_BASE_URL}/attendance/ensure-range`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', ...headers },
-                body: JSON.stringify({ startDate, endDate })
-            });
-
-            const [employeesRes, statusesRes] = await Promise.all([
+            const [employeesRes, schedulesRes, statusesRes] = await Promise.all([
                 fetch(`${API_BASE_URL}/attendance/data-by-range?startDate=${startDate}&endDate=${endDate}`, { headers }),
+                fetch(`${API_BASE_URL}/schedules`, { headers }),
                 fetch(`${API_BASE_URL}/catalogs/attendance-statuses`, { headers })
             ]);
 
-            if (!employeesRes.ok || !statusesRes.ok) throw new Error('Error al cargar datos iniciales.');
-            
-            const employeesData = await employeesRes.json();
-            setStatusCatalog(await statusesRes.json());
-            setEmployees(employeesData);
+            if (!employeesRes.ok) throw new Error(`Error ${employeesRes.status} al cargar datos de asistencia.`);
+            if (!schedulesRes.ok) throw new Error(`Error ${schedulesRes.status} al cargar catálogo de horarios.`);
+            if (!statusesRes.ok) throw new Error(`Error ${statusesRes.status} al cargar catálogo de estatus.`);
 
-        } catch (err: any) { setError(err.message); } 
-        finally { setIsLoading(false); }
+            const employeesData = await employeesRes.json();
+            const catalogData = await schedulesRes.json();
+            const statusesData = await statusesRes.json();
+            
+            setEmployees(employeesData);
+            setScheduleCatalog(catalogData);
+            setStatusCatalog(statusesData);
+
+        } catch (err: any) { 
+            setError(err.message); 
+        } finally { 
+            setIsLoading(false); 
+        }
     }, [dateRange, user, getToken]);
 
     useEffect(() => {
@@ -267,11 +272,11 @@ export const AttendancePage = () => {
 
                 empUpdates.forEach(update => {
                     const recordIndex = newFichasSemana.findIndex(f => f.Fecha.substring(0, 10) === update.fecha);
-                    
+
                     if (recordIndex > -1) {
-                        const newFicha = { 
-                            ...newFichasSemana[recordIndex], 
-                            EstatusSupervisorAbrev: update.estatus 
+                        const newFicha = {
+                            ...newFichasSemana[recordIndex],
+                            EstatusSupervisorAbrev: update.estatus
                         };
                         if (update.comentarios !== undefined) {
                             newFicha.Comentarios = update.comentarios;
@@ -301,15 +306,15 @@ export const AttendancePage = () => {
         });
 
         try {
-             await Promise.all(updates.map(({ empleadoId, fecha, estatus, comentarios }) =>
+            await Promise.all(updates.map(({ empleadoId, fecha, estatus, comentarios }) =>
                 fetch(`${API_BASE_URL}/attendance`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                    body: JSON.stringify({ 
-                        empleadoId, 
-                        fecha: format(fecha, 'yyyy-MM-dd'), 
+                    body: JSON.stringify({
+                        empleadoId,
+                        fecha: format(fecha, 'yyyy-MM-dd'),
                         estatusSupervisor: estatus,
-                        comentarios 
+                        comentarios
                     }),
                 })
             ));
@@ -320,7 +325,7 @@ export const AttendancePage = () => {
     }, [employees, getToken, addNotification]);
 
     const handleStatusChange = useCallback((empleadoId: number, fecha: Date, newStatus: AttendanceStatusCode, newComment?: string) => {
-        handleBulkStatusChange([{ 
+        handleBulkStatusChange([{
             empleadoId,
             fecha,
             estatus: newStatus,
@@ -328,7 +333,7 @@ export const AttendancePage = () => {
         }]);
         setOpenCellId(null);
     }, [handleBulkStatusChange]);
-    
+
     const handleQuickApprove = (employee: any) => {
         setConfirmation({
             isOpen: true,
@@ -343,7 +348,7 @@ export const AttendancePage = () => {
         if (!token) return;
 
         const originalEmployees = JSON.parse(JSON.stringify(employees));
-        setEmployees(prevEmployees => 
+        setEmployees(prevEmployees =>
             prevEmployees.map(emp => {
                 if (emp.EmpleadoId === employee.EmpleadoId) {
                     const newFichasSemana = emp.FichasSemana.map((ficha: any) => {
@@ -359,22 +364,22 @@ export const AttendancePage = () => {
         );
 
         try {
-             await fetch(`${API_BASE_URL}/api/attendance/approve-week`, {
+            await fetch(`${API_BASE_URL}/attendance/approve-week`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ empleadoId: employee.EmpleadoId, weekStartDate: format(dateRange[0], 'yyyy-MM-dd') }),
             });
             addNotification('Semana Aprobada', `Se aceptaron las sugerencias para ${employee.NombreCompleto}`, 'success');
-        } catch(e) {
+        } catch (e) {
             addNotification('Error', 'No se pudo aprobar la semana.', 'error');
             setEmployees(originalEmployees);
         }
     };
-    
+
     const handleToggleOpen = useCallback((cellId: string) => {
         setOpenCellId(prev => (prev === cellId ? null : cellId));
     }, []);
-    
+
     const handleDragStart = useCallback((EmpleadoId: number, dayIndex: number, status: AttendanceStatusCode) => {
         setOpenCellId(null);
         setDragInfo({ EmpleadoId, dayIndex, status });
@@ -406,7 +411,7 @@ export const AttendancePage = () => {
         if (draggedCells.length === 1 && draggedCells[0] === startCellId) {
             setDragInfo(null);
             setDraggedCells([]);
-            return; 
+            return;
         }
         const updates = draggedCells
             .map(cellId => {
@@ -416,19 +421,19 @@ export const AttendancePage = () => {
                 const employee = employees.find(e => e.EmpleadoId === empleadoId);
                 if (!employee || isRestDay(employee.horario, dateRange[dayIndex])) return null;
                 const ficha = employee.FichasSemana.find((f: any) => f.Fecha.substring(0, 10) === format(dateRange[dayIndex], 'yyyy-MM-dd'));
-                if(ficha?.EstatusAutorizacion === 'Autorizado') return null;
+                if (ficha?.EstatusAutorizacion === 'Autorizado') return null;
                 return { empleadoId, fecha: dateRange[dayIndex], estatus: dragInfo.status };
             })
             .filter(Boolean) as { empleadoId: number, fecha: Date, estatus: string }[];
 
-        if(updates.length > 0){
+        if (updates.length > 0) {
             handleBulkStatusChange(updates);
             addNotification('Actualización Exitosa', `${updates.length} fichas actualizadas.`, 'success');
         }
         setDragInfo(null);
         setDraggedCells([]);
-    }; 
-    
+    };
+
     const isBirthdayInPeriod = (birthDateStr: string, period: Date[]): boolean => {
         if (!birthDateStr || period.length === 0) return false;
         const birthDate = new Date(birthDateStr);
@@ -441,6 +446,15 @@ export const AttendancePage = () => {
         });
     };
 
+    const getHorarioTooltip = (horario: any) => {
+        if (!horario) return "Sin horario base";
+        const firstDay = horario.Turnos?.find((t: any) => t.EsDiaLaboral);
+        let details = `Horario Base: ${horario.Nombre} `;
+        if (firstDay) {
+            details += ` | Inicia: ${firstDay.HoraEntrada || '--:--'} - ${firstDay.HoraSalida || '--:--'}`;
+        }
+        return details;
+    };
 
     const renderContent = () => {
         if (isLoading) {
@@ -458,7 +472,7 @@ export const AttendancePage = () => {
                                 <div className="flex justify-between items-center h-full">
                                     <span>Empleado</span>
                                     <div onMouseDown={handleResizeMouseDown} className="absolute right-0 top-0 h-full w-2.5 cursor-col-resize group flex items-center justify-center">
-                                         <GripVertical className="h-5 text-slate-300 group-hover:text-[--theme-500] transition-colors" />
+                                        <GripVertical className="h-5 text-slate-300 group-hover:text-[--theme-500] transition-colors" />
                                     </div>
                                 </div>
                             </th>
@@ -472,6 +486,19 @@ export const AttendancePage = () => {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {filteredEmployees.map((emp) => {
+                            
+                            const defaultSchedule = scheduleCatalog.find(h => h.HorarioId === emp.horario);
+                            const horarioTooltipText = getHorarioTooltip(defaultSchedule);
+                            let birthdayTooltip = "Cumpleaños en este periodo";
+                            if (emp.FechaNacimiento) {
+                                try {
+                                    const parts = emp.FechaNacimiento.substring(0, 10).split('-');
+                                    const birthDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                                    const formattedBirthDate = format(birthDate, "d 'de' MMMM", { locale: es });
+                                    birthdayTooltip = `Cumpleaños: ${formattedBirthDate}`;
+                                } catch (e) { /* se queda el texto default */ }
+                            }
+
                             const workingDays = dateRange.filter(day => !isRestDay(emp.horario, day));
                             const completedDays = workingDays.filter(day => {
                                 const formattedDay = format(day, 'yyyy-MM-dd');
@@ -486,12 +513,26 @@ export const AttendancePage = () => {
                                         <div className="w-full" style={{ minWidth: `${EMPLOYEE_CONTENT_MIN_WIDTH}px`, maxWidth: `${EMPLOYEE_CONTENT_MAX_WIDTH}px` }}>
                                             <div className="flex items-start justify-between">
                                                 <div className="flex-1 min-w-0">
-                                                    <div className="flex items-start justify-between">
-                                                        <p className="font-semibold text-slate-800 truncate" title={emp.NombreCompleto}>{emp.NombreCompleto}</p>
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-center gap-2">
+                                                            <p className="font-semibold text-slate-800 truncate" title={emp.NombreCompleto}>{emp.NombreCompleto}</p>
+                                                            {defaultSchedule && (
+                                                                <Tooltip text={horarioTooltipText}>
+                                                                    <span className="text-xs font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                                                                        {defaultSchedule.Abreviatura || defaultSchedule.HorarioId}
+                                                                    </span>
+                                                                </Tooltip>
+                                                            )}
+                                                            {isBirthdayInPeriod(emp.FechaNacimiento, dateRange) && (
+                                                                <Tooltip text={birthdayTooltip}>
+                                                                    <Cake size={18} className="text-pink-400 shrink-0" />
+                                                                </Tooltip>
+                                                            )}
+                                                        </div>
                                                         <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-2">
                                                             <Tooltip text="Ver Ficha de Empleado">
                                                                 <button onClick={() => setViewingEmployeeId(emp.EmpleadoId)} className="p-1 rounded-md text-slate-400 hover:text-[--theme-500] hover:bg-slate-200">
-                                                                    <Contact size={18}/>
+                                                                    <Contact size={18} />
                                                                 </button>
                                                             </Tooltip>
                                                             {isBirthdayInPeriod(emp.fecha_nacimiento, dateRange) && (
@@ -502,21 +543,21 @@ export const AttendancePage = () => {
                                                         </div>
                                                     </div>
                                                     <div className="grid grid-cols-3 gap-x-3 text-xs text-slate-500 mt-1 w-full">
-                                                         <Tooltip text={`ID: ${emp.CodRef}`}> 
+                                                        <Tooltip text={`ID: ${emp.CodRef}`}>
                                                             <p className="font-mono col-span-1 truncate">ID: {emp.CodRef}</p>
-                                                         </Tooltip>
-                                                         <Tooltip text={emp.puesto_descripcion || 'No asignado'}>
+                                                        </Tooltip>
+                                                        <Tooltip text={emp.puesto_descripcion || 'No asignado'}>
                                                             <p className="col-span-1 flex items-center gap-1.5 truncate">
-                                                                <Briefcase size={12} className="text-slate-400 shrink-0"/> 
+                                                                <Briefcase size={12} className="text-slate-400 shrink-0" />
                                                                 <span className="truncate">{emp.puesto_descripcion || 'No asignado'}</span>
                                                             </p>
-                                                         </Tooltip>
-                                                         <Tooltip text={emp.departamento_nombre || 'No asignado'}>
+                                                        </Tooltip>
+                                                        <Tooltip text={emp.departamento_nombre || 'No asignado'}>
                                                             <p className="col-span-1 flex items-center gap-1.5 truncate">
-                                                                <Building size={12} className="text-slate-400 shrink-0"/> 
+                                                                <Building size={12} className="text-slate-400 shrink-0" />
                                                                 <span className="truncate">{emp.departamento_nombre || 'No asignado'}</span>
                                                             </p>
-                                                         </Tooltip>
+                                                        </Tooltip>
                                                     </div>
                                                 </div>
                                                 <Tooltip text="Aprobar sugerencias para la semana">
@@ -544,7 +585,7 @@ export const AttendancePage = () => {
                                                 isToday={isTodayDateFns(day)}
                                                 isOpen={openCellId === cellId}
                                                 onToggleOpen={handleToggleOpen}
-                                                 ficha={ficha}
+                                                ficha={ficha}
                                                 viewMode={viewMode}
                                                 isRestDay={isRestDay(emp.horario, day)}
                                                 onStatusChange={(newStatus, newComment) => handleStatusChange(emp.EmpleadoId, day, newStatus, newComment)}
@@ -573,7 +614,7 @@ export const AttendancePage = () => {
                     <InfoIcon />
                 </Tooltip>
             </header>
-            
+
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 flex-1 flex flex-col overflow-hidden">
                 <AttendanceToolbar
                     searchTerm={searchTerm}
@@ -593,7 +634,7 @@ export const AttendancePage = () => {
             </div>
             <ConfirmationModal confirmation={confirmation} setConfirmation={setConfirmation} />
             {viewingEmployeeId && (
-                <EmployeeProfileModal 
+                <EmployeeProfileModal
                     employeeId={viewingEmployeeId}
                     onClose={() => setViewingEmployeeId(null)}
                     getToken={getToken}
