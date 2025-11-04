@@ -6,12 +6,15 @@
     "CONTROL-DE-ASISTENCIA",
     "CONTROL-DE-ASISTENCIA-API"
   ],
-"scripts": {
+  "scripts": {
     "deploy:local": "npm run build:all && deploy.bat",
     "deploy:prod": "echo 'Despliegue a producción (Render) se maneja automáticamente al hacer push a la rama main.'",
     "build:all": "npm run build --workspaces"
-},
+  },
   "devDependencies": {
     "dotenv-cli": "^10.0.0"
+  },
+  "dependencies": {
+    "@tanstack/react-virtual": "^3.13.12"
   }
 }

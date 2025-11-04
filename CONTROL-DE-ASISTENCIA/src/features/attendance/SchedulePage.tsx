@@ -19,18 +19,23 @@ import { EmployeeProfileModal } from './EmployeeProfileModal';
 import { AssignFixedScheduleModal } from './AssignFixedScheduleModal';
 import { Tooltip, InfoIcon } from '../../components/ui/Tooltip';
 import { themes, statusColorPalette } from '../../config/theme';
-
+// --- OPTIMIZACIÓN: Importar Virtualización ---
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { TableSkeleton } from '../../components/ui/TableSkeleton'; // <-- 1. Importa el esqueleto
 
 // --- Constantes y Claves ---
 const COLUMN_WIDTH_STORAGE_KEY = 'schedule_employee_column_width';
-const MIN_COLUMN_WIDTH = 240;
+const MIN_COLUMN_WIDTH = 360;
 const MAX_COLUMN_WIDTH = 10000;
-const EMPLOYEE_CONTENT_MIN_WIDTH = 220;
+const EMPLOYEE_CONTENT_MIN_WIDTH = 360;
 const EMPLOYEE_CONTENT_MAX_WIDTH = 500;
 const DEFAULT_COLUMN_WIDTH = 384;
-const DAY_CELL_WIDTH = 80; // 5rem
 
-// --- Helpers Visuales ---
+// --- OPTIMIZACIÓN: Altura de fila (consistente con AttendancePage) ---
+const ROW_HEIGHT_ESTIMATE = 72;
+
+/*
+// --- OPTIMIZACIÓN: Helpers movidos fuera del componente ---
 const getTurnoIcon = (turno: 'M' | 'V' | 'N' | string | null | undefined, size = 14) => {
     switch (turno) {
         case 'M': return <Sun size={size} className="text-amber-500 shrink-0" title="Matutino" />;
@@ -48,7 +53,35 @@ const determineTurnoFromTime = (horaEntrada: string): 'M' | 'V' | 'N' | null => 
         if ((hour >= 20 && hour <= 23) || (hour >= 0 && hour < 5)) return 'N';
     } catch { return null; }
     return null;
+};*/
+const isBirthdayInPeriod = (birthDateStr: string, period: Date[]): boolean => {
+    if (!birthDateStr || period.length === 0) return false;
+    try {
+        const parts = birthDateStr.substring(0, 10).split('-');
+        const birthDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+
+        const today = new Date();
+        const birthDateThisYear = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate());
+
+        return isWithinInterval(birthDateThisYear, {
+            start: period[0],
+            end: period[period.length - 1]
+        });
+    } catch (e) {
+        return false;
+    }
 };
+const getHorarioTooltip = (horario: any) => {
+    if (!horario) return "Sin horario base";
+    const firstDay = horario.Turnos?.find((t: any) => t.EsDiaLaboral);
+    let details = `Horario Base: ${horario.Nombre} `;
+    if (firstDay) {
+        details += ` | Inicia: ${firstDay.HoraEntrada || '--:--'} - ${firstDay.HoraSalida || '--:--'}`;
+    }
+    return details;
+};
+// --- FIN DE HELPERS ---
+
 
 // --- COMPONENTE PRINCIPAL: SchedulePage ---
 export const SchedulePage = () => {
@@ -78,9 +111,12 @@ export const SchedulePage = () => {
     });
 
     const [activeWeekStartDate, setActiveWeekStartDate] = useState<Date | null>(null);
-    const scrollContainerRef = useRef<HTMLDivElement>(null);
+    
+    // --- OPTIMIZACIÓN: Ref para el contenedor de scroll (virtualización) ---
+    const scrollContainerRef = useRef<HTMLDivElement>(null); 
     const scrollTimerRef = useRef<number | null>(null);
 
+    // ... (useMemo para dateRange y rangeLabel sin cambios) ...
     const { dateRange, rangeLabel } = useMemo(() => {
         let start, end;
         let label = '';
@@ -117,12 +153,13 @@ export const SchedulePage = () => {
         return { dateRange: range, rangeLabel: label };
     }, [currentDate, viewMode]);
 
+
+    // ... (updateActiveWeek, useEffect de scroll, handleDatePrev/Next, fetchData, etc. SIN CAMBIOS) ...
     const updateActiveWeek = useCallback(() => {
         if (!scrollContainerRef.current || dateRange.length === 0) return;
 
         const { scrollLeft, clientWidth, scrollWidth } = scrollContainerRef.current;
         let startOfActiveWeek: Date | null = null;
-
         const scrollEndTolerance = 5;
 
         if (scrollLeft <= 0) {
@@ -130,8 +167,9 @@ export const SchedulePage = () => {
         } else if (scrollLeft + clientWidth >= scrollWidth - scrollEndTolerance) {
             startOfActiveWeek = startOfWeek(dateRange[dateRange.length - 1], { weekStartsOn: 1 });
         } else {
+            // CORRECCIÓN: Ancho de celda debe coincidir con el TH/TD (6rem = 96px, 4rem = 64px)
+            const cellWidth = viewMode === 'week' ? 96 : 64; 
             const detectionPoint = scrollLeft + (clientWidth * 0.3);
-            const cellWidth = viewMode === 'week' ? 112 : DAY_CELL_WIDTH;
             let dayIndex = Math.floor(detectionPoint / cellWidth);
             dayIndex = Math.max(0, Math.min(dayIndex, dateRange.length - 1));
 
@@ -246,13 +284,12 @@ export const SchedulePage = () => {
 
         } catch (err: any) { setError(err.message); }
         finally { setIsLoading(false); }
-    }, [dateRange, user, getToken, canRead]);
+    }, [dateRange, user, getToken, canRead]); 
 
     useEffect(() => {
         fetchData();
     }, [fetchData]);
 
-    // --- MODIFICACIÓN: Lógica de Guardado (Actualización Optimista) ---
     const handleBulkScheduleChange = async (updates: {
         empleadoId: number,
         fecha: Date,
@@ -267,10 +304,8 @@ export const SchedulePage = () => {
         const token = getToken();
         if (!token || updates.length === 0) return;
 
-        // --- 1. Respaldo y Actualización Optimista ---
-        const originalEmployees = employees; // Respaldo para rollback
+        const originalEmployees = employees; 
 
-        // Crear un mapa de actualizaciones para eficiencia
         const updatesByEmployee = new Map<number, any[]>();
         for (const update of updates) {
             if (!updatesByEmployee.has(update.empleadoId)) {
@@ -279,44 +314,37 @@ export const SchedulePage = () => {
             updatesByEmployee.get(update.empleadoId)!.push(update);
         }
 
-        // Actualizar el estado local
         setEmployees(prevEmployees => {
             return prevEmployees.map(emp => {
                 if (!updatesByEmployee.has(emp.EmpleadoId)) {
-                    return emp; // Sin cambios para este empleado
+                    return emp; 
                 }
 
                 const empUpdates = updatesByEmployee.get(emp.EmpleadoId)!;
-                // Clonar HorariosAsignados para no mutar el estado
                 const newHorariosAsignados = [...emp.HorariosAsignados];
 
                 for (const update of empUpdates) {
                     const fechaStr = format(update.fecha, 'yyyy-MM-dd');
                     const recordIndex = newHorariosAsignados.findIndex(h => h.Fecha === fechaStr);
 
-                    // Crear el nuevo objeto de asignación
                     let newAsignacion = null;
-                    if (update.tipoAsignacion) { // 'H', 'T', o 'D'
+                    if (update.tipoAsignacion) { 
                         newAsignacion = {
                             Fecha: fechaStr,
                             TipoAsignacion: update.tipoAsignacion,
                             HorarioIdAplicable: update.tipoAsignacion === 'H' ? update.horarioId : null,
                             HorarioDetalleIdAplicable: update.tipoAsignacion === 'T' ? update.detalleId : null,
-                            EstatusConflictivo: null // Asumimos que una nueva asignación limpia conflictos
+                            EstatusConflictivo: null 
                         };
                     }
 
                     if (recordIndex > -1) {
-                        // El registro existe
                         if (newAsignacion) {
-                            // Actualizar el registro existente
                             newHorariosAsignados[recordIndex] = newAsignacion;
                         } else {
-                            // Borrar el registro (revertir a base)
                             newHorariosAsignados.splice(recordIndex, 1);
                         }
                     } else if (newAsignacion) {
-                        // El registro no existe, y no es un borrado, así que se añade
                         newHorariosAsignados.push(newAsignacion);
                     }
                 }
@@ -325,7 +353,6 @@ export const SchedulePage = () => {
             });
         });
 
-        // --- 2. Llamada a la API ---
         try {
             const res = await fetch(`${API_BASE_URL}/schedules/assignments`, {
                 method: 'POST',
@@ -337,17 +364,13 @@ export const SchedulePage = () => {
                 throw new Error(errorData.message || 'El servidor rechazó la actualización.');
             }
             addNotification('Guardado', `${updates.length} asignacion(es) guardada(s).`, 'success');
-            // NO SE LLAMA A fetchData()
-
         } catch (err: any) {
             addNotification('Error al Guardar', `No se pudieron guardar los cambios: ${err.message}`, 'error');
-            // --- 3. Rollback en caso de error ---
             setEmployees(originalEmployees);
         }
     };
-    // --- FIN DE LA MODIFICACIÓN ---
 
-    const handleAssignFixedToWeek = (horarioId: number | null) => { // Acepta null
+    const handleAssignFixedToWeek = (horarioId: number | null) => { 
         if (!assignFixedModalInfo || !activeWeekStartDate) {
             addNotification('Error', 'No se ha seleccionado una semana activa.', 'error');
             return;
@@ -359,18 +382,14 @@ export const SchedulePage = () => {
         let updates;
 
         if (horarioId === null) {
-            // Lógica para REVERTIR A HORARIO BASE (limpiar)
-            console.log(`Revertiendo a Horario Base para EmpleadoId ${employeeId} en la semana que inicia ${format(activeWeekStartDate, 'yyyy-MM-dd')}`);
             updates = weekDays.map(day => ({
                 empleadoId: employeeId,
                 fecha: day,
-                tipoAsignacion: null, // <-- La clave es enviar null
+                tipoAsignacion: null, 
                 horarioId: null,
                 detalleId: null
             }));
         } else {
-            // Lógica para ASIGNAR HORARIO FIJO
-            console.log(`Asignando HorarioId ${horarioId} a EmpleadoId ${employeeId} para la semana que inicia ${format(activeWeekStartDate, 'yyyy-MM-dd')}`);
             updates = weekDays.map(day => ({
                 empleadoId: employeeId,
                 fecha: day,
@@ -379,8 +398,7 @@ export const SchedulePage = () => {
                 detalleId: null
             }));
         }
-
-        // Esta función ahora actualizará el estado localmente
+        
         handleBulkScheduleChange(updates);
         setAssignFixedModalInfo(null);
     };
@@ -427,51 +445,56 @@ export const SchedulePage = () => {
         window.addEventListener('mouseup', handleMouseUp, { once: true });
     };
 
-    const isBirthdayInPeriod = (birthDateStr: string, period: Date[]): boolean => {
-        if (!birthDateStr || period.length === 0) return false;
-        try {
-            const parts = birthDateStr.substring(0, 10).split('-');
-            const birthDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-
-            const today = new Date();
-            const birthDateThisYear = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate());
-
-            return isWithinInterval(birthDateThisYear, {
-                start: period[0],
-                end: period[period.length - 1]
-            });
-        } catch (e) {
-            return false;
-        }
-    };
-
     const getActiveWeekLabel = () => {
         if (!activeWeekStartDate) return "Cargando semana...";
         const endDate = endOfWeek(activeWeekStartDate, { weekStartsOn: 1 });
         return `Semana del ${format(activeWeekStartDate, 'd MMM')} al ${format(endDate, 'd MMM, yyyy', { locale: es })}`;
     };
 
-    // Tooltip mejorado para el horario
-    const getHorarioTooltip = (horario: any) => {
-        if (!horario) return "Sin horario base";
-        const firstDay = horario.Turnos?.find((t: any) => t.EsDiaLaboral);
-        let details = `Horario Base: ${horario.Nombre} `;
-        if (firstDay) {
-            details += ` | Inicia: ${firstDay.HoraEntrada || '--:--'} - ${firstDay.HoraSalida || '--:--'}`;
-        }
-        return details;
-    };
-
+    // --- OPTIMIZACIÓN: Lógica de Virtualización (Patrón de Padding) ---
+    const rowVirtualizer = useVirtualizer({
+        count: filteredEmployees.length,
+        getScrollElement: () => scrollContainerRef.current, // Usar el ref del div de scroll
+        estimateSize: () => ROW_HEIGHT_ESTIMATE,
+        overscan:15,
+    });
+    
+    const virtualRows = rowVirtualizer.getVirtualItems();
+    
+    const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
+    const paddingBottom = virtualRows.length > 0 ? rowVirtualizer.getTotalSize() - virtualRows[virtualRows.length - 1].end : 0;
+    // --- FIN OPTIMIZACIÓN ---
 
     const renderContent = () => {
-        if (isLoading) { return <div className="text-center p-16 text-slate-500 flex items-center justify-center gap-2"> <Loader2 className="animate-spin" /> Cargando... </div>; }
+        if (isLoading) { 
+            return (
+                <TableSkeleton 
+                    employeeColumnWidth={employeeColumnWidth}
+                    dateRange={dateRange}
+                    viewMode={viewMode}
+                />
+            );
+        }
         if (error) { return <div className="p-16 text-center"> <p className="font-semibold text-red-600">Error al Cargar</p> <p className="text-slate-500 text-sm mt-1">{error}</p> </div>; }
         return (
             <div ref={scrollContainerRef} className="overflow-auto relative flex-1">
+                {/* OPTIMIZACIÓN: 'w-full' ELIMINADO */}
                 <table className="text-sm text-center border-collapse table-fixed">
-                    <thead className="sticky top-0 z-20">
+                    {/* OPTIMIZACIÓN: CSS Anti-Flicker AÑADIDO al thead */}
+                    <thead 
+                        className="sticky top-0 z-20" 
+                        style={{ willChange: 'transform', transform: 'translate3d(0, 0, 0)' }}
+                    >
                         <tr className="bg-slate-50">
-                            <th className="p-2 text-left font-semibold text-slate-600 sticky left-0 bg-slate-50 z-30 shadow-sm" style={{ width: `${employeeColumnWidth}px` }}>
+                            {/* OPTIMIZACIÓN: CSS Anti-Flicker AÑADIDO al th sticky */}
+                            <th 
+                                className="p-2 text-left font-semibold text-slate-600 sticky left-0 bg-slate-50 z-30 shadow-sm" 
+                                style={{ 
+                                    width: `${employeeColumnWidth}px`, 
+                                    willChange: 'transform', 
+                                    transform: 'translate3d(0, 0, 0)' 
+                                }}
+                            >
                                 <div className="flex justify-between items-center h-full">
                                     <span>Empleado</span>
                                     <div onMouseDown={handleResizeMouseDown} className="absolute right-0 top-0 h-full w-2.5 cursor-col-resize group flex items-center justify-center">
@@ -480,12 +503,15 @@ export const SchedulePage = () => {
                                 </div>
                             </th>
 
+                            {/* OPTIMIZACIÓN (Y BUG FIX): 'min-w' APLICADO para alinear con celdas */}
                             {dateRange.map((day, dayIndex) => {
                                 const isMonday = getDayOfWeek(day) === 1;
                                 const startOfWeekForDay = startOfWeek(day, { weekStartsOn: 1 });
                                 const isActiveWeek = activeWeekStartDate && isSameDay(startOfWeekForDay, activeWeekStartDate);
                                 const isFirstDay = dayIndex === 0;
 
+                                // --- BUG FIX: Anchos de columna corregidos a 6rem y 4rem ---
+                                // (Este era el bug que encontré, ahora lo alineamos con AttendancePage)
                                 let thClasses = `px-1 py-2 font-semibold text-slate-600 min-w-[${viewMode === 'week' ? '6rem' : '4rem'}] transition-colors duration-150 relative `;
                                 if (isTodayDateFns(day)) {
                                     thClasses += 'bg-sky-100';
@@ -508,11 +534,25 @@ export const SchedulePage = () => {
                             })}
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {filteredEmployees.map((emp) => {
+                    {/* OPTIMIZACIÓN: 'tbody' con altura para virtualización */}
+                    <tbody 
+                        style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+                        className="animate-content-fade-in"
+                    >
+                        
+                        {/* Fila de padding superior */}
+                        {paddingTop > 0 && (
+                            <tr style={{ height: `${paddingTop}px`, border: 'none' }}>
+                                <td colSpan={dateRange.length + 1} style={{ padding: 0, border: 'none' }}></td>
+                            </tr>
+                        )}
+
+                        {/* OPTIMIZACIÓN: Mapeo sobre 'virtualRows' */}
+                        {virtualRows.map((virtualRow) => {
+                            const emp = filteredEmployees[virtualRow.index];
                             
                             const defaultSchedule = scheduleCatalog.find(h => h.HorarioId === emp.HorarioDefaultId);
-                            const horarioTooltipText = getHorarioTooltip(defaultSchedule);
+                            const horarioTooltipText = getHorarioTooltip(defaultSchedule); // Se usa la función helper
                             let birthdayTooltip = "Cumpleaños en este periodo";
                             if (emp.FechaNacimiento) {
                                 try {
@@ -522,9 +562,22 @@ export const SchedulePage = () => {
                                     birthdayTooltip = `Cumpleaños: ${formattedBirthDate}`;
                                 } catch (e) { /* se queda el texto default */ }
                             }
+                            
                             return (
-                                <tr key={emp.EmpleadoId} className="group">
-                                    <td className="p-2 text-left sticky left-0 bg-white group-hover:bg-slate-50 z-10 shadow-sm align-top">
+                                <tr 
+                                    key={emp.EmpleadoId} 
+                                    className="group"
+                                    style={{ height: `${virtualRow.size}px` }} // Altura de fila
+                                >
+                                    {/* OPTIMIZACIÓN: CSS Anti-Flicker AÑADIDO al td sticky */}
+                                    <td 
+                                        className="p-2 text-left sticky left-0 bg-white group-hover:bg-slate-50 z-10 shadow-sm align-top border-b border-slate-100" // Se añade border-b
+                                        style={{ 
+                                            width: `${employeeColumnWidth}px`, 
+                                            willChange: 'transform', 
+                                            transform: 'translate3d(0, 0, 0)' 
+                                        }}
+                                    >
                                         <div
                                             className="flex items-start justify-between w-full"
                                             style={{ minWidth: `${EMPLOYEE_CONTENT_MIN_WIDTH}px`, maxWidth: `${EMPLOYEE_CONTENT_MAX_WIDTH}px` }}
@@ -540,7 +593,7 @@ export const SchedulePage = () => {
                                                                 </span>
                                                             </Tooltip>
                                                         )}
-                                                        {isBirthdayInPeriod(emp.FechaNacimiento, dateRange) && (
+                                                        {isBirthdayInPeriod(emp.FechaNacimiento, dateRange) && ( // Se usa la función helper
                                                             <Tooltip text={birthdayTooltip}>
                                                                 <Cake size={18} className="text-pink-400 shrink-0" />
                                                             </Tooltip>
@@ -598,7 +651,7 @@ export const SchedulePage = () => {
 
                                         const isMonday = getDayOfWeek(day) === 1;
                                         const isFirstDay = dayIndex === 0;
-                                        let tdClasses = "align-top";
+                                        let tdClasses = "align-top border-b border-slate-100"; // Se añade border-b
                                         if (isMonday && !isFirstDay) {
                                             tdClasses += ' border-l-2 border-slate-300';
                                         }
@@ -612,7 +665,6 @@ export const SchedulePage = () => {
                                                 onToggleOpen={handleToggleOpen}
                                                 scheduleData={scheduleData}
                                                 horarioDefaultId={emp.HorarioDefaultId}
-                                                // MODIFICACIÓN: La celda ahora llama a la función optimista
                                                 onScheduleChange={({ tipoAsignacion, horarioId, detalleId }: any) => handleBulkScheduleChange([{
                                                     empleadoId: emp.EmpleadoId,
                                                     fecha: day,
@@ -631,6 +683,13 @@ export const SchedulePage = () => {
                                 </tr>
                             );
                         })}
+
+                        {/* Fila de padding inferior */}
+                        {paddingBottom > 0 && (
+                            <tr style={{ height: `${paddingBottom}px`, border: 'none' }}>
+                                <td colSpan={dateRange.length + 1} style={{ padding: 0, border: 'none' }}></td>
+                            </tr>
+                        )}
                     </tbody>
                 </table>
             </div>
@@ -648,7 +707,7 @@ export const SchedulePage = () => {
                 </Tooltip>
             </header>
 
-            <div className="bg-white rounded-lg shadow-sm border border-slate-200 flex-1 flex flex-col overflow-hidden">
+            <div className="bg-white rounded-lg shadow-sm border-slate-200 flex-1 flex flex-col overflow-hidden">
                 <AttendanceToolbar
                     searchTerm={searchTerm}
                     setSearchTerm={setSearchTerm}
@@ -669,7 +728,7 @@ export const SchedulePage = () => {
 
             {viewingEmployeeId && (
                 <EmployeeProfileModal
-                    employeeId={viewingEmployeeId}
+                    employeeId={viewingEmployeeId as any}
                     onClose={() => setViewingEmployeeId(null)}
                     getToken={getToken}
                     user={user}
@@ -688,4 +747,3 @@ export const SchedulePage = () => {
         </div>
     );
 };
-

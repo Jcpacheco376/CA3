@@ -1,5 +1,5 @@
 // src/features/attendance/AttendanceCell.tsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, memo } from 'react'; // 'memo' ya estaba, excelente.
 import ReactDOM from 'react-dom';
 import { AttendanceStatus, AttendanceStatusCode } from '../../types';
 import { Check, Clock, AlertTriangle, BadgeCheck, MessageSquare, Save } from 'lucide-react';
@@ -7,8 +7,10 @@ import { format } from 'date-fns';
 import { Tooltip } from '../../components/ui/Tooltip';
 import { statusColorPalette } from '../../config/theme';
 
-
+// --- OPTIMIZACIÓN: Función Helper movida fuera del componente ---
 const getColorClasses = (colorName: string = 'red') => {
+    // Esta función genera clases de Tailwind JIT (Just-in-Time).
+    // Es seguro moverla aquí.
     return {
         bgText: `bg-${colorName}-100 text-${colorName}-800`,
         border: `border-${colorName}-700`,
@@ -16,7 +18,8 @@ const getColorClasses = (colorName: string = 'red') => {
     };
 };
 
-const FichaTooltip = ({ ficha, isRestDay, statusCatalog }: { ficha: any, isRestDay: boolean, statusCatalog: AttendanceStatus[] }) => {
+// --- OPTIMIZACIÓN: Componente Tooltip envuelto en 'memo' ---
+const FichaTooltip = memo(({ ficha, isRestDay, statusCatalog }: { ficha: any, isRestDay: boolean, statusCatalog: AttendanceStatus[] }) => {
     if (isRestDay) return <span>Día de descanso.</span>;
     if (!ficha) return <span>Sin registro del checador para este día.</span>;
 
@@ -36,9 +39,9 @@ const FichaTooltip = ({ ficha, isRestDay, statusCatalog }: { ficha: any, isRestD
             {ficha.EstatusAutorizacion === 'Autorizado' && <p className="text-green-600 font-semibold mt-1">Autorizado por RH</p>}
         </div>
     );
-};
+});
 
-export const AttendanceCell = ({ 
+export const AttendanceCell = memo(({ 
     cellId, 
     isOpen, 
     onToggleOpen, 
@@ -49,7 +52,9 @@ export const AttendanceCell = ({
     onDragEnter, 
     isBeingDragged,
     isAnyCellOpen, 
-    statusCatalog
+    statusCatalog,
+    isToday,
+    viewMode
 }: any) => {
     const [isJustUpdated, setIsJustUpdated] = useState(false);
     const wrapperRef = useRef<HTMLTableCellElement>(null);
@@ -68,12 +73,18 @@ export const AttendanceCell = ({
     const isAuthorized = ficha?.EstatusAutorizacion === 'Autorizado';
     const isProcessing = ficha?.ProcesamientoAbierto;
 
+    // Lógica de animación (ya estaba optimizada)
+    const prevStatusRef = useRef(ficha?.EstatusSupervisorAbrev);
     useEffect(() => {
-        if (ficha?.EstatusSupervisorAbrev) {
-            setIsJustUpdated(true);
-            const timer = setTimeout(() => setIsJustUpdated(false), 300);
-            return () => clearTimeout(timer);
+        const currentStatus = ficha?.EstatusSupervisorAbrev;
+        if (prevStatusRef.current !== currentStatus) {
+            if (currentStatus) {
+                setIsJustUpdated(true);
+                const timer = setTimeout(() => setIsJustUpdated(false), 300);
+                return () => clearTimeout(timer);
+            }
         }
+        prevStatusRef.current = currentStatus;
     }, [ficha?.EstatusSupervisorAbrev]);
 
 
@@ -168,7 +179,7 @@ export const AttendanceCell = ({
                 {statusCatalog
                     .filter((status: AttendanceStatus) => status.VisibleSupervisor)
                     .map((status: AttendanceStatus) => {
-                        const { bgText: statusColor } = getColorClasses(status.ColorUI);
+                        const { bgText: statusColor } = getColorClasses(status.ColorUI); // Usa la función helper
                         return (
                             <button key={status.EstatusId} onClick={() => handleSelect(status.Abreviatura as AttendanceStatusCode)}
                                 className={`p-1.5 rounded-md text-center group transition-transform hover:scale-105 focus:outline-none focus:ring-2 ring-[--theme-500] ${statusColor} relative`}>
@@ -216,11 +227,14 @@ export const AttendanceCell = ({
             {cellContent}
         </button>
     );
+    
+    // El ancho mínimo lo controla el <th> en el padre (6rem o 4rem)
+    const cellWidthClass = viewMode === 'week' ? 'min-w-[6rem]' : 'min-w-[4rem]';
 
     return (
         <td
             ref={wrapperRef}
-            className={`p-1 relative align-middle group status-cell-wrapper`}
+            className={`p-1 relative align-middle group status-cell-wrapper ${cellWidthClass} ${isToday ? 'bg-sky-50/50' : ''}`} 
             onMouseEnter={onDragEnter}
             onClick={(e) => e.stopPropagation()}
         >
@@ -230,5 +244,4 @@ export const AttendanceCell = ({
             {statusPanel}
         </td>
     );
-};
-
+});

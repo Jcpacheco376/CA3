@@ -1,3 +1,59 @@
+/* src/index.css */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* 1. Define la animación del barrido (sin cambios) */
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* 2. Clase reutilizable (CON MODIFICACIONES) */
+.shimmer-effect {
+  position: relative;
+  overflow: hidden;
+  background-color: #e2e8f0; /* bg-slate-200 */
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    transform: translateX(-100%); 
+    
+    /* --- MODIFICACIÓN AQUÍ --- */
+    /* El gradiente ahora tiene un ángulo de 60deg */
+    background-image: linear-gradient(
+      315deg, 
+      rgba(255, 255, 255, 0) 20%,
+      rgba(255, 255, 255, 0.3) 50%,
+      rgba(255, 255, 255, 0) 80%
+    );
+    /* --- FIN DE MODIFICACIÓN --- */
+    
+    /* Hice la animación un poco más rápida (1.5s) */
+    animation: shimmer 1.0s infinite;
+  }
+}
+
+@keyframes contentFadeIn {
+  from {
+    opacity: 0;
+    /* Añadimos un sutil "fade-up" para que sea más suave */
+    transform: translateY(4px); 
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0px);
+  }
+}
+
+/* 2. Crea la clase que usaremos */
+.animate-content-fade-in {
+  /* Duración de 350ms, y 'forwards' para que mantenga la opacidad en 1 */
+  animation: contentFadeIn 300ms ease-out forwards;
+}

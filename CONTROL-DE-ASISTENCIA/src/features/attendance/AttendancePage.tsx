@@ -12,6 +12,10 @@ import { AttendanceStatus, AttendanceStatusCode } from '../../types';
 import { Tooltip, InfoIcon } from '../../components/ui/Tooltip';
 import { EmployeeProfileModal } from './EmployeeProfileModal';
 import { AttendanceToolbar } from './AttendanceToolbar';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { TableSkeleton } from '../../components/ui/TableSkeleton'; // <-- 1. Importa el esqueleto
+
+// --- OPTIMIZACIÓN: Funciones Helper movidas fuera del componente ---
 
 const isRestDay = (horario: string, date: Date): boolean => {
     if (!horario || horario.length !== 7) return false;
@@ -20,6 +24,37 @@ const isRestDay = (horario: string, date: Date): boolean => {
     return horario.charAt(index) === '1';
 };
 
+const isBirthdayInPeriod = (birthDateStr: string, period: Date[]): boolean => {
+    if (!birthDateStr || period.length === 0) return false;
+    // Corregido para manejar fechas UTC que vienen de la DB
+    try {
+        const parts = birthDateStr.substring(0, 10).split('-');
+        const birthDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+
+        const today = new Date();
+        const birthDateThisYear = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate());
+
+        return isWithinInterval(birthDateThisYear, {
+            start: period[0],
+            end: period[period.length - 1]
+        });
+    } catch (e) {
+        return false;
+    }
+};
+
+const getHorarioTooltip = (horario: any) => {
+    if (!horario) return "Sin horario base";
+    // El catálogo de horarios puede no estar cargado aún o no tener turnos
+    const firstDay = horario.Turnos?.find((t: any) => t.EsDiaLaboral);
+    let details = `Horario Base: ${horario.Nombre} `;
+    if (firstDay) {
+        details += ` | Inicia: ${firstDay.HoraEntrada || '--:--'} - ${firstDay.HoraSalida || '--:--'}`;
+    }
+    return details;
+};
+
+// --- OPTIMIZACIÓN: Componente Modal movido fuera del componente principal ---
 const ConfirmationModal = ({ confirmation, setConfirmation }: any) => {
     if (!confirmation.isOpen) return null;
     const footer = (
@@ -35,12 +70,16 @@ const ConfirmationModal = ({ confirmation, setConfirmation }: any) => {
     );
 };
 
+// --- Constantes de Ancho (Como las definiste) ---
 const COLUMN_WIDTH_STORAGE_KEY = 'attendance_employee_column_width';
-const MIN_COLUMN_WIDTH = 240;
+const MIN_COLUMN_WIDTH = 360;
 const MAX_COLUMN_WIDTH = 10000;
-const EMPLOYEE_CONTENT_MIN_WIDTH = 220;
+const EMPLOYEE_CONTENT_MIN_WIDTH = 360;
 const EMPLOYEE_CONTENT_MAX_WIDTH = 500;
 const DEFAULT_COLUMN_WIDTH = 384;
+
+const ROW_HEIGHT_ESTIMATE = 72; // Altura de la celda de empleado (p-2 + contenido + progress)
+
 
 export const AttendancePage = () => {
     const { getToken, user } = useAuth();
@@ -133,6 +172,24 @@ export const AttendancePage = () => {
         });
     }, [employees, searchTerm, selectedDepartment, selectedPayrollGroup]);
 
+    // --- Sección de Virtualización (Sin cambios) ---
+    const tableContainerRef = useRef<HTMLDivElement>(null);
+
+    const rowVirtualizer = useVirtualizer({
+        count: filteredEmployees.length,
+        getScrollElement: () => tableContainerRef.current,
+        estimateSize: () => ROW_HEIGHT_ESTIMATE,
+        overscan: 5,
+    });
+    
+    const virtualRows = rowVirtualizer.getVirtualItems();
+    
+    const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
+    const paddingBottom = virtualRows.length > 0 ? rowVirtualizer.getTotalSize() - virtualRows[virtualRows.length - 1].end : 0;
+    // --- FIN Virtualización ---
+
+
+    // ... (Todas las funciones (handleDatePrev, handleResizeMouseDown, fetchData, etc.) se mantienen idénticas)
     const handleDatePrev = () => {
         setCurrentDate(prevDate => {
             switch (viewMode) {
@@ -434,41 +491,41 @@ export const AttendancePage = () => {
         setDraggedCells([]);
     };
 
-    const isBirthdayInPeriod = (birthDateStr: string, period: Date[]): boolean => {
-        if (!birthDateStr || period.length === 0) return false;
-        const birthDate = new Date(birthDateStr);
-        const today = new Date();
-        const birthDateThisYear = new Date(Date.UTC(today.getUTCFullYear(), birthDate.getUTCMonth(), birthDate.getUTCDate()));
-
-        return isWithinInterval(birthDateThisYear, {
-            start: period[0],
-            end: period[period.length - 1]
-        });
-    };
-
-    const getHorarioTooltip = (horario: any) => {
-        if (!horario) return "Sin horario base";
-        const firstDay = horario.Turnos?.find((t: any) => t.EsDiaLaboral);
-        let details = `Horario Base: ${horario.Nombre} `;
-        if (firstDay) {
-            details += ` | Inicia: ${firstDay.HoraEntrada || '--:--'} - ${firstDay.HoraSalida || '--:--'}`;
-        }
-        return details;
-    };
 
     const renderContent = () => {
-        if (isLoading) {
-            return <div className="text-center p-16 text-slate-500 flex items-center justify-center gap-2"> <Loader2 className="animate-spin" /> Cargando... </div>;
-        }
+        if (isLoading) { 
+                    return (
+                        <TableSkeleton 
+                            employeeColumnWidth={employeeColumnWidth}
+                            dateRange={dateRange}
+                            viewMode={viewMode}
+                        />
+                    );
+                }
         if (error) {
             return <div className="p-16 text-center"> <p className="font-semibold text-red-600">Error al Cargar</p> <p className="text-slate-500 text-sm mt-1">{error}</p> </div>;
         }
         return (
-            <div className="overflow-auto relative flex-1">
+            <div 
+                ref={tableContainerRef} 
+                className="overflow-auto relative flex-1"
+                onMouseUp={handleDragEnd} 
+            >
+                {/* La tabla mantiene el hack anti-flicker */}
                 <table className="text-sm text-center border-collapse table-fixed">
-                    <thead className="sticky top-0 z-20">
+                    <thead 
+                        className="sticky top-0 z-20" 
+                        style={{ willChange: 'transform', transform: 'translate3d(0, 0, 0)' }}
+                    >
                         <tr className="bg-slate-50">
-                            <th className="p-2 text-left font-semibold text-slate-600 sticky left-0 bg-slate-50 z-30 shadow-sm" style={{ width: `${employeeColumnWidth}px` }}>
+                            <th 
+                                className="p-2 text-left font-semibold text-slate-600 sticky left-0 bg-slate-50 z-30 shadow-sm" 
+                                style={{ 
+                                    width: `${employeeColumnWidth}px`, 
+                                    willChange: 'transform', 
+                                    transform: 'translate3d(0, 0, 0)' 
+                                }}
+                            >
                                 <div className="flex justify-between items-center h-full">
                                     <span>Empleado</span>
                                     <div onMouseDown={handleResizeMouseDown} className="absolute right-0 top-0 h-full w-2.5 cursor-col-resize group flex items-center justify-center">
@@ -476,6 +533,7 @@ export const AttendancePage = () => {
                                     </div>
                                 </div>
                             </th>
+                            
                             {dateRange.map(day => (
                                 <th key={day.toISOString()} className={`px-1 py-2 font-semibold text-slate-600 min-w-[${viewMode === 'week' ? '6rem' : '4rem'}] ${isTodayDateFns(day) ? 'bg-sky-100' : 'bg-slate-50'}`}>
                                     <span className="capitalize text-base">{format(day, 'eee', { locale: es })}</span>
@@ -484,11 +542,23 @@ export const AttendancePage = () => {
                             ))}
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {filteredEmployees.map((emp) => {
+                    
+                    <tbody 
+                        style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+                        className="animate-content-fade-in"
+                    >
+                        
+                        {paddingTop > 0 && (
+                            <tr style={{ height: `${paddingTop}px`, border: 'none' }}>
+                                <td colSpan={dateRange.length + 1} style={{ padding: 0, border: 'none' }}></td>
+                            </tr>
+                        )}
+
+                        {virtualRows.map((virtualRow) => {
+                            const emp = filteredEmployees[virtualRow.index];
                             
                             const defaultSchedule = scheduleCatalog.find(h => h.HorarioId === emp.horario);
-                            const horarioTooltipText = getHorarioTooltip(defaultSchedule);
+                            const horarioTooltipText = getHorarioTooltip(defaultSchedule); // Se usa la función helper
                             let birthdayTooltip = "Cumpleaños en este periodo";
                             if (emp.FechaNacimiento) {
                                 try {
@@ -498,19 +568,36 @@ export const AttendancePage = () => {
                                     birthdayTooltip = `Cumpleaños: ${formattedBirthDate}`;
                                 } catch (e) { /* se queda el texto default */ }
                             }
-
-                            const workingDays = dateRange.filter(day => !isRestDay(emp.horario, day));
+                            const workingDays = dateRange.filter(day => !isRestDay(emp.horario, day)); // Se usa la función helper
                             const completedDays = workingDays.filter(day => {
                                 const formattedDay = format(day, 'yyyy-MM-dd');
                                 const ficha = emp.FichasSemana.find((f: any) => f.Fecha.substring(0, 10) === formattedDay);
                                 return ficha && ficha.EstatusSupervisorAbrev;
                             }).length;
                             const progress = workingDays.length > 0 ? (completedDays / workingDays.length) * 100 : 0;
-
+                            
                             return (
-                                <tr key={emp.EmpleadoId} className="group">
-                                    <td className="p-2 text-left sticky left-0 bg-white group-hover:bg-slate-50 z-10 shadow-sm align-top">
-                                        <div className="w-full" style={{ minWidth: `${EMPLOYEE_CONTENT_MIN_WIDTH}px`, maxWidth: `${EMPLOYEE_CONTENT_MAX_WIDTH}px` }}>
+                                <tr 
+                                    key={emp.EmpleadoId} 
+                                    className="group"
+                                    style={{ height: `${virtualRow.size}px` }}
+                                >
+                                    <td 
+                                        className="p-2 text-left sticky left-0 bg-white group-hover:bg-slate-50 z-10 shadow-sm align-top border-b border-slate-100"
+                                        style={{ 
+                                            width: `${employeeColumnWidth}px`, 
+                                            willChange: 'transform', 
+                                            transform: 'translate3d(0, 0, 0)'
+                                        }}
+                                    >
+                                        <div 
+                                            className="w-full" 
+                                            style={{ 
+                                                width: `${employeeColumnWidth - 16}px`, 
+                                                minWidth: `${EMPLOYEE_CONTENT_MIN_WIDTH}px`, 
+                                                maxWidth: `${EMPLOYEE_CONTENT_MAX_WIDTH}px` 
+                                            }}
+                                        >
                                             <div className="flex items-start justify-between">
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center justify-between">
@@ -523,7 +610,7 @@ export const AttendancePage = () => {
                                                                     </span>
                                                                 </Tooltip>
                                                             )}
-                                                            {isBirthdayInPeriod(emp.FechaNacimiento, dateRange) && (
+                                                            {isBirthdayInPeriod(emp.FechaNacimiento, dateRange) && ( // Se usa la función helper
                                                                 <Tooltip text={birthdayTooltip}>
                                                                     <Cake size={18} className="text-pink-400 shrink-0" />
                                                                 </Tooltip>
@@ -535,11 +622,6 @@ export const AttendancePage = () => {
                                                                     <Contact size={18} />
                                                                 </button>
                                                             </Tooltip>
-                                                            {isBirthdayInPeriod(emp.fecha_nacimiento, dateRange) && (
-                                                                <Tooltip text="Cumpleaños en este periodo">
-                                                                    <Cake size={18} className="text-pink-400 shrink-0" />
-                                                                </Tooltip>
-                                                            )}
                                                         </div>
                                                     </div>
                                                     <div className="grid grid-cols-3 gap-x-3 text-xs text-slate-500 mt-1 w-full">
@@ -574,6 +656,7 @@ export const AttendancePage = () => {
                                             </div>
                                         </div>
                                     </td>
+                                    
                                     {dateRange.map((day, dayIndex) => {
                                         const formattedDay = format(day, 'yyyy-MM-dd');
                                         const ficha = emp.FichasSemana.find((f: any) => f.Fecha.substring(0, 10) === formattedDay);
@@ -587,9 +670,9 @@ export const AttendancePage = () => {
                                                 onToggleOpen={handleToggleOpen}
                                                 ficha={ficha}
                                                 viewMode={viewMode}
-                                                isRestDay={isRestDay(emp.horario, day)}
+                                                isRestDay={isRestDay(emp.horario, day)} // Se usa la función helper
                                                 onStatusChange={(newStatus, newComment) => handleStatusChange(emp.EmpleadoId, day, newStatus, newComment)}
-                                                onDragStart={(status) => handleDragStart(emp.EmpleadoId, dayIndex, status)}
+                                                onDragStart={(status: AttendanceStatusCode) => handleDragStart(emp.EmpleadoId, dayIndex, status)}
                                                 onDragEnter={() => handleDragEnter(emp.EmpleadoId, dayIndex)}
                                                 isBeingDragged={draggedCells.includes(cellId)}
                                                 isAnyCellOpen={openCellId !== null}
@@ -600,6 +683,12 @@ export const AttendancePage = () => {
                                 </tr>
                             );
                         })}
+
+                        {paddingBottom > 0 && (
+                            <tr style={{ height: `${paddingBottom}px`, border: 'none' }}>
+                                <td colSpan={dateRange.length + 1} style={{ padding: 0, border: 'none' }}></td>
+                            </tr>
+                        )}
                     </tbody>
                 </table>
             </div>
@@ -607,7 +696,7 @@ export const AttendancePage = () => {
     };
 
     return (
-        <div className="space-y-6 h-full flex flex-col" onMouseUp={handleDragEnd}>
+        <div className="space-y-6 h-full flex flex-col">
             <header className="flex items-center gap-2">
                 <h1 className="text-3xl font-bold text-slate-800">Registro de Asistencia</h1>
                 <Tooltip text="Valida la asistencia, registra incidencias y usa las herramientas de llenado rápido para agilizar la captura.">
@@ -635,7 +724,7 @@ export const AttendancePage = () => {
             <ConfirmationModal confirmation={confirmation} setConfirmation={setConfirmation} />
             {viewingEmployeeId && (
                 <EmployeeProfileModal
-                    employeeId={viewingEmployeeId}
+                    employeeId={viewingEmployeeId as any} 
                     onClose={() => setViewingEmployeeId(null)}
                     getToken={getToken}
                     user={user}
