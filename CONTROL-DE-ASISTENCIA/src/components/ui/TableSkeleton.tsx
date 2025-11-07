@@ -91,7 +91,7 @@ export const TableSkeleton = ({
                                     <SkeletonBar width="w-3/4" />
                                     <SkeletonBar width="w-1/2" />
                                     {/* Esta barra simula la barra de progreso */}
-                                    <div className="h-1.5 bg-slate-200 rounded-full w-full shimmer-effect mt-3" />
+                                    <div className="h-1.5 bg-slate-200 rounded-full w-3/4 shimmer-effect mt-3" />
                                     {/* --- FIN DE MODIFICACIÓN --- */}
                                 </div>
                             </td>

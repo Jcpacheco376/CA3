@@ -35,27 +35,37 @@ const getSchedules = (req, res) => __awaiter(void 0, void 0, void 0, function* (
 exports.getSchedules = getSchedules;
 // getScheduleAssignments se mantiene igual...
 const getScheduleAssignments = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    if (!req.user.permissions['horarios.read'])
+    if (!req.user.permissions['horarios.read']) {
         return res.status(403).json({ message: 'Acceso denegado.' });
-    const { startDate, endDate } = req.query;
-    if (!startDate || !endDate)
+    }
+    // Los parámetros ahora vienen del BODY
+    const { startDate, endDate, filters } = req.body;
+    if (!startDate || !endDate) {
         return res.status(400).json({ message: 'Se requieren fechas de inicio y fin.' });
-    console.log("Recibiendo petición para Rango:", startDate, "a", endDate, "Usuario:", req.user.usuarioId); // Log mejorado
+    }
+    // Helper para convertir un array de IDs (o undefined) en un string JSON para el SP
+    const toJSONString = (arr) => {
+        if (!arr || arr.length === 0)
+            return '[]'; // Enviar '[]' si está vacío
+        return JSON.stringify(arr);
+    };
     try {
         const pool = yield mssql_1.default.connect(database_1.dbConfig);
         const result = yield pool.request()
             .input('UsuarioId', mssql_1.default.Int, req.user.usuarioId)
             .input('FechaInicio', mssql_1.default.Date, startDate)
             .input('FechaFin', mssql_1.default.Date, endDate)
-            .execute('sp_HorariosTemporales_GetByPeriodo'); // Este SP ya está modificado
-        // Parsear el JSON solo si existe
-        const processedResults = result.recordset.map(emp => (Object.assign(Object.assign({}, emp), { 
-            // Asegurarse que HorariosAsignados no es null o undefined antes de parsear
-            HorariosAsignados: emp.HorariosAsignados ? JSON.parse(emp.HorariosAsignados) : [] })));
+            // Nuevos parámetros de filtro
+            .input('DepartamentoFiltro', mssql_1.default.NVarChar, toJSONString(filters === null || filters === void 0 ? void 0 : filters.departamentos))
+            .input('GrupoNominaFiltro', mssql_1.default.NVarChar, toJSONString(filters === null || filters === void 0 ? void 0 : filters.gruposNomina))
+            .input('PuestoFiltro', mssql_1.default.NVarChar, toJSONString(filters === null || filters === void 0 ? void 0 : filters.puestos))
+            .input('EstablecimientoFiltro', mssql_1.default.NVarChar, toJSONString(filters === null || filters === void 0 ? void 0 : filters.establecimientos))
+            .execute('sp_HorariosTemporales_GetByPeriodo');
+        const processedResults = result.recordset.map(emp => (Object.assign(Object.assign({}, emp), { HorariosAsignados: emp.HorariosAsignados ? JSON.parse(emp.HorariosAsignados) : [] })));
         res.json(processedResults);
     }
     catch (err) {
-        console.error("Error en getScheduleAssignments:", err); // Log del error
+        console.error("Error en getScheduleAssignments:", err);
         res.status(500).json({ message: err.message || 'Error al obtener los datos.' });
     }
 });
@@ -88,17 +98,12 @@ const saveScheduleAssignments = (req, res) => __awaiter(void 0, void 0, void 0, 
             console.log(`Procesando: Empleado ${empleadoId}, Fecha ${fecha}, Tipo ${tipoAsignacion}, HorarioId ${horarioId}, DetalleId ${detalleId}`);
             // Crear una NUEVA request DENTRO del bucle para cada llamada
             const request = new mssql_1.default.Request(transaction);
-            // Añadir inputs al SP modificado 'sp_HorariosTemporales_Upsert'
             request.input('EmpleadoId', mssql_1.default.Int, empleadoId);
-            // Asegurarse de que la fecha se pasa correctamente como DATE
             request.input('Fecha', mssql_1.default.Date, new Date(fecha));
             request.input('SupervisorId', mssql_1.default.Int, req.user.usuarioId);
-            // El tipo NULL borrará la asignación
             request.input('TipoAsignacion', mssql_1.default.Char(1), tipoAsignacion);
-            // Pasar NULL si no aplica
             request.input('HorarioId', mssql_1.default.Int, tipoAsignacion === 'H' ? horarioId : null);
             request.input('HorarioDetalleId', mssql_1.default.Int, tipoAsignacion === 'T' ? detalleId : null);
-            // Ejecutar el SP y esperar a que termine ANTES de continuar el bucle
             yield request.execute('sp_HorariosTemporales_Upsert');
             console.log(` -> Completado: Empleado ${empleadoId}, Fecha ${fecha}`); // Log
         }

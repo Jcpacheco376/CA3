@@ -24,28 +24,48 @@ export const getSchedules = async (req: any, res: Response) => {
 
 // getScheduleAssignments se mantiene igual...
 export const getScheduleAssignments = async (req: any, res: Response) => {
-    if (!req.user.permissions['horarios.read']) return res.status(403).json({ message: 'Acceso denegado.' });
-    const { startDate, endDate } = req.query;
-    if (!startDate || !endDate) return res.status(400).json({ message: 'Se requieren fechas de inicio y fin.' });
-    console.log("Recibiendo petición para Rango:", startDate, "a", endDate, "Usuario:", req.user.usuarioId); // Log mejorado
+    if (!req.user.permissions['horarios.read']) {
+        return res.status(403).json({ message: 'Acceso denegado.' });
+    }
+
+    // Los parámetros ahora vienen del BODY
+    const { 
+        startDate, 
+        endDate,
+        filters 
+    } = req.body;
+    
+    if (!startDate || !endDate) {
+        return res.status(400).json({ message: 'Se requieren fechas de inicio y fin.' });
+    }
+
+    // Helper para convertir un array de IDs (o undefined) en un string JSON para el SP
+    const toJSONString = (arr: number[] | undefined) => {
+        if (!arr || arr.length === 0) return '[]'; // Enviar '[]' si está vacío
+        return JSON.stringify(arr);
+    };
+
     try {
         const pool = await sql.connect(dbConfig);
         const result = await pool.request()
             .input('UsuarioId', sql.Int, req.user.usuarioId)
             .input('FechaInicio', sql.Date, startDate as string)
             .input('FechaFin', sql.Date, endDate as string)
-            .execute('sp_HorariosTemporales_GetByPeriodo'); // Este SP ya está modificado
+            // Nuevos parámetros de filtro
+            .input('DepartamentoFiltro', sql.NVarChar, toJSONString(filters?.departamentos))
+            .input('GrupoNominaFiltro', sql.NVarChar, toJSONString(filters?.gruposNomina))
+            .input('PuestoFiltro', sql.NVarChar, toJSONString(filters?.puestos))
+            .input('EstablecimientoFiltro', sql.NVarChar, toJSONString(filters?.establecimientos))
+            .execute('sp_HorariosTemporales_GetByPeriodo'); 
 
-        // Parsear el JSON solo si existe
         const processedResults = result.recordset.map(emp => ({
             ...emp,
-            // Asegurarse que HorariosAsignados no es null o undefined antes de parsear
             HorariosAsignados: emp.HorariosAsignados ? JSON.parse(emp.HorariosAsignados) : []
         }));
 
         res.json(processedResults);
     } catch (err: any) {
-        console.error("Error en getScheduleAssignments:", err); // Log del error
+        console.error("Error en getScheduleAssignments:", err); 
         res.status(500).json({ message: err.message || 'Error al obtener los datos.' });
      }
 };
@@ -94,18 +114,13 @@ export const saveScheduleAssignments = async (req: any, res: Response) => {
             // Crear una NUEVA request DENTRO del bucle para cada llamada
             const request = new sql.Request(transaction);
 
-            // Añadir inputs al SP modificado 'sp_HorariosTemporales_Upsert'
             request.input('EmpleadoId', sql.Int, empleadoId);
-            // Asegurarse de que la fecha se pasa correctamente como DATE
             request.input('Fecha', sql.Date, new Date(fecha));
             request.input('SupervisorId', sql.Int, req.user.usuarioId);
-            // El tipo NULL borrará la asignación
             request.input('TipoAsignacion', sql.Char(1), tipoAsignacion);
-            // Pasar NULL si no aplica
             request.input('HorarioId', sql.Int, tipoAsignacion === 'H' ? horarioId : null);
             request.input('HorarioDetalleId', sql.Int, tipoAsignacion === 'T' ? detalleId : null);
 
-            // Ejecutar el SP y esperar a que termine ANTES de continuar el bucle
             await request.execute('sp_HorariosTemporales_Upsert');
              console.log(` -> Completado: Empleado ${empleadoId}, Fecha ${fecha}`); // Log
         }

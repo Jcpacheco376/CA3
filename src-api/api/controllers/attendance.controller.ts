@@ -89,15 +89,35 @@ export const ensureRange = async (req: any, res: Response) => {
 };
 
 export const getDataByRange = async (req: any, res: Response) => {
-    if (!req.user.permissions['reportesAsistencia.read.own'] && !req.user.permissions['reportesAsistencia.read.all']) return res.status(403).json({ message: 'Acceso denegado.' });
-    const { startDate, endDate } = req.query;
+    if (!req.user.permissions['reportesAsistencia.read.own'] && !req.user.permissions['reportesAsistencia.read.all']) {
+        return res.status(403).json({ message: 'Acceso denegado.' });
+    }
+    const { 
+        startDate, 
+        endDate,
+        filters // { departamentos: [1, 2], gruposNomina: [3], puestos: [], establecimientos: [] }
+    } = req.body;
+
+    // Helper para convertir un array de IDs (o undefined) en un string JSON para el SP
+    const toJSONString = (arr: number[] | undefined) => {
+        if (!arr || arr.length === 0) return '[]'; // Enviar '[]' si está vacío
+        return JSON.stringify(arr);
+    };
+
     try {
         const pool = await sql.connect(dbConfig);
         const result = await pool.request()
             .input('UsuarioId', sql.Int, req.user.usuarioId)
             .input('FechaInicio', sql.Date, startDate as string)
             .input('FechaFin', sql.Date, endDate as string)
+            .input('DepartamentoFiltro', sql.NVarChar, toJSONString(filters?.departamentos))
+            .input('GrupoNominaFiltro', sql.NVarChar, toJSONString(filters?.gruposNomina))
+            .input('PuestoFiltro', sql.NVarChar, toJSONString(filters?.puestos))
+            .input('EstablecimientoFiltro', sql.NVarChar, toJSONString(filters?.establecimientos))
             .execute('sp_FichasAsistencia_GetDataByRange');
+        
         res.json(result.recordset.map(emp => ({ ...emp, FichasSemana: emp.FichasSemana ? JSON.parse(emp.FichasSemana) : [] })));
-    } catch (err: any) { res.status(500).json({ message: err.message || 'Error al obtener los datos de asistencia.' }); }
+    } catch (err: any) { 
+        res.status(500).json({ message: err.message || 'Error al obtener los datos de asistencia.' }); 
+    }
 };

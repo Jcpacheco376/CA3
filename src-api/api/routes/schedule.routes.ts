@@ -9,7 +9,7 @@ import { authMiddleware } from '../middlewares/auth.middleware';
 const router = Router();
 
 router.get('/', authMiddleware, getSchedules);
-router.get('/assignments', authMiddleware, getScheduleAssignments);
-router.post('/assignments', authMiddleware, saveScheduleAssignments);
+router.post('/assignments', authMiddleware, getScheduleAssignments);
+router.put('/assignments', authMiddleware, saveScheduleAssignments);
 
 export default router;

@@ -177,3 +177,74 @@ export const deleteScheduleCatalog = async (req: any, res: Response) => {
         res.status(200).json({ message: 'Horario desactivado correctamente.' });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
 };
+
+export const getPuestos = async (req: any, res: Response) => {
+    // Asumimos un permiso 'catalogo.puestos.read'
+    if (!req.user.permissions['catalogo.puestos.read']) return res.status(403).json({ message: 'No tienes permiso para ver los puestos.' });
+    try {
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request().query('SELECT PuestoId, Nombre FROM CatalogoPuestos WHERE Activo=1');
+        res.json(result.recordset);
+    } catch (err) { res.status(500).json({ message: 'Error al obtener puestos.' }); }
+};
+
+export const getPuestosManagement = async (req: any, res: Response) => {
+    // Asumimos un permiso 'catalogo.puestos.manage'
+    if (!req.user.permissions['catalogo.puestos.manage']) return res.status(403).json({ message: 'No tienes permiso para gestionar puestos.' });
+    try {
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request().execute('sp_Puestos_GetAllManagement');
+        res.json(result.recordset);
+    } catch (err) { res.status(500).json({ message: 'Error al obtener datos de gestión de puestos.' }); }
+};
+
+export const savePuesto = async (req: any, res: Response) => {
+    if (!req.user.permissions['catalogo.puestos.manage']) return res.status(403).json({ message: 'Acceso denegado.' });
+    const { PuestoId, CodRef, Nombre, Activo } = req.body;
+    try {
+        const pool = await sql.connect(dbConfig);
+        await pool.request()
+            .input('PuestoId', sql.Int, PuestoId)
+            .input('CodRef', sql.NVarChar, CodRef)
+            .input('Nombre', sql.NVarChar, Nombre)
+            .input('Activo', sql.Bit, Activo)
+            .execute('sp_Puestos_Save');
+        res.status(201).json({ message: 'Puesto guardado con éxito' });
+    } catch (err) { res.status(500).json({ message: 'Error al guardar el puesto.' }); }
+};
+
+export const getEstablecimientos = async (req: any, res: Response) => {
+    // Asumimos un permiso 'catalogo.establecimientos.read'
+    if (!req.user.permissions['catalogo.establecimientos.read']) return res.status(403).json({ message: 'No tienes permiso para ver los establecimientos.' });
+    try {
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request().query('SELECT EstablecimientoId, Nombre FROM CatalogoEstablecimientos WHERE Activo=1');
+        res.json(result.recordset);
+    } catch (err) { res.status(500).json({ message: 'Error al obtener establecimientos.' }); }
+};
+
+export const getEstablecimientosManagement = async (req: any, res: Response) => {
+    // Asumimos un permiso 'catalogo.establecimientos.manage'
+    if (!req.user.permissions['catalogo.establecimientos.manage']) return res.status(403).json({ message: 'No tienes permiso para gestionar establecimientos.' });
+    try {
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request().execute('sp_Establecimientos_GetAllManagement');
+        res.json(result.recordset);
+    } catch (err) { res.status(500).json({ message: 'Error al obtener datos de gestión de establecimientos.' }); }
+};
+
+export const saveEstablecimiento = async (req: any, res: Response) => {
+    if (!req.user.permissions['catalogo.establecimientos.manage']) return res.status(403).json({ message: 'Acceso denegado.' });
+    const { EstablecimientoId, CodRef, Nombre, Abreviatura, Activo } = req.body;
+    try {
+        const pool = await sql.connect(dbConfig);
+        await pool.request()
+            .input('EstablecimientoId', sql.Int, EstablecimientoId)
+            .input('CodRef', sql.NVarChar, CodRef)
+            .input('Nombre', sql.NVarChar, Nombre)
+            .input('Abreviatura', sql.NVarChar, Abreviatura)
+            .input('Activo', sql.Bit, Activo)
+            .execute('sp_Establecimientos_Save');
+        res.status(201).json({ message: 'Establecimiento guardado con éxito' });
+    } catch (err) { res.status(500).json({ message: 'Error al guardar el establecimiento.' }); }
+};

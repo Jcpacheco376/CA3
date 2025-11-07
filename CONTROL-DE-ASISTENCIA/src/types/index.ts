@@ -10,11 +10,22 @@ export type View =
     'admin_departamentos' |
     'admin_grupos_nomina' | 
     'admin_departamentos' | 
-    'admin_grupos_nomina';
-
+    'admin_grupos_nomina'|
+    'admin_puestos' |         
+    'admin_establecimientos' | 
+    'admin_estatus_asistencia' |
+    'admin_horarios' |
+    'schedule_planner';
     ;
 
 export type DayOfWeek = 'Lunes' | 'Martes' | 'Miércoles' | 'Jueves' | 'Viernes' | 'Sábado' | 'Domingo';
+
+export interface ActiveFilters {
+    departamentos: boolean;
+    gruposNomina: boolean;
+    puestos: boolean;
+    establecimientos: boolean;
+}
 
 // ... (El resto de las interfaces User, Role, etc., se mantienen sin cambios)
 export interface User { 
@@ -24,12 +35,16 @@ export interface User {
     Email: string;
     EstaActivo: boolean;
     Roles: Role[];
-    Departamentos?: { DepartamentoId: string, nombre: string }[];
-    GruposNomina?: { GrupoNominaId: string, nombre: string }[];
+    Departamentos?: { DepartamentoId: string, Nombre: string }[]; 
+    GruposNomina?: { GrupoNominaId: string, Nombre: string }[]; 
+    Puestos?: { PuestoId: number, Nombre: string }[];
+    Establecimientos?: { EstablecimientoId: number, Nombre: string }[];
     permissions?: { [key: string]: string[] };
     Theme?: string;
     AnimationsEnabled?: boolean;
     DebeCambiarPassword?: boolean;
+
+    //activeFilters?: ActiveFilters;
 }
 export interface Role {
     RoleId: number;

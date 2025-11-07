@@ -11,49 +11,22 @@ import {
 import { es } from 'date-fns/locale';
 import {
     Loader2, Briefcase, Building, Cake, GripVertical, Contact, InfoIcon as Info,
-    Sun, Moon, Sunset, Coffee, RotateCw, X, CalendarCheck
+    Sun, Moon, Sunset, Coffee, RotateCw, X, CalendarCheck, Tag, MapPin
 } from 'lucide-react';
-import { AttendanceToolbar } from './AttendanceToolbar';
+import { AttendanceToolbar, FilterConfig } from './AttendanceToolbar';
 import { ScheduleCell } from './ScheduleCell';
 import { EmployeeProfileModal } from './EmployeeProfileModal';
 import { AssignFixedScheduleModal } from './AssignFixedScheduleModal';
 import { Tooltip, InfoIcon } from '../../components/ui/Tooltip';
 import { themes, statusColorPalette } from '../../config/theme';
-// --- OPTIMIZACIÓN: Importar Virtualización ---
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { TableSkeleton } from '../../components/ui/TableSkeleton'; // <-- 1. Importa el esqueleto
+import { TableSkeleton } from '../../components/ui/TableSkeleton';
 
-// --- Constantes y Claves ---
-const COLUMN_WIDTH_STORAGE_KEY = 'schedule_employee_column_width';
-const MIN_COLUMN_WIDTH = 360;
-const MAX_COLUMN_WIDTH = 10000;
-const EMPLOYEE_CONTENT_MIN_WIDTH = 360;
-const EMPLOYEE_CONTENT_MAX_WIDTH = 500;
-const DEFAULT_COLUMN_WIDTH = 384;
+// ... (Helpers: getTurnoIcon, determineTurnoFromTime, isBirthdayInPeriod, getHorarioTooltip se mantienen igual) ...
+//const getTurnoIcon = (turno: 'M' | 'V' | 'N' | string | null | undefined, size = 14) => { /* ... sin cambios ... */ };
+//const determineTurnoFromTime = (horaEntrada: string): 'M' | 'V' | 'N' | null => { /* ... sin cambios ... */ };
 
-// --- OPTIMIZACIÓN: Altura de fila (consistente con AttendancePage) ---
-const ROW_HEIGHT_ESTIMATE = 72;
 
-/*
-// --- OPTIMIZACIÓN: Helpers movidos fuera del componente ---
-const getTurnoIcon = (turno: 'M' | 'V' | 'N' | string | null | undefined, size = 14) => {
-    switch (turno) {
-        case 'M': return <Sun size={size} className="text-amber-500 shrink-0" title="Matutino" />;
-        case 'V': return <Sunset size={size} className="text-orange-500 shrink-0" title="Vespertino" />;
-        case 'N': return <Moon size={size} className="text-indigo-500 shrink-0" title="Nocturno" />;
-        default: return null;
-    }
-};
-const determineTurnoFromTime = (horaEntrada: string): 'M' | 'V' | 'N' | null => {
-    if (!horaEntrada || horaEntrada === '00:00') return null;
-    try {
-        const hour = parseInt(horaEntrada.split(':')[0], 10);
-        if (hour >= 5 && hour < 12) return 'M';
-        if (hour >= 12 && hour < 20) return 'V';
-        if ((hour >= 20 && hour <= 23) || (hour >= 0 && hour < 5)) return 'N';
-    } catch { return null; }
-    return null;
-};*/
 const isBirthdayInPeriod = (birthDateStr: string, period: Date[]): boolean => {
     if (!birthDateStr || period.length === 0) return false;
     try {
@@ -80,10 +53,37 @@ const getHorarioTooltip = (horario: any) => {
     }
     return details;
 };
-// --- FIN DE HELPERS ---
+
+const COLUMN_WIDTH_STORAGE_KEY = 'schedule_employee_column_width';
+const EMPLOYEE_CONTENT_MIN_WIDTH = 360;
+const EMPLOYEE_CONTENT_MAX_WIDTH = 500;
+const MIN_COLUMN_WIDTH = EMPLOYEE_CONTENT_MIN_WIDTH + 16; // 376
+const MAX_COLUMN_WIDTH = EMPLOYEE_CONTENT_MAX_WIDTH + 250; // 516
+const DEFAULT_COLUMN_WIDTH = 384; 
+const ROW_HEIGHT_ESTIMATE = 72;
 
 
-// --- COMPONENTE PRINCIPAL: SchedulePage ---
+const FILTERS_KEY = 'app_schedule_filters';
+
+const loadInitialFilters = (user: any) => {
+    try {
+        const saved = localStorage.getItem(FILTERS_KEY);
+        if (saved) {
+            return JSON.parse(saved);
+        }
+    } catch (e) {
+        console.error("Error al leer filtros de localStorage", e);
+    }
+
+    // Si no hay nada guardado, aplicamos los defaults del usuario
+    return {
+        depts: user?.Departamentos?.length === 1 ? [user.Departamentos[0].DepartamentoId] : [],
+        groups: user?.GruposNomina?.length === 1 ? [user.GruposNomina[0].GrupoNominaId] : [],
+        puestos: user?.Puestos?.length === 1 ? [user.Puestos[0].PuestoId] : [],
+        estabs: user?.Establecimientos?.length === 1 ? [user.Establecimientos[0].EstablecimientoId] : []
+    };
+};
+
 export const SchedulePage = () => {
     const { getToken, user, can } = useAuth();
     const { addNotification } = useNotification();
@@ -95,8 +95,22 @@ export const SchedulePage = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [assignFixedModalInfo, setAssignFixedModalInfo] = useState<{ employeeId: number, employeeName: string } | null>(null);
     const [openCellId, setOpenCellId] = useState<string | null>(null);
-    const [selectedDepartment, setSelectedDepartment] = useState(() => user?.Departamentos?.length === 1 ? String(user.Departamentos[0].DepartamentoId) : 'all');
-    const [selectedPayrollGroup, setSelectedPayrollGroup] = useState(() => user?.GruposNomina?.length === 1 ? String(user.GruposNomina[0].GrupoNominaId) : 'all');
+
+    const [filters, setFilters] = useState(() => loadInitialFilters(user));
+
+    const [selectedDepts, setSelectedDepts] = useState<number[]>(() =>
+        user?.Departamentos?.length === 1 ? [user.Departamentos[0].DepartamentoId] : []
+    );
+    const [selectedGroups, setSelectedGroups] = useState<number[]>(() =>
+        user?.GruposNomina?.length === 1 ? [user.GruposNomina[0].GrupoNominaId] : []
+    );
+    const [selectedPuestos, setSelectedPuestos] = useState<number[]>(() =>
+        user?.Puestos?.length === 1 ? [user.Puestos[0].PuestoId] : []
+    );
+    const [selectedEstabs, setSelectedEstabs] = useState<number[]>(() =>
+        user?.Establecimientos?.length === 1 ? [user.Establecimientos[0].EstablecimientoId] : []
+    );
+
     const [viewingEmployeeId, setViewingEmployeeId] = useState<number | null>(null);
     const [viewMode, setViewMode] = useState<'week' | 'fortnight' | 'month'>('week');
     const canRead = can('horarios.read');
@@ -111,12 +125,17 @@ export const SchedulePage = () => {
     });
 
     const [activeWeekStartDate, setActiveWeekStartDate] = useState<Date | null>(null);
-    
-    // --- OPTIMIZACIÓN: Ref para el contenedor de scroll (virtualización) ---
-    const scrollContainerRef = useRef<HTMLDivElement>(null); 
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
     const scrollTimerRef = useRef<number | null>(null);
 
-    // ... (useMemo para dateRange y rangeLabel sin cambios) ...
+    useEffect(() => {
+        try {
+            localStorage.setItem(FILTERS_KEY, JSON.stringify(filters));
+        } catch (e) {
+            console.error("Error al guardar filtros en localStorage", e);
+        }
+    }, [filters]);
+
     const { dateRange, rangeLabel } = useMemo(() => {
         let start, end;
         let label = '';
@@ -130,7 +149,7 @@ export const SchedulePage = () => {
                     start = new Date(currentDate.getFullYear(), currentDate.getMonth(), 16);
                     end = endOfMonth(currentDate);
                 }
-                label = `Quincena del ${format(start, 'd')} al ${format(end, 'd \'de\' MMMM, yyyy', { locale: es })}`;
+                label = `${format(start, 'd')} - ${format(end, 'd \'de\' MMMM, yyyy', { locale: es })}`;
                 break;
             case 'month':
                 start = startOfMonth(currentDate);
@@ -153,32 +172,25 @@ export const SchedulePage = () => {
         return { dateRange: range, rangeLabel: label };
     }, [currentDate, viewMode]);
 
-
-    // ... (updateActiveWeek, useEffect de scroll, handleDatePrev/Next, fetchData, etc. SIN CAMBIOS) ...
     const updateActiveWeek = useCallback(() => {
         if (!scrollContainerRef.current || dateRange.length === 0) return;
-
         const { scrollLeft, clientWidth, scrollWidth } = scrollContainerRef.current;
         let startOfActiveWeek: Date | null = null;
         const scrollEndTolerance = 5;
-
         if (scrollLeft <= 0) {
             startOfActiveWeek = startOfWeek(dateRange[0], { weekStartsOn: 1 });
         } else if (scrollLeft + clientWidth >= scrollWidth - scrollEndTolerance) {
             startOfActiveWeek = startOfWeek(dateRange[dateRange.length - 1], { weekStartsOn: 1 });
         } else {
-            // CORRECCIÓN: Ancho de celda debe coincidir con el TH/TD (6rem = 96px, 4rem = 64px)
-            const cellWidth = viewMode === 'week' ? 96 : 64; 
+            const cellWidth = viewMode === 'week' ? 96 : 64;
             const detectionPoint = scrollLeft + (clientWidth * 0.3);
             let dayIndex = Math.floor(detectionPoint / cellWidth);
             dayIndex = Math.max(0, Math.min(dayIndex, dateRange.length - 1));
-
             const activeDay = dateRange[dayIndex];
             if (activeDay) {
                 startOfActiveWeek = startOfWeek(activeDay, { weekStartsOn: 1 });
             }
         }
-
         if (startOfActiveWeek) {
             setActiveWeekStartDate(currentActiveWeek => {
                 if (!currentActiveWeek || !isSameDay(currentActiveWeek, startOfActiveWeek!)) {
@@ -191,19 +203,16 @@ export const SchedulePage = () => {
 
     useEffect(() => {
         const scrollContainer = scrollContainerRef.current;
-
         const handleScroll = () => {
             if (scrollTimerRef.current) {
                 cancelAnimationFrame(scrollTimerRef.current);
             }
             scrollTimerRef.current = requestAnimationFrame(updateActiveWeek);
         };
-
         if (scrollContainer) {
             scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
             updateActiveWeek();
         }
-
         return () => {
             if (scrollContainer) {
                 scrollContainer.removeEventListener('scroll', handleScroll);
@@ -250,6 +259,7 @@ export const SchedulePage = () => {
         });
     }, [viewMode]);
 
+    
     const fetchData = useCallback(async () => {
         if (!canRead) {
             setError('No tienes permiso para ver esta sección.');
@@ -263,17 +273,40 @@ export const SchedulePage = () => {
 
         setIsLoading(true);
         setError(null);
-        const headers = { 'Authorization': `Bearer ${token}` };
-        const startDate = format(dateRange[0], 'yyyy-MM-dd');
-        const endDate = format(dateRange[dateRange.length - 1], 'yyyy-MM-dd');
+
+        // 1. Preparar Headers y Body
+        const headers = {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        };
+        const body = JSON.stringify({
+            startDate: format(dateRange[0], 'yyyy-MM-dd'),
+            endDate: format(dateRange[dateRange.length - 1], 'yyyy-MM-dd'),
+            filters: {
+                departamentos: selectedDepts,
+                gruposNomina: selectedGroups,
+                puestos: selectedPuestos,
+                establecimientos: selectedEstabs
+            }
+        });
 
         try {
+
             const [assignmentsRes, schedulesRes] = await Promise.all([
-                fetch(`${API_BASE_URL}/schedules/assignments?startDate=${startDate}&endDate=${endDate}`, { headers }),
+                
+                fetch(`${API_BASE_URL}/schedules/assignments`, {
+                    method: 'POST',
+                    headers,
+                    body
+                }),
+                
                 fetch(`${API_BASE_URL}/schedules`, { headers })
             ]);
 
-            if (!assignmentsRes.ok) throw new Error(`Error ${assignmentsRes.status} al cargar asignaciones.`);
+            if (!assignmentsRes.ok) {
+                const errData = await assignmentsRes.json();
+                throw new Error(errData.message || `Error ${assignmentsRes.status} al cargar asignaciones.`);
+            }
             if (!schedulesRes.ok) throw new Error(`Error ${schedulesRes.status} al cargar catálogo de horarios.`);
 
             const assignmentsData = await assignmentsRes.json();
@@ -282,14 +315,23 @@ export const SchedulePage = () => {
             setScheduleCatalog(catalogData);
             setEmployees(assignmentsData);
 
-        } catch (err: any) { setError(err.message); }
+        } catch (err: any) {
+            console.error("Error en fetchData:", err);
+            setError(err.message);
+            setEmployees([]); // Limpiar en caso de error
+        }
         finally { setIsLoading(false); }
-    }, [dateRange, user, getToken, canRead]); 
+    }, [
+        dateRange, user, getToken, canRead,
+        selectedDepts, selectedGroups, selectedPuestos, selectedEstabs // 3. ¡Ahora fetchData depende de los filtros!
+    ]);
+    
 
     useEffect(() => {
         fetchData();
     }, [fetchData]);
 
+    // ... (El resto de funciones: handleBulkScheduleChange, handleAssignFixedToWeek, etc. se mantienen 100% igual) ...
     const handleBulkScheduleChange = async (updates: {
         empleadoId: number,
         fecha: Date,
@@ -304,7 +346,7 @@ export const SchedulePage = () => {
         const token = getToken();
         if (!token || updates.length === 0) return;
 
-        const originalEmployees = employees; 
+        const originalEmployees = employees;
 
         const updatesByEmployee = new Map<number, any[]>();
         for (const update of updates) {
@@ -317,7 +359,7 @@ export const SchedulePage = () => {
         setEmployees(prevEmployees => {
             return prevEmployees.map(emp => {
                 if (!updatesByEmployee.has(emp.EmpleadoId)) {
-                    return emp; 
+                    return emp;
                 }
 
                 const empUpdates = updatesByEmployee.get(emp.EmpleadoId)!;
@@ -328,13 +370,13 @@ export const SchedulePage = () => {
                     const recordIndex = newHorariosAsignados.findIndex(h => h.Fecha === fechaStr);
 
                     let newAsignacion = null;
-                    if (update.tipoAsignacion) { 
+                    if (update.tipoAsignacion) {
                         newAsignacion = {
                             Fecha: fechaStr,
                             TipoAsignacion: update.tipoAsignacion,
                             HorarioIdAplicable: update.tipoAsignacion === 'H' ? update.horarioId : null,
                             HorarioDetalleIdAplicable: update.tipoAsignacion === 'T' ? update.detalleId : null,
-                            EstatusConflictivo: null 
+                            EstatusConflictivo: null
                         };
                     }
 
@@ -355,7 +397,7 @@ export const SchedulePage = () => {
 
         try {
             const res = await fetch(`${API_BASE_URL}/schedules/assignments`, {
-                method: 'POST',
+                method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify(updates),
             });
@@ -369,8 +411,7 @@ export const SchedulePage = () => {
             setEmployees(originalEmployees);
         }
     };
-
-    const handleAssignFixedToWeek = (horarioId: number | null) => { 
+    const handleAssignFixedToWeek = (horarioId: number | null) => {
         if (!assignFixedModalInfo || !activeWeekStartDate) {
             addNotification('Error', 'No se ha seleccionado una semana activa.', 'error');
             return;
@@ -385,7 +426,7 @@ export const SchedulePage = () => {
             updates = weekDays.map(day => ({
                 empleadoId: employeeId,
                 fecha: day,
-                tipoAsignacion: null, 
+                tipoAsignacion: null,
                 horarioId: null,
                 detalleId: null
             }));
@@ -398,27 +439,27 @@ export const SchedulePage = () => {
                 detalleId: null
             }));
         }
-        
+
         handleBulkScheduleChange(updates);
         setAssignFixedModalInfo(null);
     };
-
-
     const handleToggleOpen = (cellId: string | null) => {
         setOpenCellId(prev => (prev === cellId ? null : cellId));
     };
-
+    const getActiveWeekLabel = () => {
+        if (!activeWeekStartDate) return "Cargando semana...";
+        const endDate = endOfWeek(activeWeekStartDate, { weekStartsOn: 1 });
+        return `Semana del ${format(activeWeekStartDate, 'd MMM')} al ${format(endDate, 'd MMM, yyyy', { locale: es })}`;
+    };
     const filteredEmployees = useMemo(() => {
         const searchWords = searchTerm.toLowerCase().split(' ').filter(word => word);
+        // Filtros de Depto, Grupo, etc., YA NO SON NECESARIOS AQUÍ.
         return employees.filter(emp => {
-            const departmentMatch = selectedDepartment === 'all' || String(emp.departamento_id) === selectedDepartment;
-            const payrollGroupMatch = selectedPayrollGroup === 'all' || String(emp.grupo_nomina_id) === selectedPayrollGroup;
-            if (!departmentMatch || !payrollGroupMatch) return false;
             if (searchWords.length === 0) return true;
             const targetText = ((emp?.NombreCompleto || '') + ' ' + (emp?.CodRef || '')).toLowerCase();
             return searchWords.every(word => targetText.includes(word));
         });
-    }, [employees, searchTerm, selectedDepartment, selectedPayrollGroup]);
+    }, [employees, searchTerm]);
 
     const handleResizeMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
         e.preventDefault();
@@ -445,54 +486,88 @@ export const SchedulePage = () => {
         window.addEventListener('mouseup', handleMouseUp, { once: true });
     };
 
-    const getActiveWeekLabel = () => {
-        if (!activeWeekStartDate) return "Cargando semana...";
-        const endDate = endOfWeek(activeWeekStartDate, { weekStartsOn: 1 });
-        return `Semana del ${format(activeWeekStartDate, 'd MMM')} al ${format(endDate, 'd MMM, yyyy', { locale: es })}`;
-    };
-
-    // --- OPTIMIZACIÓN: Lógica de Virtualización (Patrón de Padding) ---
+    // --- Sección de Virtualización (Sin cambios) ---
     const rowVirtualizer = useVirtualizer({
         count: filteredEmployees.length,
-        getScrollElement: () => scrollContainerRef.current, // Usar el ref del div de scroll
+        getScrollElement: () => scrollContainerRef.current,
         estimateSize: () => ROW_HEIGHT_ESTIMATE,
-        overscan:15,
+        overscan: 30,
     });
-    
     const virtualRows = rowVirtualizer.getVirtualItems();
-    
     const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
     const paddingBottom = virtualRows.length > 0 ? rowVirtualizer.getTotalSize() - virtualRows[virtualRows.length - 1].end : 0;
-    // --- FIN OPTIMIZACIÓN ---
+    // --- FIN Virtualización ---
+
+    
+const filterConfigurations: FilterConfig[] = useMemo(() => {
+        const filtersConfig: FilterConfig[] = [
+            {
+                id: 'departamentos',
+                title: 'Departamentos',
+                icon: <Building />,
+                options: user?.Departamentos?.map(d => ({ value: d.DepartamentoId, label: d.Nombre })) || [],
+                selectedValues: filters.depts,
+                onChange: (depts) => setFilters(f => ({ ...f, depts: depts as number[] })),
+                isActive: user?.activeFilters?.departamentos ?? false,
+            },
+            {
+                id: 'gruposNomina',
+                title: 'Grupos Nómina',
+                icon: <Briefcase />,
+                options: user?.GruposNomina?.map(g => ({ value: g.GrupoNominaId, label: g.Nombre })) || [],
+                selectedValues: filters.groups,
+                onChange: (groups) => setFilters(f => ({ ...f, groups: groups as number[] })),
+                isActive: user?.activeFilters?.gruposNomina ?? false,
+            },
+            {
+                id: 'puestos',
+                title: 'Puestos',
+                icon: <Tag />,
+                options: user?.Puestos?.map(p => ({ value: p.PuestoId, label: p.Nombre })) || [],
+                selectedValues: filters.puestos,
+                onChange: (puestos) => setFilters(f => ({ ...f, puestos: puestos as number[] })),
+                isActive: user?.activeFilters?.puestos ?? false,
+            },
+            {
+                id: 'establecimientos',
+                title: 'Establecimientos',
+                icon: <MapPin />,
+                options: user?.Establecimientos?.map(e => ({ value: e.EstablecimientoId, label: e.Nombre })) || [],
+                selectedValues: filters.estabs,
+                onChange: (estabs) => setFilters(f => ({ ...f, estabs: estabs as number[] })),
+                isActive: user?.activeFilters?.establecimientos ?? false,
+            }
+        ];
+        return filtersConfig.filter(f => f.isActive && f.options.length > 0);
+    }, [user, filters]); // Ahora solo depende de 'user' y 'filters'
+    
 
     const renderContent = () => {
-        if (isLoading) { 
+        if (isLoading) {
             return (
-                <TableSkeleton 
+                <TableSkeleton
                     employeeColumnWidth={employeeColumnWidth}
                     dateRange={dateRange}
                     viewMode={viewMode}
+                    pageType="schedule"
                 />
             );
         }
         if (error) { return <div className="p-16 text-center"> <p className="font-semibold text-red-600">Error al Cargar</p> <p className="text-slate-500 text-sm mt-1">{error}</p> </div>; }
         return (
-            <div ref={scrollContainerRef} className="overflow-auto relative flex-1">
-                {/* OPTIMIZACIÓN: 'w-full' ELIMINADO */}
+            <div ref={scrollContainerRef} className="overflow-auto relative flex-1 animate-content-fade-in">
                 <table className="text-sm text-center border-collapse table-fixed">
-                    {/* OPTIMIZACIÓN: CSS Anti-Flicker AÑADIDO al thead */}
-                    <thead 
-                        className="sticky top-0 z-20" 
+                    <thead
+                        className="sticky top-0 z-20"
                         style={{ willChange: 'transform', transform: 'translate3d(0, 0, 0)' }}
                     >
                         <tr className="bg-slate-50">
-                            {/* OPTIMIZACIÓN: CSS Anti-Flicker AÑADIDO al th sticky */}
-                            <th 
-                                className="p-2 text-left font-semibold text-slate-600 sticky left-0 bg-slate-50 z-30 shadow-sm" 
-                                style={{ 
-                                    width: `${employeeColumnWidth}px`, 
-                                    willChange: 'transform', 
-                                    transform: 'translate3d(0, 0, 0)' 
+                            <th
+                                className="p-2 text-left font-semibold text-slate-600 sticky left-0 bg-slate-50 z-30 shadow-sm"
+                                style={{
+                                    width: `${employeeColumnWidth}px`,
+                                    willChange: 'transform',
+                                    transform: 'translate3d(0, 0, 0)'
                                 }}
                             >
                                 <div className="flex justify-between items-center h-full">
@@ -503,15 +578,11 @@ export const SchedulePage = () => {
                                 </div>
                             </th>
 
-                            {/* OPTIMIZACIÓN (Y BUG FIX): 'min-w' APLICADO para alinear con celdas */}
                             {dateRange.map((day, dayIndex) => {
                                 const isMonday = getDayOfWeek(day) === 1;
                                 const startOfWeekForDay = startOfWeek(day, { weekStartsOn: 1 });
                                 const isActiveWeek = activeWeekStartDate && isSameDay(startOfWeekForDay, activeWeekStartDate);
                                 const isFirstDay = dayIndex === 0;
-
-                                // --- BUG FIX: Anchos de columna corregidos a 6rem y 4rem ---
-                                // (Este era el bug que encontré, ahora lo alineamos con AttendancePage)
                                 let thClasses = `px-1 py-2 font-semibold text-slate-600 min-w-[${viewMode === 'week' ? '6rem' : '4rem'}] transition-colors duration-150 relative `;
                                 if (isTodayDateFns(day)) {
                                     thClasses += 'bg-sky-100';
@@ -523,7 +594,6 @@ export const SchedulePage = () => {
                                 if (isMonday && !isFirstDay) {
                                     thClasses += ' border-l-2 border-slate-300';
                                 }
-
                                 return (
                                     <th key={day.toISOString()} className={thClasses}>
                                         <span className="capitalize text-base">{format(day, 'eee', { locale: es })}</span>
@@ -534,25 +604,21 @@ export const SchedulePage = () => {
                             })}
                         </tr>
                     </thead>
-                    {/* OPTIMIZACIÓN: 'tbody' con altura para virtualización */}
-                    <tbody 
+                    <tbody
                         style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
                         className="animate-content-fade-in"
                     >
-                        
-                        {/* Fila de padding superior */}
+
                         {paddingTop > 0 && (
                             <tr style={{ height: `${paddingTop}px`, border: 'none' }}>
                                 <td colSpan={dateRange.length + 1} style={{ padding: 0, border: 'none' }}></td>
                             </tr>
                         )}
 
-                        {/* OPTIMIZACIÓN: Mapeo sobre 'virtualRows' */}
                         {virtualRows.map((virtualRow) => {
                             const emp = filteredEmployees[virtualRow.index];
-                            
                             const defaultSchedule = scheduleCatalog.find(h => h.HorarioId === emp.HorarioDefaultId);
-                            const horarioTooltipText = getHorarioTooltip(defaultSchedule); // Se usa la función helper
+                            const horarioTooltipText = getHorarioTooltip(defaultSchedule);
                             let birthdayTooltip = "Cumpleaños en este periodo";
                             if (emp.FechaNacimiento) {
                                 try {
@@ -562,25 +628,28 @@ export const SchedulePage = () => {
                                     birthdayTooltip = `Cumpleaños: ${formattedBirthDate}`;
                                 } catch (e) { /* se queda el texto default */ }
                             }
-                            
+
                             return (
-                                <tr 
-                                    key={emp.EmpleadoId} 
+                                <tr
+                                    key={emp.EmpleadoId}
                                     className="group"
-                                    style={{ height: `${virtualRow.size}px` }} // Altura de fila
+                                    style={{ height: `${virtualRow.size}px` }}
                                 >
-                                    {/* OPTIMIZACIÓN: CSS Anti-Flicker AÑADIDO al td sticky */}
-                                    <td 
-                                        className="p-2 text-left sticky left-0 bg-white group-hover:bg-slate-50 z-10 shadow-sm align-top border-b border-slate-100" // Se añade border-b
-                                        style={{ 
-                                            width: `${employeeColumnWidth}px`, 
-                                            willChange: 'transform', 
-                                            transform: 'translate3d(0, 0, 0)' 
+                                    <td
+                                        className="p-2 text-left sticky left-0 bg-white group-hover:bg-slate-50 z-10 shadow-sm align-top border-b border-slate-100"
+                                        style={{
+                                            width: `${employeeColumnWidth}px`,
+                                            willChange: 'transform',
+                                            transform: 'translate3d(0, 0, 0)'
                                         }}
                                     >
                                         <div
                                             className="flex items-start justify-between w-full"
-                                            style={{ minWidth: `${EMPLOYEE_CONTENT_MIN_WIDTH}px`, maxWidth: `${EMPLOYEE_CONTENT_MAX_WIDTH}px` }}
+                                            style={{ 
+                                                width: `${employeeColumnWidth - 16}px`, // <-- AÑADIDO
+                                                minWidth: `${EMPLOYEE_CONTENT_MIN_WIDTH}px`, 
+                                                maxWidth: `${EMPLOYEE_CONTENT_MAX_WIDTH}px` 
+                                            }}
                                         >
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center justify-between">
@@ -593,13 +662,12 @@ export const SchedulePage = () => {
                                                                 </span>
                                                             </Tooltip>
                                                         )}
-                                                        {isBirthdayInPeriod(emp.FechaNacimiento, dateRange) && ( // Se usa la función helper
+                                                        {isBirthdayInPeriod(emp.FechaNacimiento, dateRange) && (
                                                             <Tooltip text={birthdayTooltip}>
                                                                 <Cake size={18} className="text-pink-400 shrink-0" />
                                                             </Tooltip>
                                                         )}
                                                     </div>
-
                                                     <div className="flex items-center space-x-2 flex-shrink-0 ml-2">
                                                         <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                             <Tooltip text="Ver Ficha de Empleado">
@@ -642,16 +710,14 @@ export const SchedulePage = () => {
                                         </div>
                                     </td>
 
-                                    {/* Celdas de Días (Scrollables) */}
                                     {dateRange.map((day, dayIndex) => {
                                         const cellId = `${emp.EmpleadoId}-${dayIndex}`;
                                         const scheduleData = emp?.HorariosAsignados?.find(
                                             (h: any) => h.Fecha === format(day, 'yyyy-MM-dd')
                                         );
-
                                         const isMonday = getDayOfWeek(day) === 1;
                                         const isFirstDay = dayIndex === 0;
-                                        let tdClasses = "align-top border-b border-slate-100"; // Se añade border-b
+                                        let tdClasses = "align-top border-b border-slate-100";
                                         if (isMonday && !isFirstDay) {
                                             tdClasses += ' border-l-2 border-slate-300';
                                         }
@@ -684,7 +750,6 @@ export const SchedulePage = () => {
                             );
                         })}
 
-                        {/* Fila de padding inferior */}
                         {paddingBottom > 0 && (
                             <tr style={{ height: `${paddingBottom}px`, border: 'none' }}>
                                 <td colSpan={dateRange.length + 1} style={{ padding: 0, border: 'none' }}></td>
@@ -707,20 +772,17 @@ export const SchedulePage = () => {
                 </Tooltip>
             </header>
 
-            <div className="bg-white rounded-lg shadow-sm border-slate-200 flex-1 flex flex-col overflow-hidden">
+            <div className="bg-white rounded-lg shadow-sm border border-slate-200 flex-1 flex flex-col overflow-hidden">
+                {/* --- MODIFICACIÓN: Pasando la nueva prop a la Toolbar --- */}
                 <AttendanceToolbar
                     searchTerm={searchTerm}
                     setSearchTerm={setSearchTerm}
-                    selectedDepartment={selectedDepartment}
-                    setSelectedDepartment={setSelectedDepartment}
-                    selectedPayrollGroup={selectedPayrollGroup}
-                    setSelectedPayrollGroup={setSelectedPayrollGroup}
+                    filterConfigurations={filterConfigurations} // <-- PROP NUEVA
                     viewMode={viewMode}
                     setViewMode={setViewMode}
                     rangeLabel={rangeLabel}
                     handleDatePrev={handleDatePrev}
                     handleDateNext={handleDateNext}
-                    user={user}
                 />
 
                 {renderContent()}

@@ -103,15 +103,27 @@ const ensureRange = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
 });
 exports.ensureRange = ensureRange;
 const getDataByRange = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    if (!req.user.permissions['reportesAsistencia.read.own'] && !req.user.permissions['reportesAsistencia.read.all'])
+    if (!req.user.permissions['reportesAsistencia.read.own'] && !req.user.permissions['reportesAsistencia.read.all']) {
         return res.status(403).json({ message: 'Acceso denegado.' });
-    const { startDate, endDate } = req.query;
+    }
+    const { startDate, endDate, filters // { departamentos: [1, 2], gruposNomina: [3], puestos: [], establecimientos: [] }
+     } = req.body;
+    // Helper para convertir un array de IDs (o undefined) en un string JSON para el SP
+    const toJSONString = (arr) => {
+        if (!arr || arr.length === 0)
+            return '[]'; // Enviar '[]' si está vacío
+        return JSON.stringify(arr);
+    };
     try {
         const pool = yield mssql_1.default.connect(database_1.dbConfig);
         const result = yield pool.request()
             .input('UsuarioId', mssql_1.default.Int, req.user.usuarioId)
             .input('FechaInicio', mssql_1.default.Date, startDate)
             .input('FechaFin', mssql_1.default.Date, endDate)
+            .input('DepartamentoFiltro', mssql_1.default.NVarChar, toJSONString(filters === null || filters === void 0 ? void 0 : filters.departamentos))
+            .input('GrupoNominaFiltro', mssql_1.default.NVarChar, toJSONString(filters === null || filters === void 0 ? void 0 : filters.gruposNomina))
+            .input('PuestoFiltro', mssql_1.default.NVarChar, toJSONString(filters === null || filters === void 0 ? void 0 : filters.puestos))
+            .input('EstablecimientoFiltro', mssql_1.default.NVarChar, toJSONString(filters === null || filters === void 0 ? void 0 : filters.establecimientos))
             .execute('sp_FichasAsistencia_GetDataByRange');
         res.json(result.recordset.map(emp => (Object.assign(Object.assign({}, emp), { FichasSemana: emp.FichasSemana ? JSON.parse(emp.FichasSemana) : [] }))));
     }

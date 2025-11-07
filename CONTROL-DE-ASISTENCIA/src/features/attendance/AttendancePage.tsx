@@ -5,47 +5,38 @@ import { useNotification } from '../../context/NotificationContext';
 import { API_BASE_URL } from '../../config/api';
 import { format, startOfWeek, endOfWeek, addDays, subDays, getDay, addMonths, subMonths, addWeeks, subWeeks, startOfMonth, endOfMonth, isToday as isTodayDateFns, isWithinInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Loader2, ClipboardCheck, Briefcase, Building, Cake, GripVertical, Contact } from 'lucide-react';
+import { Loader2, ClipboardCheck, Briefcase, Building, Cake, GripVertical, Contact, Tag, MapPin } from 'lucide-react';
 import { AttendanceCell } from './AttendanceCell';
 import { Button, Modal } from '../../components/ui/Modal';
 import { AttendanceStatus, AttendanceStatusCode } from '../../types';
 import { Tooltip, InfoIcon } from '../../components/ui/Tooltip';
 import { EmployeeProfileModal } from './EmployeeProfileModal';
-import { AttendanceToolbar } from './AttendanceToolbar';
+import { AttendanceToolbar, FilterConfig } from './AttendanceToolbar';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { TableSkeleton } from '../../components/ui/TableSkeleton'; // <-- 1. Importa el esqueleto
+import { TableSkeleton } from '../../components/ui/TableSkeleton';
 
-// --- OPTIMIZACIÓN: Funciones Helper movidas fuera del componente ---
-
+// ... (Helpers: isRestDay, isBirthdayInPeriod, getHorarioTooltip, ConfirmationModal se mantienen igual) ...
 const isRestDay = (horario: string, date: Date): boolean => {
     if (!horario || horario.length !== 7) return false;
     const dayOfWeek = getDay(date);
     const index = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
     return horario.charAt(index) === '1';
 };
-
 const isBirthdayInPeriod = (birthDateStr: string, period: Date[]): boolean => {
     if (!birthDateStr || period.length === 0) return false;
-    // Corregido para manejar fechas UTC que vienen de la DB
     try {
         const parts = birthDateStr.substring(0, 10).split('-');
         const birthDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-
         const today = new Date();
         const birthDateThisYear = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate());
-
         return isWithinInterval(birthDateThisYear, {
             start: period[0],
             end: period[period.length - 1]
         });
-    } catch (e) {
-        return false;
-    }
+    } catch (e) { return false; }
 };
-
 const getHorarioTooltip = (horario: any) => {
     if (!horario) return "Sin horario base";
-    // El catálogo de horarios puede no estar cargado aún o no tener turnos
     const firstDay = horario.Turnos?.find((t: any) => t.EsDiaLaboral);
     let details = `Horario Base: ${horario.Nombre} `;
     if (firstDay) {
@@ -53,8 +44,6 @@ const getHorarioTooltip = (horario: any) => {
     }
     return details;
 };
-
-// --- OPTIMIZACIÓN: Componente Modal movido fuera del componente principal ---
 const ConfirmationModal = ({ confirmation, setConfirmation }: any) => {
     if (!confirmation.isOpen) return null;
     const footer = (
@@ -70,19 +59,37 @@ const ConfirmationModal = ({ confirmation, setConfirmation }: any) => {
     );
 };
 
-// --- Constantes de Ancho (Como las definiste) ---
 const COLUMN_WIDTH_STORAGE_KEY = 'attendance_employee_column_width';
-const MIN_COLUMN_WIDTH = 360;
-const MAX_COLUMN_WIDTH = 10000;
 const EMPLOYEE_CONTENT_MIN_WIDTH = 360;
 const EMPLOYEE_CONTENT_MAX_WIDTH = 500;
-const DEFAULT_COLUMN_WIDTH = 384;
+const MIN_COLUMN_WIDTH = EMPLOYEE_CONTENT_MIN_WIDTH + 16; // 376
+const MAX_COLUMN_WIDTH = EMPLOYEE_CONTENT_MAX_WIDTH + 250; // 516
+const DEFAULT_COLUMN_WIDTH = 384; 
+const ROW_HEIGHT_ESTIMATE = 72;
 
-const ROW_HEIGHT_ESTIMATE = 72; // Altura de la celda de empleado (p-2 + contenido + progress)
+const FILTERS_KEY = 'app_attendance_filters';
 
+const loadInitialFilters = (user: any) => {
+    try {
+        const saved = localStorage.getItem(FILTERS_KEY);
+        if (saved) {
+            return JSON.parse(saved);
+        }
+    } catch (e) {
+        console.error("Error al leer filtros de localStorage", e);
+    }
+
+    // Si no hay nada guardado, aplicamos los defaults del usuario
+    return {
+        depts: user?.Departamentos?.length === 1 ? [user.Departamentos[0].DepartamentoId] : [],
+        groups: user?.GruposNomina?.length === 1 ? [user.GruposNomina[0].GrupoNominaId] : [],
+        puestos: user?.Puestos?.length === 1 ? [user.Puestos[0].PuestoId] : [],
+        estabs: user?.Establecimientos?.length === 1 ? [user.Establecimientos[0].EstablecimientoId] : []
+    };
+};
 
 export const AttendancePage = () => {
-    const { getToken, user } = useAuth();
+    const { getToken, user } = useAuth(); // 'user' ahora tiene Puestos y Establecimientos
     const { addNotification } = useNotification();
     const [currentDate, setCurrentDate] = useState(new Date());
     const [employees, setEmployees] = useState<any[]>([]);
@@ -96,12 +103,21 @@ export const AttendancePage = () => {
     const [confirmation, setConfirmation] = useState<any>({ isOpen: false });
     const [openCellId, setOpenCellId] = useState<string | null>(null);
 
-    const [selectedDepartment, setSelectedDepartment] = useState(() =>
-        user?.Departamentos?.length === 1 ? String(user.Departamentos[0].DepartamentoId) : 'all'
+    const [filters, setFilters] = useState(() => loadInitialFilters(user));
+
+    const [selectedDepts, setSelectedDepts] = useState<number[]>(() =>
+        user?.Departamentos?.length === 1 ? [user.Departamentos[0].DepartamentoId] : []
     );
-    const [selectedPayrollGroup, setSelectedPayrollGroup] = useState(() =>
-        user?.GruposNomina?.length === 1 ? String(user.GruposNomina[0].GrupoNominaId) : 'all'
+    const [selectedGroups, setSelectedGroups] = useState<number[]>(() =>
+        user?.GruposNomina?.length === 1 ? [user.GruposNomina[0].GrupoNominaId] : []
     );
+    const [selectedPuestos, setSelectedPuestos] = useState<number[]>(() =>
+        user?.Puestos?.length === 1 ? [user.Puestos[0].PuestoId] : []
+    );
+    const [selectedEstabs, setSelectedEstabs] = useState<number[]>(() =>
+        user?.Establecimientos?.length === 1 ? [user.Establecimientos[0].EstablecimientoId] : []
+    );
+
     const [viewingEmployeeId, setViewingEmployeeId] = useState<number | null>(null);
     const [viewMode, setViewMode] = useState<'week' | 'fortnight' | 'month'>('week');
 
@@ -114,10 +130,17 @@ export const AttendancePage = () => {
         }
     });
 
+    useEffect(() => {
+        try {
+            localStorage.setItem(FILTERS_KEY, JSON.stringify(filters));
+        } catch (e) {
+            console.error("Error al guardar filtros en localStorage", e);
+        }
+    }, [filters]);
     const { dateRange, rangeLabel } = useMemo(() => {
+        // ... (lógica de dateRange sin cambios)
         let start, end;
         let label = '';
-
         switch (viewMode) {
             case 'fortnight':
                 const dayOfMonth = currentDate.getDate();
@@ -142,7 +165,6 @@ export const AttendancePage = () => {
                 label = `${format(start, 'd')} - ${format(end, 'd \'de\' MMMM, yyyy', { locale: es })}`;
                 break;
         }
-
         const range = [];
         let day = start;
         while (day <= end) {
@@ -152,44 +174,34 @@ export const AttendancePage = () => {
         return { dateRange: range, rangeLabel: label };
     }, [currentDate, viewMode]);
 
+    // --- MODIFICACIÓN: `filteredEmployees` ahora solo filtra por `searchTerm` ---
     const filteredEmployees = useMemo(() => {
+        // Los filtros de Depto, Grupo, etc., ya NO se aplican aquí.
+        // El servidor ya nos dio la lista filtrada.
+        if (searchTerm === '') return employees;
+
         const searchWords = searchTerm.toLowerCase().split(' ').filter(word => word);
 
         return employees.filter(emp => {
-            const departmentMatch = selectedDepartment === 'all' || String(emp.departamento_id) === selectedDepartment;
-            const payrollGroupMatch = selectedPayrollGroup === 'all' || String(emp.grupo_nomina_id) === selectedPayrollGroup;
-
-            if (!departmentMatch || !payrollGroupMatch) {
-                return false;
-            }
-
-            if (searchWords.length === 0) {
-                return true;
-            }
-
             const targetText = (emp.NombreCompleto + ' ' + emp.EmpleadoId).toLowerCase();
             return searchWords.every(word => targetText.includes(word));
         });
-    }, [employees, searchTerm, selectedDepartment, selectedPayrollGroup]);
+    }, [employees, searchTerm]);
+    // --- FIN MODIFICACIÓN ---
 
     // --- Sección de Virtualización (Sin cambios) ---
     const tableContainerRef = useRef<HTMLDivElement>(null);
-
     const rowVirtualizer = useVirtualizer({
         count: filteredEmployees.length,
         getScrollElement: () => tableContainerRef.current,
         estimateSize: () => ROW_HEIGHT_ESTIMATE,
-        overscan: 5,
+        overscan: 30, // Mantenemos el overscan agresivo
     });
-    
     const virtualRows = rowVirtualizer.getVirtualItems();
-    
     const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
     const paddingBottom = virtualRows.length > 0 ? rowVirtualizer.getTotalSize() - virtualRows[virtualRows.length - 1].end : 0;
     // --- FIN Virtualización ---
 
-
-    // ... (Todas las funciones (handleDatePrev, handleResizeMouseDown, fetchData, etc.) se mantienen idénticas)
     const handleDatePrev = () => {
         setCurrentDate(prevDate => {
             switch (viewMode) {
@@ -207,7 +219,6 @@ export const AttendancePage = () => {
             }
         });
     };
-
     const handleDateNext = () => {
         setCurrentDate(prevDate => {
             switch (viewMode) {
@@ -225,19 +236,16 @@ export const AttendancePage = () => {
             }
         });
     };
-
     const handleResizeMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
         e.preventDefault();
         document.body.classList.add('select-none');
         const startX = e.clientX;
         const startWidth = employeeColumnWidth;
-
         const handleMouseMove = (moveEvent: MouseEvent) => {
             const newWidth = startWidth + (moveEvent.clientX - startX);
             const clampedWidth = Math.max(MIN_COLUMN_WIDTH, Math.min(newWidth, MAX_COLUMN_WIDTH));
             setEmployeeColumnWidth(clampedWidth);
         };
-
         const handleMouseUp = (upEvent: MouseEvent) => {
             document.body.classList.remove('select-none');
             window.removeEventListener('mousemove', handleMouseMove);
@@ -246,10 +254,10 @@ export const AttendancePage = () => {
             const clampedFinalWidth = Math.max(MIN_COLUMN_WIDTH, Math.min(finalWidth, MAX_COLUMN_WIDTH));
             localStorage.setItem(COLUMN_WIDTH_STORAGE_KEY, clampedFinalWidth.toString());
         };
-
         window.addEventListener('mousemove', handleMouseMove);
         window.addEventListener('mouseup', handleMouseUp, { once: true });
     };
+    // --- FIN Virtualización ---
 
     const fetchData = useCallback(async () => {
         if (!user || dateRange.length === 0) return;
@@ -258,18 +266,37 @@ export const AttendancePage = () => {
 
         setIsLoading(true);
         setError(null);
-        const headers = { 'Authorization': `Bearer ${token}` };
-        const startDate = format(dateRange[0], 'yyyy-MM-dd');
-        const endDate = format(dateRange[dateRange.length - 1], 'yyyy-MM-dd');
+        
+        const headers = { 
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        };
+        const body = JSON.stringify({
+            startDate: format(dateRange[0], 'yyyy-MM-dd'),
+            endDate: format(dateRange[dateRange.length - 1], 'yyyy-MM-dd'),
+            filters: { // Usamos el objeto de estado 'filters'
+                departamentos: filters.depts,
+                gruposNomina: filters.groups,
+                puestos: filters.puestos,
+                establecimientos: filters.estabs
+            }
+        });
 
         try {
             const [employeesRes, schedulesRes, statusesRes] = await Promise.all([
-                fetch(`${API_BASE_URL}/attendance/data-by-range?startDate=${startDate}&endDate=${endDate}`, { headers }),
+                fetch(`${API_BASE_URL}/attendance/data-by-range`, { 
+                    method: 'POST',
+                    headers, 
+                    body 
+                }),
                 fetch(`${API_BASE_URL}/schedules`, { headers }),
                 fetch(`${API_BASE_URL}/catalogs/attendance-statuses`, { headers })
             ]);
 
-            if (!employeesRes.ok) throw new Error(`Error ${employeesRes.status} al cargar datos de asistencia.`);
+            if (!employeesRes.ok) {
+                const errData = await employeesRes.json();
+                throw new Error(errData.message || `Error ${employeesRes.status} al cargar datos de asistencia.`);
+            }
             if (!schedulesRes.ok) throw new Error(`Error ${schedulesRes.status} al cargar catálogo de horarios.`);
             if (!statusesRes.ok) throw new Error(`Error ${statusesRes.status} al cargar catálogo de estatus.`);
 
@@ -282,16 +309,22 @@ export const AttendancePage = () => {
             setStatusCatalog(statusesData);
 
         } catch (err: any) { 
+            console.error("Error en fetchData:", err);
             setError(err.message); 
+            setEmployees([]);
         } finally { 
             setIsLoading(false); 
         }
-    }, [dateRange, user, getToken]);
+    }, [
+        dateRange, user, getToken, 
+        filters // Ahora solo depende de 'filters'
+    ]);
 
     useEffect(() => {
         fetchData();
-    }, [fetchData]);
+    }, [fetchData]); // El useEffect no cambia, pero el 'fetchData' del que depende sí
 
+    // ... (El resto de funciones: handleClickOutside, handleBulkStatusChange, handleStatusChange, handleQuickApprove, etc. se mantienen 100% igual) ...
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (event.target instanceof Element && !event.target.closest('.status-cell-wrapper')) {
@@ -491,39 +524,81 @@ export const AttendancePage = () => {
         setDraggedCells([]);
     };
 
+const filterConfigurations: FilterConfig[] = useMemo(() => {
+        const filtersConfig: FilterConfig[] = [
+            {
+                id: 'departamentos',
+                title: 'Departamentos',
+                icon: <Building />,
+                options: user?.Departamentos?.map(d => ({ value: d.DepartamentoId, label: d.Nombre })) || [],
+                selectedValues: filters.depts,
+                onChange: (depts) => setFilters(f => ({ ...f, depts: depts as number[] })),
+                isActive: user?.activeFilters?.departamentos ?? false,
+            },
+            {
+                id: 'gruposNomina',
+                title: 'Grupos Nómina',
+                icon: <Briefcase />,
+                options: user?.GruposNomina?.map(g => ({ value: g.GrupoNominaId, label: g.Nombre })) || [],
+                selectedValues: filters.groups,
+                onChange: (groups) => setFilters(f => ({ ...f, groups: groups as number[] })),
+                isActive: user?.activeFilters?.gruposNomina ?? false,
+            },
+            {
+                id: 'puestos',
+                title: 'Puestos',
+                icon: <Tag />,
+                options: user?.Puestos?.map(p => ({ value: p.PuestoId, label: p.Nombre })) || [],
+                selectedValues: filters.puestos,
+                onChange: (puestos) => setFilters(f => ({ ...f, puestos: puestos as number[] })),
+                isActive: user?.activeFilters?.puestos ?? false,
+            },
+            {
+                id: 'establecimientos',
+                title: 'Establecimientos',
+                icon: <MapPin />,
+                options: user?.Establecimientos?.map(e => ({ value: e.EstablecimientoId, label: e.Nombre })) || [],
+                selectedValues: filters.estabs,
+                onChange: (estabs) => setFilters(f => ({ ...f, estabs: estabs as number[] })),
+                isActive: user?.activeFilters?.establecimientos ?? false,
+            }
+        ];
+        return filtersConfig.filter(f => f.isActive && f.options.length > 0);
+    }, [user, filters]); // Ahora solo depende de 'user' y 'filters'
+
 
     const renderContent = () => {
-        if (isLoading) { 
-                    return (
-                        <TableSkeleton 
-                            employeeColumnWidth={employeeColumnWidth}
-                            dateRange={dateRange}
-                            viewMode={viewMode}
-                        />
-                    );
-                }
+        if (isLoading) {
+            return (
+                <TableSkeleton
+                    employeeColumnWidth={employeeColumnWidth}
+                    dateRange={dateRange}
+                    viewMode={viewMode}
+                    pageType="attendance"
+                />
+            );
+        }
         if (error) {
             return <div className="p-16 text-center"> <p className="font-semibold text-red-600">Error al Cargar</p> <p className="text-slate-500 text-sm mt-1">{error}</p> </div>;
         }
         return (
-            <div 
-                ref={tableContainerRef} 
+            <div
+                ref={tableContainerRef}
                 className="overflow-auto relative flex-1"
-                onMouseUp={handleDragEnd} 
+                onMouseUp={handleDragEnd}
             >
-                {/* La tabla mantiene el hack anti-flicker */}
                 <table className="text-sm text-center border-collapse table-fixed">
-                    <thead 
-                        className="sticky top-0 z-20" 
+                    <thead
+                        className="sticky top-0 z-20"
                         style={{ willChange: 'transform', transform: 'translate3d(0, 0, 0)' }}
                     >
                         <tr className="bg-slate-50">
-                            <th 
-                                className="p-2 text-left font-semibold text-slate-600 sticky left-0 bg-slate-50 z-30 shadow-sm" 
-                                style={{ 
-                                    width: `${employeeColumnWidth}px`, 
-                                    willChange: 'transform', 
-                                    transform: 'translate3d(0, 0, 0)' 
+                            <th
+                                className="p-2 text-left font-semibold text-slate-600 sticky left-0 bg-slate-50 z-30 shadow-sm"
+                                style={{
+                                    width: `${employeeColumnWidth}px`,
+                                    willChange: 'transform',
+                                    transform: 'translate3d(0, 0, 0)'
                                 }}
                             >
                                 <div className="flex justify-between items-center h-full">
@@ -533,7 +608,7 @@ export const AttendancePage = () => {
                                     </div>
                                 </div>
                             </th>
-                            
+
                             {dateRange.map(day => (
                                 <th key={day.toISOString()} className={`px-1 py-2 font-semibold text-slate-600 min-w-[${viewMode === 'week' ? '6rem' : '4rem'}] ${isTodayDateFns(day) ? 'bg-sky-100' : 'bg-slate-50'}`}>
                                     <span className="capitalize text-base">{format(day, 'eee', { locale: es })}</span>
@@ -542,12 +617,12 @@ export const AttendancePage = () => {
                             ))}
                         </tr>
                     </thead>
-                    
-                    <tbody 
+
+                    <tbody
                         style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
                         className="animate-content-fade-in"
                     >
-                        
+
                         {paddingTop > 0 && (
                             <tr style={{ height: `${paddingTop}px`, border: 'none' }}>
                                 <td colSpan={dateRange.length + 1} style={{ padding: 0, border: 'none' }}></td>
@@ -556,9 +631,8 @@ export const AttendancePage = () => {
 
                         {virtualRows.map((virtualRow) => {
                             const emp = filteredEmployees[virtualRow.index];
-                            
                             const defaultSchedule = scheduleCatalog.find(h => h.HorarioId === emp.horario);
-                            const horarioTooltipText = getHorarioTooltip(defaultSchedule); // Se usa la función helper
+                            const horarioTooltipText = getHorarioTooltip(defaultSchedule);
                             let birthdayTooltip = "Cumpleaños en este periodo";
                             if (emp.FechaNacimiento) {
                                 try {
@@ -568,34 +642,34 @@ export const AttendancePage = () => {
                                     birthdayTooltip = `Cumpleaños: ${formattedBirthDate}`;
                                 } catch (e) { /* se queda el texto default */ }
                             }
-                            const workingDays = dateRange.filter(day => !isRestDay(emp.horario, day)); // Se usa la función helper
+                            const workingDays = dateRange.filter(day => !isRestDay(emp.horario, day));
                             const completedDays = workingDays.filter(day => {
                                 const formattedDay = format(day, 'yyyy-MM-dd');
                                 const ficha = emp.FichasSemana.find((f: any) => f.Fecha.substring(0, 10) === formattedDay);
                                 return ficha && ficha.EstatusSupervisorAbrev;
                             }).length;
                             const progress = workingDays.length > 0 ? (completedDays / workingDays.length) * 100 : 0;
-                            
+
                             return (
-                                <tr 
-                                    key={emp.EmpleadoId} 
+                                <tr
+                                    key={emp.EmpleadoId}
                                     className="group"
                                     style={{ height: `${virtualRow.size}px` }}
                                 >
-                                    <td 
+                                    <td
                                         className="p-2 text-left sticky left-0 bg-white group-hover:bg-slate-50 z-10 shadow-sm align-top border-b border-slate-100"
-                                        style={{ 
-                                            width: `${employeeColumnWidth}px`, 
-                                            willChange: 'transform', 
+                                        style={{
+                                            width: `${employeeColumnWidth}px`,
+                                            willChange: 'transform',
                                             transform: 'translate3d(0, 0, 0)'
                                         }}
                                     >
-                                        <div 
-                                            className="w-full" 
-                                            style={{ 
-                                                width: `${employeeColumnWidth - 16}px`, 
-                                                minWidth: `${EMPLOYEE_CONTENT_MIN_WIDTH}px`, 
-                                                maxWidth: `${EMPLOYEE_CONTENT_MAX_WIDTH}px` 
+                                        <div
+                                            className="w-full"
+                                            style={{
+                                                width: `${employeeColumnWidth - 16}px`,
+                                                minWidth: `${EMPLOYEE_CONTENT_MIN_WIDTH}px`,
+                                                maxWidth: `${EMPLOYEE_CONTENT_MAX_WIDTH}px`
                                             }}
                                         >
                                             <div className="flex items-start justify-between">
@@ -610,7 +684,7 @@ export const AttendancePage = () => {
                                                                     </span>
                                                                 </Tooltip>
                                                             )}
-                                                            {isBirthdayInPeriod(emp.FechaNacimiento, dateRange) && ( // Se usa la función helper
+                                                            {isBirthdayInPeriod(emp.FechaNacimiento, dateRange) && (
                                                                 <Tooltip text={birthdayTooltip}>
                                                                     <Cake size={18} className="text-pink-400 shrink-0" />
                                                                 </Tooltip>
@@ -656,7 +730,7 @@ export const AttendancePage = () => {
                                             </div>
                                         </div>
                                     </td>
-                                    
+
                                     {dateRange.map((day, dayIndex) => {
                                         const formattedDay = format(day, 'yyyy-MM-dd');
                                         const ficha = emp.FichasSemana.find((f: any) => f.Fecha.substring(0, 10) === formattedDay);
@@ -670,7 +744,7 @@ export const AttendancePage = () => {
                                                 onToggleOpen={handleToggleOpen}
                                                 ficha={ficha}
                                                 viewMode={viewMode}
-                                                isRestDay={isRestDay(emp.horario, day)} // Se usa la función helper
+                                                isRestDay={isRestDay(emp.horario, day)}
                                                 onStatusChange={(newStatus, newComment) => handleStatusChange(emp.EmpleadoId, day, newStatus, newComment)}
                                                 onDragStart={(status: AttendanceStatusCode) => handleDragStart(emp.EmpleadoId, dayIndex, status)}
                                                 onDragEnter={() => handleDragEnter(emp.EmpleadoId, dayIndex)}
@@ -705,26 +779,23 @@ export const AttendancePage = () => {
             </header>
 
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 flex-1 flex flex-col overflow-hidden">
+                {/* --- MODIFICACIÓN: Pasando la nueva prop a la Toolbar --- */}
                 <AttendanceToolbar
                     searchTerm={searchTerm}
                     setSearchTerm={setSearchTerm}
-                    selectedDepartment={selectedDepartment}
-                    setSelectedDepartment={setSelectedDepartment}
-                    selectedPayrollGroup={selectedPayrollGroup}
-                    setSelectedPayrollGroup={setSelectedPayrollGroup}
+                    filterConfigurations={filterConfigurations} // <-- PROP NUEVA
                     viewMode={viewMode}
                     setViewMode={setViewMode}
                     rangeLabel={rangeLabel}
                     handleDatePrev={handleDatePrev}
                     handleDateNext={handleDateNext}
-                    user={user}
                 />
                 {renderContent()}
             </div>
             <ConfirmationModal confirmation={confirmation} setConfirmation={setConfirmation} />
             {viewingEmployeeId && (
                 <EmployeeProfileModal
-                    employeeId={viewingEmployeeId as any} 
+                    employeeId={viewingEmployeeId as any}
                     onClose={() => setViewingEmployeeId(null)}
                     getToken={getToken}
                     user={user}

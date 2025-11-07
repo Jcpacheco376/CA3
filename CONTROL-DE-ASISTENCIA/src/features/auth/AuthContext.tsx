@@ -1,13 +1,13 @@
 // src/features/auth/AuthContext.tsx
 import React, { createContext, useState, useContext, ReactNode, useCallback, useMemo } from 'react';
-import { User } from '../../types';
+import { User } from '../../types'; // <-- Esta importación ahora trae la interfaz 'User' actualizada
 import { API_BASE_URL } from '../../config/api';
 
 const SESSION_STORAGE_KEY = 'app_session';
-const APP_DATA_VERSION = '1.0.6';
+const APP_DATA_VERSION = '1.0.6'; // (Puedes cambiar esto si quieres forzar un relogueo)
 
 interface AuthContextType {
-    user: User | null;
+    user: User | null; // <-- Este tipo ahora incluye 'activeFilters'
     login: (username: string, password: string) => Promise<string | true>;
     logout: () => void;
     can: (permission: string) => boolean;
@@ -50,7 +50,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 return errorData.message || "Credenciales inválidas.";
             }
             
-            const { token, user: userData } = await response.json();
+            const { token, user: userData } = await response.json(); // <-- userData ahora incluye 'activeFilters'
             
             setUser(userData);
             localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ version: APP_DATA_VERSION, user: userData, token }));
@@ -95,4 +95,3 @@ export const useAuth = () => {
     }
     return context;
 };
-

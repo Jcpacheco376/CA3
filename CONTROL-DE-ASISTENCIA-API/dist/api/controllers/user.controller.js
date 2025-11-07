@@ -33,7 +33,8 @@ const createUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
     if (!req.user.permissions['usuarios.create'] && !req.user.permissions['usuarios.update']) {
         return res.status(403).json({ message: 'Acceso denegado.' });
     }
-    const { UsuarioId, NombreCompleto, NombreUsuario, Email, Password, EstaActivo, Roles, Departamentos, GruposNomina } = req.body;
+    // Nuevos campos del body
+    const { UsuarioId, NombreCompleto, NombreUsuario, Email, Password, EstaActivo, Roles, Departamentos, GruposNomina, Puestos, Establecimientos } = req.body;
     try {
         const pool = yield mssql_1.default.connect(database_1.dbConfig);
         const result = yield pool.request()
@@ -46,12 +47,14 @@ const createUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
             .input('RolesJSON', mssql_1.default.NVarChar, JSON.stringify(Roles || []))
             .input('DepartamentosJSON', mssql_1.default.NVarChar, JSON.stringify(Departamentos || []))
             .input('GruposNominaJSON', mssql_1.default.NVarChar, JSON.stringify(GruposNomina || []))
+            // Nuevos inputs para el SP
+            .input('PuestosJSON', mssql_1.default.NVarChar, JSON.stringify(Puestos || []))
+            .input('EstablecimientosJSON', mssql_1.default.NVarChar, JSON.stringify(Establecimientos || []))
             .execute('sp_Usuarios_Upsert');
         res.status(200).json({ message: 'Usuario guardado correctamente.', user: result.recordset[0] });
     }
     catch (err) {
         console.error('Error al guardar el usuario:', err.message);
-        // Usamos un código 409 (Conflict) para errores de duplicados y otros errores de negocio.
         res.status(409).json({ message: err.message });
     }
 });
@@ -62,7 +65,9 @@ const getAllUsers = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
     try {
         const pool = yield mssql_1.default.connect(database_1.dbConfig);
         const result = yield pool.request().execute('sp_Usuarios_GetAll');
-        const users = (result.recordset || []).map(user => (Object.assign(Object.assign({}, user), { Roles: user.Roles ? JSON.parse(user.Roles) : [], Departamentos: user.Departamentos ? JSON.parse(user.Departamentos) : [], GruposNomina: user.GruposNomina ? JSON.parse(user.GruposNomina) : [] })));
+        const users = (result.recordset || []).map(user => (Object.assign(Object.assign({}, user), { Roles: user.Roles ? JSON.parse(user.Roles) : [], Departamentos: user.Departamentos ? JSON.parse(user.Departamentos) : [], GruposNomina: user.GruposNomina ? JSON.parse(user.GruposNomina) : [], 
+            // Nuevos campos para parsear
+            Puestos: user.Puestos ? JSON.parse(user.Puestos) : [], Establecimientos: user.Establecimientos ? JSON.parse(user.Establecimientos) : [] })));
         res.json(users); // Siempre responde con un arreglo, aunque esté vacío
     }
     catch (err) {
