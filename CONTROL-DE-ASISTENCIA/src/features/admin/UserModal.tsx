@@ -6,13 +6,13 @@ import { ClipboardIcon, KeyIcon, EyeIcon, EyeOffIcon } from '../../components/ui
 import { Tooltip } from '../../components/ui/Tooltip.tsx';
 import { Modal, Button } from '../../components/ui/Modal.tsx';
 import { useAuth } from '../auth/AuthContext.tsx';
-// --- MODIFICACIÓN: Importaciones completas ---
+// --- MODIFICACIÓN: Importaciones completas (Check estaba corregido) ---
 import { 
     Shield, Building, Briefcase, Tag, MapPin, Check, 
     CheckCheck, XCircle, ChevronDown 
 } from 'lucide-react';
 
-// --- Checkbox Local (Corregido) ---
+// --- Checkbox Local (Sin cambios) ---
 const Checkbox = ({ id, label, checked, onChange }: {
     id: string | number,
     label: string,
@@ -66,7 +66,7 @@ const Toggle = ({ enabled, onChange }: { enabled: boolean, onChange: (enabled: b
     </button>
 );
 
-// --- MODIFICACIÓN: Sección Colapsable ---
+// --- Sección Colapsable (Sin cambios) ---
 const CollapsibleSection = ({ title, children, defaultOpen = true }: { title: string, children: React.ReactNode, defaultOpen?: boolean }) => {
     const [isOpen, setIsOpen] = useState(defaultOpen);
     return (
@@ -89,7 +89,7 @@ const CollapsibleSection = ({ title, children, defaultOpen = true }: { title: st
 };
 // --- FIN Sección Colapsable ---
 
-// --- MODIFICACIÓN: Componente de Catálogo rediseñado ---
+// --- Componente de Catálogo (Sin cambios) ---
 const CatalogSection = ({ 
     title, icon, items, selectedItems, onItemsChange, 
     keyField, labelField, loading, error 
@@ -170,8 +170,8 @@ const CatalogSection = ({
 };
 // --- FIN Componente Catálogo ---
 
+// --- MODIFICACIÓN: ConfirmationModal RESTAURADO ---
 const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, children }: any) => {
-    // ... (sin cambios)
     if (!isOpen) return null;
     return (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-[60]">
@@ -180,13 +180,14 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, children }: any)
                 <div className="mt-2 text-sm text-slate-600">{children}</div>
                 <div className="mt-6 flex justify-end space-x-3">
                     <Button variant="secondary" onClick={onClose}>Cancelar</Button>
+                    {/* Botón de peligro para la confirmación */}
                     <Button variant="danger" onClick={onConfirm}>Confirmar</Button>
                 </div>
             </div>
         </div>
     );
 };
-
+// --- FIN RESTAURACIÓN ---
 
 export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: User | null; allRoles: Role[]; onClose: () => void; onSave: (user: User, password?: string) => void; isOpen: boolean; }) => {
     const { getToken, user: adminUser } = useAuth(); 
@@ -196,9 +197,12 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
     const [password, setPassword] = useState('');
     const [passwordError, setPasswordError] = useState('');
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+    
+    // --- MODIFICACIÓN: Estados RESTAURADOS ---
     const [generatedPassword, setGeneratedPassword] = useState<string | null>(null);
     const [isConfirmOpen, setIsConfirmOpen] = useState(false);
     const [copied, setCopied] = useState(false);
+    // --- FIN RESTAURACIÓN ---
 
     const [allDepartamentos, setAllDepartamentos] = useState<any[]>([]);
     const [allGruposNomina, setAllGruposNomina] = useState<any[]>([]);
@@ -277,6 +281,7 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
             fetchCatalogsAndNextId();
             setPassword('');
             setPasswordError('');
+            // --- MODIFICACIÓN: Restaurado ---
             setGeneratedPassword(null);
             setCopied(false);
         }
@@ -289,7 +294,7 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    // --- MODIFICACIÓN: Simplificamos los handlers ---
+    // ... (Handlers de Catálogos SIN CAMBIOS) ...
     const handleRolesChange = (items: Role[]) => {
         setFormData(prev => ({ ...prev, Roles: items }));
     };
@@ -305,15 +310,16 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
     const handleEstablecimientosChange = (items: any[]) => {
         setFormData(prev => ({ ...prev, Establecimientos: items }));
     };
-    // --- FIN MODIFICACIÓN ---
-
-    // ... (handleResetPassword, handleCopyToClipboard SIN CAMBIOS, el bug se corrige en handleSubmit) ...
+    
+    // --- MODIFICACIÓN: handleResetPassword RESTAURADO (flujo frontend) ---
     const handleResetPassword = () => { 
         const newPass = Math.random().toString(36).substring(2, 10);
         setGeneratedPassword(newPass);
-        setPassword(newPass); // <-- Esto SÍ estaba bien
+        setPassword(newPass); // ¡Esto guarda la pass en el estado para el submit!
         setIsConfirmOpen(false);
     };
+
+    // --- MODIFICACIÓN: handleCopyToClipboard RESTAURADO ---
     const handleCopyToClipboard = () => { if (generatedPassword) {
             navigator.clipboard.writeText(generatedPassword).then(() => {
                 setCopied(true);
@@ -322,7 +328,7 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
         } 
     };
     
-    // --- MODIFICACIÓN: Corrección del bug de contraseña ---
+    // --- handleSubmit (Corregido y listo) ---
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         // 1. Validar nueva contraseña si es usuario nuevo
@@ -350,7 +356,7 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
         </>
     );
 
-    // --- Campo de contraseña unificado (para nuevo o existente) ---
+    // --- MODIFICACIÓN: renderPasswordField RESTAURADO (con estilos de foco) ---
     const renderPasswordField = () => {
         if (!isNewUser) {
             // Usuario existente: botón de reseteo + campo para escribir una nueva
@@ -362,7 +368,7 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
                             <input 
                                 type={isPasswordVisible ? 'text' : 'password'} 
                                 placeholder="Dejar en blanco para no cambiar"
-                                value={generatedPassword || password} // Muestra pass generada o la escrita
+                                value={password} // <-- Bindeado a 'password'
                                 onChange={e => { 
                                     setPassword(e.target.value); 
                                     setPasswordError(''); 
@@ -374,23 +380,27 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
                                 {isPasswordVisible ? <EyeOffIcon /> : <EyeIcon />}
                             </button>
                         </div>
-                        <Tooltip text="Generar contraseña segura">
+                        <Tooltip text="Generar nueva contraseña">
                             <button 
                                 type="button" 
-                                onClick={() => setIsConfirmOpen(true)} 
+                                onClick={() => setIsConfirmOpen(true)} // <-- Abre el modal de confirmación
                                 className="p-2 bg-amber-100 text-amber-800 rounded-md hover:bg-amber-200"
                             >
                                 <KeyIcon />
                             </button>
                         </Tooltip>
-                        {generatedPassword && (
-                            <Tooltip text={copied ? "¡Copiado!" : "Copiar contraseña generada"}>
-                                <button type="button" onClick={handleCopyToClipboard} className={`p-2 rounded-md ${copied ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
-                                    {copied ? <Check size={16} /> : <ClipboardIcon />}
+                    </div>
+                    {/* Campo para mostrar y copiar la contraseña generada */}
+                    {generatedPassword && ( 
+                        <div className="mt-3 bg-green-50 p-2 rounded-md flex justify-between items-center">
+                            <span className="text-sm text-green-800 font-mono">{generatedPassword}</span>
+                            <Tooltip text={copied ? "¡Copiado!" : "Copiar al portapapeles"}>
+                                <button type="button" onClick={handleCopyToClipboard} className={`p-1 rounded-md ${copied ? 'bg-green-200 text-green-800' : 'hover:bg-green-200'}`}>
+                                    {copied ? <Check size={16} className="text-green-700" /> : <ClipboardIcon />}
                                 </button>
                             </Tooltip>
-                        )}
-                    </div>
+                        </div>
+                    )}
                 </div>
             );
         }
@@ -420,7 +430,6 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
             <Modal isOpen={isOpen} onClose={onClose} title={isNewUser ? 'Crear Usuario' : 'Editar Usuario'} footer={footer} size="3xl">
                 <form id="user-modal-form" onSubmit={handleSubmit} className="space-y-6">
                     
-                    {/* --- SECCIÓN 1: INFORMACIÓN (Colapsable) --- */}
                     <CollapsibleSection title="Información de Usuario">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
@@ -434,10 +443,8 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
                         </div>
                     </CollapsibleSection>
 
-                    {/* --- SECCIÓN 2: SEGURIDAD Y ROLES (Colapsable) --- */}
                     <CollapsibleSection title="Seguridad y Roles">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* Columna Izquierda: Credenciales */}
                             <div className="space-y-4">
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700">ID de Usuario</label>
@@ -451,7 +458,6 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
                                 {passwordError && <p className="text-sm text-red-500 mt-1">{passwordError}</p>}
                             </div>
 
-                            {/* Columna Derecha: Roles */}
                             <CatalogSection 
                                 title="Roles"
                                 icon={<Shield size={18} />}
@@ -466,7 +472,6 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
                         </div>
                     </CollapsibleSection>
                     
-                    {/* --- SECCIÓN 3: FILTROS DE DATOS (Colapsable y Dinámica) --- */}
                     {(activeFilters?.departamentos || activeFilters?.gruposNomina || activeFilters?.puestos || activeFilters?.establecimientos) && (
                         <CollapsibleSection title="Filtros de Datos (Restricciones)">
                             <p className="text-sm text-slate-500 mb-4">
@@ -544,9 +549,16 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
                 </form>
             </Modal>
             
-            <ConfirmationModal isOpen={isConfirmOpen} onClose={() => setIsConfirmOpen(false)} onConfirm={handleResetPassword} title="Restablecer Contraseña">
-                <p>¿Estás seguro? Se generará una nueva clave temporal segura y la anterior dejará de funcionar.</p>
+            {/* --- MODIFICACIÓN: ConfirmationModal RESTAURADO --- */}
+            <ConfirmationModal 
+                isOpen={isConfirmOpen} 
+                onClose={() => setIsConfirmOpen(false)} 
+                onConfirm={handleResetPassword} 
+                title="Restablecer Contraseña"
+            >
+                <p>¿Estás seguro? Se generará una nueva clave temporal. <strong className="font-semibold">La contraseña no se guardará hasta que hagas clic en "Guardar"</strong> en el formulario principal.</p>
             </ConfirmationModal>
+            {/* --- FIN RESTAURACIÓN --- */}
         </>
     );
 };

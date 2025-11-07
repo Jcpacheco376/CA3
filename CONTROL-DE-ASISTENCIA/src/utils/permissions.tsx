@@ -69,18 +69,23 @@ export const setupPermissions = (permissions: Permission[]) => {
 
     permissions.forEach(p => {
         const { resource, action } = getParts(p.NombrePermiso);
-        let groupKey = resource;
-        let mainResource = resource.split('.')[0];
+        
+        // --- MODIFICACIÓN: Cambiamos la lógica de agrupación ---
+        // Ya no agrupamos todo 'catalogo' en uno solo.
+        // let groupKey = resource;
+        // let mainResource = resource.split('.')[0];
+        // if (mainResource === 'catalogo') {
+        //     groupKey = 'catalogo';
+        // }
+        // --- FIN MODIFICACIÓN ---
 
-        if (mainResource === 'catalogo') {
-            groupKey = 'catalogo';
-        }
+        const groupKey = resource; // <-- La clave ahora es el recurso completo (ej: 'catalogo.puestos')
 
         if (!groups[groupKey]) {
             groups[groupKey] = {
                 label: resourceLabels[groupKey] || groupKey,
                 permissions: [],
-                icon: permissionIcons[groupKey]
+                icon: permissionIcons[groupKey] // Usará el ícono específico
             };
         }
         groups[groupKey].permissions.push(p);
@@ -96,4 +101,3 @@ export const setupPermissions = (permissions: Permission[]) => {
 
     return { groups, dependencies };
 };
-

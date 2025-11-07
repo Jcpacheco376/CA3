@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import sql from 'mssql';
 import { dbConfig } from '../../config/database';
+import crypto from 'crypto';
 
 export const getNextUserId = async (req: any, res: Response) => {
     if (!req.user.permissions['usuarios.create']) {
@@ -97,4 +98,32 @@ export const updateUserPassword = async (req: any, res: Response) => {
             .execute('sp_Usuario_ActualizarPassword');
         res.status(200).json({ message: 'Contraseña actualizada correctamente.' });
     } catch (err) { res.status(500).json({ message: 'Error al actualizar la contraseña.' }); }
+};
+export const resetPassword = async (req: any, res: Response) => {
+    // Solo admins pueden resetear contraseñas
+    if (!req.user.permissions['usuarios.update']) {
+        return res.status(403).json({ message: 'Acceso denegado.' });
+    }
+    
+    const { userId } = req.params;
+    
+    // 1. Generar contraseña aleatoria segura
+    const newPassword = crypto.randomBytes(6).toString('hex'); // 12 caracteres
+
+    try {
+        // 2. Llamar al mismo SP que usa updateUserPassword
+        const pool = await sql.connect(dbConfig);
+        await pool.request()
+            .input('UsuarioId', sql.Int, userId)
+            .input('NuevoPassword', sql.NVarChar, newPassword)
+            .execute('sp_Usuario_ActualizarPassword');
+        
+        // 3. Enviar éxito. (Idealmente, aquí se enviaría un email)
+        res.status(200).json({ message: `Contraseña restablecida con éxito. La nueva contraseña es: ${newPassword}` });
+        // NOTA: Devolver la contraseña en la respuesta es opcional y depende de tu política de seguridad.
+        // Podrías solo devolver un 200 OK y forzar al usuario a usar "olvidé mi contraseña".
+        // Por ahora, la devuelvo para que el admin pueda copiarla.
+    } catch (err: any) { 
+        res.status(500).json({ message: err.message || 'Error al restablecer la contraseña.' }); 
+    }
 };
