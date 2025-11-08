@@ -289,7 +289,7 @@ export const RoleModal = ({ role, allPermissions, onClose, onSave, isOpen }: { r
                                     type="text" 
                                     value={formData.NombreRol} 
                                     onChange={e => setFormData(prev => ({ ...prev, NombreRol: e.target.value }))} 
-                                    className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500]" 
+                                    className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500] focus:outline-none" 
                                     required 
                                 />
                             </Tooltip>
@@ -302,7 +302,7 @@ export const RoleModal = ({ role, allPermissions, onClose, onSave, isOpen }: { r
                                     type="text" 
                                     value={formData.Descripcion} 
                                     onChange={e => setFormData(prev => ({ ...prev, Descripcion: e.target.value }))} 
-                                    className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500]" 
+                                    className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500] focus:outline-none" 
                                 />
                             </Tooltip>
                         </div>

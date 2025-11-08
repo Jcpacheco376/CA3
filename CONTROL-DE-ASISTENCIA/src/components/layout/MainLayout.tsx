@@ -5,6 +5,7 @@ import { useAuth } from '../../features/auth/AuthContext';
 import { AttendancePage } from '../../features/attendance/AttendancePage';
 import { UsersPage } from '../../features/admin/UsersPage';
 import { RolesPage } from '../../features/admin/RolesPage';
+import { CatalogLayout } from '../../features/admin/CatalogLayout'; // <-- 1. Importar
 import { DepartamentosPage } from '../../features/admin/DepartamentosPage';
 import { GruposNominaPage } from '../../features/admin/GruposNominaPage';
 import { CatalogosPage } from '../../features/admin/CatalogosPage';
@@ -55,12 +56,13 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
             case 'schedule_planner': return <SchedulePage />;
             case 'admin_users': return <UsersPage />;
             case 'admin_roles': return <RolesPage />;
-            case 'admin_catalogs': return <CatalogosPage setActiveView={setActiveView} />;
-            case 'admin_departamentos': return <DepartamentosPage />;
-            case 'admin_grupos_nomina': return <GruposNominaPage />;
-            case 'admin_estatus_asistencia': return <EstatusAsistenciaPage />;
-            case 'admin_horarios': return <HorariosPage />;
-            default: return <AttendancePage />;
+            case 'admin_catalogs':   return <CatalogosPage setActiveView={setActiveView} />;
+            case 'admin_departamentos': 
+            case 'admin_grupos_nomina': 
+            case 'admin_estatus_asistencia': 
+            case 'admin_horarios': return <CatalogLayout activeView={activeView} setActiveView={setActiveView} />;
+                
+             default: return <AttendancePage />;
         }
     };
     

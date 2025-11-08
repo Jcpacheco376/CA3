@@ -374,7 +374,7 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
                                     setPasswordError(''); 
                                     setGeneratedPassword(null); // Borra la generada si empieza a escribir
                                 }} 
-                                className={`w-full p-2 border rounded-md ${passwordError ? 'border-red-500' : 'border-slate-300'} focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500]`}
+                                className={`w-full p-2 border rounded-md ${passwordError ? 'border-red-500' : 'border-slate-300'} focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500] focus:outline-none`}
                             />
                             <button type="button" onClick={() => setIsPasswordVisible(!isPasswordVisible)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600">
                                 {isPasswordVisible ? <EyeOffIcon /> : <EyeIcon />}
@@ -434,11 +434,11 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
                                 <label className="block text-sm font-medium text-slate-700">Nombre Completo</label>
-                                <input type="text" name="NombreCompleto" value={formData.NombreCompleto || ''} onChange={handleChange} className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500]" required />
+                                <input type="text" name="NombreCompleto" value={formData.NombreCompleto || ''} onChange={handleChange} className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500] focus:outline-none" required />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-slate-700">Email</label>
-                                <input type="email" name="Email" value={formData.Email || ''} onChange={handleChange} className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500]" required />
+                                <input type="email" name="Email" value={formData.Email || ''} onChange={handleChange} className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500] focus:outline-none" required />
                             </div>
                         </div>
                     </CollapsibleSection>
@@ -452,10 +452,10 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-slate-700">Nombre de Usuario</label>
-                                    <input type="text" name="NombreUsuario" value={formData.NombreUsuario || ''} onChange={handleChange} className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500]" required />
+                                    <input type="text" name="NombreUsuario" value={formData.NombreUsuario || ''} onChange={handleChange} className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500] focus:outline-none" required />
                                 </div>
                                 {renderPasswordField()}
-                                {passwordError && <p className="text-sm text-red-500 mt-1">{passwordError}</p>}
+                                {passwordError && <p className="text-sm text-red-500 mt-1 ">{passwordError}</p>}
                             </div>
 
                             <CatalogSection 

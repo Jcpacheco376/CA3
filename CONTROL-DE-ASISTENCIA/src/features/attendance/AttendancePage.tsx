@@ -259,7 +259,7 @@ export const AttendancePage = () => {
     };
     // --- FIN Virtualización ---
 
-    const fetchData = useCallback(async () => {
+const fetchData = useCallback(async () => {
         if (!user || dateRange.length === 0) return;
         const token = getToken();
         if (!token) { setError("Sesión inválida."); setIsLoading(false); return; }
@@ -267,14 +267,17 @@ export const AttendancePage = () => {
         setIsLoading(true);
         setError(null);
         
+        // 1. Preparar Headers y Body
         const headers = { 
             'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json' // Necesario para POST
         };
-        const body = JSON.stringify({
+        
+        // Body para obtener datos (con filtros)
+        const dataBody = JSON.stringify({
             startDate: format(dateRange[0], 'yyyy-MM-dd'),
             endDate: format(dateRange[dateRange.length - 1], 'yyyy-MM-dd'),
-            filters: { // Usamos el objeto de estado 'filters'
+            filters: {
                 departamentos: filters.depts,
                 gruposNomina: filters.groups,
                 puestos: filters.puestos,
@@ -282,17 +285,42 @@ export const AttendancePage = () => {
             }
         });
 
+        // Body para procesar el rango (sin filtros, ya que el SP usa el UsuarioId)
+        const ensureBody = JSON.stringify({
+            startDate: format(dateRange[0], 'yyyy-MM-dd'),
+            endDate: format(dateRange[dateRange.length - 1], 'yyyy-MM-dd')
+        });
+
         try {
+            // --- 2. EJECUTAMOS EL PASO FALTANTE ---
+            // Primero, nos aseguramos de que el SP procese las checadas
+            const ensureRes = await fetch(`${API_BASE_URL}/attendance/ensure-range`, { 
+                method: 'POST',
+                headers, 
+                body: ensureBody 
+            });
+
+            if (!ensureRes.ok) {
+                const errData = await ensureRes.json();
+                throw new Error(errData.message || `Error ${ensureRes.status} al procesar el rango.`);
+            }
+            // --- FIN DEL PASO FALTANTE ---
+
+
+            // 3. Ejecutar Promesas (ahora que sabemos que los datos están procesados)
             const [employeesRes, schedulesRes, statusesRes] = await Promise.all([
+                // Llamamos a data-by-range
                 fetch(`${API_BASE_URL}/attendance/data-by-range`, { 
                     method: 'POST',
                     headers, 
-                    body 
+                    body: dataBody 
                 }),
+                // Y a los catálogos
                 fetch(`${API_BASE_URL}/schedules`, { headers }),
                 fetch(`${API_BASE_URL}/catalogs/attendance-statuses`, { headers })
             ]);
 
+            // Manejo de errores de las peticiones
             if (!employeesRes.ok) {
                 const errData = await employeesRes.json();
                 throw new Error(errData.message || `Error ${employeesRes.status} al cargar datos de asistencia.`);
@@ -311,13 +339,13 @@ export const AttendancePage = () => {
         } catch (err: any) { 
             console.error("Error en fetchData:", err);
             setError(err.message); 
-            setEmployees([]);
+            setEmployees([]); // Limpiar empleados en caso de error
         } finally { 
             setIsLoading(false); 
         }
     }, [
         dateRange, user, getToken, 
-        filters // Ahora solo depende de 'filters'
+        filters // Dependencia de filtros
     ]);
 
     useEffect(() => {

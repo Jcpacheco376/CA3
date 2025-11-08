@@ -68,7 +68,7 @@ export const EstatusAsistenciaPage = () => {
 
     return (
         <div className="space-y-6">
-            <header className="flex justify-between items-center">
+            {/* <header className="flex justify-between items-center">
                 <div className="flex items-center space-x-3">
                     <h1 className="text-3xl font-bold text-slate-800">Catálogo de Estatus de Asistencia</h1>
                     <Tooltip text="Gestiona los tipos de incidencia, sus colores, valores y visibilidad en el sistema.">
@@ -79,7 +79,13 @@ export const EstatusAsistenciaPage = () => {
                     <PlusCircleIcon />
                     Crear Estatus
                 </Button>
-            </header>
+            </header> */}
+            <div className="flex justify-end">
+                <Button onClick={() => handleOpenModal()}>
+                    <PlusCircleIcon />
+                    Crear Estatus
+                </Button>
+            </div>
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
                 <table className="w-full text-sm">
                     <thead className="bg-slate-50">

@@ -80,6 +80,7 @@ export const ensureRange = async (req: any, res: Response) => {
     if (!req.user.permissions['reportesAsistencia.update']) return res.status(403).json({ message: 'Acceso denegado.' });
     const { startDate, endDate } = req.body;
     try {
+        console.log('Processing range:', startDate, endDate);
         const pool = await sql.connect(dbConfig);
         await pool.request()
             .input('FechaInicio', sql.Date, startDate).input('FechaFin', sql.Date, endDate)

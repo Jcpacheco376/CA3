@@ -9,4 +9,5 @@ router.post('/', auth_middleware_1.authMiddleware, user_controller_1.createUser)
 router.get('/', auth_middleware_1.authMiddleware, user_controller_1.getAllUsers);
 router.put('/:userId/preferences', auth_middleware_1.authMiddleware, user_controller_1.updateUserPreferences);
 router.put('/:userId/password', auth_middleware_1.authMiddleware, user_controller_1.updateUserPassword);
+router.put('/:userId/reset-password', auth_middleware_1.authMiddleware, user_controller_1.resetPassword);
 exports.default = router;

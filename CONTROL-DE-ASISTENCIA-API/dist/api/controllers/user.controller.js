@@ -12,9 +12,10 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.updateUserPassword = exports.updateUserPreferences = exports.getAllUsers = exports.createUser = exports.getNextUserId = void 0;
+exports.resetPassword = exports.updateUserPassword = exports.updateUserPreferences = exports.getAllUsers = exports.createUser = exports.getNextUserId = void 0;
 const mssql_1 = __importDefault(require("mssql"));
 const database_1 = require("../../config/database");
+const crypto_1 = __importDefault(require("crypto"));
 const getNextUserId = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     if (!req.user.permissions['usuarios.create']) {
         return res.status(403).json({ message: 'Acceso denegado.' });
@@ -111,3 +112,29 @@ const updateUserPassword = (req, res) => __awaiter(void 0, void 0, void 0, funct
     }
 });
 exports.updateUserPassword = updateUserPassword;
+const resetPassword = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    // Solo admins pueden resetear contraseñas
+    if (!req.user.permissions['usuarios.update']) {
+        return res.status(403).json({ message: 'Acceso denegado.' });
+    }
+    const { userId } = req.params;
+    // 1. Generar contraseña aleatoria segura
+    const newPassword = crypto_1.default.randomBytes(6).toString('hex'); // 12 caracteres
+    try {
+        // 2. Llamar al mismo SP que usa updateUserPassword
+        const pool = yield mssql_1.default.connect(database_1.dbConfig);
+        yield pool.request()
+            .input('UsuarioId', mssql_1.default.Int, userId)
+            .input('NuevoPassword', mssql_1.default.NVarChar, newPassword)
+            .execute('sp_Usuario_ActualizarPassword');
+        // 3. Enviar éxito. (Idealmente, aquí se enviaría un email)
+        res.status(200).json({ message: `Contraseña restablecida con éxito. La nueva contraseña es: ${newPassword}` });
+        // NOTA: Devolver la contraseña en la respuesta es opcional y depende de tu política de seguridad.
+        // Podrías solo devolver un 200 OK y forzar al usuario a usar "olvidé mi contraseña".
+        // Por ahora, la devuelvo para que el admin pueda copiarla.
+    }
+    catch (err) {
+        res.status(500).json({ message: err.message || 'Error al restablecer la contraseña.' });
+    }
+});
+exports.resetPassword = resetPassword;

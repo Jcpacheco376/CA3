@@ -287,27 +287,27 @@ export const HorariosPage = () => {
     `;
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4">
              <style>{styles}</style> {/* Inject animation styles */}
-             <header className="mb-6">
-                {/* ... (Header remains the same) ... */}
+             {/* <header className="mb-6">
+
                 <div className="flex items-center space-x-3">
                     <h1 className="text-3xl font-bold text-slate-800">Catálogo de Horarios</h1>
                     <Tooltip text="Define y administra los horarios de trabajo de la empresa.">
                         <span><InfoIcon /></span>
                     </Tooltip>
                 </div>
-            </header>
+            </header> */}
 
             <div className="flex justify-between items-center mb-4">
-                {/* ... (Search and New Button remain the same) ... */}
+
                 <div className="max-w-xs">
                      <input
                         type="text"
                         placeholder="Buscar por Nombre o ID..."
                         value={searchTerm}
                         onChange={e => setSearchTerm(e.target.value)}
-                        className="w-full pl-4 pr-4 py-2 border border-slate-300 rounded-lg"
+                        className="w-full pl-4 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[--theme-500]"
                     />
                 </div>
                 {canManage && (
