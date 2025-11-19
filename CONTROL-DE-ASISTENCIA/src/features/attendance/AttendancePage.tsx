@@ -64,7 +64,7 @@ const EMPLOYEE_CONTENT_MIN_WIDTH = 360;
 const EMPLOYEE_CONTENT_MAX_WIDTH = 500;
 const MIN_COLUMN_WIDTH = EMPLOYEE_CONTENT_MIN_WIDTH + 16; // 376
 const MAX_COLUMN_WIDTH = EMPLOYEE_CONTENT_MAX_WIDTH + 250; // 516
-const DEFAULT_COLUMN_WIDTH = 384; 
+const DEFAULT_COLUMN_WIDTH = 384;
 const ROW_HEIGHT_ESTIMATE = 72;
 
 const FILTERS_KEY = 'app_attendance_filters';
@@ -89,7 +89,7 @@ const loadInitialFilters = (user: any) => {
 };
 
 export const AttendancePage = () => {
-    const { getToken, user } = useAuth(); // 'user' ahora tiene Puestos y Establecimientos
+    const { getToken, user, can } = useAuth(); // 'user' ahora tiene Puestos y Establecimientos
     const { addNotification } = useNotification();
     const [currentDate, setCurrentDate] = useState(new Date());
     const [employees, setEmployees] = useState<any[]>([]);
@@ -105,18 +105,18 @@ export const AttendancePage = () => {
 
     const [filters, setFilters] = useState(() => loadInitialFilters(user));
 
-    const [selectedDepts, setSelectedDepts] = useState<number[]>(() =>
-        user?.Departamentos?.length === 1 ? [user.Departamentos[0].DepartamentoId] : []
-    );
-    const [selectedGroups, setSelectedGroups] = useState<number[]>(() =>
-        user?.GruposNomina?.length === 1 ? [user.GruposNomina[0].GrupoNominaId] : []
-    );
-    const [selectedPuestos, setSelectedPuestos] = useState<number[]>(() =>
-        user?.Puestos?.length === 1 ? [user.Puestos[0].PuestoId] : []
-    );
-    const [selectedEstabs, setSelectedEstabs] = useState<number[]>(() =>
-        user?.Establecimientos?.length === 1 ? [user.Establecimientos[0].EstablecimientoId] : []
-    );
+    // const [selectedDepts, setSelectedDepts] = useState<number[]>(() =>
+    //     user?.Departamentos?.length === 1 ? [user.Departamentos[0].DepartamentoId] : []
+    // );
+    // const [selectedGroups, setSelectedGroups] = useState<number[]>(() =>
+    //     user?.GruposNomina?.length === 1 ? [user.GruposNomina[0].GrupoNominaId] : []
+    // );
+    // const [selectedPuestos, setSelectedPuestos] = useState<number[]>(() =>
+    //     user?.Puestos?.length === 1 ? [user.Puestos[0].PuestoId] : []
+    // );
+    // const [selectedEstabs, setSelectedEstabs] = useState<number[]>(() =>
+    //     user?.Establecimientos?.length === 1 ? [user.Establecimientos[0].EstablecimientoId] : []
+    // );
 
     const [viewingEmployeeId, setViewingEmployeeId] = useState<number | null>(null);
     const [viewMode, setViewMode] = useState<'week' | 'fortnight' | 'month'>('week');
@@ -174,12 +174,8 @@ export const AttendancePage = () => {
         return { dateRange: range, rangeLabel: label };
     }, [currentDate, viewMode]);
 
-    // --- MODIFICACIÓN: `filteredEmployees` ahora solo filtra por `searchTerm` ---
     const filteredEmployees = useMemo(() => {
-        // Los filtros de Depto, Grupo, etc., ya NO se aplican aquí.
-        // El servidor ya nos dio la lista filtrada.
         if (searchTerm === '') return employees;
-
         const searchWords = searchTerm.toLowerCase().split(' ').filter(word => word);
 
         return employees.filter(emp => {
@@ -187,15 +183,13 @@ export const AttendancePage = () => {
             return searchWords.every(word => targetText.includes(word));
         });
     }, [employees, searchTerm]);
-    // --- FIN MODIFICACIÓN ---
 
-    // --- Sección de Virtualización (Sin cambios) ---
     const tableContainerRef = useRef<HTMLDivElement>(null);
     const rowVirtualizer = useVirtualizer({
         count: filteredEmployees.length,
         getScrollElement: () => tableContainerRef.current,
         estimateSize: () => ROW_HEIGHT_ESTIMATE,
-        overscan: 30, // Mantenemos el overscan agresivo
+        overscan: 15, // Mantenemos el overscan agresivo
     });
     const virtualRows = rowVirtualizer.getVirtualItems();
     const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
@@ -259,20 +253,20 @@ export const AttendancePage = () => {
     };
     // --- FIN Virtualización ---
 
-const fetchData = useCallback(async () => {
+    const fetchData = useCallback(async () => {
         if (!user || dateRange.length === 0) return;
         const token = getToken();
         if (!token) { setError("Sesión inválida."); setIsLoading(false); return; }
 
         setIsLoading(true);
         setError(null);
-        
+
         // 1. Preparar Headers y Body
-        const headers = { 
+        const headers = {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json' // Necesario para POST
         };
-        
+
         // Body para obtener datos (con filtros)
         const dataBody = JSON.stringify({
             startDate: format(dateRange[0], 'yyyy-MM-dd'),
@@ -292,67 +286,109 @@ const fetchData = useCallback(async () => {
         });
 
         try {
-            // --- 2. EJECUTAMOS EL PASO FALTANTE ---
-            // Primero, nos aseguramos de que el SP procese las checadas
-            const ensureRes = await fetch(`${API_BASE_URL}/attendance/ensure-range`, { 
-                method: 'POST',
-                headers, 
-                body: ensureBody 
-            });
 
-            if (!ensureRes.ok) {
-                const errData = await ensureRes.json();
-                throw new Error(errData.message || `Error ${ensureRes.status} al procesar el rango.`);
+            if (!can('reportesAsistencia.read')) {
+                throw new Error("No tienes permiso para ver este módulo.");
             }
-            // --- FIN DEL PASO FALTANTE ---
 
-
-            // 3. Ejecutar Promesas (ahora que sabemos que los datos están procesados)
-            const [employeesRes, schedulesRes, statusesRes] = await Promise.all([
-                // Llamamos a data-by-range
-                fetch(`${API_BASE_URL}/attendance/data-by-range`, { 
+            if (can('reportesAsistencia.assign')) {
+                const ensureRes = await fetch(`${API_BASE_URL}/attendance/ensure-range`, { 
                     method: 'POST',
                     headers, 
-                    body: dataBody 
-                }),
-                // Y a los catálogos
-                fetch(`${API_BASE_URL}/schedules`, { headers }),
-                fetch(`${API_BASE_URL}/catalogs/attendance-statuses`, { headers })
+                    body: ensureBody 
+                });
+
+                if (!ensureRes.ok) {
+                    const errData = await ensureRes.json();
+                    console.warn("No se pudo procesar el rango:", errData.message);
+                    addNotification("Aviso de Procesamiento", "No se pudieron calcular las nuevas checadas. " + (errData.message || ''), "error");
+                }
+            }
+
+            // if (!ensureRes.ok) {
+            //     const errData = await ensureRes.json();
+            //     throw new Error(errData.message || `Error ${ensureRes.status} al procesar el rango.`);
+            // }
+
+            const employeesPromise = fetch(`${API_BASE_URL}/attendance/data-by-range`, {
+                method: 'POST',
+                headers,
+                body: dataBody
+            });
+            
+            if (!can('catalogo.estatusAsistencia.read')) {
+                throw new Error("No tienes permiso para ver el catálogo de estatus. La página no puede cargar.");
+            }
+
+            const statusesPromise = fetch(`${API_BASE_URL}/catalogs/attendance-statuses`, { headers });
+
+            const schedulesPromise = can('horarios.read')
+                ? fetch(`${API_BASE_URL}/schedules`, { headers })
+                : Promise.resolve(null); // Si no tiene permiso, devolvemos null
+
+            const [employeesRes, statusesRes, schedulesRes] = await Promise.all([
+                employeesPromise,
+                statusesPromise,
+                schedulesPromise
             ]);
+
+            // // 3. Ejecutar Promesas (ahora que sabemos que los datos están procesados)
+            // const [employeesRes, schedulesRes, statusesRes] = await Promise.all([
+            //     // Llamamos a data-by-range
+            //     fetch(`${API_BASE_URL}/attendance/data-by-range`, { 
+            //         method: 'POST',
+            //         headers, 
+            //         body: dataBody 
+            //     }),
+            //     // Y a los catálogos
+            //     fetch(`${API_BASE_URL}/schedules`, { headers }),
+            //     fetch(`${API_BASE_URL}/catalogs/attendance-statuses`, { headers })
+            // ]);
 
             // Manejo de errores de las peticiones
             if (!employeesRes.ok) {
                 const errData = await employeesRes.json();
                 throw new Error(errData.message || `Error ${employeesRes.status} al cargar datos de asistencia.`);
             }
-            if (!schedulesRes.ok) throw new Error(`Error ${schedulesRes.status} al cargar catálogo de horarios.`);
+            // if (!schedulesRes.ok) throw new Error(`Error ${schedulesRes.status} al cargar catálogo de horarios.`);
             if (!statusesRes.ok) throw new Error(`Error ${statusesRes.status} al cargar catálogo de estatus.`);
 
             const employeesData = await employeesRes.json();
-            const catalogData = await schedulesRes.json();
+            // const catalogData = await schedulesRes.json();
             const statusesData = await statusesRes.json();
-            
+
             setEmployees(employeesData);
-            setScheduleCatalog(catalogData);
+            // setScheduleCatalog(catalogData);
             setStatusCatalog(statusesData);
 
-        } catch (err: any) { 
+            if (schedulesRes) {
+                if (schedulesRes.ok) {
+                    setScheduleCatalog(await schedulesRes.json());
+                } else {
+                    // No es un error fatal, solo un aviso
+                    console.warn("No se pudo cargar el catálogo de horarios, los tooltips pueden estar limitados.");
+                    setScheduleCatalog([]);
+                }
+            } else {
+                setScheduleCatalog([]); // Si no tiene permiso, lo dejamos vacío
+            }
+
+        } catch (err: any) {
             console.error("Error en fetchData:", err);
-            setError(err.message); 
+            setError(err.message);
             setEmployees([]); // Limpiar empleados en caso de error
-        } finally { 
-            setIsLoading(false); 
+        } finally {
+            setIsLoading(false);
         }
     }, [
-        dateRange, user, getToken, 
-        filters // Dependencia de filtros
+        dateRange, user, getToken,
+        filters, can // Dependencia de filtros
     ]);
 
     useEffect(() => {
         fetchData();
     }, [fetchData]); // El useEffect no cambia, pero el 'fetchData' del que depende sí
 
-    // ... (El resto de funciones: handleClickOutside, handleBulkStatusChange, handleStatusChange, handleQuickApprove, etc. se mantienen 100% igual) ...
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (event.target instanceof Element && !event.target.closest('.status-cell-wrapper')) {
@@ -552,7 +588,7 @@ const fetchData = useCallback(async () => {
         setDraggedCells([]);
     };
 
-const filterConfigurations: FilterConfig[] = useMemo(() => {
+    const filterConfigurations: FilterConfig[] = useMemo(() => {
         const filtersConfig: FilterConfig[] = [
             {
                 id: 'departamentos',
@@ -609,6 +645,8 @@ const filterConfigurations: FilterConfig[] = useMemo(() => {
         if (error) {
             return <div className="p-16 text-center"> <p className="font-semibold text-red-600">Error al Cargar</p> <p className="text-slate-500 text-sm mt-1">{error}</p> </div>;
         }
+        const canAssign = can('reportesAsistencia.assign');
+        const canApprove = can('reportesAsistencia.approve');
         return (
             <div
                 ref={tableContainerRef}
@@ -744,11 +782,13 @@ const filterConfigurations: FilterConfig[] = useMemo(() => {
                                                         </Tooltip>
                                                     </div>
                                                 </div>
-                                                <Tooltip text="Aprobar sugerencias para la semana">
-                                                    <button onClick={() => handleQuickApprove(emp)} className="p-1 rounded-md text-slate-400 hover:text-green-600 hover:bg-green-100 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
-                                                        <ClipboardCheck size={20} />
-                                                    </button>
-                                                </Tooltip>
+                                                {canApprove && (
+                                                    <Tooltip text="Aprobar sugerencias para la semana">
+                                                        <button onClick={() => handleQuickApprove(emp)} className="p-1 rounded-md text-slate-400 hover:text-green-600 hover:bg-green-100 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                                                            <ClipboardCheck size={20} />
+                                                        </button>
+                                                    </Tooltip>
+                                                )}
                                             </div>
                                             <div className="w-full bg-slate-200 rounded-full h-1.5 mt-2">
                                                 <div
@@ -758,11 +798,12 @@ const filterConfigurations: FilterConfig[] = useMemo(() => {
                                             </div>
                                         </div>
                                     </td>
-
+                                   
                                     {dateRange.map((day, dayIndex) => {
                                         const formattedDay = format(day, 'yyyy-MM-dd');
                                         const ficha = emp.FichasSemana.find((f: any) => f.Fecha.substring(0, 10) === formattedDay);
                                         const cellId = `${emp.EmpleadoId}-${dayIndex}`;
+                                        
                                         return (
                                             <AttendanceCell
                                                 key={cellId}
@@ -774,6 +815,7 @@ const filterConfigurations: FilterConfig[] = useMemo(() => {
                                                 viewMode={viewMode}
                                                 isRestDay={isRestDay(emp.horario, day)}
                                                 onStatusChange={(newStatus, newComment) => handleStatusChange(emp.EmpleadoId, day, newStatus, newComment)}
+                                                canAssign={canAssign}
                                                 onDragStart={(status: AttendanceStatusCode) => handleDragStart(emp.EmpleadoId, dayIndex, status)}
                                                 onDragEnter={() => handleDragEnter(emp.EmpleadoId, dayIndex)}
                                                 isBeingDragged={draggedCells.includes(cellId)}

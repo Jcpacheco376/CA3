@@ -48,8 +48,8 @@ const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             return res.status(401).json({ message: 'Credenciales inválidas' });
         }
         const loggedInUser = loginResult.recordset[0];
-        const [allUsersResult, permissionsResult, activeFilters // <-- NUEVA CONSULTA
-        ] = yield Promise.all([
+        const currentTokenVersion = loggedInUser.TokenVersion || 1;
+        const [allUsersResult, permissionsResult, activeFilters] = yield Promise.all([
             pool.request().execute('sp_Usuarios_GetAll'),
             pool.request().input('UsuarioId', mssql_1.default.Int, loggedInUser.UsuarioId).execute('sp_Usuario_ObtenerPermisos'),
             getActiveFilters(pool) // <-- Obtenemos los filtros activos
@@ -64,7 +64,11 @@ const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         permissionsResult.recordset.forEach(record => {
             permissions[record.NombrePermiso] = record.NombrePolitica ? [record.NombrePolitica] : [true];
         });
-        const tokenPayload = { usuarioId: loggedInUser.UsuarioId, nombreUsuario: loggedInUser.NombreUsuario };
+        const tokenPayload = {
+            usuarioId: loggedInUser.UsuarioId,
+            nombreUsuario: loggedInUser.NombreUsuario,
+            tokenVersion: currentTokenVersion
+        };
         const token = jsonwebtoken_1.default.sign(tokenPayload, config_1.JWT_SECRET, { expiresIn: '8h' });
         res.json({
             token,

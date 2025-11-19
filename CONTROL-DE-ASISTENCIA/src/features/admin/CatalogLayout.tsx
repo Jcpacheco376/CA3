@@ -2,12 +2,14 @@
 import React from 'react';
 import { useAuth } from '../auth/AuthContext.tsx';
 import { View } from '../../types/index.ts';
-import { ArrowLeft, Building, Users, CalendarCheck, Clock } from 'lucide-react';
+import { ArrowLeft, Building, Users, CalendarCheck, Clock, MapPin, Tag } from 'lucide-react';
 import { Tooltip } from '../../components/ui/Tooltip.tsx';
 import { DepartamentosPage } from './DepartamentosPage.tsx';
 import { GruposNominaPage } from './GruposNominaPage.tsx';
 import { EstatusAsistenciaPage } from './EstatusAsistenciaPage.tsx';
 import { HorariosPage } from './HorariosPage.tsx';
+import { EstablecimientosPage } from './EstablecimientosPage.tsx';
+import { PuestosPage } from './PuestosPage.tsx';
 
 // --- Componente Interno de Pestaña ---
 const TabButton = ({ 
@@ -55,6 +57,20 @@ export const CatalogLayout = ({ activeView, setActiveView }: { activeView: View,
             component: <GruposNominaPage />
         },
         { 
+            id: 'admin_puestos', 
+            label: 'Puestos', 
+            icon: <Tag size={18} />, 
+            canAccess: can('catalogo.puestos.read'),
+            component: <PuestosPage />
+        },
+        { 
+            id: 'admin_establecimientos', 
+            label: 'Establecimientos', 
+            icon: <MapPin size={18} />, 
+            canAccess: can('catalogo.establecimientos.read'),
+            component: <EstablecimientosPage />
+        },
+        { 
             id: 'admin_estatus_asistencia', 
             label: 'Estatus Asistencia', 
             icon: <CalendarCheck size={18} />, 
@@ -68,7 +84,6 @@ export const CatalogLayout = ({ activeView, setActiveView }: { activeView: View,
             canAccess: can('catalogo.horarios.read'),
             component: <HorariosPage />
         },
-        // (Aquí se podrían añadir Puestos y Establecimientos cuando tengan sus páginas)
     ];
 
     const activeTab = catalogTabs.find(tab => tab.id === activeView);

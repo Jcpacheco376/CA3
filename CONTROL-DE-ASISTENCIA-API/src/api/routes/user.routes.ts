@@ -5,7 +5,8 @@ import {
     getAllUsers,
     updateUserPreferences,
     updateUserPassword,
-    resetPassword
+    resetPassword,
+    getPermissionsByUserId
 } from '../controllers/user.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 
@@ -17,5 +18,5 @@ router.get('/', authMiddleware, getAllUsers);
 router.put('/:userId/preferences', authMiddleware, updateUserPreferences);
 router.put('/:userId/password', authMiddleware, updateUserPassword);
 router.put('/:userId/reset-password', authMiddleware, resetPassword);
-
+router.get('/permissions', authMiddleware, getPermissionsByUserId); 
 export default router;

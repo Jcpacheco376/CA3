@@ -267,7 +267,7 @@ export const HorariosPage = () => {
             <div className="flex items-center justify-center h-full">
                 <div className="text-center p-8 text-red-600 bg-red-50 rounded-lg">
                     <AlertTriangle className="mx-auto mb-2 h-10 w-10" />
-                    <h2 className="text-lg font-semibold">Acceso Deniedo</h2>
+                    <h2 className="text-lg font-semibold">Acceso Denegado</h2>
                     <p>No tienes permiso para ver este catálogo. Contacta a un administrador.</p>
                 </div>
             </div>

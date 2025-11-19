@@ -24,7 +24,7 @@ echo.
 echo --- 2. Copiando API (Codigo y Configuracion) ---
 robocopy ".\CONTROL-DE-ASISTENCIA-API\dist" "\\%DEPLOY_HOST%\%API_PATH%\dist" /E /PURGE
 copy ".\CONTROL-DE-ASISTENCIA-API\package.json" "\\%DEPLOY_HOST%\%API_PATH%\package.json"
-copy ".\CONTROL-DE-ASISTENCIA-API\.env.production" "\\%DEPLOY_HOST%\%API_PATH%\dist\.env"
+copy ".\CONTROL-DE-ASISTENCIA-API\.env.production" "\\%DEPLOY_HOST%\%API_PATH%\.env"
 echo API copiada.
 echo.
 

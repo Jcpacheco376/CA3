@@ -54,7 +54,8 @@ export const AttendanceCell = memo(({
     isAnyCellOpen, 
     statusCatalog,
     isToday,
-    viewMode
+    viewMode,
+    canAssign
 }: any) => {
     const [isJustUpdated, setIsJustUpdated] = useState(false);
     const wrapperRef = useRef<HTMLTableCellElement>(null);
@@ -127,7 +128,7 @@ export const AttendanceCell = memo(({
     };
 
     const handleToggle = () => {
-        if (isProcessing || isAuthorized) return;
+        if (isProcessing || isAuthorized || !canAssign) return;
         onToggleOpen(cellId);
     };
 
@@ -158,7 +159,7 @@ export const AttendanceCell = memo(({
             {ficha?.Comentarios && <MessageSquare size={14} className="absolute bottom-1 left-1 text-black/40" title={ficha.Comentarios} />}
             {ficha && ficha.EstatusChecadorAbrev === 'SES' && !isProcessing && <AlertTriangle size={16} className="absolute bottom-1 right-1 text-black/40" title="E/S Incompleta" />}
             
-            {!isRestDay && !isAuthorized && !isProcessing && !!ficha?.EstatusSupervisorAbrev && (
+            {!isRestDay && !isAuthorized && !isProcessing && !!ficha?.EstatusSupervisorAbrev && canAssign && (
                 <>
                     <div onMouseDown={(e) => { e.stopPropagation(); onDragStart(finalStatus, 'top'); }} className="absolute top-0 left-0 w-full h-4 bg-black/10 opacity-0 hover:opacity-100 transition-opacity cursor-ns-resize rounded-t-md" title="Arrastrar para rellenar (superior)"/>
                     <div onMouseDown={(e) => { e.stopPropagation(); onDragStart(finalStatus, 'bottom'); }} className="absolute bottom-0 left-0 w-full h-4 bg-black/10 opacity-0 hover:opacity-100 transition-opacity cursor-ns-resize rounded-b-md" title="Arrastrar para rellenar (inferior)"/>
@@ -219,15 +220,17 @@ export const AttendanceCell = memo(({
 
     const tooltipPlacement = panelPlacement === 'top' ? 'left' : 'top';
 
-    const wrapperContent = (
+const wrapperContent = (
         <button
             onClick={handleToggle}
+            disabled={!canAssign || isProcessing || isAuthorized}
+            // disabled={canAssign }
             className={`w-full h-full rounded-lg transition-all duration-200 focus:outline-none focus-visible:ring-0`}
         >
             {cellContent}
         </button>
     );
-    
+   
     // El ancho mínimo lo controla el <th> en el padre (6rem o 4rem)
     const cellWidthClass = viewMode === 'week' ? 'min-w-[6rem]' : 'min-w-[4rem]';
 

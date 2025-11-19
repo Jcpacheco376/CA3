@@ -1,18 +1,19 @@
 // src/features/auth/AuthContext.tsx
-import React, { createContext, useState, useContext, ReactNode, useCallback, useMemo } from 'react';
-import { User } from '../../types'; // <-- Esta importación ahora trae la interfaz 'User' actualizada
+import React, { createContext, useState, useContext, ReactNode, useCallback, useMemo, useEffect } from 'react';
+import { User } from '../../types'; 
 import { API_BASE_URL } from '../../config/api';
-
+import { useNotification } from '../../context/NotificationContext';
 const SESSION_STORAGE_KEY = 'app_session';
-const APP_DATA_VERSION = '1.0.6'; // (Puedes cambiar esto si quieres forzar un relogueo)
+const APP_DATA_VERSION = '1.0.6'; 
 
 interface AuthContextType {
-    user: User | null; // <-- Este tipo ahora incluye 'activeFilters'
+    user: User | null;
     login: (username: string, password: string) => Promise<string | true>;
     logout: () => void;
     can: (permission: string) => boolean;
     updateUserPreferences: (prefs: Partial<Pick<User, 'Theme' | 'AnimationsEnabled' | 'DebeCambiarPassword'>>) => void;
     getToken: () => string | null;
+    checkSessionStatus: () => Promise<void>; 
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -37,6 +38,49 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         return null;
     }, []);
 
+    const logout = useCallback(() => {
+        setUser(null);
+        localStorage.removeItem(SESSION_STORAGE_KEY);
+        // Redirigir a la raíz (que mostrará el Login)
+        window.location.href = '/'; 
+    }, []);
+
+    // --- NUEVO: Interceptor Global de Fetch ---
+    // Este efecto "vigila" todas las peticiones de la app. Si alguna devuelve 401, cierra la sesión.
+    useEffect(() => {
+        const originalFetch = window.fetch;
+
+        window.fetch = async (input, init) => {
+            try {
+                const response = await originalFetch(input, init);
+
+                // Si la respuesta es 401 (Unauthorized)
+                if (response.status === 401) {
+                    // Obtenemos la URL para no interceptar el login (es normal que falle si la clave está mal)
+                    const url = typeof input === 'string' ? input : (input instanceof URL ? input.href : input.url);
+                    
+                    // Si NO es la ruta de login, entonces es una sesión caducada -> FORCE LOGOUT
+                    if (url && !url.includes('/auth/login')) {
+                        console.warn("Sesión inválida detectada globalmente (401). Ejecutando logout automático...");
+                        logout();
+                        // Opcional: Retornar una promesa que nunca se resuelve para "congelar" la UI 
+                        // y evitar que el componente muestre errores antes de redirigir.
+                        // return new Promise(() => {}); 
+                    }
+                }
+                return response;
+            } catch (error) {
+                throw error;
+            }
+        };
+
+        // Limpieza: restaurar el fetch original si el componente se desmonta
+        return () => {
+            window.fetch = originalFetch;
+        };
+    }, [logout]);
+    // --- FIN DEL INTERCEPTOR ---
+
     const login = useCallback(async (username: string, password: string): Promise<string | true> => {
         try {
             const response = await fetch(`${API_BASE_URL}/auth/login`, {
@@ -50,7 +94,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 return errorData.message || "Credenciales inválidas.";
             }
             
-            const { token, user: userData } = await response.json(); // <-- userData ahora incluye 'activeFilters'
+            const { token, user: userData } = await response.json(); 
             
             setUser(userData);
             localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ version: APP_DATA_VERSION, user: userData, token }));
@@ -60,11 +104,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             console.error("Error en el flujo de login:", error);
             return error.message || "No se pudo conectar con el servidor.";
         }
-    }, []);
-
-    const logout = useCallback(() => {
-        setUser(null);
-        localStorage.removeItem(SESSION_STORAGE_KEY);
     }, []);
 
     const can = useCallback((permission: string): boolean => {
@@ -81,9 +120,46 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [user, getToken]);
 
+    // --- Polling para verificar validez de sesión ---
+    const checkSessionStatus = useCallback(async () => {
+        if (!user) return;
+        const token = getToken();
+        if (!token) return;
+
+        try {
+            // El interceptor global (arriba) capturará el 401 aquí también,
+            // pero mantenemos la lógica explícita por seguridad.
+            const response = await fetch(`${API_BASE_URL}/users/permissions`, { 
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (response.status === 401) {
+                 // El interceptor probablemente ya disparó el logout, pero por si acaso:
+                 logout(); 
+                 return;
+            } 
+        } catch (error) {
+            console.warn("Error de red al verificar sesión (ignorado):", error);
+        }
+    }, [user, getToken, logout]);
+
+    // --- EFECTO: Polling cada 60 segundos ---
+    useEffect(() => {
+        if (!user) return;
+        
+        checkSessionStatus();
+
+        const interval = setInterval(() => {
+            checkSessionStatus();
+        }, 60000); 
+
+        return () => clearInterval(interval);
+    }, [user, checkSessionStatus]);
+
+
     const value = useMemo(() => ({
-        user, login, logout, can, updateUserPreferences, getToken
-    }), [user, login, logout, can, updateUserPreferences, getToken]);
+        user, login, logout, can, updateUserPreferences, getToken, checkSessionStatus
+    }), [user, login, logout, can, updateUserPreferences, getToken, checkSessionStatus]);
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

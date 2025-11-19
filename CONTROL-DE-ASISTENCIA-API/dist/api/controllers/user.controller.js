@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.resetPassword = exports.updateUserPassword = exports.updateUserPreferences = exports.getAllUsers = exports.createUser = exports.getNextUserId = void 0;
+exports.getPermissionsByUserId = exports.resetPassword = exports.updateUserPassword = exports.updateUserPreferences = exports.getAllUsers = exports.createUser = exports.getNextUserId = void 0;
 const mssql_1 = __importDefault(require("mssql"));
 const database_1 = require("../../config/database");
 const crypto_1 = __importDefault(require("crypto"));
@@ -138,3 +138,46 @@ const resetPassword = (req, res) => __awaiter(void 0, void 0, void 0, function* 
     }
 });
 exports.resetPassword = resetPassword;
+const getPermissionsByUserId = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const userId = req.user.usuarioId;
+    if (!userId)
+        return res.status(400).json({ message: 'ID no proporcionado.' });
+    try {
+        const pool = yield mssql_1.default.connect(database_1.dbConfig);
+        // 1. Obtener datos base
+        const usersResult = yield pool.request().execute('sp_Usuarios_GetAll');
+        let fullUserDetails = usersResult.recordset.find((u) => u.UsuarioId === userId);
+        if (!fullUserDetails)
+            return res.status(404).json({ message: 'Usuario no encontrado.' });
+        // 2. Obtener permisos frescos
+        const permissionsResult = yield pool.request()
+            .input('UsuarioId', mssql_1.default.Int, userId)
+            .execute('sp_Usuario_ObtenerPermisos');
+        const permissions = {};
+        permissionsResult.recordset.forEach((record) => {
+            permissions[record.NombrePermiso] = record.NombrePolitica ? [record.NombrePolitica] : [true];
+        });
+        // 3. Obtener filtros activos
+        const activeFiltersResult = yield pool.request().query(`
+            SELECT 
+                CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroDepartamentosActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT) AS departamentos,
+                CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroGruposNominaActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT) AS gruposNomina,
+                CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroPuestosActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT) AS puestos,
+                CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroEstablecimientosActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT) AS establecimientos
+            FROM dbo.ConfiguracionSistema
+            WHERE ConfigKey IN (
+                'FiltroDepartamentosActivo', 
+                'FiltroGruposNominaActivo', 
+                'FiltroPuestosActivo', 
+                'FiltroEstablecimientosActivo'
+            )
+        `);
+        // Parsear JSONs
+        const updatedUser = Object.assign(Object.assign({}, fullUserDetails), { Roles: fullUserDetails.Roles ? JSON.parse(fullUserDetails.Roles) : [], Departamentos: fullUserDetails.Departamentos ? JSON.parse(fullUserDetails.Departamentos) : [], GruposNomina: fullUserDetails.GruposNomina ? JSON.parse(fullUserDetails.GruposNomina) : [], Puestos: fullUserDetails.Puestos ? JSON.parse(fullUserDetails.Puestos) : [], Establecimientos: fullUserDetails.Establecimientos ? JSON.parse(fullUserDetails.Establecimientos) : [], permissions: permissions, activeFilters: activeFiltersResult.recordset[0] });
+        res.json({ user: updatedUser });
+    }
+    catch (err) {
+        res.status(500).json({ message: 'Error al refrescar permisos.' });
+    }
+});
+exports.getPermissionsByUserId = getPermissionsByUserId;

@@ -8,17 +8,27 @@ import { Button } from '../../components/ui/Modal.tsx';
 import { PlusCircleIcon, PencilIcon } from '../../components/ui/Icons.tsx';
 import { AttendanceStatus } from '../../types/index.ts';
 import { EstatusAsistenciaModal } from './EstatusAsistenciaModal.tsx';
+import { Loader2, AlertTriangle, CheckCircle, XCircle, Edit, RotateCw, Coffee, Sun, Moon, Sunset } from 'lucide-react';
+import { HorarioModal } from './HorarioModal';
 
 export const EstatusAsistenciaPage = () => {
-    const { getToken, user } = useAuth();
+    const { getToken, user,can } = useAuth();
     const { addNotification } = useNotification();
     const [statuses, setStatuses] = useState<AttendanceStatus[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingStatus, setEditingStatus] = useState<AttendanceStatus | null>(null);
+const [editingStatus, setEditingStatus] = useState<AttendanceStatus | null>(null);
 
-    const fetchData = async () => {
+    const canManage = can('catalogo.estatusAsistencia.manage');
+    const canRead = can('catalogo.estatusAsistencia.read');
+
+        const fetchData = async () => {
+           if (!canRead) {
+            setError("No tienes permiso para ver este catálogo.");
+            setIsLoading(false);
+            return;
+        }      
         const token = getToken();
         if (!token) { setError("Sesión no válida."); return; }
         
@@ -33,7 +43,7 @@ export const EstatusAsistenciaPage = () => {
         finally { setIsLoading(false); }
     };
 
-    useEffect(() => { if (user) fetchData(); }, [user, getToken]);
+    useEffect(() => { if (user) fetchData(); }, [user, getToken, canRead]);
 
     const handleOpenModal = (status: AttendanceStatus | null = null) => {
         setEditingStatus(status);
@@ -63,6 +73,18 @@ export const EstatusAsistenciaPage = () => {
         }
     };
 
+    if (!canRead) {
+            // ... (Access denied message remains the same) ...
+            return (
+                <div className="flex items-center justify-center h-full">
+                    <div className="text-center p-8 text-red-600 bg-red-50 rounded-lg">
+                        <AlertTriangle className="mx-auto mb-2 h-10 w-10" />
+                        <h2 className="text-lg font-semibold">Acceso Denegado</h2>
+                        <p>No tienes permiso para ver este catálogo. Contacta a un administrador.</p>
+                    </div>
+                </div>
+            );
+        }
     if (isLoading) return <div className="text-center p-8">Cargando catálogo...</div>;
     if (error) return <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md">{error}</div>;
 
@@ -81,10 +103,12 @@ export const EstatusAsistenciaPage = () => {
                 </Button>
             </header> */}
             <div className="flex justify-end">
+                {canManage && (
                 <Button onClick={() => handleOpenModal()}>
                     <PlusCircleIcon />
                     Crear Estatus
                 </Button>
+                 )}
             </div>
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
                 <table className="w-full text-sm">
@@ -97,7 +121,7 @@ export const EstatusAsistenciaPage = () => {
                             <th className="p-3 text-center font-semibold text-slate-600">Días Futuros</th>
                             <th className="p-3 text-center font-semibold text-slate-600">Visible Supervisor</th>
                             <th className="p-3 text-center font-semibold text-slate-600">Activo</th>
-                            <th className="p-3 text-center font-semibold text-slate-600">Acciones</th>
+                            {canManage && <th className="p-3 text-center font-semibold text-slate-600">Acciones</th>}
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
@@ -118,22 +142,26 @@ export const EstatusAsistenciaPage = () => {
                                         {status.Activo ? 'Activo' : 'Inactivo'}
                                     </span>
                                 </td>
-                                <td className="p-3 text-center">
-                                    <button onClick={() => handleOpenModal(status)} className="p-2 text-slate-500 hover:text-[--theme-500] rounded-full hover:bg-slate-100">
-                                        <PencilIcon />
-                                    </button>
-                                </td>
+                                {canManage && (
+                                    <td className="p-3 text-center">
+                                        <button onClick={() => handleOpenModal(status)} className="p-2 text-slate-500 hover:text-[--theme-500] rounded-full hover:bg-slate-100">
+                                            <PencilIcon />
+                                        </button>
+                                    </td>
+                                )}
                             </tr>
                         ))}
                     </tbody>
                 </table>
             </div>
-             <EstatusAsistenciaModal 
-                isOpen={isModalOpen}
-                onClose={handleCloseModal}
-                onSave={handleSave}
-                status={editingStatus}
-            />
+              {canManage && isModalOpen && (
+                 <EstatusAsistenciaModal 
+                    isOpen={isModalOpen}
+                    onClose={handleCloseModal}
+                    onSave={handleSave}
+                    status={editingStatus}
+                />
+             )}
         </div>
     );
 };

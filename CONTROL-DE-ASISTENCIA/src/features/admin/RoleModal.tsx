@@ -12,7 +12,8 @@ import {
 import { 
     setupPermissions, 
     actionIcons, 
-    getActionTranslation 
+    getActionTranslation,
+    permissionIcons 
 } from '../../utils/permissions.tsx'; // 'permissions.tsx'
 
 // --- Checkbox Local (de UserModal) ---
@@ -92,7 +93,7 @@ const PermissionGroup = ({
     dependencies, allPermissions 
 }: {
     groupKey: string,
-    group: { label: string; permissions: Permission[] },
+    group: { label: string; permissions: Permission[], icon?: React.ReactNode }, // Añadido icon
     formData: Partial<Role>,
     handlePermissionChange: (permission: Permission, forceCheck?: boolean, isBatchOp?: boolean) => void,
     dependencies: { [key: string]: string },
@@ -110,25 +111,14 @@ const PermissionGroup = ({
             });
         } else {
             group.permissions.forEach(p => {
-                handlePermissionChange(p, true, true); // Marcar (isBatchOp=true)
+                // Solo marca los que no estén deshabilitados (por si acaso)
+                if (!isPermissionDisabled(p.NombrePermiso)) {
+                    handlePermissionChange(p, true, true); // Marcar (isBatchOp=true)
+                }
             });
         }
     };
     
-    const groupIcons: { [key: string]: React.ReactNode } = {
-        'usuarios': <Users size={18} />,
-        'roles': <Settings size={18} />,
-        'reportesAsistencia': <FileText size={18} />,
-        'horarios': <CalendarClock size={18} />,
-        'catalogo.departamentos': <Building size={18} />,
-        'catalogo.gruposNomina': <Briefcase size={18} />,
-        'catalogo.estatusAsistencia': <Check size={18} />,
-        'catalogo.horarios': <Clock size={18} />,
-        'catalogo.puestos': <Tag size={18} />,
-        'catalogo.establecimientos': <MapPin size={18} />,
-        'default': <Folder size={18} />
-    };
-
     const isPermissionDisabled = (permissionName: string) => {
         const dependency = dependencies[permissionName];
         if (!dependency) return false;
@@ -140,10 +130,10 @@ const PermissionGroup = ({
         <div className="flex flex-col h-full">
             <div className="flex justify-between items-center mb-2 px-1">
                 <h4 className="font-semibold text-slate-800 flex items-center gap-2">
-                    {groupIcons[groupKey] || groupIcons['default']}
+                    {group.icon || permissionIcons['default']}
                     {group.label}
                 </h4>
-                <Tooltip text={allSelected ? "Limpiar todos" : "Marcar todos"}>
+                <Tooltip text={allSelected ? "Limpiar todo" : "Marcar todos"}>
                     <button 
                         type="button" 
                         onClick={handleToggleAll} 
@@ -158,24 +148,28 @@ const PermissionGroup = ({
                 <div className="max-h-48 h-full overflow-y-auto space-y-1">
                     {group.permissions.map((permission: Permission) => {
                         const isDisabled = isPermissionDisabled(permission.NombrePermiso);
-                        const permissionName = getActionTranslation(permission.NombrePermiso);
+                        const actionName = getActionTranslation(permission.NombrePermiso); // 'read.own' -> 'Ver (Propios)'
+                        const actionKey = permission.NombrePermiso.substring(permission.NombrePermiso.lastIndexOf('.') + 1); // 'read.own' -> 'own'
+                        
                         const isChecked = !isDisabled && (formData.Permisos?.some((p: Permission) => p.PermisoId === permission.PermisoId) || false);
                         
                         return (
                             <div key={permission.PermisoId} className={`${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                                <Tooltip text={permission.Descripcion || permissionName} placement="right">
+                                <Tooltip text={permission.Descripcion || actionName} placement="right">
                                     <Checkbox
                                         id={permission.PermisoId}
                                         label={
                                             <div className="flex items-center gap-2">
-                                                {actionIcons[permission.NombrePermiso.split('.')[1] || 'default']}
-                                                <span>{permissionName}</span>
+                                                {/* Usamos el actionKey simple ('own', 'all', 'read') para el icono */}
+                                                {actionIcons[actionKey] || actionIcons['default']}
+                                                {/* Usamos la traducción completa para el label */}
+                                                <span>{actionName}</span>
                                             </div>
                                         }
                                         checked={isChecked}
                                         onChange={() => {
                                             if (!isDisabled) {
-                                                handlePermissionChange(permission); // <-- Llama a la función con el clic simple
+                                                handlePermissionChange(permission);
                                             }
                                         }}
                                     />
@@ -188,6 +182,7 @@ const PermissionGroup = ({
         </div>
     );
 };
+
 // --- FIN PermissionGroup ---
 
 export const RoleModal = ({ role, allPermissions, onClose, onSave, isOpen }: { role: Role | null; allPermissions: Permission[]; onClose: () => void; onSave: (role: Role) => void; isOpen: boolean; }) => {

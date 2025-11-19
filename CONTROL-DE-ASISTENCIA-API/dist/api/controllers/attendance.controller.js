@@ -16,7 +16,8 @@ exports.getDataByRange = exports.ensureRange = exports.ensureWeek = exports.appr
 const mssql_1 = __importDefault(require("mssql"));
 const database_1 = require("../../config/database");
 const saveAttendance = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    if (!req.user.permissions['reportesAsistencia.update']) {
+    // --- MODIFICACIÓN: De 'update' a 'assign' ---
+    if (!req.user.permissions['reportesAsistencia.assign']) {
         return res.status(403).json({ message: 'No tienes permiso para registrar la asistencia.' });
     }
     const { empleadoId, fecha, estatusSupervisor, comentarios } = req.body;
@@ -42,7 +43,8 @@ const saveAttendance = (req, res) => __awaiter(void 0, void 0, void 0, function*
 });
 exports.saveAttendance = saveAttendance;
 const approveWeek = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    if (!req.user.permissions['reportesAsistencia.update']) {
+    // --- MODIFICACIÓN: De 'update' a 'approve' ---
+    if (!req.user.permissions['reportesAsistencia.approve']) {
         return res.status(403).json({ message: 'No tienes permiso para aprobar la asistencia.' });
     }
     const { empleadoId, weekStartDate } = req.body;
@@ -65,7 +67,8 @@ const approveWeek = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
 });
 exports.approveWeek = approveWeek;
 const ensureWeek = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    if (!req.user.permissions['reportesAsistencia.update']) {
+    // --- MODIFICACIÓN: De 'update' a 'assign' ---
+    if (!req.user.permissions['reportesAsistencia.assign']) {
         return res.status(403).json({ message: 'No tienes permiso para realizar esta acción.' });
     }
     const { weekStartDate } = req.body;
@@ -87,7 +90,8 @@ const ensureWeek = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
 });
 exports.ensureWeek = ensureWeek;
 const ensureRange = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    if (!req.user.permissions['reportesAsistencia.update'])
+    // --- MODIFICACIÓN: De 'update' a 'assign' ---
+    if (!req.user.permissions['reportesAsistencia.assign'])
         return res.status(403).json({ message: 'Acceso denegado.' });
     const { startDate, endDate } = req.body;
     try {
@@ -103,7 +107,8 @@ const ensureRange = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
 });
 exports.ensureRange = ensureRange;
 const getDataByRange = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    if (!req.user.permissions['reportesAsistencia.read.own'] && !req.user.permissions['reportesAsistencia.read.all']) {
+    // --- MODIFICACIÓN: Simplificado a 'read' ---
+    if (!req.user.permissions['reportesAsistencia.read']) {
         return res.status(403).json({ message: 'Acceso denegado.' });
     }
     const { startDate, endDate, filters // { departamentos: [1, 2], gruposNomina: [3], puestos: [], establecimientos: [] }

@@ -35,6 +35,18 @@ const authMiddleware = (req, res, next) => __awaiter(void 0, void 0, void 0, fun
             return next();
         }
         const pool = yield mssql_1.default.connect(database_1.dbConfig);
+        const userVersionResult = yield pool.request()
+            .input('UsuarioId', mssql_1.default.Int, decoded.usuarioId)
+            .query('SELECT TokenVersion FROM dbo.Usuarios WHERE UsuarioId = @UsuarioId');
+        if (userVersionResult.recordset.length === 0) {
+            return res.status(401).json({ message: 'Usuario no encontrado.' });
+        }
+        const currentDbVersion = userVersionResult.recordset[0].TokenVersion || 1;
+        const tokenVersion = decoded.tokenVersion || 1; // Compatibilidad hacia atrás
+        // Si la versión del token es menor que la de la BD, el token es inválido (obsoleto)
+        if (tokenVersion < currentDbVersion) {
+            return res.status(401).json({ message: 'Sesión expirada. Los permisos han cambiado. Por favor inicie sesión nuevamente.', code: 'TOKEN_EXPIRED' });
+        }
         const permissionsResult = yield pool.request()
             .input('UsuarioId', mssql_1.default.Int, decoded.usuarioId)
             .execute('sp_Usuario_ObtenerPermisos');
@@ -46,7 +58,7 @@ const authMiddleware = (req, res, next) => __awaiter(void 0, void 0, void 0, fun
         next();
     }
     catch (err) {
-        return res.status(401).json({ message: 'Token inválido.' });
+        return res.status(401).json({ message: 'Token inválido o expirado.' });
     }
 });
 exports.authMiddleware = authMiddleware;

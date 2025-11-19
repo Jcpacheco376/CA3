@@ -42,8 +42,9 @@ const getGruposNomina = (req, res) => __awaiter(void 0, void 0, void 0, function
 });
 exports.getGruposNomina = getGruposNomina;
 const getDepartamentosManagement = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    if (!req.user.permissions['catalogo.departamentos.manage'])
-        return res.status(403).json({ message: 'No tienes permiso para gestionar departamentos.' });
+    if (!req.user.permissions['catalogo.departamentos.read'] && !req.user.permissions['catalogo.departamentos.manage']) {
+        return res.status(403).json({ message: 'No tienes permiso para ver este catálogo.' });
+    }
     try {
         const pool = yield mssql_1.default.connect(database_1.dbConfig);
         const result = yield pool.request().execute('sp_Departamentos_GetAllManagement');
@@ -70,8 +71,9 @@ const saveDepartamento = (req, res) => __awaiter(void 0, void 0, void 0, functio
 });
 exports.saveDepartamento = saveDepartamento;
 const getGruposNominaManagement = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    if (!req.user.permissions['catalogo.gruposNomina.manage'])
-        return res.status(403).json({ message: 'No tienes permiso para gestionar grupos.' });
+    if (!req.user.permissions['catalogo.gruposNomina.read'] && !req.user.permissions['catalogo.gruposNomina.manage']) {
+        return res.status(403).json({ message: 'No tienes permiso para ver este catálogo.' });
+    }
     try {
         const pool = yield mssql_1.default.connect(database_1.dbConfig);
         const result = yield pool.request().execute('sp_GruposNomina_GetAllManagement');
@@ -83,7 +85,7 @@ const getGruposNominaManagement = (req, res) => __awaiter(void 0, void 0, void 0
 });
 exports.getGruposNominaManagement = getGruposNominaManagement;
 const saveGrupoNomina = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    if (!req.user.permissions['catalogo.grupos_nomina.manage'])
+    if (!req.user.permissions['catalogo.gruposNomina.manage'])
         return res.status(403).json({ message: 'Acceso denegado.' });
     const { grupo_nomina, nombre, abreviatura, status } = req.body;
     try {
@@ -110,8 +112,8 @@ const getAttendanceStatuses = (req, res) => __awaiter(void 0, void 0, void 0, fu
 });
 exports.getAttendanceStatuses = getAttendanceStatuses;
 const getAttendanceStatusesManagement = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    if (!req.user.permissions['catalogo.estatusAsistencia.manage']) {
-        return res.status(403).json({ message: 'No tienes permiso para gestionar este catálogo.' });
+    if (!req.user.permissions['catalogo.estatusAsistencia.read'] && !req.user.permissions['catalogo.estatusAsistencia.manage']) {
+        return res.status(403).json({ message: 'No tienes permiso para ver este catálogo.' });
     }
     try {
         const pool = yield mssql_1.default.connect(database_1.dbConfig);
@@ -154,8 +156,9 @@ const upsertAttendanceStatus = (req, res) => __awaiter(void 0, void 0, void 0, f
 });
 exports.upsertAttendanceStatus = upsertAttendanceStatus;
 const getSchedulesCatalog = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    if (!req.user.permissions['catalogo.horarios.read'])
+    if (!req.user.permissions['catalogo.horarios.read'] && !req.user.permissions['catalogo.horarios.manage']) {
         return res.status(403).json({ message: 'Acceso denegado.' });
+    }
     try {
         const pool = yield mssql_1.default.connect(database_1.dbConfig);
         const result = yield pool.request().execute('sp_CatalogoHorarios_GetForManagement');
@@ -210,7 +213,7 @@ const deleteScheduleCatalog = (req, res) => __awaiter(void 0, void 0, void 0, fu
 });
 exports.deleteScheduleCatalog = deleteScheduleCatalog;
 const getPuestos = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    // Asumimos un permiso 'catalogo.puestos.read'
+    // Para filtros de UserModal (ya estaba correcto)
     if (!req.user.permissions['catalogo.puestos.read'])
         return res.status(403).json({ message: 'No tienes permiso para ver los puestos.' });
     try {
@@ -224,22 +227,25 @@ const getPuestos = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
 });
 exports.getPuestos = getPuestos;
 const getPuestosManagement = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    // Asumimos un permiso 'catalogo.puestos.manage'
-    if (!req.user.permissions['catalogo.puestos.manage'])
+    // Para la página de admin (permite 'read' o 'manage')
+    if (!req.user.permissions['catalogo.puestos.read'] && !req.user.permissions['catalogo.puestos.manage']) {
         return res.status(403).json({ message: 'No tienes permiso para gestionar puestos.' });
+    }
     try {
         const pool = yield mssql_1.default.connect(database_1.dbConfig);
+        // Llama al SP que creamos en el Paso 1
         const result = yield pool.request().execute('sp_Puestos_GetAllManagement');
         res.json(result.recordset);
     }
     catch (err) {
-        res.status(500).json({ message: 'Error al obtener datos de gestión de puestos.' });
+        res.status(500).json({ message: 'Error al obtener datos de gestión de puestos.', error: err.message });
     }
 });
 exports.getPuestosManagement = getPuestosManagement;
 const savePuesto = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     if (!req.user.permissions['catalogo.puestos.manage'])
         return res.status(403).json({ message: 'Acceso denegado.' });
+    // Llama al SP "orquestador" que creamos en el Paso 1
     const { PuestoId, CodRef, Nombre, Activo } = req.body;
     try {
         const pool = yield mssql_1.default.connect(database_1.dbConfig);
@@ -252,12 +258,12 @@ const savePuesto = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
         res.status(201).json({ message: 'Puesto guardado con éxito' });
     }
     catch (err) {
-        res.status(500).json({ message: 'Error al guardar el puesto.' });
+        res.status(500).json({ message: 'Error al guardar el puesto.', error: err.message });
     }
 });
 exports.savePuesto = savePuesto;
 const getEstablecimientos = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    // Asumimos un permiso 'catalogo.establecimientos.read'
+    // Ya estaba correcto, solo para filtros de 'read'
     if (!req.user.permissions['catalogo.establecimientos.read'])
         return res.status(403).json({ message: 'No tienes permiso para ver los establecimientos.' });
     try {
@@ -271,36 +277,39 @@ const getEstablecimientos = (req, res) => __awaiter(void 0, void 0, void 0, func
 });
 exports.getEstablecimientos = getEstablecimientos;
 const getEstablecimientosManagement = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    // Asumimos un permiso 'catalogo.establecimientos.manage'
-    if (!req.user.permissions['catalogo.establecimientos.manage'])
+    // Permite 'read' o 'manage'
+    if (!req.user.permissions['catalogo.establecimientos.read'] && !req.user.permissions['catalogo.establecimientos.manage']) {
         return res.status(403).json({ message: 'No tienes permiso para gestionar establecimientos.' });
+    }
     try {
         const pool = yield mssql_1.default.connect(database_1.dbConfig);
+        // --- Usa el SP que creamos en el Paso 1 ---
         const result = yield pool.request().execute('sp_Establecimientos_GetAllManagement');
         res.json(result.recordset);
     }
     catch (err) {
-        res.status(500).json({ message: 'Error al obtener datos de gestión de establecimientos.' });
+        res.status(500).json({ message: 'Error al obtener datos de gestión de establecimientos.', error: err.message });
     }
 });
 exports.getEstablecimientosManagement = getEstablecimientosManagement;
 const saveEstablecimiento = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     if (!req.user.permissions['catalogo.establecimientos.manage'])
         return res.status(403).json({ message: 'Acceso denegado.' });
+    // (Llama al SP "orquestador" que creamos en el Paso 1)
     const { EstablecimientoId, CodRef, Nombre, Abreviatura, Activo } = req.body;
     try {
         const pool = yield mssql_1.default.connect(database_1.dbConfig);
         yield pool.request()
-            .input('EstablecimientoId', mssql_1.default.Int, EstablecimientoId)
+            .input('EstablecimientoId', mssql_1.default.Int, EstablecimientoId) // (Ajusta el tipo si es necesario)
             .input('CodRef', mssql_1.default.NVarChar, CodRef)
             .input('Nombre', mssql_1.default.NVarChar, Nombre)
             .input('Abreviatura', mssql_1.default.NVarChar, Abreviatura)
             .input('Activo', mssql_1.default.Bit, Activo)
-            .execute('sp_Establecimientos_Save');
+            .execute('sp_Establecimientos_Save'); // <-- Llama al SP "orquestador"
         res.status(201).json({ message: 'Establecimiento guardado con éxito' });
     }
     catch (err) {
-        res.status(500).json({ message: 'Error al guardar el establecimiento.' });
+        res.status(500).json({ message: 'Error al guardar el establecimiento.', error: err.message });
     }
 });
 exports.saveEstablecimiento = saveEstablecimiento;

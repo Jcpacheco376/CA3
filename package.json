@@ -8,6 +8,7 @@
   ],
   "scripts": {
     "deploy:local": "npm run build:all && deploy.bat",
+    "deploy:local2": "npm run build:all && deploy_CA.bat",
     "deploy:prod": "echo 'Despliegue a producción (Render) se maneja automáticamente al hacer push a la rama main.'",
     "build:all": "npm run build --workspaces"
   },

@@ -4,19 +4,19 @@
 export type View = 
     'attendance_weekly' | 
     'attendance_reports' | 
+    'report_kardex' | 
     'employees' | 
     'admin_users' | 
     'admin_roles' |
+    'admin_catalogs' | 
     'admin_departamentos' |
     'admin_grupos_nomina' | 
-    'admin_departamentos' | 
-    'admin_grupos_nomina'|
     'admin_puestos' |         
     'admin_establecimientos' | 
     'admin_estatus_asistencia' |
     'admin_horarios' |
     'schedule_planner';
-    ;
+
 
 export type DayOfWeek = 'Lunes' | 'Martes' | 'Miércoles' | 'Jueves' | 'Viernes' | 'Sábado' | 'Domingo';
 

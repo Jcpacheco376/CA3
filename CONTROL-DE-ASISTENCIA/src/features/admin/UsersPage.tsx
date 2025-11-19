@@ -10,7 +10,7 @@ import { useNotification } from '../../context/NotificationContext.tsx';
 import { API_BASE_URL } from '../../config/api.ts';
 
 export const UsersPage = () => {
-    const { getToken, user } = useAuth(); 
+    const { getToken, user, can } = useAuth();
     const { addNotification } = useNotification();
     const [users, setUsers] = useState<User[]>([]);
     const [allRoles, setAllRoles] = useState<Role[]>([]);
@@ -18,6 +18,10 @@ export const UsersPage = () => {
     const [error, setError] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<User | null>(null);
+
+    const canCreate = can('usuarios.create');
+    const canManage = can('usuarios.update');
+    const canRead = can('usuarios.read');
 
     // --- MODIFICACIÓN: Límite de píldoras a mostrar ---
     const CATALOG_DISPLAY_LIMIT = 5;
@@ -31,22 +35,55 @@ export const UsersPage = () => {
             return;
         }
         const headers = { 'Authorization': `Bearer ${token}` };
-        
+
         setIsLoading(true);
         try {
+            if (!canRead) {
+                throw new Error("No tienes permiso para ver este módulo.");
+            }
+
+            const usersPromise = fetch(`${API_BASE_URL}/users`, { headers });
+
+            const rolesPromise = (can('roles.assign') || can('roles.manage'))
+                ? fetch(`${API_BASE_URL}/roles`, { headers })
+                : Promise.resolve(null);
+
+
             const [usersResponse, rolesResponse] = await Promise.all([
-                fetch(`${API_BASE_URL}/users`, { headers }),
-                fetch(`${API_BASE_URL}/roles`, { headers })
+                usersPromise,
+                rolesPromise
             ]);
 
-            if (!usersResponse.ok || !rolesResponse.ok) {
-                const errorRes = !usersResponse.ok ? usersResponse : rolesResponse;
-                const errorData = await errorRes.json().catch(() => ({}));
+            if (!usersResponse.ok) {
+                const errorData = await usersResponse.json().catch(() => ({}));
                 throw new Error(errorData.message || 'Error al obtener los datos del servidor.');
             }
 
+            // const [usersResponse, rolesResponse] = await Promise.all([
+            //     fetch(`${API_BASE_URL}/users`, { headers }),
+            //     fetch(`${API_BASE_URL}/roles`, { headers })
+            // ]);
+
+            // if (!usersResponse.ok || !rolesResponse.ok) {
+            //     const errorRes = !usersResponse.ok ? usersResponse : rolesResponse;
+            //     const errorData = await errorRes.json().catch(() => ({}));
+            //     throw new Error(errorData.message || 'Error al obtener los datos del servidor.');
+            // }
+
             setUsers(await usersResponse.json());
-            setAllRoles(await rolesResponse.json());
+
+            if (rolesResponse) {
+                if (!rolesResponse.ok) {
+                    // Si falló (ej. permiso de roles pero no de usuarios), lo notificamos pero no rompemos la página
+                    addNotification("Aviso", "No se pudieron cargar los roles (requiere permiso 'roles.assign').", "info");
+                } else {
+                    setAllRoles(await rolesResponse.json());
+                }
+            } else {
+                setAllRoles([]); // Si no tiene permiso, la lista de roles queda vacía
+            }
+
+            //setAllRoles(await rolesResponse.json());
         } catch (err: any) {
             setError(err.message || 'No se pudo conectar con el servidor.');
         } finally {
@@ -55,10 +92,10 @@ export const UsersPage = () => {
     };
 
     useEffect(() => {
-        if(user) {
+        if (user) {
             fetchData();
         }
-    }, [user, getToken]);
+    }, [user, getToken, can]);
 
     const handleOpenModal = (user: User | null = null) => {
         // ... (sin cambios)
@@ -75,7 +112,7 @@ export const UsersPage = () => {
     const handleSaveUser = async (userToSave: User, password?: string) => {
         // ... (handleSaveUser sin cambios)
         const token = getToken();
-        if(!token) {
+        if (!token) {
             addNotification("Error de Sesión", "Su sesión ha expirado. No se pueden guardar los cambios.", 'error');
             handleCloseModal();
             return;
@@ -86,7 +123,7 @@ export const UsersPage = () => {
         try {
             const response = await fetch(`${API_BASE_URL}/users`, {
                 method: 'POST',
-                headers: { 
+                headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
@@ -97,10 +134,10 @@ export const UsersPage = () => {
             if (!response.ok) {
                 throw new Error(result.message || 'Error desconocido al guardar el usuario.');
             }
-            
+
             const verb = !userToSave.UsuarioId || userToSave.UsuarioId === 0 ? 'creado' : 'actualizado';
             addNotification("Operación Exitosa", `Usuario "${result.user.NombreCompleto}" (ID: ${result.user.UsuarioId}) ${verb} con éxito.`, 'success');
-            
+
             await fetchData();
             handleCloseModal();
 
@@ -109,24 +146,26 @@ export const UsersPage = () => {
             console.error("Error al guardar usuario:", err);
         }
     };
-    
-    if (isLoading) return <div className="text-center p-8">Cargando usuarios...</div>;
+
     if (error) return <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md">{error}</div>;
+    if (isLoading) return <div className="text-center p-8">Cargando usuarios...</div>;
 
     return (
         <div className="space-y-6">
             <header className="flex justify-between items-center">
-                 {/* ... (header sin cambios) ... */}
-                 <div className="flex items-center space-x-3">
+                {/* ... (header sin cambios) ... */}
+                <div className="flex items-center space-x-3">
                     <h1 className="text-3xl font-bold text-slate-800">Gestión de Usuarios</h1>
-                     <Tooltip text="Crea, edita y gestiona los usuarios del sistema, sus roles y accesos.">
+                    <Tooltip text="Crea, edita y gestiona los usuarios del sistema, sus roles y accesos.">
                         <span><InfoIcon /></span>
                     </Tooltip>
                 </div>
-                <Button onClick={() => handleOpenModal()}>
-                    <PlusCircleIcon />
-                    Crear Usuario
-                </Button>
+                {canCreate && (
+                    <Button onClick={() => handleOpenModal()}>
+                        <PlusCircleIcon />
+                        Crear Usuario
+                    </Button>
+                )}
             </header>
 
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
@@ -144,7 +183,9 @@ export const UsersPage = () => {
                                 <th className="p-3 text-left font-semibold text-slate-600">Puestos</th>
                                 <th className="p-3 text-left font-semibold text-slate-600">Establecimientos</th>
                                 <th className="p-3 text-center font-semibold text-slate-600">Estado</th>
-                                <th className="p-3 text-center font-semibold text-slate-600">Acciones</th>
+                                {canManage && <th className="p-3 text-center font-semibold text-slate-600">Acciones</th>}
+                                {!canManage && <th className="p-3 text-center font-semibold text-slate-600"></th>}
+
                             </tr>
                         </thead>
                         {/* --- MODIFICACIÓN: tbody con lógica de truncado --- */}
@@ -155,7 +196,7 @@ export const UsersPage = () => {
                                     <td className="p-3 font-medium text-slate-800">{u.NombreCompleto}</td>
                                     <td className="p-3 text-slate-600">{u.NombreUsuario}</td>
                                     <td className="p-3">
-                                        <Tooltip 
+                                        <Tooltip
                                             text={u.Roles?.map(r => r.NombreRol).join(', ') || 'N/A'}
                                             placement="top"
                                             disabled={!u.Roles || u.Roles.length <= CATALOG_DISPLAY_LIMIT}
@@ -172,8 +213,8 @@ export const UsersPage = () => {
                                             </div>
                                         </Tooltip>
                                     </td>
-                                     <td className="p-3">
-                                        <Tooltip 
+                                    <td className="p-3">
+                                        <Tooltip
                                             text={u.Departamentos?.map(d => d.Nombre).join(', ') || 'N/A'}
                                             placement="top"
                                             disabled={!u.Departamentos || u.Departamentos.length <= CATALOG_DISPLAY_LIMIT}
@@ -191,7 +232,7 @@ export const UsersPage = () => {
                                         </Tooltip>
                                     </td>
                                     <td className="p-3">
-                                        <Tooltip 
+                                        <Tooltip
                                             text={u.GruposNomina?.map(g => g.Nombre).join(', ') || 'N/A'}
                                             placement="top"
                                             disabled={!u.GruposNomina || u.GruposNomina.length <= CATALOG_DISPLAY_LIMIT}
@@ -209,7 +250,7 @@ export const UsersPage = () => {
                                         </Tooltip>
                                     </td>
                                     <td className="p-3">
-                                        <Tooltip 
+                                        <Tooltip
                                             text={u.Puestos?.map(p => p.Nombre).join(', ') || 'N/A'}
                                             placement="top"
                                             disabled={!u.Puestos || u.Puestos.length <= CATALOG_DISPLAY_LIMIT}
@@ -227,7 +268,7 @@ export const UsersPage = () => {
                                         </Tooltip>
                                     </td>
                                     <td className="p-3">
-                                        <Tooltip 
+                                        <Tooltip
                                             text={u.Establecimientos?.map(e => e.Nombre).join(', ') || 'N/A'}
                                             placement="top"
                                             disabled={!u.Establecimientos || u.Establecimientos.length <= CATALOG_DISPLAY_LIMIT}
@@ -251,10 +292,12 @@ export const UsersPage = () => {
                                         </span>
                                     </td>
                                     <td className="p-3 text-center">
-                                        {/* ... (celda de acciones sin cambios) ... */}
-                                        <button onClick={() => handleOpenModal(u)} className="p-2 text-slate-500 hover:text-[--theme-500] rounded-full hover:bg-slate-100">
-                                            <PencilIcon />
-                                        </button>
+                                        {/* --- MODIFICACIÓN: Botón condicional --- */}
+                                        {canManage  && (
+                                            <button onClick={() => handleOpenModal(u)} className="p-2 text-slate-500 hover:text-[--theme-500] rounded-full hover:bg-slate-100">
+                                                <PencilIcon />
+                                            </button>
+                                        )}
                                     </td>
                                 </tr>
                             ))}
@@ -263,13 +306,15 @@ export const UsersPage = () => {
                 </div>
             </div>
 
-            <UserModal 
-                isOpen={isModalOpen}
-                user={editingUser} 
-                allRoles={allRoles} 
-                onClose={handleCloseModal} 
-                onSave={handleSaveUser} 
-            />
+            {isModalOpen && (
+                <UserModal 
+                    isOpen={isModalOpen}
+                    user={editingUser} 
+                    allRoles={allRoles} 
+                    onClose={handleCloseModal} 
+                    onSave={handleSaveUser} 
+                />
+            )}
         </div>
     );
 };

@@ -29,24 +29,37 @@ const getAllRoles = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
 });
 exports.getAllRoles = getAllRoles;
 const upsertRole = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    if (!req.user.permissions['roles.assign'])
-        return res.status(403).json({ message: 'Acceso denegado.' });
+    if (!req.user.permissions['roles.manage'])
+        return res.status(403).json({ message: 'Acceso denegado.' }); // Corregido a 'manage'
     const { RoleId, NombreRol, Descripcion, Permisos } = req.body;
+    let pool;
     try {
-        const pool = yield mssql_1.default.connect(database_1.dbConfig);
-        const result = yield pool.request() // Capturamos el resultado
+        pool = yield mssql_1.default.connect(database_1.dbConfig);
+        // 1. Guardar el Rol
+        const result = yield pool.request()
             .input('RoleId', mssql_1.default.Int, RoleId || 0)
             .input('NombreRol', mssql_1.default.NVarChar, NombreRol)
             .input('Descripcion', mssql_1.default.NVarChar, Descripcion)
             .input('PermisosJSON', mssql_1.default.NVarChar, JSON.stringify(Permisos || []))
             .execute('sp_Roles_Upsert');
-        // --- MEJORA: Devolvemos el rol guardado para la notificación ---
         const savedRole = { RoleId: result.recordset[0].RoleId, NombreRol };
+        // 2. --- NUEVO: Invalidar sesiones de usuarios afectados ---
+        // Si es una actualización (RoleId > 0), incrementamos la versión del token
+        if (RoleId > 0) {
+            yield pool.request()
+                .input('RoleId', mssql_1.default.Int, RoleId)
+                .execute('sp_Roles_UpdateTokenVersion');
+            //console.log(`Sesiones invalidadas para usuarios del rol ${RoleId}`);
+        }
         res.status(200).json({ message: 'Rol guardado correctamente.', role: savedRole });
     }
     catch (err) {
         console.error("Error al guardar rol:", err.message);
         res.status(409).json({ message: err.message });
+    }
+    finally {
+        if (pool)
+            pool.close();
     }
 });
 exports.upsertRole = upsertRole;
