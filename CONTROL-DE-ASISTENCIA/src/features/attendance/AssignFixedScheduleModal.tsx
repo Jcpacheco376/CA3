@@ -141,12 +141,8 @@ export const AssignFixedScheduleModal = ({
             <h3 className="text-base font-semibold text-slate-800 mb-1">Asignar Horario Fijo</h3>
             <p className="text-sm text-slate-600 mb-1">Para: <span className="font-medium">{employeeName}</span></p>
             <p className="text-sm font-semibold text-slate-700 bg-slate-100 px-2 py-1 rounded inline-block mb-2">{targetWeekLabel}</p>
-
-            {/* --- MODIFICACIÓN: Texto movido aquí --- */}
             <p className="text-sm text-slate-600 mb-2">Selecciona un horario fijo:</p>
             
-            {/* --- FIN DE LA MODIFICACIÓN --- */}
-
             <div className="space-y-2 max-h-60 overflow-y-auto pr-2">
                 {fixedSchedules.length > 0 ? (
                     fixedSchedules.map(horario => {
@@ -185,7 +181,7 @@ export const AssignFixedScheduleModal = ({
                     <p className="text-sm text-slate-500 text-center p-4 bg-slate-50 rounded-md">No hay horarios fijos definidos.</p>
                 )}
 
-                {/* --- MODIFICACIÓN: Botón de Revertir/Limpiar (movido al final de la lista) --- */}
+                
                 <div className="pt-2"> 
                     <button
                         key="revert-button"
@@ -201,7 +197,6 @@ export const AssignFixedScheduleModal = ({
                         </div>
                     </button>
                 </div>
-                {/* --- FIN DE LA MODIFICACIÓN --- */}
 
             </div>
         </div>,

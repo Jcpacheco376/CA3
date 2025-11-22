@@ -19,6 +19,7 @@ import { HorariosPage } from '../../features/admin/HorariosPage';
 import { ReportsHub } from '../../features/reports/ReportsHub'; 
 import { ReportsLayout } from '../../features/reports/ReportsLayout'; 
 
+
 interface MainLayoutProps {
     user: User;
     onLogout: () => void;
@@ -53,15 +54,18 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
 
     const renderContent = () => {
         switch (activeView) {
+            // Módulos Principales
             case 'attendance_weekly': return <AttendancePage />;
             case 'schedule_planner': return <SchedulePage />;
-            case 'attendance_reports': // El Hub principal
-                return <ReportsHub setActiveView={setActiveView} />;           
-            case 'report_kardex': // Vistas hijas
-                return <ReportsLayout activeView={activeView} setActiveView={setActiveView} />;
+            
+            // Administración de Usuarios y Roles
             case 'admin_users': return <UsersPage />;
             case 'admin_roles': return <RolesPage />;
+            
+            // Hub de Catálogos
             case 'admin_catalogs': return <CatalogosPage setActiveView={setActiveView} />;
+            
+            // Layout de Catálogos (Sub-navegación)
             case 'admin_departamentos':
             case 'admin_grupos_nomina':
             case 'admin_estatus_asistencia':
@@ -69,6 +73,15 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
             case 'admin_establecimientos':
             case 'admin_puestos':
                 return <CatalogLayout activeView={activeView} setActiveView={setActiveView} />;
+
+            // --- MODIFICACIÓN: Sección de Reportes ---
+            case 'attendance_reports': 
+                return <ReportsHub setActiveView={setActiveView} />;
+            
+            case 'report_kardex':
+            case 'report_incidencias': // <-- ¡ESTO FALTABA!
+                return <ReportsLayout activeView={activeView} setActiveView={setActiveView} />;
+            // --- FIN MODIFICACIÓN ---
 
             default: return <AttendancePage />;
         }

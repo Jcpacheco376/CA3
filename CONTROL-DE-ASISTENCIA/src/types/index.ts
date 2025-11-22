@@ -5,6 +5,7 @@ export type View =
     'attendance_weekly' | 
     'attendance_reports' | 
     'report_kardex' | 
+    'report_incidencias' |
     'employees' | 
     'admin_users' | 
     'admin_roles' |

@@ -1,9 +1,11 @@
+// src-api/api/controllers/attendance.controller.ts
 import { Request, Response } from 'express';
 import sql from 'mssql';
 import { dbConfig } from '../../config/database';
 
 export const saveAttendance = async (req: any, res: Response) => {
-    if (!req.user.permissions['reportesAsistencia.update']) {
+    // --- MODIFICACIÓN: De 'update' a 'assign' ---
+    if (!req.user.permissions['reportesAsistencia.assign']) {
         return res.status(403).json({ message: 'No tienes permiso para registrar la asistencia.' });
     }
     
@@ -30,7 +32,8 @@ export const saveAttendance = async (req: any, res: Response) => {
 };
 
 export const approveWeek = async (req: any, res: Response) => {
-    if (!req.user.permissions['reportesAsistencia.update']) {
+    // --- MODIFICACIÓN: De 'update' a 'approve' ---
+    if (!req.user.permissions['reportesAsistencia.approve']) {
         return res.status(403).json({ message: 'No tienes permiso para aprobar la asistencia.' });
     }
     const { empleadoId, weekStartDate } = req.body;
@@ -54,7 +57,8 @@ export const approveWeek = async (req: any, res: Response) => {
 };
 
 export const ensureWeek = async (req: any, res: Response) => {
-    if (!req.user.permissions['reportesAsistencia.update']) {
+    // --- MODIFICACIÓN: De 'update' a 'assign' ---
+    if (!req.user.permissions['reportesAsistencia.assign']) {
         return res.status(403).json({ message: 'No tienes permiso para realizar esta acción.' });
     }
     const { weekStartDate } = req.body;
@@ -77,7 +81,8 @@ export const ensureWeek = async (req: any, res: Response) => {
 };
 
 export const ensureRange = async (req: any, res: Response) => {
-    if (!req.user.permissions['reportesAsistencia.update']) return res.status(403).json({ message: 'Acceso denegado.' });
+    // --- MODIFICACIÓN: De 'update' a 'assign' ---
+    if (!req.user.permissions['reportesAsistencia.assign']) return res.status(403).json({ message: 'Acceso denegado.' });
     const { startDate, endDate } = req.body;
     try {
         const pool = await sql.connect(dbConfig);
@@ -89,7 +94,8 @@ export const ensureRange = async (req: any, res: Response) => {
 };
 
 export const getDataByRange = async (req: any, res: Response) => {
-    if (!req.user.permissions['reportesAsistencia.read.own'] && !req.user.permissions['reportesAsistencia.read.all']) {
+    // --- MODIFICACIÓN: Simplificado a 'read' ---
+    if (!req.user.permissions['reportesAsistencia.read']) {
         return res.status(403).json({ message: 'Acceso denegado.' });
     }
     const { 

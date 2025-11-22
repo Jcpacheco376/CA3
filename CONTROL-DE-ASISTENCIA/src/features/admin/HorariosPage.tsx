@@ -1,3 +1,4 @@
+// src/features/admin/HorariosPage.tsx
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 // Removed .tsx/.ts from imports
 import { useAuth } from '../auth/AuthContext';

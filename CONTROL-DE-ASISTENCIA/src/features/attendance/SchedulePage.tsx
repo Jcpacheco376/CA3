@@ -98,19 +98,6 @@ export const SchedulePage = () => {
 
     const [filters, setFilters] = useState(() => loadInitialFilters(user));
 
-    const [selectedDepts, setSelectedDepts] = useState<number[]>(() =>
-        user?.Departamentos?.length === 1 ? [user.Departamentos[0].DepartamentoId] : []
-    );
-    const [selectedGroups, setSelectedGroups] = useState<number[]>(() =>
-        user?.GruposNomina?.length === 1 ? [user.GruposNomina[0].GrupoNominaId] : []
-    );
-    const [selectedPuestos, setSelectedPuestos] = useState<number[]>(() =>
-        user?.Puestos?.length === 1 ? [user.Puestos[0].PuestoId] : []
-    );
-    const [selectedEstabs, setSelectedEstabs] = useState<number[]>(() =>
-        user?.Establecimientos?.length === 1 ? [user.Establecimientos[0].EstablecimientoId] : []
-    );
-
     const [viewingEmployeeId, setViewingEmployeeId] = useState<number | null>(null);
     const [viewMode, setViewMode] = useState<'week' | 'fortnight' | 'month'>('week');
     const canRead = can('horarios.read');
@@ -283,10 +270,10 @@ export const SchedulePage = () => {
             startDate: format(dateRange[0], 'yyyy-MM-dd'),
             endDate: format(dateRange[dateRange.length - 1], 'yyyy-MM-dd'),
             filters: {
-                departamentos: selectedDepts,
-                gruposNomina: selectedGroups,
-                puestos: selectedPuestos,
-                establecimientos: selectedEstabs
+                departamentos: filters.depts,
+                gruposNomina: filters.groups,
+                puestos: filters.puestos,
+                establecimientos: filters.estabs
             }
         });
 
@@ -322,8 +309,7 @@ export const SchedulePage = () => {
         }
         finally { setIsLoading(false); }
     }, [
-        dateRange, user, getToken, canRead,
-        selectedDepts, selectedGroups, selectedPuestos, selectedEstabs // 3. ¡Ahora fetchData depende de los filtros!
+        dateRange, user, getToken, canRead, filters
     ]);
     
 
@@ -777,12 +763,16 @@ const filterConfigurations: FilterConfig[] = useMemo(() => {
                 <AttendanceToolbar
                     searchTerm={searchTerm}
                     setSearchTerm={setSearchTerm}
-                    filterConfigurations={filterConfigurations} // <-- PROP NUEVA
+                    filterConfigurations={filterConfigurations}
                     viewMode={viewMode}
                     setViewMode={setViewMode}
                     rangeLabel={rangeLabel}
                     handleDatePrev={handleDatePrev}
                     handleDateNext={handleDateNext}
+                    // --- MODIFICACIÓN: Pasar props de fecha ---
+                    currentDate={currentDate}
+                    onDateChange={setCurrentDate}
+                    // --- FIN MODIFICACIÓN ---
                 />
 
                 {renderContent()}

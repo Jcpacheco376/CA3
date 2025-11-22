@@ -859,6 +859,8 @@ export const AttendancePage = () => {
                     rangeLabel={rangeLabel}
                     handleDatePrev={handleDatePrev}
                     handleDateNext={handleDateNext}
+                    currentDate={currentDate}
+                    onDateChange={setCurrentDate}
                 />
                 {renderContent()}
             </div>

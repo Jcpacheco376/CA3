@@ -1,10 +1,11 @@
 // src/features/attendance/AttendanceToolbar.tsx
 
 import React from 'react';
-import { ChevronLeft, ChevronRight, Search as SearchIcon, Building, Briefcase, Tag, MapPin } from 'lucide-react'; 
-import { Tooltip } from '../../components/ui/Tooltip'; // <-- Importado
+import { ChevronLeft, ChevronRight, Search as SearchIcon } from 'lucide-react'; // Eliminados íconos no usados
+// import { Button } from '../../components/ui/Modal'; // Ya no se usa Button aquí
+import { Tooltip } from '../../components/ui/Tooltip';
 import { FilterPopover } from '../../components/ui/FilterPopover'; 
-import { useAuth } from '../auth/AuthContext'; 
+import { DateRangePicker } from '../../components/ui/DateRangePicker'; // <-- Importar nuevo componente
 
 export interface FilterOption {
     value: string | number;
@@ -30,6 +31,9 @@ interface AttendanceToolbarProps {
     rangeLabel: string;
     handleDatePrev: () => void;
     handleDateNext: () => void;
+    // Nuevas props para el DatePicker
+    currentDate: Date; // Necesitamos saber la fecha actual para inicializar el calendario
+    onDateChange: (date: Date) => void; // Para actualizar la fecha desde el calendario
 }
 
 export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
@@ -40,24 +44,25 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
     setViewMode,
     rangeLabel,
     handleDatePrev,
-    handleDateNext
+    handleDateNext,
+    currentDate,   // <-- Nuevo
+    onDateChange   // <-- Nuevo
 }) => {
 
  return (
         <div className="p-4 border-b border-slate-200">
-            <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="flex flex-col lg:flex-row justify-between items-center gap-4">
                 
-                <div className="flex items-center gap-2 w-full md:w-auto">
-                    {/* Búsqueda */}
+                {/* SECCIÓN IZQUIERDA: Búsqueda y Filtros */}
+                <div className="flex items-center gap-2 w-full lg:w-auto flex-wrap">
                     <Tooltip text="Busca por nombre, apellido o ID de empleado.">
-                         <div className="relative flex-grow md:flex-grow-0">
+                         <div className="relative flex-grow lg:flex-grow-0">
                             <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
                             <input type="text" placeholder="Buscar empleado..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[--theme-500] md:min-w-[20rem]"/>
+                                className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[--theme-500] lg:min-w-[240px] text-sm"/>
                         </div>
                     </Tooltip>
 
-                    {/* Filtros Popover */}
                     {filterConfigurations.map(config => (
                         (config.isActive && config.options.length > 0) && (
                             <FilterPopover
@@ -72,41 +77,49 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
                     ))}
                 </div>
 
-                {/* --- SECCIÓN DERECHA: FECHA (REDISENADA) --- */}
-                <div className="flex items-center gap-2 shrink-0 w-full md:w-auto justify-end">
+                <div className="flex items-center gap-3 shrink-0 w-full lg:w-auto justify-between lg:justify-end">
                      
-                     <div className="flex items-center rounded-lg border border-slate-300 p-0-5 bg-slate-100">
+                     <div className="flex items-center bg-slate-100 rounded-lg p-1 border border-slate-200">
                         {['week', 'fortnight', 'month'].map((mode) => (
-                            <button key={mode} onClick={() => setViewMode(mode as any)}
-                                className={`px-3 py-1 rounded-md text-sm font-semibold transition-colors ${viewMode === mode ? 'bg-white text-[--theme-600] shadow-sm' : 'text-slate-500 hover:bg-slate-200'}`}
+                            <button 
+                                key={mode} 
+                                onClick={() => setViewMode(mode as any)}
+                                className={`
+                                    px-3 py-1.5 rounded-md text-xs font-semibold transition-all duration-200
+                                    ${viewMode === mode 
+                                        ? 'bg-white text-[--theme-600] shadow-sm ring-1 ring-black/5' 
+                                        : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
+                                    }
+                                `}
                             >
                                 {mode === 'week' ? 'Semana' : mode === 'fortnight' ? 'Quincena' : 'Mes'}
                             </button>
                         ))}
                     </div>
-                    
-                    {/* Controlador de Fecha Unificado */}
-                    <div className="flex items-center rounded-lg border border-slate-300 overflow-hidden">
-                        
-                        {/* --- MODIFICACIÓN AQUÍ (Tooltip añadido) --- */}
+
+                    <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block"></div>
+
+                    <div className="flex items-center gap-1">
                         <Tooltip text="Periodo anterior">
                             <button 
                                 onClick={handleDatePrev} 
-                                className="p-2 text-slate-500 hover:bg-slate-100 transition-colors border-r border-slate-300"
+                                className="p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800 rounded-lg transition-colors"
                             >
                                 <ChevronLeft size={20} />
                             </button>
                         </Tooltip>
                         
-                        <div className="text-center w-60 md:w-64 px-3 py-1.5 bg-white">
-                            <p className="font-semibold text-slate-700 whitespace-nowrap capitalize">{rangeLabel}</p>
-                        </div>
+                        <DateRangePicker 
+                            currentDate={currentDate}
+                            onDateChange={onDateChange}
+                            viewMode={viewMode}
+                            rangeLabel={rangeLabel}
+                        />
                         
-                        {/* --- MODIFICACIÓN AQUÍ (Tooltip añadido) --- */}
                         <Tooltip text="Periodo siguiente">
                             <button 
                                 onClick={handleDateNext} 
-                                className="p-2 text-slate-500 hover:bg-slate-100 transition-colors border-l border-slate-300"
+                                className="p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-800 rounded-lg transition-colors"
                             >
                                 <ChevronRight size={20} />
                             </button>

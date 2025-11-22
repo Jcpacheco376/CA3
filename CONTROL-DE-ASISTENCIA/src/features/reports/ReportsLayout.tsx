@@ -1,9 +1,9 @@
 import React from 'react';
 import { View } from '../../types';
-import { ArrowLeft, FileText, ClipboardList, AlertTriangle, Banknote, History } from 'lucide-react';
+import { ArrowLeft, ClipboardList, AlertTriangle } from 'lucide-react'; // <-- Importar AlertTriangle
 import { Tooltip } from '../../components/ui/Tooltip';
-// Importaremos las páginas de reportes aquí conforme las creemos
 import { KardexReportPage } from './pages/KardexReportPage'; 
+import { IncidentsControlPage } from './pages/IncidentsControlPage'; // <-- Importar nueva página
 
 const TabButton = ({ 
     icon, label, isActive, onClick 
@@ -33,6 +33,12 @@ export const ReportsLayout = ({ activeView, setActiveView }: { activeView: View,
             label: 'Kardex Asistencia', 
             icon: <ClipboardList size={18} />, 
             component: <KardexReportPage /> 
+        },
+        { 
+            id: 'report_incidencias', 
+            label: 'Control de Incidencias', 
+            icon: <AlertTriangle size={18} />, 
+            component: <IncidentsControlPage /> 
         },
         // Futuros reportes:
         // { id: 'report_incidencias', label: 'Incidencias', icon: <AlertTriangle size={18} /> },

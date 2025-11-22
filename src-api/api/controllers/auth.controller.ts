@@ -37,10 +37,12 @@ export const login = async (req: Request, res: Response) => {
         }
 
         const loggedInUser = loginResult.recordset[0];
+        const currentTokenVersion = loggedInUser.TokenVersion || 1; 
+
         const [
             allUsersResult,
             permissionsResult,
-            activeFilters // <-- NUEVA CONSULTA
+            activeFilters 
         ] = await Promise.all([
             pool.request().execute('sp_Usuarios_GetAll'),
             pool.request().input('UsuarioId', sql.Int, loggedInUser.UsuarioId).execute('sp_Usuario_ObtenerPermisos'),
@@ -69,7 +71,11 @@ export const login = async (req: Request, res: Response) => {
             permissions[record.NombrePermiso] = record.NombrePolitica ? [record.NombrePolitica] : [true as any];
         });
 
-        const tokenPayload = { usuarioId: loggedInUser.UsuarioId, nombreUsuario: loggedInUser.NombreUsuario };
+        const tokenPayload = { 
+            usuarioId: loggedInUser.UsuarioId, 
+            nombreUsuario: loggedInUser.NombreUsuario,
+            tokenVersion: currentTokenVersion 
+        };
         const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '8h' });
 
         res.json({

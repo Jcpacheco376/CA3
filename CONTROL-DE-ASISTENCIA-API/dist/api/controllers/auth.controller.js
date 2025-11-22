@@ -62,7 +62,7 @@ const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         fullUserDetails = Object.assign(Object.assign({}, fullUserDetails), { Roles: fullUserDetails.Roles ? JSON.parse(fullUserDetails.Roles) : [], Departamentos: activeFilters.departamentos && fullUserDetails.Departamentos ? JSON.parse(fullUserDetails.Departamentos) : [], GruposNomina: activeFilters.gruposNomina && fullUserDetails.GruposNomina ? JSON.parse(fullUserDetails.GruposNomina) : [], Puestos: activeFilters.puestos && fullUserDetails.Puestos ? JSON.parse(fullUserDetails.Puestos) : [], Establecimientos: activeFilters.establecimientos && fullUserDetails.Establecimientos ? JSON.parse(fullUserDetails.Establecimientos) : [] });
         const permissions = {};
         permissionsResult.recordset.forEach(record => {
-            permissions[record.NombrePermiso] = record.NombrePolitica ? [record.NombrePolitica] : [true];
+            permissions[record.NombrePermiso] = [true];
         });
         const tokenPayload = {
             usuarioId: loggedInUser.UsuarioId,

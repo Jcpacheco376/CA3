@@ -155,7 +155,7 @@ const getPermissionsByUserId = (req, res) => __awaiter(void 0, void 0, void 0, f
             .execute('sp_Usuario_ObtenerPermisos');
         const permissions = {};
         permissionsResult.recordset.forEach((record) => {
-            permissions[record.NombrePermiso] = record.NombrePolitica ? [record.NombrePolitica] : [true];
+            permissions[record.NombrePermiso] = [true];
         });
         // 3. Obtener filtros activos
         const activeFiltersResult = yield pool.request().query(`

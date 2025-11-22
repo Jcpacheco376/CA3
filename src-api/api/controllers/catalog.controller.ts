@@ -21,8 +21,9 @@ export const getGruposNomina = async (req: any, res: Response) => {
 };
 
 export const getDepartamentosManagement = async (req: any, res: Response) => {
-    if (!req.user.permissions['catalogo.departamentos.manage']) return res.status(403).json({ message: 'No tienes permiso para gestionar departamentos.' });
-    try {
+    if (!req.user.permissions['catalogo.departamentos.read'] && !req.user.permissions['catalogo.departamentos.manage']) {
+        return res.status(403).json({ message: 'No tienes permiso para ver este catálogo.' });
+    }try {
         const pool = await sql.connect(dbConfig);
         const result = await pool.request().execute('sp_Departamentos_GetAllManagement');
         res.json(result.recordset);
@@ -41,8 +42,9 @@ export const saveDepartamento = async (req: any, res: Response) => {
 };
 
 export const getGruposNominaManagement = async (req: any, res: Response) => {
-    if (!req.user.permissions['catalogo.gruposNomina.manage']) return res.status(403).json({ message: 'No tienes permiso para gestionar grupos.' });
-    try {
+    if (!req.user.permissions['catalogo.gruposNomina.read'] && !req.user.permissions['catalogo.gruposNomina.manage']) {
+        return res.status(403).json({ message: 'No tienes permiso para ver este catálogo.' });
+    }try {
         const pool = await sql.connect(dbConfig);
         const result = await pool.request().execute('sp_GruposNomina_GetAllManagement');
         res.json(result.recordset);
@@ -50,7 +52,7 @@ export const getGruposNominaManagement = async (req: any, res: Response) => {
 };
 
 export const saveGrupoNomina = async (req: any, res: Response) => {
-    if (!req.user.permissions['catalogo.grupos_nomina.manage']) return res.status(403).json({ message: 'Acceso denegado.' });
+    if (!req.user.permissions['catalogo.gruposNomina.manage']) return res.status(403).json({ message: 'Acceso denegado.' });
     const { grupo_nomina, nombre, abreviatura, status } = req.body;
     try {
         const pool = await sql.connect(dbConfig);
@@ -72,8 +74,8 @@ export const getAttendanceStatuses = async (req: any, res: Response) => {
 };
 
 export const getAttendanceStatusesManagement = async (req: any, res: Response) => {
-    if (!req.user.permissions['catalogo.estatusAsistencia.manage']) {
-        return res.status(403).json({ message: 'No tienes permiso para gestionar este catálogo.' });
+    if (!req.user.permissions['catalogo.estatusAsistencia.read'] && !req.user.permissions['catalogo.estatusAsistencia.manage']) {
+        return res.status(403).json({ message: 'No tienes permiso para ver este catálogo.' });
     }
     try {
         const pool = await sql.connect(dbConfig);
@@ -132,8 +134,9 @@ export const upsertAttendanceStatus = async (req: any, res: Response) => {
 };
 
 export const getSchedulesCatalog = async (req: any, res: Response) => {
-    if (!req.user.permissions['catalogo.horarios.read']) return res.status(403).json({ message: 'Acceso denegado.' });
-    try {
+    if (!req.user.permissions['catalogo.horarios.read'] && !req.user.permissions['catalogo.horarios.manage']) {
+        return res.status(403).json({ message: 'Acceso denegado.' });
+    }try {
         const pool = await sql.connect(dbConfig);
         const result = await pool.request().execute('sp_CatalogoHorarios_GetForManagement');
         const horarios = result.recordset.map(h => ({ ...h, Detalles: h.Detalles ? JSON.parse(h.Detalles) : [] }));
@@ -179,7 +182,7 @@ export const deleteScheduleCatalog = async (req: any, res: Response) => {
 };
 
 export const getPuestos = async (req: any, res: Response) => {
-    // Asumimos un permiso 'catalogo.puestos.read'
+    // Para filtros de UserModal (ya estaba correcto)
     if (!req.user.permissions['catalogo.puestos.read']) return res.status(403).json({ message: 'No tienes permiso para ver los puestos.' });
     try {
         const pool = await sql.connect(dbConfig);
@@ -189,32 +192,38 @@ export const getPuestos = async (req: any, res: Response) => {
 };
 
 export const getPuestosManagement = async (req: any, res: Response) => {
-    // Asumimos un permiso 'catalogo.puestos.manage'
-    if (!req.user.permissions['catalogo.puestos.manage']) return res.status(403).json({ message: 'No tienes permiso para gestionar puestos.' });
+    // Para la página de admin (permite 'read' o 'manage')
+    if (!req.user.permissions['catalogo.puestos.read'] && !req.user.permissions['catalogo.puestos.manage']) {
+        return res.status(403).json({ message: 'No tienes permiso para gestionar puestos.' });
+    }
     try {
         const pool = await sql.connect(dbConfig);
-        const result = await pool.request().execute('sp_Puestos_GetAllManagement');
+        // Llama al SP que creamos en el Paso 1
+        const result = await pool.request().execute('sp_Puestos_GetAllManagement'); 
         res.json(result.recordset);
-    } catch (err) { res.status(500).json({ message: 'Error al obtener datos de gestión de puestos.' }); }
+    } catch (err: any) { res.status(500).json({ message: 'Error al obtener datos de gestión de puestos.', error: err.message }); }
 };
 
 export const savePuesto = async (req: any, res: Response) => {
     if (!req.user.permissions['catalogo.puestos.manage']) return res.status(403).json({ message: 'Acceso denegado.' });
+    
+    // Llama al SP "orquestador" que creamos en el Paso 1
     const { PuestoId, CodRef, Nombre, Activo } = req.body;
     try {
         const pool = await sql.connect(dbConfig);
         await pool.request()
-            .input('PuestoId', sql.Int, PuestoId)
+            .input('PuestoId', sql.Int, PuestoId) 
             .input('CodRef', sql.NVarChar, CodRef)
             .input('Nombre', sql.NVarChar, Nombre)
             .input('Activo', sql.Bit, Activo)
-            .execute('sp_Puestos_Save');
+            .execute('sp_Puestos_Save'); 
         res.status(201).json({ message: 'Puesto guardado con éxito' });
-    } catch (err) { res.status(500).json({ message: 'Error al guardar el puesto.' }); }
+    } catch (err: any) { res.status(500).json({ message: 'Error al guardar el puesto.', error: err.message }); }
 };
 
+
 export const getEstablecimientos = async (req: any, res: Response) => {
-    // Asumimos un permiso 'catalogo.establecimientos.read'
+    // Ya estaba correcto, solo para filtros de 'read'
     if (!req.user.permissions['catalogo.establecimientos.read']) return res.status(403).json({ message: 'No tienes permiso para ver los establecimientos.' });
     try {
         const pool = await sql.connect(dbConfig);
@@ -224,27 +233,32 @@ export const getEstablecimientos = async (req: any, res: Response) => {
 };
 
 export const getEstablecimientosManagement = async (req: any, res: Response) => {
-    // Asumimos un permiso 'catalogo.establecimientos.manage'
-    if (!req.user.permissions['catalogo.establecimientos.manage']) return res.status(403).json({ message: 'No tienes permiso para gestionar establecimientos.' });
+    // Permite 'read' o 'manage'
+    if (!req.user.permissions['catalogo.establecimientos.read'] && !req.user.permissions['catalogo.establecimientos.manage']) {
+        return res.status(403).json({ message: 'No tienes permiso para gestionar establecimientos.' });
+    }
     try {
         const pool = await sql.connect(dbConfig);
-        const result = await pool.request().execute('sp_Establecimientos_GetAllManagement');
+        // --- Usa el SP que creamos en el Paso 1 ---
+        const result = await pool.request().execute('sp_Establecimientos_GetAllManagement'); 
         res.json(result.recordset);
-    } catch (err) { res.status(500).json({ message: 'Error al obtener datos de gestión de establecimientos.' }); }
+    } catch (err: any) { res.status(500).json({ message: 'Error al obtener datos de gestión de establecimientos.', error: err.message }); }
 };
 
 export const saveEstablecimiento = async (req: any, res: Response) => {
     if (!req.user.permissions['catalogo.establecimientos.manage']) return res.status(403).json({ message: 'Acceso denegado.' });
+    
+    // (Llama al SP "orquestador" que creamos en el Paso 1)
     const { EstablecimientoId, CodRef, Nombre, Abreviatura, Activo } = req.body;
     try {
         const pool = await sql.connect(dbConfig);
         await pool.request()
-            .input('EstablecimientoId', sql.Int, EstablecimientoId)
+            .input('EstablecimientoId', sql.Int, EstablecimientoId) // (Ajusta el tipo si es necesario)
             .input('CodRef', sql.NVarChar, CodRef)
             .input('Nombre', sql.NVarChar, Nombre)
             .input('Abreviatura', sql.NVarChar, Abreviatura)
             .input('Activo', sql.Bit, Activo)
-            .execute('sp_Establecimientos_Save');
+            .execute('sp_Establecimientos_Save'); // <-- Llama al SP "orquestador"
         res.status(201).json({ message: 'Establecimiento guardado con éxito' });
-    } catch (err) { res.status(500).json({ message: 'Error al guardar el establecimiento.' }); }
+    } catch (err: any) { res.status(500).json({ message: 'Error al guardar el establecimiento.', error: err.message }); }
 };

@@ -1,5 +1,5 @@
 // src/features/admin/EstatusAsistenciaPage.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react'; 
 import { useAuth } from '../auth/AuthContext.tsx';
 import { useNotification } from '../../context/NotificationContext.tsx';
 import { API_BASE_URL } from '../../config/api.ts';
@@ -8,27 +8,28 @@ import { Button } from '../../components/ui/Modal.tsx';
 import { PlusCircleIcon, PencilIcon } from '../../components/ui/Icons.tsx';
 import { AttendanceStatus } from '../../types/index.ts';
 import { EstatusAsistenciaModal } from './EstatusAsistenciaModal.tsx';
-import { Loader2, AlertTriangle, CheckCircle, XCircle, Edit, RotateCw, Coffee, Sun, Moon, Sunset } from 'lucide-react';
-import { HorarioModal } from './HorarioModal';
+import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
+// --- MODIFICACIÓN: Importamos la paleta de colores ---
+import { statusColorPalette } from '../../config/theme.ts';
 
 export const EstatusAsistenciaPage = () => {
-    const { getToken, user,can } = useAuth();
+    const { getToken, user, can } = useAuth();
     const { addNotification } = useNotification();
     const [statuses, setStatuses] = useState<AttendanceStatus[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
-const [editingStatus, setEditingStatus] = useState<AttendanceStatus | null>(null);
+    const [editingStatus, setEditingStatus] = useState<AttendanceStatus | null>(null);
 
     const canManage = can('catalogo.estatusAsistencia.manage');
     const canRead = can('catalogo.estatusAsistencia.read');
 
-        const fetchData = async () => {
+    const fetchData = useCallback(async () => {
            if (!canRead) {
             setError("No tienes permiso para ver este catálogo.");
             setIsLoading(false);
             return;
-        }      
+        }       
         const token = getToken();
         if (!token) { setError("Sesión no válida."); return; }
         
@@ -41,9 +42,9 @@ const [editingStatus, setEditingStatus] = useState<AttendanceStatus | null>(null
             setStatuses(await res.json());
         } catch (err: any) { setError(err.message); }
         finally { setIsLoading(false); }
-    };
+    }, [canRead, getToken]); 
 
-    useEffect(() => { if (user) fetchData(); }, [user, getToken, canRead]);
+    useEffect(() => { if (user) fetchData(); }, [user, fetchData]);
 
     const handleOpenModal = (status: AttendanceStatus | null = null) => {
         setEditingStatus(status);
@@ -73,42 +74,19 @@ const [editingStatus, setEditingStatus] = useState<AttendanceStatus | null>(null
         }
     };
 
-    if (!canRead) {
-            // ... (Access denied message remains the same) ...
-            return (
-                <div className="flex items-center justify-center h-full">
-                    <div className="text-center p-8 text-red-600 bg-red-50 rounded-lg">
-                        <AlertTriangle className="mx-auto mb-2 h-10 w-10" />
-                        <h2 className="text-lg font-semibold">Acceso Denegado</h2>
-                        <p>No tienes permiso para ver este catálogo. Contacta a un administrador.</p>
-                    </div>
-                </div>
-            );
-        }
-    if (isLoading) return <div className="text-center p-8">Cargando catálogo...</div>;
+    if (isLoading) return <div className="text-center p-8"><Loader2 className="animate-spin inline-block mr-2" />Cargando catálogo...</div>;
     if (error) return <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md">{error}</div>;
 
     return (
-        <div className="space-y-6">
-            {/* <header className="flex justify-between items-center">
-                <div className="flex items-center space-x-3">
-                    <h1 className="text-3xl font-bold text-slate-800">Catálogo de Estatus de Asistencia</h1>
-                    <Tooltip text="Gestiona los tipos de incidencia, sus colores, valores y visibilidad en el sistema.">
-                        <span><InfoIcon /></span>
-                    </Tooltip>
-                </div>
-                <Button onClick={() => handleOpenModal()}>
-                    <PlusCircleIcon />
-                    Crear Estatus
-                </Button>
-            </header> */}
+        <div className="space-y-4">
+            
             <div className="flex justify-end">
                 {canManage && (
-                <Button onClick={() => handleOpenModal()}>
-                    <PlusCircleIcon />
-                    Crear Estatus
-                </Button>
-                 )}
+                    <Button onClick={() => handleOpenModal()}>
+                        <PlusCircleIcon />
+                        Crear Estatus
+                    </Button>
+                )}
             </div>
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
                 <table className="w-full text-sm">
@@ -125,36 +103,49 @@ const [editingStatus, setEditingStatus] = useState<AttendanceStatus | null>(null
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {statuses.map(status => (
-                            <tr key={status.EstatusId}>
-                                <td className="p-3 font-mono text-slate-500">{status.EstatusId}</td>
-                                <td className="p-3 font-bold">
-                                    <span className={`px-2 py-1 rounded-full bg-${status.ColorUI}-100 text-${status.ColorUI}-800`}>{status.Abreviatura}</span>
-                                </td>
-                                <td className="p-3 text-slate-700">{status.Descripcion}</td>
-                                <td className="p-3 text-center font-mono">{status.ValorNomina.toFixed(2)}</td>
-                                <td className="p-3 text-center font-mono">
-                                    {status.DiasRegistroFuturo > 0 ? status.DiasRegistroFuturo : 'N/A'}
-                                </td>
-                                <td className="p-3 text-center">{status.VisibleSupervisor ? 'Sí' : 'No'}</td>
-                                <td className="p-3 text-center">
-                                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${status.Activo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                                        {status.Activo ? 'Activo' : 'Inactivo'}
-                                    </span>
-                                </td>
-                                {canManage && (
-                                    <td className="p-3 text-center">
-                                        <button onClick={() => handleOpenModal(status)} className="p-2 text-slate-500 hover:text-[--theme-500] rounded-full hover:bg-slate-100">
-                                            <PencilIcon />
-                                        </button>
+                        {statuses.map(status => {
+                            // --- MODIFICACIÓN CRÍTICA: Obtener clases del mapa ---
+                            // Usamos el mapa statusColorPalette que ya tiene las clases completas
+                            const colorTheme = statusColorPalette[status.ColorUI] || statusColorPalette.slate;
+                            // --- FIN MODIFICACIÓN ---
+
+                            return (
+                                <tr key={status.EstatusId}>
+                                    <td className="p-3 font-mono text-slate-500">{status.EstatusId}</td>
+                                    <td className="p-3 font-bold">
+                                        {/* Usamos la propiedad bgText del tema */}
+                                        <span className={`px-2 py-1 rounded-full ${colorTheme.bgText}`}>
+                                            {status.Abreviatura}
+                                        </span>
                                     </td>
-                                )}
-                            </tr>
-                        ))}
+                                    <td className="p-3 text-slate-700">{status.Descripcion}</td>
+                                    <td className="p-3 text-center font-mono">{status.ValorNomina.toFixed(2)}</td>
+                                    <td className="p-3 text-center font-mono">
+                                        {status.DiasRegistroFuturo > 0 ? status.DiasRegistroFuturo : 'N/A'}
+                                    </td>
+                                    <td className="p-3 text-center">{status.VisibleSupervisor ? 'Sí' : 'No'}</td>
+                                    <td className="p-3 text-center">
+                                        <span className={`px-2 py-1 text-xs font-semibold rounded-full ${status.Activo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                            {status.Activo ? <CheckCircle size={14} className="inline-block -mt-0.5" /> : <XCircle size={14} className="inline-block -mt-0.5" />}
+                                            {status.Activo ? ' Activo' : ' Inactivo'}
+                                        </span>
+                                    </td>
+                                    {canManage && (
+                                        <td className="p-3 text-center">
+                                            <Tooltip text="Editar Estatus">
+                                                <button onClick={() => handleOpenModal(status)} className="p-2 text-slate-500 hover:text-[--theme-500] rounded-full hover:bg-slate-100">
+                                                    <PencilIcon />
+                                                </button>
+                                            </Tooltip>
+                                        </td>
+                                    )}
+                                </tr>
+                            );
+                        })}
                     </tbody>
                 </table>
             </div>
-              {canManage && isModalOpen && (
+             {canManage && isModalOpen && (
                  <EstatusAsistenciaModal 
                     isOpen={isModalOpen}
                     onClose={handleCloseModal}

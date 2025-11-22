@@ -51,8 +51,8 @@ const authMiddleware = (req, res, next) => __awaiter(void 0, void 0, void 0, fun
             .input('UsuarioId', mssql_1.default.Int, decoded.usuarioId)
             .execute('sp_Usuario_ObtenerPermisos');
         const permissions = {};
-        permissionsResult.recordset.forEach(p => {
-            permissions[p.NombrePermiso] = p.NombrePolitica ? [p.NombrePolitica] : [];
+        permissionsResult.recordset.forEach(record => {
+            permissions[record.NombrePermiso] = [true];
         });
         req.user = { usuarioId: decoded.usuarioId, permissions };
         next();

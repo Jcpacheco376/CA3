@@ -1,6 +1,7 @@
+// src/features/reports/ReportsHub.tsx
 import React from 'react';
 import { useAuth } from '../auth/AuthContext';
-import { FileText, ClipboardList, AlertTriangle, Banknote, History, BarChart2 } from 'lucide-react';
+import { FileText, ClipboardList, AlertTriangle, Banknote, History } from 'lucide-react';
 
 const ReportCard = ({ title, description, icon, onClick, disabled = false }: any) => (
     <button 
@@ -64,13 +65,15 @@ export const ReportsHub = ({ setActiveView }: { setActiveView: (view: any) => vo
                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nómina y Control</h4>
                 </div>
 
+                {/* --- CORRECCIÓN: Solo dejamos esta tarjeta (la habilitada) --- */}
                 <ReportCard
                     title="Control de Incidencias"
                     description="Tablero para gestionar y autorizar faltas, retardos y excepciones antes de la nómina."
                     icon={<AlertTriangle />}
-                    onClick={() => console.log("TODO: Ir al módulo de incidencias")}
-                    disabled={true} 
+                    onClick={() => setActiveView('report_incidencias')}
+                    disabled={false} 
                 />
+                {/* --- FIN CORRECCIÓN --- */}
 
                 <ReportCard
                     title="Prenómina"
