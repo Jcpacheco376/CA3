@@ -100,7 +100,7 @@ const saveScheduleAssignments = (req, res) => __awaiter(void 0, void 0, void 0, 
             const request = new mssql_1.default.Request(transaction);
             request.input('EmpleadoId', mssql_1.default.Int, empleadoId);
             request.input('Fecha', mssql_1.default.Date, new Date(fecha));
-            request.input('SupervisorId', mssql_1.default.Int, req.user.usuarioId);
+            request.input('UsuarioId', mssql_1.default.Int, req.user.usuarioId);
             request.input('TipoAsignacion', mssql_1.default.Char(1), tipoAsignacion);
             request.input('HorarioId', mssql_1.default.Int, tipoAsignacion === 'H' ? horarioId : null);
             request.input('HorarioDetalleId', mssql_1.default.Int, tipoAsignacion === 'T' ? detalleId : null);

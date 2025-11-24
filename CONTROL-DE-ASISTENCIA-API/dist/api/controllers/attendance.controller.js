@@ -53,7 +53,7 @@ const approveWeek = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
     try {
         const pool = yield mssql_1.default.connect(database_1.dbConfig);
         yield pool.request()
-            .input('SupervisorId', mssql_1.default.Int, req.user.usuarioId)
+            .input('UsuarioId', mssql_1.default.Int, req.user.usuarioId)
             .input('EmpleadoId', mssql_1.default.Int, empleadoId)
             .input('FechaInicioSemana', mssql_1.default.Date, new Date(weekStartDate))
             .execute('sp_FichasAsistencia_ApproveWeek');
