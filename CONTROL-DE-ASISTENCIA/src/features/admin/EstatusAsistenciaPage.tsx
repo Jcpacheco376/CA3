@@ -97,7 +97,7 @@ export const EstatusAsistenciaPage = () => {
                             <th className="p-3 text-left font-semibold text-slate-600">Descripción</th>
                             <th className="p-3 text-center font-semibold text-slate-600">Valor Nómina</th>
                             <th className="p-3 text-center font-semibold text-slate-600">Días Futuros</th>
-                            <th className="p-3 text-center font-semibold text-slate-600">Visible Supervisor</th>
+                            <th className="p-3 text-center font-semibold text-slate-600">Asignable</th>
                             <th className="p-3 text-center font-semibold text-slate-600">Activo</th>
                             {canManage && <th className="p-3 text-center font-semibold text-slate-600">Acciones</th>}
                         </tr>

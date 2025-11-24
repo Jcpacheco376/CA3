@@ -143,7 +143,7 @@ export const EstatusAsistenciaModal = ({ isOpen, onClose, onSave, status }: { is
                             <Toggle enabled={formData.EsEntradaSalidaIncompleta || false} onChange={(val) => handleToggleChange('EsEntradaSalidaIncompleta', val)} />
                         </div>
                         <div className="flex items-center justify-between">
-                            <Tooltip text="Activar para que el supervisor pueda agregar un comentario a este estatus."><span className="font-medium text-slate-700">Permite Comentario</span></Tooltip>
+                            <Tooltip text="Activar para que se pueda agregar un comentario a este estatus."><span className="font-medium text-slate-700">Permite Comentario</span></Tooltip>
                             <Toggle enabled={formData.PermiteComentario || false} onChange={(val) => handleToggleChange('PermiteComentario', val)} />
                         </div>
                         <div className="flex items-center justify-between">
@@ -151,7 +151,7 @@ export const EstatusAsistenciaModal = ({ isOpen, onClose, onSave, status }: { is
                             <Toggle enabled={formData.Activo || false} onChange={(val) => handleToggleChange('Activo', val)} />
                         </div>
                          <div className="flex items-center justify-between">
-                            <Tooltip text="Marca esta opción si quieres que los supervisores puedan seleccionar este estatus."><span className="font-medium text-slate-700">Visible para Supervisores</span></Tooltip>
+                            <Tooltip text="Marca esta opción si quieres que el estatus pueda ser asignable de forma manual a un empleado."><span className="font-medium text-slate-700">Asignable manualmente</span></Tooltip>
                             <Toggle enabled={formData.VisibleSupervisor || false} onChange={(val) => handleToggleChange('VisibleSupervisor', val)} />
                         </div>
                         <div>

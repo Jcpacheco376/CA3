@@ -430,7 +430,7 @@ export const AttendancePage = () => {
                     if (recordIndex > -1) {
                         const newFicha = {
                             ...newFichasSemana[recordIndex],
-                            EstatusSupervisorAbrev: update.estatus
+                            EstatusManualAbrev: update.estatus
                         };
                         if (update.comentarios !== undefined) {
                             newFicha.Comentarios = update.comentarios;
@@ -442,7 +442,7 @@ export const AttendancePage = () => {
                     } else {
                         newFichasSemana.push({
                             Fecha: new Date(update.fecha).toISOString(),
-                            EstatusSupervisorAbrev: update.estatus,
+                            EstatusManualAbrev: update.estatus,
                             Comentarios: update.comentarios,
                             EstatusChecadorAbrev: null,
                             EstatusAutorizacion: 'Pendiente'
@@ -467,7 +467,7 @@ export const AttendancePage = () => {
                     body: JSON.stringify({
                         empleadoId,
                         fecha: format(fecha, 'yyyy-MM-dd'),
-                        estatusSupervisor: estatus,
+                        estatusManual: estatus,
                         comentarios
                     }),
                 })
@@ -506,8 +506,8 @@ export const AttendancePage = () => {
             prevEmployees.map(emp => {
                 if (emp.EmpleadoId === employee.EmpleadoId) {
                     const newFichasSemana = emp.FichasSemana.map((ficha: any) => {
-                        if (ficha.EstatusChecadorAbrev && !ficha.EstatusSupervisorAbrev) {
-                            return { ...ficha, EstatusSupervisorAbrev: ficha.EstatusChecadorAbrev };
+                        if (ficha.EstatusChecadorAbrev && !ficha.EstatusManualAbrev) {
+                            return { ...ficha, EstatusManualAbrev: ficha.EstatusChecadorAbrev };
                         }
                         return ficha;
                     });
@@ -712,7 +712,7 @@ export const AttendancePage = () => {
                             const completedDays = workingDays.filter(day => {
                                 const formattedDay = format(day, 'yyyy-MM-dd');
                                 const ficha = emp.FichasSemana.find((f: any) => f.Fecha.substring(0, 10) === formattedDay);
-                                return ficha && ficha.EstatusSupervisorAbrev;
+                                return ficha && ficha.EstatusManualAbrev;
                             }).length;
                             const progress = workingDays.length > 0 ? (completedDays / workingDays.length) * 100 : 0;
 

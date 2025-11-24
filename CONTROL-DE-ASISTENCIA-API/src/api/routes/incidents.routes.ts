@@ -9,7 +9,8 @@ import {
     requestAuth,
     getIncidentManagers,   
     getResolutionOptions,
-    cancelAuthRequest   
+    cancelAuthRequest,
+    voteAuth   
 } from '../controllers/incidents.controller'; 
 import { authMiddleware } from '../middlewares/auth.middleware';
 
@@ -28,5 +29,5 @@ router.post('/:id/auth-cancel', authMiddleware, cancelAuthRequest);
 // --- NUEVOS ENDPOINTS DE SOPORTE (Dropdowns Inteligentes) ---
 router.get('/managers', authMiddleware, getIncidentManagers); // Lista filtrada de usuarios
 router.get('/:id/resolution-options', authMiddleware, getResolutionOptions); // Estatus válidos para esa incidencia
-
+router.post('/:id/vote', authMiddleware, voteAuth);
 export default router;

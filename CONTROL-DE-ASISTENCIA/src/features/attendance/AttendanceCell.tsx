@@ -21,7 +21,7 @@ const FichaTooltip = memo(({ ficha, isRestDay, statusCatalog }: { ficha: any, is
         <div className="text-left text-xs p-1">
             {ficha.ProcesamientoAbierto && <p className="font-semibold text-amber-600 mb-1">Turno en progreso...</p>}
             <p><span className="font-semibold">Checador:</span> {statusCatalog.find(s => s.Abreviatura === ficha.EstatusChecadorAbrev)?.Descripcion || 'N/A'}</p>
-            <p><span className="font-semibold">Supervisor:</span> {statusCatalog.find(s => s.Abreviatura === ficha.EstatusSupervisorAbrev)?.Descripcion || 'Pendiente'}</p>
+            <p><span className="font-semibold">Manual:</span> {statusCatalog.find(s => s.Abreviatura === ficha.EstatusManualAbrev)?.Descripcion || 'Pendiente'}</p>
             {ficha.Comentarios && <p className="mt-1 italic text-slate-500">"{ficha.Comentarios}"</p>}
             <hr className="my-1 border-slate-200" />
             <div className="flex items-center gap-2"> <Clock size={14} /> <span>{formatTime(ficha.HoraEntrada)} - {formatTime(ficha.HoraSalida)}</span> </div>
@@ -53,7 +53,7 @@ export const AttendanceCell = memo(({
     const [comment, setComment] = useState('');
     const [justSaved, setJustSaved] = useState(false);
 
-    const finalStatus = isRestDay ? 'D' : ficha?.EstatusSupervisorAbrev || ficha?.EstatusChecadorAbrev || 'F';
+    const finalStatus = isRestDay ? 'D' : ficha?.EstatusManualAbrev || ficha?.EstatusChecadorAbrev || 'F';
     const currentStatusConfig = statusCatalog.find((s: AttendanceStatus) => s.Abreviatura === finalStatus) ||
         (finalStatus === 'D' ? { ColorUI: 'slate', Descripcion: 'Día de Descanso', PermiteComentario: false } : { ColorUI: 'blue', Descripcion: 'Desconocido', PermiteComentario: true });
 
@@ -66,14 +66,14 @@ export const AttendanceCell = memo(({
         lightBorder: theme.lightBorder
     };
 
-    const needsSupervisorAction = !ficha?.EstatusSupervisorAbrev && !isRestDay;
+    const needsManualAction = !ficha?.EstatusManualAbrev && !isRestDay;
     const isAuthorized = ficha?.EstatusAutorizacion === 'Autorizado';
     const isProcessing = ficha?.ProcesamientoAbierto;
 
     // Lógica de animación (ya estaba optimizada)
-    const prevStatusRef = useRef(ficha?.EstatusSupervisorAbrev);
+    const prevStatusRef = useRef(ficha?.EstatusManualAbrev);
     useEffect(() => {
-        const currentStatus = ficha?.EstatusSupervisorAbrev;
+        const currentStatus = ficha?.EstatusManualAbrev;
         if (prevStatusRef.current !== currentStatus) {
             if (currentStatus) {
                 setIsJustUpdated(true);
@@ -82,7 +82,7 @@ export const AttendanceCell = memo(({
             }
         }
         prevStatusRef.current = currentStatus;
-    }, [ficha?.EstatusSupervisorAbrev]);
+    }, [ficha?.EstatusManualAbrev]);
 
 
     useEffect(() => {
@@ -136,12 +136,12 @@ export const AttendanceCell = memo(({
             ${isAuthorized ? 'opacity-70' : ''}
             ${isProcessing ? '' : 'hover:-translate-y-0.5'}
             ${isJustUpdated ? 'animate-drop-in' : ''}
-            ${needsSupervisorAction && !isProcessing
+            ${needsManualAction && !isProcessing
                 ? `border-2 border-dashed ${colorClasses.lightBorder}`
                 : `border-b-4 ${colorClasses.border}`
             }
         `}>
-            <div className={`w-full h-full rounded-md ${colorClasses.bgText} ${needsSupervisorAction && !isProcessing ? 'bg-opacity-40' : 'bg-opacity-90'} flex items-center justify-center shadow-inner-sm`}>
+            <div className={`w-full h-full rounded-md ${colorClasses.bgText} ${needsManualAction && !isProcessing ? 'bg-opacity-40' : 'bg-opacity-90'} flex items-center justify-center shadow-inner-sm`}>
                 {finalStatus}
             </div>
 
@@ -155,7 +155,7 @@ export const AttendanceCell = memo(({
             {ficha?.Comentarios && <MessageSquare size={14} className="absolute bottom-1 left-1 text-black/40" title={ficha.Comentarios} />}
             {ficha && ficha.EstatusChecadorAbrev === 'SES' && !isProcessing && <AlertTriangle size={16} className="absolute bottom-1 right-1 text-black/40" title="E/S Incompleta" />}
 
-            {!isRestDay && !isAuthorized && !isProcessing && !!ficha?.EstatusSupervisorAbrev && canAssign && (
+            {!isRestDay && !isAuthorized && !isProcessing && !!ficha?.EstatusManualAbrev && canAssign && (
                 <>
                     <div onMouseDown={(e) => { e.stopPropagation(); onDragStart(finalStatus, 'top'); }} className="absolute top-0 left-0 w-full h-4 bg-black/10 opacity-0 hover:opacity-100 transition-opacity cursor-ns-resize rounded-t-md" title="Arrastrar para rellenar (superior)" />
                     <div onMouseDown={(e) => { e.stopPropagation(); onDragStart(finalStatus, 'bottom'); }} className="absolute bottom-0 left-0 w-full h-4 bg-black/10 opacity-0 hover:opacity-100 transition-opacity cursor-ns-resize rounded-b-md" title="Arrastrar para rellenar (inferior)" />

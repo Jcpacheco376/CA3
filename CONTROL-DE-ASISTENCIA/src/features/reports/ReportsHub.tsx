@@ -90,7 +90,7 @@ export const ReportsHub = ({ setActiveView }: { setActiveView: (view: any) => vo
 
                 <ReportCard
                     title="Bitácora de Cambios"
-                    description="Historial de modificaciones manuales realizadas por supervisores."
+                    description="Historial de modificaciones manuales realizadas en Registro de Asistencia."
                     icon={<History />}
                     onClick={() => console.log("TODO")}
                     disabled={true}

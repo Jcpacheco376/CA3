@@ -16,28 +16,27 @@ exports.getDataByRange = exports.ensureRange = exports.ensureWeek = exports.appr
 const mssql_1 = __importDefault(require("mssql"));
 const database_1 = require("../../config/database");
 const saveAttendance = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    // --- MODIFICACIÓN: De 'update' a 'assign' ---
+    // Validar permiso de escritura (asignación)
     if (!req.user.permissions['reportesAsistencia.assign']) {
         return res.status(403).json({ message: 'No tienes permiso para registrar la asistencia.' });
     }
-    const { empleadoId, fecha, estatusSupervisor, comentarios } = req.body;
-    if (!empleadoId || !fecha || !estatusSupervisor) {
-        return res.status(400).json({ message: 'Faltan parámetros requeridos.' });
+    const { empleadoId, fecha, estatusManual, comentarios } = req.body;
+    if (!empleadoId || !fecha || !estatusManual) {
+        return res.status(400).json({ message: 'Faltan parámetros requeridos (empleado, fecha o estatus).' });
     }
-    console.log(req.body);
     try {
         const pool = yield mssql_1.default.connect(database_1.dbConfig);
         yield pool.request()
             .input('EmpleadoId', mssql_1.default.Int, empleadoId)
             .input('Fecha', mssql_1.default.Date, new Date(fecha))
-            .input('EstatusSupervisorAbrev', mssql_1.default.NVarChar, estatusSupervisor)
+            .input('EstatusManualAbrev', mssql_1.default.NVarChar, estatusManual)
             .input('Comentarios', mssql_1.default.NVarChar, comentarios || null)
-            .input('SupervisorId', mssql_1.default.Int, req.user.usuarioId)
-            .execute('sp_FichasAsistencia_SaveSupervisor');
-        res.status(200).json({ message: 'Registro guardado con éxito.' });
+            .input('UsuarioId', mssql_1.default.Int, req.user.usuarioId)
+            .execute('sp_FichasAsistencia_SaveManual');
+        res.status(200).json({ message: 'Registro manual guardado con éxito.' });
     }
     catch (err) {
-        console.error('Error al guardar registro de asistencia:', err);
+        console.error('Error al guardar registro manual:', err);
         res.status(500).json({ message: err.message || 'Error al guardar el registro.' });
     }
 });

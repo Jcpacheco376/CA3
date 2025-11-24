@@ -3,8 +3,9 @@ import React, { useState, useEffect } from 'react';
 import { Modal, Button } from '../../../components/ui/Modal';
 import { 
     MessageSquare, User, CheckCircle, Shield, Loader2, 
-    ArrowRightLeft, Hash, Clock, UserCog, Calendar, Briefcase,
-    FileSignature, XCircle, Hourglass, Info, X // Importamos X para cancelar
+    ArrowRightLeft, Hash, Clock, UserCog, Calendar, Briefcase, 
+    FileSignature, XCircle, Hourglass, Info, X, // Importamos X para cancelar
+    ThumbsUp, ThumbsDown
 } from 'lucide-react';
 import { Tooltip } from '../../../components/ui/Tooltip'; // Asegúrate de importar Tooltip
 import { API_BASE_URL } from '../../../config/api';
@@ -70,6 +71,41 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
             if(res.ok) setData(await res.json());
         } catch (e) { console.error(e); }
         finally { setIsLoading(false); }
+    };
+
+    // Handler para votar
+    const handleVote = async (authId: number, verdict: 'Aprobado' | 'Rechazado') => {
+        // Pequeña confirmación para evitar clics accidentales
+        const promptMsg = verdict === 'Rechazado' 
+            ? "Al rechazar, la incidencia regresará al usuario para que la corrija. ¿Continuar?" 
+            : "¿Confirmas la autorización de esta excepción?";
+            
+        if(!confirm(promptMsg)) return;
+
+        setIsSubmitting(true);
+        const token = getToken();
+        try {
+            const res = await fetch(`${API_BASE_URL}/incidents/${incidentId}/vote`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ authId, verdict, comment: verdict === 'Aprobado' ? 'Autorizado' : 'Rechazado por usuario' })
+            });
+            if (res.ok) {
+                onRefresh();
+                fetchDetails(); // Recargar para ver cambios
+            } else {
+                const err = await res.json();
+                alert("Error: " + err.message);
+            }
+        } catch (e) { console.error(e); }
+        finally { setIsSubmitting(false); }
+    };
+
+    // Helper para checar permisos del usuario actual vs la fila de autorización
+    const canISign = (authRow: any) => {
+        if (authRow.Estatus !== 'Pendiente') return false;
+        if (user?.permissions['incidencias.manage']) return true;
+        return user?.Roles?.some((r: any) => r.RoleId === authRow.RolRequeridoId);
     };
 
     // Acción General
@@ -191,7 +227,7 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
                     </div>
 
                     {/* VS Component */}
-                    <div className="px-5 mb-4">
+                   <div className="px-5 mb-4">
                         <div className="relative flex shadow-sm rounded-lg overflow-hidden border border-slate-200 h-20">
                             <div className="flex-1 bg-slate-50 flex flex-col items-center justify-center">
                                 <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-0.5 flex items-center gap-1"><Clock size={9}/> Sistema</div>
@@ -199,8 +235,10 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
                             </div>
                             <div className="w-px bg-slate-200 relative"><div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white border border-slate-200 rounded-full w-6 h-6 flex items-center justify-center z-10 shadow-sm"><span className="text-[8px] font-black text-slate-400 italic">VS</span></div></div>
                             <div className="flex-1 bg-indigo-50/50 flex flex-col items-center justify-center">
+                                {/* CAMBIO 1: Etiqueta visual */}
                                 <div className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider mb-0.5 flex items-center gap-1">Manual <UserCog size={9}/></div>
-                                <div className="text-2xl font-black text-indigo-600">{header.EstatusSupervisorOriginal || '-'}</div>
+                                {/* CAMBIO 2: Propiedad del objeto data */}
+                                <div className="text-2xl font-black text-indigo-600">{header.EstatusManualOriginal || '-'}</div>
                             </div>
                         </div>
                     </div>
@@ -226,36 +264,67 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
                                     )}
                                 </div>
 
-                                {authorizations?.map((auth: any) => (
-                                    <div key={auth.AutorizacionId} className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-lg shadow-sm">
-                                        <div className="flex items-center gap-3">
-                                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                                                auth.Estatus === 'Aprobado' ? 'bg-green-100 text-green-600' :
-                                                auth.Estatus === 'Rechazado' ? 'bg-red-100 text-red-600' :
-                                                'bg-slate-100 text-slate-400'
-                                            }`}>
-                                                {auth.Estatus === 'Aprobado' ? <CheckCircle size={16}/> : 
-                                                 auth.Estatus === 'Rechazado' ? <XCircle size={16}/> : 
-                                                 <FileSignature size={16}/>}
+                                {authorizations?.map((auth: any) => {
+                                    const showButtons = canISign(auth); // ¿Puedo firmar esta línea?
+
+                                    return (
+                                    <div key={auth.AutorizacionId} className="flex flex-col p-3 bg-white border border-slate-100 rounded-lg shadow-sm gap-2">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                {/* Icono Estado (Igual que antes) */}
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                                                    auth.Estatus === 'Aprobado' ? 'bg-green-100 text-green-600' :
+                                                    auth.Estatus === 'Rechazado' ? 'bg-red-100 text-red-600' :
+                                                    'bg-slate-100 text-slate-400'
+                                                }`}>
+                                                    {auth.Estatus === 'Aprobado' ? <CheckCircle size={16}/> : 
+                                                     auth.Estatus === 'Rechazado' ? <XCircle size={16}/> : 
+                                                     <FileSignature size={16}/>}
+                                                </div>
+                                                
+                                                <div className="min-w-0">
+                                                    <div className="flex items-center gap-1">
+                                                        <span className="text-xs font-bold text-slate-700 truncate">{auth.RolRequerido}</span>
+                                                        {auth.Estatus === 'Pendiente' && (
+                                                            <Tooltip text={`Firmantes: ${auth.PosiblesFirmantes || 'Sin asignar'}`}>
+                                                                <Info size={12} className="text-slate-400 cursor-help"/>
+                                                            </Tooltip>
+                                                        )}
+                                                    </div>
+                                                    <div className="text-[10px] text-slate-400 truncate">
+                                                        {auth.UsuarioNombre ? `Por: ${auth.UsuarioNombre}` : 'Esperando firma...'}
+                                                    </div>
+                                                </div>
                                             </div>
                                             
-                                            <div className="min-w-0">
-                                                <div className="flex items-center gap-1">
-                                                    <span className="text-xs font-bold text-slate-700 truncate">{auth.RolRequerido}</span>
-                                                    {auth.Estatus === 'Pendiente' && (
-                                                        <Tooltip text={`Firmantes: ${auth.PosiblesFirmantes || 'Sin asignar'}`}>
-                                                            <Info size={12} className="text-slate-400 cursor-help"/>
-                                                        </Tooltip>
-                                                    )}
-                                                </div>
-                                                <div className="text-[10px] text-slate-400 truncate">
-                                                    {auth.UsuarioNombre ? `Por: ${auth.UsuarioNombre}` : 'Esperando firma...'}
-                                                </div>
-                                            </div>
+                                            {/* Estado o Botones */}
+                                            {!showButtons && auth.Estatus === 'Pendiente' && (
+                                                <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">Pendiente</span>
+                                            )}
                                         </div>
-                                        {auth.Estatus === 'Pendiente' && <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">Pendiente</span>}
+
+                                        {/* BOTONES DE FIRMA (Solo aparecen si showButtons es true) */}
+                                        {showButtons && (
+                                            <div className="flex gap-2 mt-1 border-t pt-2 border-slate-100">
+                                                <button 
+                                                    onClick={() => handleVote(auth.AutorizacionId, 'Aprobado')}
+                                                    disabled={isSubmitting}
+                                                    className="flex-1 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 rounded py-1 text-[10px] font-bold flex items-center justify-center gap-1 transition-colors"
+                                                >
+                                                    <ThumbsUp size={12}/> Aprobar
+                                                </button>
+                                                <button 
+                                                    onClick={() => handleVote(auth.AutorizacionId, 'Rechazado')}
+                                                    disabled={isSubmitting}
+                                                    className="flex-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded py-1 text-[10px] font-bold flex items-center justify-center gap-1 transition-colors"
+                                                >
+                                                    <ThumbsDown size={12}/> Rechazar
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
-                                ))}
+                                    );
+                                })}
                                 
                                 <div className="p-3 bg-blue-50 text-blue-700 text-xs rounded-lg border border-blue-100 mt-4">
                                     <p>La incidencia está bloqueada hasta recibir todas las firmas requeridas.</p>
@@ -383,4 +452,4 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
             {content}
         </Modal>
     );
-};
+};                            
