@@ -291,23 +291,18 @@ export const AttendancePage = () => {
                 throw new Error("No tienes permiso para ver este módulo.");
             }
 
-            if (can('reportesAsistencia.assign')) {
-                const ensureRes = await fetch(`${API_BASE_URL}/attendance/ensure-range`, { 
-                    method: 'POST',
-                    headers, 
-                    body: ensureBody 
-                });
+            // if (can('reportesAsistencia.assign')) {
+            //     const ensureRes = await fetch(`${API_BASE_URL}/attendance/ensure-range`, { 
+            //         method: 'POST',
+            //         headers, 
+            //         body: ensureBody 
+            //     });
 
-                if (!ensureRes.ok) {
-                    const errData = await ensureRes.json();
-                    console.warn("No se pudo procesar el rango:", errData.message);
-                    addNotification("Aviso de Procesamiento", "No se pudieron calcular las nuevas checadas. " + (errData.message || ''), "error");
-                }
-            }
-
-            // if (!ensureRes.ok) {
-            //     const errData = await ensureRes.json();
-            //     throw new Error(errData.message || `Error ${ensureRes.status} al procesar el rango.`);
+            //     if (!ensureRes.ok) {
+            //         const errData = await ensureRes.json();
+            //         console.warn("No se pudo procesar el rango:", errData.message);
+            //         addNotification("Aviso de Procesamiento", "No se pudieron calcular las nuevas checadas. " + (errData.message || ''), "error");
+            //     }
             // }
 
             const employeesPromise = fetch(`${API_BASE_URL}/attendance/data-by-range`, {
