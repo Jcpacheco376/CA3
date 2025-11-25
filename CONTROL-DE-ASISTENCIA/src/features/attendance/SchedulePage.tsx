@@ -3,21 +3,86 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useAuth } from '../auth/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { API_BASE_URL } from '../../config/api';
-import { format, startOfWeek, endOfWeek, addDays, subDays, getDay, addMonths, subMonths, addWeeks, subWeeks, startOfMonth, endOfMonth, isToday as isTodayDateFns, isWithinInterval } from 'date-fns';
+import {
+    format, startOfWeek, endOfWeek, addDays, subDays, getDay, addMonths, subMonths,
+    addWeeks, subWeeks, startOfMonth, endOfMonth, isToday as isTodayDateFns,
+    isWithinInterval, getDay as getDayOfWeek, isSameDay
+} from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Loader2, Briefcase, Building, Cake, GripVertical, Contact, InfoIcon as Info } from 'lucide-react';
-import { AttendanceToolbar } from './AttendanceToolbar';
+import {
+    Loader2, Briefcase, Building, Cake, GripVertical, Contact, InfoIcon as Info,
+    Sun, Moon, Sunset, Coffee, RotateCw, X, CalendarCheck, Tag, MapPin
+} from 'lucide-react';
+import { AttendanceToolbar, FilterConfig } from './AttendanceToolbar';
 import { ScheduleCell } from './ScheduleCell';
 import { EmployeeProfileModal } from './EmployeeProfileModal';
+import { AssignFixedScheduleModal } from './AssignFixedScheduleModal';
 import { Tooltip, InfoIcon } from '../../components/ui/Tooltip';
+import { themes, statusColorPalette } from '../../config/theme';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { TableSkeleton } from '../../components/ui/TableSkeleton';
 
+// ... (Helpers: getTurnoIcon, determineTurnoFromTime, isBirthdayInPeriod, getHorarioTooltip se mantienen igual) ...
+//const getTurnoIcon = (turno: 'M' | 'V' | 'N' | string | null | undefined, size = 14) => { /* ... sin cambios ... */ };
+//const determineTurnoFromTime = (horaEntrada: string): 'M' | 'V' | 'N' | null => { /* ... sin cambios ... */ };
+
+
+const isBirthdayInPeriod = (birthDateStr: string, period: Date[]): boolean => {
+    if (!birthDateStr || period.length === 0) return false;
+    try {
+        const parts = birthDateStr.substring(0, 10).split('-');
+        const birthDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+
+        const today = new Date();
+        const birthDateThisYear = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate());
+
+        return isWithinInterval(birthDateThisYear, {
+            start: period[0],
+            end: period[period.length - 1]
+        });
+    } catch (e) {
+        return false;
+    }
+};
+const getHorarioTooltip = (horario: any) => {
+    if (!horario) return "Sin horario base";
+    const firstDay = horario.Turnos?.find((t: any) => t.EsDiaLaboral);
+    let details = `Horario Base: ${horario.Nombre} `;
+    if (firstDay) {
+        details += ` | Inicia: ${firstDay.HoraEntrada || '--:--'} - ${firstDay.HoraSalida || '--:--'}`;
+    }
+    return details;
+};
 
 const COLUMN_WIDTH_STORAGE_KEY = 'schedule_employee_column_width';
-const MIN_COLUMN_WIDTH = 240;
-const MAX_COLUMN_WIDTH = 10000;
-const EMPLOYEE_CONTENT_MIN_WIDTH = 220;
+const EMPLOYEE_CONTENT_MIN_WIDTH = 360;
 const EMPLOYEE_CONTENT_MAX_WIDTH = 500;
-const DEFAULT_COLUMN_WIDTH = 384;
+const MIN_COLUMN_WIDTH = EMPLOYEE_CONTENT_MIN_WIDTH + 16; // 376
+const MAX_COLUMN_WIDTH = EMPLOYEE_CONTENT_MAX_WIDTH + 250; // 516
+const DEFAULT_COLUMN_WIDTH = 384; 
+const ROW_HEIGHT_ESTIMATE = 72;
+
+
+const FILTERS_KEY = 'app_schedule_filters';
+
+const loadInitialFilters = (user: any) => {
+    try {
+        const saved = localStorage.getItem(FILTERS_KEY);
+        if (saved) {
+            return JSON.parse(saved);
+        }
+    } catch (e) {
+        console.error("Error al leer filtros de localStorage", e);
+    }
+
+    // Si no hay nada guardado, aplicamos los defaults del usuario
+    return {
+        depts: user?.Departamentos?.length === 1 ? [user.Departamentos[0].DepartamentoId] : [],
+        groups: user?.GruposNomina?.length === 1 ? [user.GruposNomina[0].GrupoNominaId] : [],
+        puestos: user?.Puestos?.length === 1 ? [user.Puestos[0].PuestoId] : [],
+        estabs: user?.Establecimientos?.length === 1 ? [user.Establecimientos[0].EstablecimientoId] : []
+    };
+};
 
 export const SchedulePage = () => {
     const { getToken, user, can } = useAuth();
@@ -28,18 +93,15 @@ export const SchedulePage = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [dragInfo, setDragInfo] = useState<{ employeeId: number; dayIndex: number; scheduleId: string | null } | null>(null);
-    const [draggedCells, setDraggedCells] = useState<string[]>([]);
+    const [assignFixedModalInfo, setAssignFixedModalInfo] = useState<{ employeeId: number, employeeName: string } | null>(null);
     const [openCellId, setOpenCellId] = useState<string | null>(null);
-    
-    const [selectedDepartment, setSelectedDepartment] = useState(() => user?.Departamentos?.length === 1 ? String(user.Departamentos[0].DepartamentoId) : 'all');
-    const [selectedPayrollGroup, setSelectedPayrollGroup] = useState(() => user?.GruposNomina?.length === 1 ? String(user.GruposNomina[0].GrupoNominaId) : 'all');
+
+    const [filters, setFilters] = useState(() => loadInitialFilters(user));
+
     const [viewingEmployeeId, setViewingEmployeeId] = useState<number | null>(null);
     const [viewMode, setViewMode] = useState<'week' | 'fortnight' | 'month'>('week');
-
     const canRead = can('horarios.read');
     const canAssign = can('horarios.assign');
-    
     const [employeeColumnWidth, setEmployeeColumnWidth] = useState(() => {
         try {
             const savedWidth = localStorage.getItem(COLUMN_WIDTH_STORAGE_KEY);
@@ -49,10 +111,22 @@ export const SchedulePage = () => {
         }
     });
 
+    const [activeWeekStartDate, setActiveWeekStartDate] = useState<Date | null>(null);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const scrollTimerRef = useRef<number | null>(null);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem(FILTERS_KEY, JSON.stringify(filters));
+        } catch (e) {
+            console.error("Error al guardar filtros en localStorage", e);
+        }
+    }, [filters]);
+
     const { dateRange, rangeLabel } = useMemo(() => {
         let start, end;
         let label = '';
-        switch(viewMode) {
+        switch (viewMode) {
             case 'fortnight':
                 const dayOfMonth = currentDate.getDate();
                 if (dayOfMonth <= 15) {
@@ -62,7 +136,7 @@ export const SchedulePage = () => {
                     start = new Date(currentDate.getFullYear(), currentDate.getMonth(), 16);
                     end = endOfMonth(currentDate);
                 }
-                label = `Quincena del ${format(start, 'd')} al ${format(end, 'd \'de\' MMMM, yyyy', { locale: es })}`;
+                label = `${format(start, 'd')} - ${format(end, 'd \'de\' MMMM, yyyy', { locale: es })}`;
                 break;
             case 'month':
                 start = startOfMonth(currentDate);
@@ -78,16 +152,77 @@ export const SchedulePage = () => {
         }
         const range = [];
         let day = start;
-        while(day <= end) {
+        while (day <= end) {
             range.push(day);
             day = addDays(day, 1);
         }
         return { dateRange: range, rangeLabel: label };
     }, [currentDate, viewMode]);
 
+    const updateActiveWeek = useCallback(() => {
+        if (!scrollContainerRef.current || dateRange.length === 0) return;
+        const { scrollLeft, clientWidth, scrollWidth } = scrollContainerRef.current;
+        let startOfActiveWeek: Date | null = null;
+        const scrollEndTolerance = 5;
+        if (scrollLeft <= 0) {
+            startOfActiveWeek = startOfWeek(dateRange[0], { weekStartsOn: 1 });
+        } else if (scrollLeft + clientWidth >= scrollWidth - scrollEndTolerance) {
+            startOfActiveWeek = startOfWeek(dateRange[dateRange.length - 1], { weekStartsOn: 1 });
+        } else {
+            const cellWidth = viewMode === 'week' ? 96 : 64;
+            const detectionPoint = scrollLeft + (clientWidth * 0.3);
+            let dayIndex = Math.floor(detectionPoint / cellWidth);
+            dayIndex = Math.max(0, Math.min(dayIndex, dateRange.length - 1));
+            const activeDay = dateRange[dayIndex];
+            if (activeDay) {
+                startOfActiveWeek = startOfWeek(activeDay, { weekStartsOn: 1 });
+            }
+        }
+        if (startOfActiveWeek) {
+            setActiveWeekStartDate(currentActiveWeek => {
+                if (!currentActiveWeek || !isSameDay(currentActiveWeek, startOfActiveWeek!)) {
+                    return startOfActiveWeek;
+                }
+                return currentActiveWeek;
+            });
+        }
+    }, [dateRange, viewMode]);
+
+    useEffect(() => {
+        const scrollContainer = scrollContainerRef.current;
+        const handleScroll = () => {
+            if (scrollTimerRef.current) {
+                cancelAnimationFrame(scrollTimerRef.current);
+            }
+            scrollTimerRef.current = requestAnimationFrame(updateActiveWeek);
+        };
+        if (scrollContainer) {
+            scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+            updateActiveWeek();
+        }
+        return () => {
+            if (scrollContainer) {
+                scrollContainer.removeEventListener('scroll', handleScroll);
+            }
+            if (scrollTimerRef.current) {
+                cancelAnimationFrame(scrollTimerRef.current);
+            }
+        };
+    }, [updateActiveWeek]);
+
+    useEffect(() => {
+        if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollLeft = 0;
+        }
+        if (dateRange.length > 0) {
+            const firstWeekStart = startOfWeek(dateRange[0], { weekStartsOn: 1 });
+            setActiveWeekStartDate(firstWeekStart);
+        }
+    }, [dateRange]);
+
     const handleDatePrev = useCallback(() => {
         setCurrentDate(prevDate => {
-            switch(viewMode) {
+            switch (viewMode) {
                 case 'fortnight':
                     const day = prevDate.getDate();
                     if (day <= 15) return new Date(prevDate.getFullYear(), prevDate.getMonth() - 1, 16);
@@ -97,10 +232,10 @@ export const SchedulePage = () => {
             }
         });
     }, [viewMode]);
-    
+
     const handleDateNext = useCallback(() => {
         setCurrentDate(prevDate => {
-            switch(viewMode) {
+            switch (viewMode) {
                 case 'fortnight':
                     const day = prevDate.getDate();
                     if (day <= 15) return new Date(prevDate.getFullYear(), prevDate.getMonth(), 16);
@@ -110,6 +245,7 @@ export const SchedulePage = () => {
             }
         });
     }, [viewMode]);
+
     
     const fetchData = useCallback(async () => {
         if (!canRead) {
@@ -118,49 +254,77 @@ export const SchedulePage = () => {
             return;
         }
         if (!user || dateRange.length === 0) return;
-        
+
         const token = getToken();
         if (!token) { setError("Sesión inválida."); setIsLoading(false); return; }
-        
+
         setIsLoading(true);
         setError(null);
-        const headers = { 'Authorization': `Bearer ${token}` };
-        const startDate = format(dateRange[0], 'yyyy-MM-dd');
-        const endDate = format(dateRange[dateRange.length - 1], 'yyyy-MM-dd');
+
+        // 1. Preparar Headers y Body
+        const headers = {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+        };
+        const body = JSON.stringify({
+            startDate: format(dateRange[0], 'yyyy-MM-dd'),
+            endDate: format(dateRange[dateRange.length - 1], 'yyyy-MM-dd'),
+            filters: {
+                departamentos: filters.depts,
+                gruposNomina: filters.groups,
+                puestos: filters.puestos,
+                establecimientos: filters.estabs
+            }
+        });
 
         try {
+
             const [assignmentsRes, schedulesRes] = await Promise.all([
-                fetch(`${API_BASE_URL}/schedules/assignments?startDate=${startDate}&endDate=${endDate}`, { headers }),
+                
+                fetch(`${API_BASE_URL}/schedules/assignments`, {
+                    method: 'POST',
+                    headers,
+                    body
+                }),
+                
                 fetch(`${API_BASE_URL}/schedules`, { headers })
             ]);
 
-            if (!assignmentsRes.ok) throw new Error(`Error ${assignmentsRes.status} al cargar asignaciones.`);
-            if (!schedulesRes.ok) throw new Error(`Error ${schedulesRes.status} al cargar catálogo de horarios.`);
-            
-            const assignmentsData = await assignmentsRes.json();
-            
-            // --- INICIO DE DEPURACIÓN ---
-            console.groupCollapsed("===== DEPURANDO DATOS DE SCHEDULE PAGE =====");
-            console.log("Datos de Horarios recibidos:", JSON.stringify(assignmentsData, null, 2));
-            if (assignmentsData.length > 0) {
-                console.log("Ejemplo del primer empleado:", assignmentsData[0]);
-                console.log("Propiedades disponibles:", Object.keys(assignmentsData[0]));
+            if (!assignmentsRes.ok) {
+                const errData = await assignmentsRes.json();
+                throw new Error(errData.message || `Error ${assignmentsRes.status} al cargar asignaciones.`);
             }
-            console.groupEnd();
-            // --- FIN DE DEPURACIÓN ---
+            if (!schedulesRes.ok) throw new Error(`Error ${schedulesRes.status} al cargar catálogo de horarios.`);
 
-            setScheduleCatalog(await schedulesRes.json());
+            const assignmentsData = await assignmentsRes.json();
+            const catalogData = await schedulesRes.json();
+
+            setScheduleCatalog(catalogData);
             setEmployees(assignmentsData);
 
-        } catch (err: any) { setError(err.message); } 
+        } catch (err: any) {
+            console.error("Error en fetchData:", err);
+            setError(err.message);
+            setEmployees([]); // Limpiar en caso de error
+        }
         finally { setIsLoading(false); }
-    }, [dateRange, user, getToken, canRead]);
+    }, [
+        dateRange, user, getToken, canRead, filters
+    ]);
+    
 
     useEffect(() => {
         fetchData();
     }, [fetchData]);
 
-    const handleBulkScheduleChange = async (updates: { empleadoId: number, fecha: Date, horarioId: string | null }[]) => {
+    // ... (El resto de funciones: handleBulkScheduleChange, handleAssignFixedToWeek, etc. se mantienen 100% igual) ...
+    const handleBulkScheduleChange = async (updates: {
+        empleadoId: number,
+        fecha: Date,
+        tipoAsignacion: 'H' | 'T' | 'D' | null,
+        horarioId?: number | null,
+        detalleId?: number | null
+    }[]) => {
         if (!canAssign) {
             addNotification('Acceso Denegado', 'No tienes permiso para asignar horarios.', 'error');
             return;
@@ -168,98 +332,120 @@ export const SchedulePage = () => {
         const token = getToken();
         if (!token || updates.length === 0) return;
 
-        const originalEmployees = JSON.parse(JSON.stringify(employees));
-        
-        setEmployees(prev => {
-            const newEmployees = JSON.parse(JSON.stringify(prev));
-            updates.forEach(({ empleadoId, fecha, horarioId }) => {
-                const empIndex = newEmployees.findIndex((e: any) => e.EmpleadoId === empleadoId);
-                if (empIndex > -1) {
-                    const scheduleIndex = newEmployees[empIndex].HorariosAsignados.findIndex((h: any) => format(new Date(h.Fecha), 'yyyy-MM-dd') === format(fecha, 'yyyy-MM-dd'));
-                    if (scheduleIndex > -1) {
-                        const employee = newEmployees[empIndex];
-                        const newHorario = horarioId === null ? employee.horario_defecto : horarioId;
-                        newEmployees[empIndex].HorariosAsignados[scheduleIndex].HorarioAplicable = newHorario;
-                        newEmployees[empIndex].HorariosAsignados[scheduleIndex].EsTemporal = horarioId !== null;
+        const originalEmployees = employees;
+
+        const updatesByEmployee = new Map<number, any[]>();
+        for (const update of updates) {
+            if (!updatesByEmployee.has(update.empleadoId)) {
+                updatesByEmployee.set(update.empleadoId, []);
+            }
+            updatesByEmployee.get(update.empleadoId)!.push(update);
+        }
+
+        setEmployees(prevEmployees => {
+            return prevEmployees.map(emp => {
+                if (!updatesByEmployee.has(emp.EmpleadoId)) {
+                    return emp;
+                }
+
+                const empUpdates = updatesByEmployee.get(emp.EmpleadoId)!;
+                const newHorariosAsignados = [...emp.HorariosAsignados];
+
+                for (const update of empUpdates) {
+                    const fechaStr = format(update.fecha, 'yyyy-MM-dd');
+                    const recordIndex = newHorariosAsignados.findIndex(h => h.Fecha === fechaStr);
+
+                    let newAsignacion = null;
+                    if (update.tipoAsignacion) {
+                        newAsignacion = {
+                            Fecha: fechaStr,
+                            TipoAsignacion: update.tipoAsignacion,
+                            HorarioIdAplicable: update.tipoAsignacion === 'H' ? update.horarioId : null,
+                            HorarioDetalleIdAplicable: update.tipoAsignacion === 'T' ? update.detalleId : null,
+                            EstatusConflictivo: null
+                        };
+                    }
+
+                    if (recordIndex > -1) {
+                        if (newAsignacion) {
+                            newHorariosAsignados[recordIndex] = newAsignacion;
+                        } else {
+                            newHorariosAsignados.splice(recordIndex, 1);
+                        }
+                    } else if (newAsignacion) {
+                        newHorariosAsignados.push(newAsignacion);
                     }
                 }
+
+                return { ...emp, HorariosAsignados: newHorariosAsignados };
             });
-            return newEmployees;
         });
 
         try {
             const res = await fetch(`${API_BASE_URL}/schedules/assignments`, {
-                method: 'POST',
+                method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify(updates),
             });
-            if (!res.ok) throw new Error('El servidor rechazó la actualización.');
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.message || 'El servidor rechazó la actualización.');
+            }
             addNotification('Guardado', `${updates.length} asignacion(es) guardada(s).`, 'success');
         } catch (err: any) {
-            addNotification('Error al Guardar', 'No se pudieron guardar los cambios. Reestableciendo.', 'error');
+            addNotification('Error al Guardar', `No se pudieron guardar los cambios: ${err.message}`, 'error');
             setEmployees(originalEmployees);
         }
     };
+    const handleAssignFixedToWeek = (horarioId: number | null) => {
+        if (!assignFixedModalInfo || !activeWeekStartDate) {
+            addNotification('Error', 'No se ha seleccionado una semana activa.', 'error');
+            return;
+        }
 
+        const { employeeId } = assignFixedModalInfo;
+        const weekDays = Array.from({ length: 7 }).map((_, i) => addDays(activeWeekStartDate, i));
+
+        let updates;
+
+        if (horarioId === null) {
+            updates = weekDays.map(day => ({
+                empleadoId: employeeId,
+                fecha: day,
+                tipoAsignacion: null,
+                horarioId: null,
+                detalleId: null
+            }));
+        } else {
+            updates = weekDays.map(day => ({
+                empleadoId: employeeId,
+                fecha: day,
+                tipoAsignacion: 'H' as 'H',
+                horarioId: horarioId,
+                detalleId: null
+            }));
+        }
+
+        handleBulkScheduleChange(updates);
+        setAssignFixedModalInfo(null);
+    };
     const handleToggleOpen = (cellId: string | null) => {
         setOpenCellId(prev => (prev === cellId ? null : cellId));
     };
-
-    const handleDragStart = (employeeId: number, dayIndex: number, scheduleId: string | null) => {
-        if (!canAssign) return;
-        setOpenCellId(null);
-        setDragInfo({ employeeId, dayIndex, scheduleId });
+    const getActiveWeekLabel = () => {
+        if (!activeWeekStartDate) return "Cargando semana...";
+        const endDate = endOfWeek(activeWeekStartDate, { weekStartsOn: 1 });
+        return `Semana del ${format(activeWeekStartDate, 'd MMM')} al ${format(endDate, 'd MMM, yyyy', { locale: es })}`;
     };
-
-    const handleDragEnter = (targetEmpleadoId: number, targetDayIndex: number) => {
-        if (!dragInfo) return;
-        const newDraggedCells: string[] = [];
-        const empIds = filteredEmployees.map(e => e.EmpleadoId);
-        const startEmpIndex = empIds.indexOf(dragInfo.employeeId);
-        const endEmpIndex = empIds.indexOf(targetEmpleadoId);
-        if (startEmpIndex === -1 || endEmpIndex === -1) return;
-
-        const startDayIndex = dragInfo.dayIndex;
-        const endDayIndex = targetDayIndex;
-
-        for (let i = Math.min(startEmpIndex, endEmpIndex); i <= Math.max(startEmpIndex, endEmpIndex); i++) {
-            for (let j = Math.min(startDayIndex, endDayIndex); j <= Math.max(startDayIndex, endDayIndex); j++) {
-                newDraggedCells.push(`${empIds[i]}-${j}`);
-            }
-        }
-        setDraggedCells(newDraggedCells);
-    };
-    
-    const handleDragEnd = () => {
-        if (!dragInfo || draggedCells.length === 0) { setDragInfo(null); setDraggedCells([]); return; }
-        
-        const updates = draggedCells
-            .map(cellId => {
-                const [empleadoIdStr, dayIndexStr] = cellId.split('-');
-                const empleadoId = parseInt(empleadoIdStr, 10);
-                const dayIndex = parseInt(dayIndexStr, 10);
-                return { empleadoId, fecha: dateRange[dayIndex], horarioId: dragInfo.scheduleId };
-            })
-            .filter(Boolean);
-
-        if(updates.length > 0){
-            handleBulkScheduleChange(updates);
-        }
-        setDragInfo(null);
-        setDraggedCells([]);
-    };
-    
     const filteredEmployees = useMemo(() => {
         const searchWords = searchTerm.toLowerCase().split(' ').filter(word => word);
+        // Filtros de Depto, Grupo, etc., YA NO SON NECESARIOS AQUÍ.
         return employees.filter(emp => {
-            const departmentMatch = selectedDepartment === 'all' || String(emp.departamento_id) === selectedDepartment;
-            const payrollGroupMatch = selectedPayrollGroup === 'all' || String(emp.grupo_nomina_id) === selectedPayrollGroup;
-            if (!departmentMatch || !payrollGroupMatch) return false;
             if (searchWords.length === 0) return true;
-            const targetText = (emp.NombreCompleto + ' ' + emp.CodRef).toLowerCase();
+            const targetText = ((emp?.NombreCompleto || '') + ' ' + (emp?.CodRef || '')).toLowerCase();
             return searchWords.every(word => targetText.includes(word));
         });
-    }, [employees, searchTerm, selectedDepartment, selectedPayrollGroup]);
+    }, [employees, searchTerm]);
 
     const handleResizeMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
         e.preventDefault();
@@ -286,157 +472,330 @@ export const SchedulePage = () => {
         window.addEventListener('mouseup', handleMouseUp, { once: true });
     };
 
-    const isBirthdayInPeriod = (birthDateStr: string, period: Date[]): boolean => {
-        if (!birthDateStr || period.length === 0) return false;
-        const birthDate = new Date(birthDateStr);
-        const today = new Date();
-        const birthDateThisYear = new Date(Date.UTC(today.getUTCFullYear(), birthDate.getUTCMonth(), birthDate.getUTCDate()));
+    // --- Sección de Virtualización (Sin cambios) ---
+    const rowVirtualizer = useVirtualizer({
+        count: filteredEmployees.length,
+        getScrollElement: () => scrollContainerRef.current,
+        estimateSize: () => ROW_HEIGHT_ESTIMATE,
+        overscan: 30,
+    });
+    const virtualRows = rowVirtualizer.getVirtualItems();
+    const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
+    const paddingBottom = virtualRows.length > 0 ? rowVirtualizer.getTotalSize() - virtualRows[virtualRows.length - 1].end : 0;
+    // --- FIN Virtualización ---
+
     
-        return isWithinInterval(birthDateThisYear, {
-            start: period[0],
-            end: period[period.length - 1]
-        });
-    };
+const filterConfigurations: FilterConfig[] = useMemo(() => {
+        const filtersConfig: FilterConfig[] = [
+            {
+                id: 'departamentos',
+                title: 'Departamentos',
+                icon: <Building />,
+                options: user?.Departamentos?.map(d => ({ value: d.DepartamentoId, label: d.Nombre })) || [],
+                selectedValues: filters.depts,
+                onChange: (depts) => setFilters(f => ({ ...f, depts: depts as number[] })),
+                isActive: user?.activeFilters?.departamentos ?? false,
+            },
+            {
+                id: 'gruposNomina',
+                title: 'Grupos Nómina',
+                icon: <Briefcase />,
+                options: user?.GruposNomina?.map(g => ({ value: g.GrupoNominaId, label: g.Nombre })) || [],
+                selectedValues: filters.groups,
+                onChange: (groups) => setFilters(f => ({ ...f, groups: groups as number[] })),
+                isActive: user?.activeFilters?.gruposNomina ?? false,
+            },
+            {
+                id: 'puestos',
+                title: 'Puestos',
+                icon: <Tag />,
+                options: user?.Puestos?.map(p => ({ value: p.PuestoId, label: p.Nombre })) || [],
+                selectedValues: filters.puestos,
+                onChange: (puestos) => setFilters(f => ({ ...f, puestos: puestos as number[] })),
+                isActive: user?.activeFilters?.puestos ?? false,
+            },
+            {
+                id: 'establecimientos',
+                title: 'Establecimientos',
+                icon: <MapPin />,
+                options: user?.Establecimientos?.map(e => ({ value: e.EstablecimientoId, label: e.Nombre })) || [],
+                selectedValues: filters.estabs,
+                onChange: (estabs) => setFilters(f => ({ ...f, estabs: estabs as number[] })),
+                isActive: user?.activeFilters?.establecimientos ?? false,
+            }
+        ];
+        return filtersConfig.filter(f => f.isActive && f.options.length > 0);
+    }, [user, filters]); // Ahora solo depende de 'user' y 'filters'
+    
 
     const renderContent = () => {
         if (isLoading) {
-            return <div className="text-center p-16 text-slate-500 flex items-center justify-center gap-2"> <Loader2 className="animate-spin" /> Cargando... </div>;
+            return (
+                <TableSkeleton
+                    employeeColumnWidth={employeeColumnWidth}
+                    dateRange={dateRange}
+                    viewMode={viewMode}
+                    pageType="schedule"
+                />
+            );
         }
-        if (error) {
-            return <div className="p-16 text-center"> <p className="font-semibold text-red-600">Error al Cargar</p> <p className="text-slate-500 text-sm mt-1">{error}</p> </div>;
-        }
+        if (error) { return <div className="p-16 text-center"> <p className="font-semibold text-red-600">Error al Cargar</p> <p className="text-slate-500 text-sm mt-1">{error}</p> </div>; }
         return (
-            <div className="overflow-auto relative flex-1" onMouseUp={handleDragEnd}>
+            <div ref={scrollContainerRef} className="overflow-auto relative flex-1 animate-content-fade-in">
                 <table className="text-sm text-center border-collapse table-fixed">
-                    <thead className="sticky top-0 z-20">
+                    <thead
+                        className="sticky top-0 z-20"
+                        style={{ willChange: 'transform', transform: 'translate3d(0, 0, 0)' }}
+                    >
                         <tr className="bg-slate-50">
-                            <th className="p-2 text-left font-semibold text-slate-600 sticky left-0 bg-slate-50 z-30 shadow-sm" style={{ width: `${employeeColumnWidth}px` }}>
+                            <th
+                                className="p-2 text-left font-semibold text-slate-600 sticky left-0 bg-slate-50 z-30 shadow-sm"
+                                style={{
+                                    width: `${employeeColumnWidth}px`,
+                                    willChange: 'transform',
+                                    transform: 'translate3d(0, 0, 0)'
+                                }}
+                            >
                                 <div className="flex justify-between items-center h-full">
                                     <span>Empleado</span>
                                     <div onMouseDown={handleResizeMouseDown} className="absolute right-0 top-0 h-full w-2.5 cursor-col-resize group flex items-center justify-center">
-                                         <GripVertical className="h-5 text-slate-300 group-hover:text-[--theme-500] transition-colors" />
+                                        <GripVertical className="h-5 text-slate-300 group-hover:text-[--theme-500] transition-colors" />
                                     </div>
                                 </div>
                             </th>
-                            {dateRange.map(day => (
-                                <th key={day.toISOString()} className={`px-1 py-2 font-semibold text-slate-600 min-w-[${viewMode === 'week' ? '6rem' : '4rem'}] ${isTodayDateFns(day) ? 'bg-sky-100' : 'bg-slate-50'}`}>
-                                    <span className="capitalize text-base">{format(day, 'eee', { locale: es })}</span>
-                                    <span className="block text-xl font-bold text-slate-800">{format(day, 'dd')}</span>
-                                </th>
-                            ))}
+
+                            {dateRange.map((day, dayIndex) => {
+                                const isMonday = getDayOfWeek(day) === 1;
+                                const startOfWeekForDay = startOfWeek(day, { weekStartsOn: 1 });
+                                const isActiveWeek = activeWeekStartDate && isSameDay(startOfWeekForDay, activeWeekStartDate);
+                                const isFirstDay = dayIndex === 0;
+                                let thClasses = `px-1 py-2 font-semibold text-slate-600 min-w-[${viewMode === 'week' ? '6rem' : '4rem'}] transition-colors duration-150 relative `;
+                                if (isTodayDateFns(day)) {
+                                    thClasses += 'bg-sky-100';
+                                } else if (isActiveWeek) {
+                                    thClasses += 'bg-slate-100';
+                                } else {
+                                    thClasses += 'bg-slate-50';
+                                }
+                                if (isMonday && !isFirstDay) {
+                                    thClasses += ' border-l-2 border-slate-300';
+                                }
+                                return (
+                                    <th key={day.toISOString()} className={thClasses}>
+                                        <span className="capitalize text-base">{format(day, 'eee', { locale: es })}</span>
+                                        <span className="block text-xl font-bold text-slate-800">{format(day, 'dd')}</span>
+                                        {isActiveWeek && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[--theme-500]"></div>}
+                                    </th>
+                                );
+                            })}
                         </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {filteredEmployees.map((emp) => (
-                            <tr key={emp.EmpleadoId} className="group">
-                                <td className="p-2 text-left sticky left-0 bg-white group-hover:bg-slate-50 z-10 shadow-sm align-top">
-                                    <div className="w-full" style={{ minWidth: `${EMPLOYEE_CONTENT_MIN_WIDTH}px`, maxWidth: `${EMPLOYEE_CONTENT_MAX_WIDTH}px` }}>
-                                        <div className="flex items-start justify-between">
+                    <tbody
+                        style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
+                        className="animate-content-fade-in"
+                    >
+
+                        {paddingTop > 0 && (
+                            <tr style={{ height: `${paddingTop}px`, border: 'none' }}>
+                                <td colSpan={dateRange.length + 1} style={{ padding: 0, border: 'none' }}></td>
+                            </tr>
+                        )}
+
+                        {virtualRows.map((virtualRow) => {
+                            const emp = filteredEmployees[virtualRow.index];
+                            const defaultSchedule = scheduleCatalog.find(h => h.HorarioId === emp.HorarioDefaultId);
+                            const horarioTooltipText = getHorarioTooltip(defaultSchedule);
+                            let birthdayTooltip = "Cumpleaños en este periodo";
+                            if (emp.FechaNacimiento) {
+                                try {
+                                    const parts = emp.FechaNacimiento.substring(0, 10).split('-');
+                                    const birthDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+                                    const formattedBirthDate = format(birthDate, "d 'de' MMMM", { locale: es });
+                                    birthdayTooltip = `Cumpleaños: ${formattedBirthDate}`;
+                                } catch (e) { /* se queda el texto default */ }
+                            }
+
+                            return (
+                                <tr
+                                    key={emp.EmpleadoId}
+                                    className="group"
+                                    style={{ height: `${virtualRow.size}px` }}
+                                >
+                                    <td
+                                        className="p-2 text-left sticky left-0 bg-white group-hover:bg-slate-50 z-10 shadow-sm align-top border-b border-slate-100"
+                                        style={{
+                                            width: `${employeeColumnWidth}px`,
+                                            willChange: 'transform',
+                                            transform: 'translate3d(0, 0, 0)'
+                                        }}
+                                    >
+                                        <div
+                                            className="flex items-start justify-between w-full"
+                                            style={{ 
+                                                width: `${employeeColumnWidth - 16}px`, // <-- AÑADIDO
+                                                minWidth: `${EMPLOYEE_CONTENT_MIN_WIDTH}px`, 
+                                                maxWidth: `${EMPLOYEE_CONTENT_MAX_WIDTH}px` 
+                                            }}
+                                        >
                                             <div className="flex-1 min-w-0">
-                                                <div className="flex items-start justify-between">
-                                                    <p className="font-semibold text-slate-800 truncate" title={emp.NombreCompleto}>{emp.NombreCompleto}</p>
-                                                    <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-2">
-                                                        <Tooltip text="Ver Ficha de Empleado">
-                                                            <button onClick={() => setViewingEmployeeId(emp.EmpleadoId)} className="p-1 rounded-md text-slate-400 hover:text-[--theme-500] hover:bg-slate-200">
-                                                                <Contact size={18}/>
-                                                            </button>
-                                                        </Tooltip>
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-2">
+                                                        <p className="font-semibold text-slate-800 truncate" title={emp?.NombreCompleto}>{emp?.NombreCompleto}</p>
+                                                        {defaultSchedule && (
+                                                            <Tooltip text={horarioTooltipText}>
+                                                                <span className="text-xs font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+                                                                    {defaultSchedule.Abreviatura || defaultSchedule.HorarioId}
+                                                                </span>
+                                                            </Tooltip>
+                                                        )}
                                                         {isBirthdayInPeriod(emp.FechaNacimiento, dateRange) && (
-                                                            <Tooltip text="Cumpleaños en este periodo">
+                                                            <Tooltip text={birthdayTooltip}>
                                                                 <Cake size={18} className="text-pink-400 shrink-0" />
                                                             </Tooltip>
                                                         )}
                                                     </div>
+                                                    <div className="flex items-center space-x-2 flex-shrink-0 ml-2">
+                                                        <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            <Tooltip text="Ver Ficha de Empleado">
+                                                                <button onClick={() => setViewingEmployeeId(emp.EmpleadoId)} className="p-1 rounded-md text-slate-400 hover:text-[--theme-500] hover:bg-slate-200">
+                                                                    <Contact size={18} />
+                                                                </button>
+                                                            </Tooltip>
+                                                            {canAssign && (
+                                                                <Tooltip text={activeWeekStartDate ? `Asignar a la semana del ${format(activeWeekStartDate, 'd MMM', { locale: es })}` : "Asignar horario"}>
+                                                                    <button
+                                                                        onClick={() => setAssignFixedModalInfo({ employeeId: emp.EmpleadoId, employeeName: emp.NombreCompleto || 'Empleado' })}
+                                                                        className="p-1 rounded-md text-slate-500 hover:text-[--theme-600] hover:bg-slate-200 transition-colors"
+                                                                    >
+                                                                        <CalendarCheck size={20} />
+                                                                    </button>
+                                                                </Tooltip>
+                                                            )}
+                                                        </div>
+                                                    </div>
                                                 </div>
+
                                                 <div className="grid grid-cols-3 gap-x-3 text-xs text-slate-500 mt-1 w-full">
-                                                     <Tooltip text={`ID: ${emp.CodRef}`}>
-                                                        <p className="font-mono col-span-1 truncate">ID: {emp.CodRef}</p>
-                                                     </Tooltip>
-                                                     <Tooltip text={emp.puesto_descripcion || 'No asignado'}>
+                                                    <Tooltip text={`ID: ${emp?.CodRef}`}>
+                                                        <p className="font-mono col-span-1 truncate">ID: {emp?.CodRef}</p>
+                                                    </Tooltip>
+                                                    <Tooltip text={emp?.puesto_descripcion || 'No asignado'}>
                                                         <p className="col-span-1 flex items-center gap-1.5 truncate">
-                                                            <Briefcase size={12} className="text-slate-400 shrink-0"/> 
-                                                            <span className="truncate">{emp.puesto_descripcion || 'No asignado'}</span>
+                                                            <Briefcase size={12} className="text-slate-400 shrink-0" />
+                                                            <span className="truncate">{emp?.puesto_descripcion || 'No asignado'}</span>
                                                         </p>
-                                                     </Tooltip>
-                                                     <Tooltip text={emp.departamento_nombre || 'No asignado'}>
+                                                    </Tooltip>
+                                                    <Tooltip text={emp?.departamento_nombre || 'No asignado'}>
                                                         <p className="col-span-1 flex items-center gap-1.5 truncate">
-                                                            <Building size={12} className="text-slate-400 shrink-0"/> 
-                                                            <span className="truncate">{emp.departamento_nombre || 'No asignado'}</span>
+                                                            <Building size={12} className="text-slate-400 shrink-0" />
+                                                            <span className="truncate">{emp?.departamento_nombre || 'No asignado'}</span>
                                                         </p>
-                                                     </Tooltip>
+                                                    </Tooltip>
                                                 </div>
                                             </div>
                                         </div>
-                                    </div>
-                                </td>
-                                {dateRange.map((day, dayIndex) => {
-                                    const cellId = `${emp.EmpleadoId}-${dayIndex}`;
-                                    const scheduleData = emp.HorariosAsignados.find((h: any) => format(new Date(h.Fecha), 'yyyy-MM-dd') === format(day, 'yyyy-MM-dd'));
-                                    return (
-                                        <ScheduleCell
-                                            key={cellId}
-                                            cellId={cellId}
-                                            isOpen={openCellId === cellId}
-                                            onToggleOpen={handleToggleOpen}
-                                            scheduleData={scheduleData}
-                                            onScheduleChange={(newScheduleId: string | null) => handleBulkScheduleChange([{
-                                                empleadoId: emp.EmpleadoId,
-                                                fecha: day,
-                                                horarioId: newScheduleId
-                                            }])}
-                                            scheduleCatalog={scheduleCatalog}
-                                            isToday={isTodayDateFns(day)}
-                                            canAssign={canAssign}
-                                            onDragStart={(scheduleId: string | null) => handleDragStart(emp.EmpleadoId, dayIndex, scheduleId)}
-                                            onDragEnter={() => handleDragEnter(emp.EmpleadoId, dayIndex)}
-                                            isBeingDragged={draggedCells.includes(cellId)}
-                                            viewMode={viewMode}
-                                        />
-                                    );
-                                })}
+                                    </td>
+
+                                    {dateRange.map((day, dayIndex) => {
+                                        const cellId = `${emp.EmpleadoId}-${dayIndex}`;
+                                        const scheduleData = emp?.HorariosAsignados?.find(
+                                            (h: any) => h.Fecha === format(day, 'yyyy-MM-dd')
+                                        );
+                                        const isMonday = getDayOfWeek(day) === 1;
+                                        const isFirstDay = dayIndex === 0;
+                                        let tdClasses = "align-top border-b border-slate-100";
+                                        if (isMonday && !isFirstDay) {
+                                            tdClasses += ' border-l-2 border-slate-300';
+                                        }
+
+                                        return (
+                                            <ScheduleCell
+                                                key={cellId}
+                                                cellId={cellId}
+                                                day={day}
+                                                isOpen={openCellId === cellId}
+                                                onToggleOpen={handleToggleOpen}
+                                                scheduleData={scheduleData}
+                                                horarioDefaultId={emp.HorarioDefaultId}
+                                                onScheduleChange={({ tipoAsignacion, horarioId, detalleId }: any) => handleBulkScheduleChange([{
+                                                    empleadoId: emp.EmpleadoId,
+                                                    fecha: day,
+                                                    tipoAsignacion: tipoAsignacion,
+                                                    horarioId: horarioId,
+                                                    detalleId: detalleId
+                                                }])}
+                                                scheduleCatalog={scheduleCatalog}
+                                                isToday={isTodayDateFns(day)}
+                                                canAssign={canAssign}
+                                                viewMode={viewMode}
+                                                className={tdClasses}
+                                            />
+                                        );
+                                    })}
+                                </tr>
+                            );
+                        })}
+
+                        {paddingBottom > 0 && (
+                            <tr style={{ height: `${paddingBottom}px`, border: 'none' }}>
+                                <td colSpan={dateRange.length + 1} style={{ padding: 0, border: 'none' }}></td>
                             </tr>
-                        ))}
+                        )}
                     </tbody>
                 </table>
             </div>
         );
     };
 
+    const fixedSchedules = useMemo(() => scheduleCatalog.filter(h => !h.EsRotativo), [scheduleCatalog]);
+
     return (
         <div className="space-y-6 h-full flex flex-col">
             <header className="flex items-center gap-2">
                 <h1 className="text-3xl font-bold text-slate-800">Programador de Horarios</h1>
-                <Tooltip text="Asigna horarios temporales a los empleados para días específicos. Ideal para roles rotativos.">
+                <Tooltip text="Asigna horarios temporales a los empleados para días específicos o semanas completas.">
                     <InfoIcon />
                 </Tooltip>
             </header>
-            
+
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 flex-1 flex flex-col overflow-hidden">
-                 <AttendanceToolbar
+                {/* --- MODIFICACIÓN: Pasando la nueva prop a la Toolbar --- */}
+                <AttendanceToolbar
                     searchTerm={searchTerm}
                     setSearchTerm={setSearchTerm}
-                    selectedDepartment={selectedDepartment}
-                    setSelectedDepartment={setSelectedDepartment}
-                    selectedPayrollGroup={selectedPayrollGroup}
-                    setSelectedPayrollGroup={setSelectedPayrollGroup}
+                    filterConfigurations={filterConfigurations}
                     viewMode={viewMode}
                     setViewMode={setViewMode}
                     rangeLabel={rangeLabel}
                     handleDatePrev={handleDatePrev}
                     handleDateNext={handleDateNext}
-                    user={user}
+                    // --- MODIFICACIÓN: Pasar props de fecha ---
+                    currentDate={currentDate}
+                    onDateChange={setCurrentDate}
+                    // --- FIN MODIFICACIÓN ---
                 />
+
                 {renderContent()}
             </div>
+
             {viewingEmployeeId && (
-                <EmployeeProfileModal 
-                    employeeId={viewingEmployeeId}
+                <EmployeeProfileModal
+                    employeeId={viewingEmployeeId as any}
                     onClose={() => setViewingEmployeeId(null)}
                     getToken={getToken}
                     user={user}
                 />
             )}
+
+            <AssignFixedScheduleModal
+                isOpen={!!assignFixedModalInfo}
+                onClose={() => setAssignFixedModalInfo(null)}
+                employeeName={assignFixedModalInfo?.employeeName || ''}
+                fixedSchedules={fixedSchedules}
+                onAssign={handleAssignFixedToWeek}
+                targetWeekLabel={activeWeekStartDate ? getActiveWeekLabel() : "Asignar a semana..."}
+            />
+
         </div>
     );
 };
-

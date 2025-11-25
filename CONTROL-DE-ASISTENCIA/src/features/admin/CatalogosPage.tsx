@@ -2,7 +2,7 @@
 import React from 'react';
 import { useAuth } from '../auth/AuthContext.tsx';
 //import { Building, UsersIcon, Clock, CalendarIcon } from '../../components/ui/Icons.tsx';
-import { Building, Users, Clock, CalendarCheck } from 'lucide-react';
+import { Building, Users, Clock, CalendarCheck, MapPin, Tag } from 'lucide-react';
 
 const CatalogCard = ({ title, description, icon, onClick, canAccess }: any) => {
     if (!canAccess) return null;
@@ -35,14 +35,21 @@ export const CatalogosPage = ({ setActiveView }: any) => {
                     description="Ver y gestionar los departamentos de la empresa."
                     icon={<Building />}
                     onClick={() => setActiveView('admin_departamentos')}
-                    canAccess={can('catalogo.departamentos.manage')}
+                    canAccess={can('catalogo.departamentos.read')}
                 />
                 <CatalogCard
                     title="Grupos de Nómina"
                     description="Ver y gestionar los grupos para el cálculo de nómina."
                     icon={<Users />}
                     onClick={() => setActiveView('admin_grupos_nomina')}
-                    canAccess={can('catalogo.gruposNomina.manage')}
+                    canAccess={can('catalogo.gruposNomina.read')}
+                />
+                <CatalogCard
+                    title="Puestos"
+                    description="Ver y gestionar los puestos de trabajo."
+                    icon={<Tag />}
+                    onClick={() => setActiveView('admin_puestos')}
+                    canAccess={can('catalogo.puestos.read')}
                 />
                 <CatalogCard
                     title="Estatus de Asistencia"
@@ -58,8 +65,14 @@ export const CatalogosPage = ({ setActiveView }: any) => {
                     onClick={() => setActiveView('admin_horarios')}
                     canAccess={can('catalogo.horarios.read')}
                 />
+                <CatalogCard
+                    title="Establecimientos"
+                    description="Define y administra los departamentos de trabajo."
+                    icon={<MapPin />}
+                    onClick={() => setActiveView('admin_establecimientos')}
+                    canAccess={can('catalogo.establecimientos.read')}
+                />
             </div>
         </div>
     );
 };
-

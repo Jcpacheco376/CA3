@@ -1,9 +1,9 @@
 // src/features/admin/EstatusAsistenciaModal.tsx
 import React, { useState, useEffect } from 'react';
-import { Modal, Button } from '../../components/ui/Modal';
+import { Modal, Button } from '../../components/ui/Modal.tsx';
 import { AttendanceStatus } from '../../types/index.ts';
-import { Tooltip } from '../../components/ui/Tooltip';
-import { statusColorPalette } from '../../config/theme';
+import { Tooltip } from '../../components/ui/Tooltip.tsx';
+import { statusColorPalette } from '../../config/theme.ts';
 
 const FichaPreview = ({ abreviatura, colorUI }: { abreviatura: string, colorUI: string }) => {
     const { bgText, border } = statusColorPalette[colorUI] || statusColorPalette.slate;
@@ -47,7 +47,18 @@ export const EstatusAsistenciaModal = ({ isOpen, onClose, onSave, status }: { is
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value, type } = e.target;
-        const val = type === 'number' ? (value === '' ? null : parseInt(value, 10)) : value;
+        
+        let val: string | number | null = value;
+        if (type === 'number') {
+            if (value === '') {
+                val = null; // Permitir campo vacío
+            } else if (name === 'ValorNomina') {
+                val = parseFloat(value); // Permitir decimales para ValorNomina
+            } else {
+                val = parseInt(value, 10); // Mantener enteros para DiasRegistroFuturo
+            }
+        }
+
         setFormData(prev => ({ ...prev, [name]: val }));
     };
     
@@ -93,21 +104,21 @@ export const EstatusAsistenciaModal = ({ isOpen, onClose, onSave, status }: { is
                      <div className="grid grid-cols-2 gap-4">
                         <div>
                             <Tooltip text="El código corto que aparecerá en la ficha (ej: 'A', 'VAC')."><label className="block text-sm font-medium text-slate-700">Abreviatura</label></Tooltip>
-                            <input type="text" name="Abreviatura" value={formData.Abreviatura || ''} onChange={handleChange} className="mt-1 w-full p-2 border border-slate-300 rounded-md" required maxLength={10} />
+                            <input type="text" name="Abreviatura" value={formData.Abreviatura || ''} onChange={handleChange} className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:outline-none focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500]" required maxLength={10} />
                         </div>
                         <div>
                             <Tooltip text="Define el valor para el cálculo de la nómina. Ej: 1.0 para día completo, 0.5 para medio día, 0.0 para sin goce."><label className="block text-sm font-medium text-slate-700">Valor Nómina</label></Tooltip>
-                            <input type="number" name="ValorNomina" value={formData.ValorNomina ?? 0} onChange={handleChange} className="mt-1 w-full p-2 border border-slate-300 rounded-md" step="0.01" />
+                            <input type="number" name="ValorNomina" value={formData.ValorNomina ?? 0} onChange={handleChange} className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:outline-none focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500]" step="0.01" />
                         </div>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <Tooltip text="El nombre completo del estatus (ej: 'Asistencia', 'Vacaciones')."><label className="block text-sm font-medium text-slate-700">Descripción</label></Tooltip>
-                            <input type="text" name="Descripcion" value={formData.Descripcion || ''} onChange={handleChange} className="mt-1 w-full p-2 border border-slate-300 rounded-md" required />
+                            <input type="text" name="Descripcion" value={formData.Descripcion || ''} onChange={handleChange} className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:outline-none focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500]" required />
                         </div>
                          <div>
-                            <Tooltip text="Agrupa los estatus por su naturaleza (ej: 'Asistencia', 'Justificacion')."><label className="block text-sm font-medium text-slate-700">Tipo</label></Tooltip>
-                            <input type="text" name="Tipo" value={formData.Tipo || ''} onChange={handleChange} className="mt-1 w-full p-2 border border-slate-300 rounded-md" required />
+                            <Tooltip text="Agrupa los estatus por su naturaleza (ej: 'Asistencia', 'Justificacion')."><label className="block text-sm font-medium text-slate-700">Tipo</label></Tooltip>                          
+                            <input type="text" name="Tipo" value={formData.Tipo || ''} onChange={handleChange} className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:outline-none focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500]" required />
                         </div>
                     </div>
                 </div>
@@ -132,7 +143,7 @@ export const EstatusAsistenciaModal = ({ isOpen, onClose, onSave, status }: { is
                             <Toggle enabled={formData.EsEntradaSalidaIncompleta || false} onChange={(val) => handleToggleChange('EsEntradaSalidaIncompleta', val)} />
                         </div>
                         <div className="flex items-center justify-between">
-                            <Tooltip text="Activar para que el supervisor pueda agregar un comentario a este estatus."><span className="font-medium text-slate-700">Permite Comentario</span></Tooltip>
+                            <Tooltip text="Activar para que se pueda agregar un comentario a este estatus."><span className="font-medium text-slate-700">Permite Comentario</span></Tooltip>
                             <Toggle enabled={formData.PermiteComentario || false} onChange={(val) => handleToggleChange('PermiteComentario', val)} />
                         </div>
                         <div className="flex items-center justify-between">
@@ -140,19 +151,20 @@ export const EstatusAsistenciaModal = ({ isOpen, onClose, onSave, status }: { is
                             <Toggle enabled={formData.Activo || false} onChange={(val) => handleToggleChange('Activo', val)} />
                         </div>
                          <div className="flex items-center justify-between">
-                            <Tooltip text="Marca esta opción si quieres que los supervisores puedan seleccionar este estatus."><span className="font-medium text-slate-700">Visible para Supervisores</span></Tooltip>
+                            <Tooltip text="Marca esta opción si quieres que el estatus pueda ser asignable de forma manual a un empleado."><span className="font-medium text-slate-700">Asignable manualmente</span></Tooltip>
                             <Toggle enabled={formData.VisibleSupervisor || false} onChange={(val) => handleToggleChange('VisibleSupervisor', val)} />
                         </div>
                         <div>
                            <Tooltip text="Días máximos a futuro para registrar este estatus (0 = no se permite). Ej: 365 para vacaciones.">
                                <label className="block text-sm font-medium text-slate-700">Días de Registro Futuro</label>
                            </Tooltip>
+                          
                            <input 
                                 type="number" 
                                 name="DiasRegistroFuturo" 
                                 value={formData.DiasRegistroFuturo ?? 0} 
                                 onChange={handleChange}
-                                className="mt-1 w-full p-2 border border-slate-300 rounded-md"
+                                className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:outline-none focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500]"
                                 min="0"
                             />
                         </div>
@@ -162,4 +174,3 @@ export const EstatusAsistenciaModal = ({ isOpen, onClose, onSave, status }: { is
         </Modal>
     );
 };
-

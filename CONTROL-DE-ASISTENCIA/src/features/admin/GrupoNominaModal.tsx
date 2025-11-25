@@ -1,5 +1,6 @@
 // src/features/admin/GrupoNominaModal.tsx
 import React, { useState, useEffect } from 'react';
+// ... (imports sin cambios)
 import { Modal, Button } from '../../components/ui/Modal.tsx';
 import { useAuth } from '../auth/AuthContext.tsx';
 import { useNotification } from '../../context/NotificationContext.tsx';
@@ -7,11 +8,13 @@ import { API_BASE_URL } from '../../config/api.ts';
 import { Loader2 } from 'lucide-react';
 import { themes } from '../../config/theme.ts';
 
+// ... (ToggleSwitch sin cambios)
 // Componente ToggleSwitch que ahora acepta el color del tema
 const ToggleSwitch = ({ checked, onChange, themeColor }: { checked: boolean, onChange: (checked: boolean) => void, themeColor: string }) => {
     return (
         <button
             type="button"
+// ... (resto del componente sin cambios)
             role="switch"
             aria-checked={checked}
             onClick={() => onChange(!checked)}
@@ -129,7 +132,7 @@ export const GrupoNominaModal = ({ isOpen, onClose, onSave, grupoNomina }: any) 
                             name="GrupoNominaid"
                             value={formData.GrupoNominaid}
                             onChange={handleChange}
-                            className="mt-1 w-full p-2 border border-slate-300 rounded-md disabled:bg-slate-100"
+                            className="mt-1 w-full p-2 border border-slate-300 rounded-md disabled:bg-slate-100 focus:outline-none focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500]"
                             required
                             disabled={!isNew}
                         />
@@ -141,7 +144,7 @@ export const GrupoNominaModal = ({ isOpen, onClose, onSave, grupoNomina }: any) 
                             name="CodRef"
                             value={formData.CodRef}
                             onChange={handleChange}
-                            className="mt-1 w-full p-2 border border-slate-300 rounded-md"
+                            className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:outline-none focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500]"
                         />
                     </div>
                 </div>
@@ -152,7 +155,7 @@ export const GrupoNominaModal = ({ isOpen, onClose, onSave, grupoNomina }: any) 
                         name="Nombre"
                         value={formData.Nombre}
                         onChange={handleChange}
-                        className="mt-1 w-full p-2 border border-slate-300 rounded-md"
+                        className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:outline-none focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500]"
                         required
                     />
                 </div>
@@ -163,7 +166,7 @@ export const GrupoNominaModal = ({ isOpen, onClose, onSave, grupoNomina }: any) 
                         name="Abreviatura"
                         value={formData.Abreviatura}
                         onChange={handleChange}
-                        className="mt-1 w-full p-2 border border-slate-300 rounded-md"
+                        className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:outline-none focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500]"
                     />
                 </div>
                 <div className="flex items-center gap-4 pt-2">       
@@ -178,4 +181,3 @@ export const GrupoNominaModal = ({ isOpen, onClose, onSave, grupoNomina }: any) 
         </Modal>
     );
 };
-

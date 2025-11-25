@@ -5,16 +5,19 @@ import { useAuth } from '../../features/auth/AuthContext';
 import { AttendancePage } from '../../features/attendance/AttendancePage';
 import { UsersPage } from '../../features/admin/UsersPage';
 import { RolesPage } from '../../features/admin/RolesPage';
+import { CatalogLayout } from '../../features/admin/CatalogLayout'; 
 import { DepartamentosPage } from '../../features/admin/DepartamentosPage';
 import { GruposNominaPage } from '../../features/admin/GruposNominaPage';
 import { CatalogosPage } from '../../features/admin/CatalogosPage';
 import { UserProfileModal } from '../../features/auth/UserProfileModal';
 import { ProfessionalSidebar } from './ProfessionalSidebar';
 import { AppHeader } from './AppHeader';
-import { BarChartBig, Users, Settings, Folder, FileText, CalendarClock } from 'lucide-react';
+import { BarChartBig, Users, Settings, Folder, FileText, CalendarClock, MapPin, Tag } from 'lucide-react';
 import { EstatusAsistenciaPage } from '../../features/admin/EstatusAsistenciaPage';
 import { SchedulePage } from '../../features/attendance/SchedulePage';
 import { HorariosPage } from '../../features/admin/HorariosPage';
+import { ReportsHub } from '../../features/reports/ReportsHub'; 
+import { ReportsLayout } from '../../features/reports/ReportsLayout'; 
 
 
 interface MainLayoutProps {
@@ -31,46 +34,66 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
     const menuConfig = [
-        { 
-            section: 'Principal', 
+        {
+            section: 'Principal',
             items: [
                 { id: 'attendance_weekly', label: 'Registro de Asistencia', icon: <BarChartBig size={20} /> },
                 can('horarios.read') && { id: 'schedule_planner', label: 'Programador de Horarios', icon: <CalendarClock size={20} /> },
                 { id: 'attendance_reports', label: 'Reportes', icon: <FileText size={20} /> },
             ].filter(Boolean)
         },
-        (can('usuarios.read') || can('roles.manage') || can('catalogo.departamentos.read') || can('catalogo.gruposNomina.read') || can('catalogo.estatusAsistencia.read') || can('catalogo.horarios.read')) && { 
-            section: 'Administración', 
+        (can('usuarios.read') || can('roles.manage') || can('catalogo.departamentos.read') || can('catalogo.gruposNomina.read') || can('catalogo.estatusAsistencia.read') || can('catalogo.horarios.read') || can('catalogo.establecimientos.read') || can('catalogo.puestos.read')) && {
+            section: 'Administración',
             items: [
                 can('usuarios.read') && { id: 'admin_users', label: 'Usuarios', icon: <Users size={20} /> },
                 can('roles.manage') && { id: 'admin_roles', label: 'Roles', icon: <Settings size={20} /> },
-                (can('catalogo.departamentos.read') || can('catalogo.gruposNomina.read') || can('catalogo.estatusAsistencia.read') || can('catalogo.horarios.read')) && { id: 'admin_catalogs', label: 'Catálogos', icon: <Folder size={20} /> }
+                (can('catalogo.departamentos.read') || can('catalogo.gruposNomina.read') || can('catalogo.estatusAsistencia.read') || can('catalogo.horarios.read') || can('catalogo.establecimientos.read') || can('catalogo.puestos.read')) && { id: 'admin_catalogs', label: 'Catálogos', icon: <Folder size={20} /> }
             ].filter(Boolean)
         },
     ].filter(Boolean);
 
     const renderContent = () => {
         switch (activeView) {
+            // Módulos Principales
             case 'attendance_weekly': return <AttendancePage />;
             case 'schedule_planner': return <SchedulePage />;
+            
+            // Administración de Usuarios y Roles
             case 'admin_users': return <UsersPage />;
             case 'admin_roles': return <RolesPage />;
+            
+            // Hub de Catálogos
             case 'admin_catalogs': return <CatalogosPage setActiveView={setActiveView} />;
-            case 'admin_departamentos': return <DepartamentosPage />;
-            case 'admin_grupos_nomina': return <GruposNominaPage />;
-            case 'admin_estatus_asistencia': return <EstatusAsistenciaPage />;
-            case 'admin_horarios': return <HorariosPage />;
+            
+            // Layout de Catálogos (Sub-navegación)
+            case 'admin_departamentos':
+            case 'admin_grupos_nomina':
+            case 'admin_estatus_asistencia':
+            case 'admin_horarios':
+            case 'admin_establecimientos':
+            case 'admin_puestos':
+                return <CatalogLayout activeView={activeView} setActiveView={setActiveView} />;
+
+            // --- MODIFICACIÓN: Sección de Reportes ---
+            case 'attendance_reports': 
+                return <ReportsHub setActiveView={setActiveView} />;
+            
+            case 'report_kardex':
+            case 'report_incidencias': // <-- ¡ESTO FALTABA!
+                return <ReportsLayout activeView={activeView} setActiveView={setActiveView} />;
+            // --- FIN MODIFICACIÓN ---
+
             default: return <AttendancePage />;
         }
     };
-    
+
     return (
         <div className="flex bg-gray-50 h-screen overflow-hidden">
-            <ProfessionalSidebar 
-                onLogout={onLogout} 
-                activeView={activeView} 
-                setActiveView={setActiveView} 
-                menuConfig={menuConfig} 
+            <ProfessionalSidebar
+                onLogout={onLogout}
+                activeView={activeView}
+                setActiveView={setActiveView}
+                menuConfig={menuConfig}
             />
             <div className="flex-1 flex flex-col overflow-hidden">
                 <AppHeader user={user} onProfileClick={() => setIsProfileModalOpen(true)} themeColors={themeColors} />
@@ -78,11 +101,11 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
                     {renderContent()}
                 </main>
             </div>
-            <UserProfileModal 
-                isOpen={isProfileModalOpen} 
-                onClose={() => setIsProfileModalOpen(false)} 
-                user={user} 
-                setTheme={setTheme} 
+            <UserProfileModal
+                isOpen={isProfileModalOpen}
+                onClose={() => setIsProfileModalOpen(false)}
+                user={user}
+                setTheme={setTheme}
             />
         </div>
     );

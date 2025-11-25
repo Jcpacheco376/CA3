@@ -8,5 +8,5 @@ router.post('/', auth_middleware_1.authMiddleware, attendance_controller_1.saveA
 router.post('/approve-week', auth_middleware_1.authMiddleware, attendance_controller_1.approveWeek);
 router.post('/ensure-week', auth_middleware_1.authMiddleware, attendance_controller_1.ensureWeek);
 router.post('/ensure-range', auth_middleware_1.authMiddleware, attendance_controller_1.ensureRange);
-router.get('/data-by-range', auth_middleware_1.authMiddleware, attendance_controller_1.getDataByRange);
+router.post('/data-by-range', auth_middleware_1.authMiddleware, attendance_controller_1.getDataByRange);
 exports.default = router;

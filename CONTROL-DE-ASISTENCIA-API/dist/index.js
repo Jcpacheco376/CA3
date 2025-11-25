@@ -19,19 +19,19 @@ const app = (0, express_1.default)();
 const corsOptions = {
     origin: (origin, callback) => {
         // --- INICIO DE DEPURACIÓN ---
-        console.log('=================================');
-        console.log('PETICIÓN DE CORS RECIBIDA:');
-        console.log('Origen de la petición (origin):', origin);
-        console.log('Orígenes Permitidos (ALLOWED_ORIGINS):', config_1.ALLOWED_ORIGINS);
+        // console.log('=================================');
+        // console.log('PETICIÓN DE CORS RECIBIDA:');
+        // console.log('Origen de la petición (origin):', origin);
+        // console.log('Orígenes Permitidos (ALLOWED_ORIGINS):', ALLOWED_ORIGINS);
         // --- FIN DE DEPURACIÓN ---
         if (!origin || config_1.ALLOWED_ORIGINS.includes(origin)) {
-            console.log('Resultado: PERMITIDO');
-            console.log('=================================');
+            // console.log('Resultado: PERMITIDO');
+            // console.log('=================================');
             callback(null, true);
         }
         else {
-            console.log('Resultado: RECHAZADO');
-            console.log('=================================');
+            // console.log('Resultado: RECHAZADO');
+            // console.log('=================================');
             callback(new Error('No permitido por CORS'));
         }
     }

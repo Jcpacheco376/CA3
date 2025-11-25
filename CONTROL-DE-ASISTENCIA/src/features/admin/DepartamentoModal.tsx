@@ -104,7 +104,8 @@ export const DepartamentoModal = ({ isOpen, onClose, onSave, departamento }: any
                             name="DepartamentoId"
                             value={formData.DepartamentoId}
                             onChange={handleChange}
-                            className="mt-1 w-full p-2 border border-slate-300 rounded-md disabled:bg-slate-100"
+                            // --- MODIFICACIÓN AQUÍ ---
+                            className="mt-1 w-full p-2 border border-slate-300 rounded-md disabled:bg-slate-100 focus:outline-none focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500]"
                             required
                             disabled={!isNew}
                         />
@@ -116,7 +117,8 @@ export const DepartamentoModal = ({ isOpen, onClose, onSave, departamento }: any
                             name="CodRef"
                             value={formData.CodRef}
                             onChange={handleChange}
-                            className="mt-1 w-full p-2 border border-slate-300 rounded-md"
+                            // --- MODIFICACIÓN AQUÍ ---
+                            className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:outline-none focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500]"
                         />
                     </div>
                 </div>
@@ -127,7 +129,8 @@ export const DepartamentoModal = ({ isOpen, onClose, onSave, departamento }: any
                         name="nombre"
                         value={formData.nombre}
                         onChange={handleChange}
-                        className="mt-1 w-full p-2 border border-slate-300 rounded-md"
+                        // --- MODIFICACIÓN AQUÍ ---
+                        className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:outline-none focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500]"
                         required
                     />
                 </div>
@@ -138,7 +141,8 @@ export const DepartamentoModal = ({ isOpen, onClose, onSave, departamento }: any
                         name="abreviatura"
                         value={formData.abreviatura}
                         onChange={handleChange}
-                        className="mt-1 w-full p-2 border border-slate-300 rounded-md"
+                        // --- MODIFICACIÓN AQUÍ ---
+                        className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:outline-none focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500]"
                     />
                 </div>
                 <div className="flex items-center gap-4 pt-2">       
@@ -153,4 +157,3 @@ export const DepartamentoModal = ({ isOpen, onClose, onSave, departamento }: any
         </Modal>
     );
 };
-
