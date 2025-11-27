@@ -129,7 +129,7 @@ const upsertAttendanceStatus = (req, res) => __awaiter(void 0, void 0, void 0, f
     if (!req.user.permissions['catalogo.estatusAsistencia.manage']) {
         return res.status(403).json({ message: 'No tienes permiso para gestionar este catálogo.' });
     }
-    const { EstatusId, Abreviatura, Descripcion, ColorUI, ValorNomina, VisibleSupervisor, Activo, Tipo, EsFalta, EsRetardo, EsEntradaSalidaIncompleta, EsAsistencia, DiasRegistroFuturo, PermiteComentario } = req.body;
+    const { EstatusId, Abreviatura, Descripcion, ColorUI, ValorNomina, VisibleSupervisor, Activo, Tipo, EsFalta, EsRetardo, EsEntradaSalidaIncompleta, EsAsistencia, DiasRegistroFuturo, PermiteComentario, Esdefault } = req.body;
     try {
         const pool = yield mssql_1.default.connect(database_1.dbConfig);
         yield pool.request()
@@ -137,7 +137,7 @@ const upsertAttendanceStatus = (req, res) => __awaiter(void 0, void 0, void 0, f
             .input('Abreviatura', mssql_1.default.NVarChar, Abreviatura)
             .input('Descripcion', mssql_1.default.NVarChar, Descripcion)
             .input('ColorUI', mssql_1.default.NVarChar, ColorUI)
-            .input('ValorNomina', mssql_1.default.Decimal(3, 2), ValorNomina)
+            .input('ValorNomina', mssql_1.default.Decimal(5, 2), ValorNomina)
             .input('VisibleSupervisor', mssql_1.default.Bit, VisibleSupervisor)
             .input('Activo', mssql_1.default.Bit, Activo)
             .input('Tipo', mssql_1.default.NVarChar, Tipo)
@@ -147,6 +147,7 @@ const upsertAttendanceStatus = (req, res) => __awaiter(void 0, void 0, void 0, f
             .input('EsAsistencia', mssql_1.default.Bit, EsAsistencia)
             .input('DiasRegistroFuturo', mssql_1.default.Int, DiasRegistroFuturo)
             .input('PermiteComentario', mssql_1.default.Bit, PermiteComentario)
+            .input('Esdefault', mssql_1.default.Bit, Esdefault)
             .execute('sp_CatalogoEstatusAsistencia_Upsert');
         res.status(200).json({ message: 'Estatus guardado correctamente.' });
     }

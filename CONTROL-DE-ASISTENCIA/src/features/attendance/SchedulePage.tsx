@@ -11,7 +11,7 @@ import {
 import { es } from 'date-fns/locale';
 import {
     Loader2, Briefcase, Building, Cake, GripVertical, Contact, InfoIcon as Info,
-    Sun, Moon, Sunset, Coffee, RotateCw, X, CalendarCheck, Tag, MapPin
+    Sun, Moon, Sunset, Coffee, RotateCw, X, CalendarCheck, Tag, MapPin, AlertTriangle
 } from 'lucide-react';
 import { AttendanceToolbar, FilterConfig } from './AttendanceToolbar';
 import { ScheduleCell } from './ScheduleCell';
@@ -59,7 +59,7 @@ const EMPLOYEE_CONTENT_MIN_WIDTH = 360;
 const EMPLOYEE_CONTENT_MAX_WIDTH = 500;
 const MIN_COLUMN_WIDTH = EMPLOYEE_CONTENT_MIN_WIDTH + 16; // 376
 const MAX_COLUMN_WIDTH = EMPLOYEE_CONTENT_MAX_WIDTH + 250; // 516
-const DEFAULT_COLUMN_WIDTH = 384; 
+const DEFAULT_COLUMN_WIDTH = 384;
 const ROW_HEIGHT_ESTIMATE = 72;
 
 
@@ -95,6 +95,7 @@ export const SchedulePage = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [assignFixedModalInfo, setAssignFixedModalInfo] = useState<{ employeeId: number, employeeName: string } | null>(null);
     const [openCellId, setOpenCellId] = useState<string | null>(null);
+    const [showOnlyPending, setShowOnlyPending] = useState(false);
 
     const [filters, setFilters] = useState(() => loadInitialFilters(user));
 
@@ -246,7 +247,7 @@ export const SchedulePage = () => {
         });
     }, [viewMode]);
 
-    
+
     const fetchData = useCallback(async () => {
         if (!canRead) {
             setError('No tienes permiso para ver esta sección.');
@@ -280,13 +281,13 @@ export const SchedulePage = () => {
         try {
 
             const [assignmentsRes, schedulesRes] = await Promise.all([
-                
+
                 fetch(`${API_BASE_URL}/schedules/assignments`, {
                     method: 'POST',
                     headers,
                     body
                 }),
-                
+
                 fetch(`${API_BASE_URL}/schedules`, { headers })
             ]);
 
@@ -311,7 +312,7 @@ export const SchedulePage = () => {
     }, [
         dateRange, user, getToken, canRead, filters
     ]);
-    
+
 
     useEffect(() => {
         fetchData();
@@ -437,34 +438,103 @@ export const SchedulePage = () => {
         const endDate = endOfWeek(activeWeekStartDate, { weekStartsOn: 1 });
         return `Semana del ${format(activeWeekStartDate, 'd MMM')} al ${format(endDate, 'd MMM, yyyy', { locale: es })}`;
     };
+
+    // Pre-compute rotativo status for all horarios (cache)
+    const rotatvivoCache = useMemo(() => {
+        const cache = new Map<number, boolean>();
+        scheduleCatalog.forEach(horario => {
+            cache.set(horario.HorarioId, horario.EsRotativo === true);
+        });
+        return cache;
+    }, [scheduleCatalog]);
+
+    // Pre-compute which employees have pending assignments for instant filtering
+    const pendingEmployeeIds = useMemo(() => {
+        const pendingIds = new Set<number>();
+
+        employees.forEach(emp => {
+            if (!emp.HorarioDefaultId) return;
+
+            const isRotativo = rotatvivoCache.get(emp.HorarioDefaultId);
+            if (!isRotativo) return;
+
+            // Check if has pending assignments in the period
+            const hasPending = dateRange.some(day => {
+                const fechaStr = format(day, 'yyyy-MM-dd');
+                const assignment = emp.HorariosAsignados?.find((h: any) => h.Fecha === fechaStr);
+                return !assignment || !assignment.TipoAsignacion;
+            });
+
+            if (hasPending) {
+                pendingIds.add(emp.EmpleadoId);
+            }
+        });
+
+        return pendingIds;
+    }, [employees, dateRange, rotatvivoCache]);
+
     const filteredEmployees = useMemo(() => {
         const searchWords = searchTerm.toLowerCase().split(' ').filter(word => word);
-        // Filtros de Depto, Grupo, etc., YA NO SON NECESARIOS AQUÍ.
+
         return employees.filter(emp => {
-            if (searchWords.length === 0) return true;
-            const targetText = ((emp?.NombreCompleto || '') + ' ' + (emp?.CodRef || '')).toLowerCase();
-            return searchWords.every(word => targetText.includes(word));
+            // Filtro de búsqueda
+            if (searchWords.length > 0) {
+                const targetText = ((emp?.NombreCompleto || '') + ' ' + (emp?.CodRef || '')).toLowerCase();
+                if (!searchWords.every(word => targetText.includes(word))) {
+                    return false;
+                }
+            }
+
+            // Filtro de pendientes: instant Set lookup instead of nested loops
+            if (showOnlyPending) {
+                return pendingEmployeeIds.has(emp.EmpleadoId);
+            }
+
+            return true;
         });
-    }, [employees, searchTerm]);
+    }, [employees, searchTerm, showOnlyPending, pendingEmployeeIds]);
 
     const handleResizeMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
         e.preventDefault();
-        document.body.classList.add('select-none');
+        document.body.classList.add('select-none', 'cursor-col-resize');
+        
         const startX = e.clientX;
         const startWidth = employeeColumnWidth;
+        let rAFId: number | null = null;
 
         const handleMouseMove = (moveEvent: MouseEvent) => {
-            const newWidth = startWidth + (moveEvent.clientX - startX);
-            const clampedWidth = Math.max(MIN_COLUMN_WIDTH, Math.min(newWidth, MAX_COLUMN_WIDTH));
-            setEmployeeColumnWidth(clampedWidth);
+            // Cancel previous RAF if still pending to batch updates
+            if (rAFId !== null) {
+                cancelAnimationFrame(rAFId);
+            }
+            
+            // Schedule state update in next animation frame (throttles to ~60fps max)
+            rAFId = requestAnimationFrame(() => {
+                const newWidth = startWidth + (moveEvent.clientX - startX);
+                const clampedWidth = Math.max(MIN_COLUMN_WIDTH, Math.min(newWidth, MAX_COLUMN_WIDTH));
+                
+                // Update state with RAF throttling - no competing updates, just smart batching
+                setEmployeeColumnWidth(clampedWidth);
+                rAFId = null;
+            });
         };
 
         const handleMouseUp = (upEvent: MouseEvent) => {
-            document.body.classList.remove('select-none');
+            // Cleanup RAF
+            if (rAFId !== null) {
+                cancelAnimationFrame(rAFId);
+                rAFId = null;
+            }
+            
+            document.body.classList.remove('select-none', 'cursor-col-resize');
             window.removeEventListener('mousemove', handleMouseMove);
             window.removeEventListener('mouseup', handleMouseUp);
+            
+            // Calculate and save final width
             const finalWidth = startWidth + (upEvent.clientX - startX);
             const clampedFinalWidth = Math.max(MIN_COLUMN_WIDTH, Math.min(finalWidth, MAX_COLUMN_WIDTH));
+            
+            setEmployeeColumnWidth(clampedFinalWidth);
             localStorage.setItem(COLUMN_WIDTH_STORAGE_KEY, clampedFinalWidth.toString());
         };
 
@@ -477,15 +547,15 @@ export const SchedulePage = () => {
         count: filteredEmployees.length,
         getScrollElement: () => scrollContainerRef.current,
         estimateSize: () => ROW_HEIGHT_ESTIMATE,
-        overscan: 30,
+        overscan: 15,
     });
     const virtualRows = rowVirtualizer.getVirtualItems();
     const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
     const paddingBottom = virtualRows.length > 0 ? rowVirtualizer.getTotalSize() - virtualRows[virtualRows.length - 1].end : 0;
     // --- FIN Virtualización ---
 
-    
-const filterConfigurations: FilterConfig[] = useMemo(() => {
+
+    const filterConfigurations: FilterConfig[] = useMemo(() => {
         const filtersConfig: FilterConfig[] = [
             {
                 id: 'departamentos',
@@ -526,7 +596,7 @@ const filterConfigurations: FilterConfig[] = useMemo(() => {
         ];
         return filtersConfig.filter(f => f.isActive && f.options.length > 0);
     }, [user, filters]); // Ahora solo depende de 'user' y 'filters'
-    
+
 
     const renderContent = () => {
         if (isLoading) {
@@ -549,18 +619,33 @@ const filterConfigurations: FilterConfig[] = useMemo(() => {
                     >
                         <tr className="bg-slate-50">
                             <th
-                                className="p-2 text-left font-semibold text-slate-600 sticky left-0 bg-slate-50 z-30 shadow-sm"
+                                className="p-2 text-left font-semibold text-slate-600 sticky left-0 bg-slate-50 z-30 shadow-sm group relative"
                                 style={{
                                     width: `${employeeColumnWidth}px`,
-                                    willChange: 'transform',
-                                    transform: 'translate3d(0, 0, 0)'
+                                    willChange: 'width'
                                 }}
                             >
-                                <div className="flex justify-between items-center h-full">
+                                <div className="flex items-center gap-3 flex-1 min-w-0 pr-8">
                                     <span>Empleado</span>
-                                    <div onMouseDown={handleResizeMouseDown} className="absolute right-0 top-0 h-full w-2.5 cursor-col-resize group flex items-center justify-center">
-                                        <GripVertical className="h-5 text-slate-300 group-hover:text-[--theme-500] transition-colors" />
+                                    <div className="ml-auto">
+                                        <Tooltip text={showOnlyPending ? "Mostrando solo pendientes • Click para ver todos" : "Ver solo asignaciones pendientes"}>
+                                            <button
+                                                onClick={() => setShowOnlyPending(!showOnlyPending)}
+                                                className={`p-1.5 rounded-md transition-colors flex-shrink-0 ${showOnlyPending
+                                                        ? 'text-amber-600 bg-amber-50'
+                                                        : 'opacity-0 group-hover:opacity-100 text-slate-400 hover:text-amber-600 hover:bg-amber-50'
+                                                    }`}
+                                            >
+                                                <AlertTriangle size={18} />
+                                            </button>
+                                        </Tooltip>
                                     </div>
+                                </div>
+                                <div 
+                                    onMouseDown={handleResizeMouseDown} 
+                                    className="absolute right-0 top-0 h-full w-2.5 cursor-col-resize group flex items-center justify-center"
+                                >
+                                    <GripVertical className="h-5 text-slate-300 group-hover:text-[--theme-500] transition-colors" />
                                 </div>
                             </th>
 
@@ -625,17 +710,11 @@ const filterConfigurations: FilterConfig[] = useMemo(() => {
                                         className="p-2 text-left sticky left-0 bg-white group-hover:bg-slate-50 z-10 shadow-sm align-top border-b border-slate-100"
                                         style={{
                                             width: `${employeeColumnWidth}px`,
-                                            willChange: 'transform',
-                                            transform: 'translate3d(0, 0, 0)'
+                                            willChange: 'width'
                                         }}
                                     >
                                         <div
                                             className="flex items-start justify-between w-full"
-                                            style={{ 
-                                                width: `${employeeColumnWidth - 16}px`, // <-- AÑADIDO
-                                                minWidth: `${EMPLOYEE_CONTENT_MIN_WIDTH}px`, 
-                                                maxWidth: `${EMPLOYEE_CONTENT_MAX_WIDTH}px` 
-                                            }}
                                         >
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center justify-between">
@@ -708,6 +787,9 @@ const filterConfigurations: FilterConfig[] = useMemo(() => {
                                             tdClasses += ' border-l-2 border-slate-300';
                                         }
 
+                                        const horarioDefault = scheduleCatalog.find(h => h.HorarioId === emp.HorarioDefaultId);
+                                        const isRotativoEmployee = horarioDefault?.EsRotativo === true;
+
                                         return (
                                             <ScheduleCell
                                                 key={cellId}
@@ -729,6 +811,7 @@ const filterConfigurations: FilterConfig[] = useMemo(() => {
                                                 canAssign={canAssign}
                                                 viewMode={viewMode}
                                                 className={tdClasses}
+                                                isRotativoEmployee={isRotativoEmployee}
                                             />
                                         );
                                     })}
@@ -769,10 +852,8 @@ const filterConfigurations: FilterConfig[] = useMemo(() => {
                     rangeLabel={rangeLabel}
                     handleDatePrev={handleDatePrev}
                     handleDateNext={handleDateNext}
-                    // --- MODIFICACIÓN: Pasar props de fecha ---
                     currentDate={currentDate}
                     onDateChange={setCurrentDate}
-                    // --- FIN MODIFICACIÓN ---
                 />
 
                 {renderContent()}

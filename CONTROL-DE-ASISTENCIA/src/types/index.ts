@@ -76,9 +76,11 @@ export interface AttendanceStatus {
     EsEntradaSalidaIncompleta: boolean;
     EsAsistencia: boolean;
     DiasRegistroFuturo: number;
-    PermiteComentario: boolean; // Nuevo campo
+    PermiteComentario: boolean; 
+    Esdefault: boolean;
 }
-export type AttendanceStatusCode = 'A' | 'F' | 'PSS' | 'SPS' | 'VAC' | 'INC' | 'D' | 'RET' | 'SES';
+export type AttendanceStatusCode = string;
+//export type AttendanceStatusCode = 'A' | 'F' | 'PSS' | 'SPS' | 'VAC' | 'INC' | 'D' | 'RET' | 'SES';
 
 
 

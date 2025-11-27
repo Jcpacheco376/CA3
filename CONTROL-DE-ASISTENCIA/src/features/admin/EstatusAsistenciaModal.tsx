@@ -39,7 +39,8 @@ export const EstatusAsistenciaModal = ({ isOpen, onClose, onSave, status }: { is
                     Abreviatura: '', Descripcion: '', ColorUI: 'slate', ValorNomina: 1.00, 
                     VisibleSupervisor: true, Activo: true, Tipo: 'Incidencia',
                     EsFalta: false, EsRetardo: false, EsEntradaSalidaIncompleta: false,
-                    EsAsistencia: false, DiasRegistroFuturo: 0, PermiteComentario: false
+                    EsAsistencia: false, DiasRegistroFuturo: 0, PermiteComentario: false,
+                    Esdefault: false
                 });
             }
         }
@@ -169,6 +170,28 @@ export const EstatusAsistenciaModal = ({ isOpen, onClose, onSave, status }: { is
                             />
                         </div>
                     </div>
+                    <div className="flex items-center justify-between">
+                           <Tooltip text="Días máximos a futuro para registrar este estatus (0 = no se permite).">
+                               <label className="block text-sm font-medium text-slate-700">Días Registro Futuro</label>
+                           </Tooltip>
+                           <input 
+                                type="number" 
+                                name="DiasRegistroFuturo" 
+                                value={formData.DiasRegistroFuturo ?? 0} 
+                                onChange={handleChange}
+                                className="w-16 p-1 border border-slate-300 rounded-md text-center focus:outline-none focus:border-[--theme-500]"
+                                min="0"
+                            />
+                        </div>
+
+                        {/* --- NUEVO TOGGLE: ES PREDETERMINADO --- */}
+                        <div className="flex items-center justify-between col-span-1 sm:col-span-2 bg-blue-50 p-3 rounded-lg border border-blue-100">
+                            <div className="flex flex-col">
+                                <span className="font-bold text-slate-800 text-sm">Valor Predeterminado</span>
+                                <span className="text-xs text-slate-500">Usar este estatus por defecto cuando el sistema detecte este tipo de evento.</span>
+                            </div>
+                            <Toggle enabled={formData.Esdefault || false} onChange={(val) => handleToggleChange('Esdefault', val)} />
+                        </div>
                 </div>
             </form>
         </Modal>

@@ -14,6 +14,7 @@ import { EmployeeProfileModal } from './EmployeeProfileModal';
 import { AttendanceToolbar, FilterConfig } from './AttendanceToolbar';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { TableSkeleton } from '../../components/ui/TableSkeleton';
+import { canAssignStatusToDate } from '../../utils/attendanceValidation';
 
 // ... (Helpers: isRestDay, isBirthdayInPeriod, getHorarioTooltip, ConfirmationModal se mantienen igual) ...
 const isRestDay = (horario: string, date: Date): boolean => {
@@ -562,6 +563,10 @@ export const AttendancePage = () => {
             setDraggedCells([]);
             return;
         }
+        
+        // Obtener la configuración del estatus siendo arrastrado
+        const draggedStatusConfig = statusCatalog.find(s => s.Abreviatura === dragInfo.status);
+        
         const updates = draggedCells
             .map(cellId => {
                 const [empleadoIdStr, dayIndexStr] = cellId.split('-');
@@ -571,13 +576,30 @@ export const AttendancePage = () => {
                 if (!employee || isRestDay(employee.horario, dateRange[dayIndex])) return null;
                 const ficha = employee.FichasSemana.find((f: any) => f.Fecha.substring(0, 10) === format(dateRange[dayIndex], 'yyyy-MM-dd'));
                 if (ficha?.EstatusAutorizacion === 'Autorizado') return null;
-                return { empleadoId, fecha: dateRange[dayIndex], estatus: dragInfo.status };
+                
+                // NUEVO: Validar DiasRegistroFuturo
+                const targetDate = dateRange[dayIndex];
+                if (draggedStatusConfig && !canAssignStatusToDate(draggedStatusConfig, targetDate)) {
+                    return null; // Rechazar esta actualización
+                }
+                
+                return { empleadoId, fecha: targetDate, estatus: dragInfo.status };
             })
             .filter(Boolean) as { empleadoId: number, fecha: Date, estatus: string }[];
 
+        const rejectedCount = draggedCells.length - updates.length;
+        
         if (updates.length > 0) {
             handleBulkStatusChange(updates);
-            addNotification('Actualización Exitosa', `${updates.length} fichas actualizadas.`, 'success');
+            
+            let notificationMsg = `${updates.length} ficha${updates.length > 1 ? 's' : ''} actualizada${updates.length > 1 ? 's' : ''}.`;
+            if (rejectedCount > 0) {
+                notificationMsg += ` ${rejectedCount} rechazada${rejectedCount > 1 ? 's' : ''} por restricción de días futuro.`;
+            }
+            
+            addNotification('Actualización Exitosa', notificationMsg, 'success');
+        } else if (rejectedCount > 0) {
+            addNotification('Operación Bloqueada', `Todas las celdas (${rejectedCount}) fueron rechazadas por restricción de días futuro.`, 'info');
         }
         setDragInfo(null);
         setDraggedCells([]);
@@ -725,14 +747,7 @@ export const AttendancePage = () => {
                                             transform: 'translate3d(0, 0, 0)'
                                         }}
                                     >
-                                        <div
-                                            className="w-full"
-                                            style={{
-                                                width: `${employeeColumnWidth - 16}px`,
-                                                minWidth: `${EMPLOYEE_CONTENT_MIN_WIDTH}px`,
-                                                maxWidth: `${EMPLOYEE_CONTENT_MAX_WIDTH}px`
-                                            }}
-                                        >
+                                        <div className="w-full">
                                             <div className="flex items-start justify-between">
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center justify-between">
@@ -816,6 +831,7 @@ export const AttendancePage = () => {
                                                 isBeingDragged={draggedCells.includes(cellId)}
                                                 isAnyCellOpen={openCellId !== null}
                                                 statusCatalog={statusCatalog}
+                                                fecha={day}
                                             />
                                         );
                                     })}

@@ -1,7 +1,7 @@
 // src/features/attendance/AttendanceToolbar.tsx
 
 import React from 'react';
-import { ChevronLeft, ChevronRight, Search as SearchIcon } from 'lucide-react'; // Eliminados íconos no usados
+import { ChevronLeft, ChevronRight, Search as SearchIcon } from 'lucide-react';
 // import { Button } from '../../components/ui/Modal'; // Ya no se usa Button aquí
 import { Tooltip } from '../../components/ui/Tooltip';
 import { FilterPopover } from '../../components/ui/FilterPopover'; 
