@@ -46,8 +46,8 @@ export const authMiddleware = async (req: any, res: Response, next: NextFunction
             .execute('sp_Usuario_ObtenerPermisos');
 
         const permissions: { [key: string]: any[] } = {};
-        permissionsResult.recordset.forEach(p => {
-            permissions[p.NombrePermiso] = p.NombrePolitica ? [p.NombrePolitica] : [];
+        permissionsResult.recordset.forEach(record => {
+            permissions[record.NombrePermiso] = [true];
         });
 
         req.user = { usuarioId: decoded.usuarioId, permissions };

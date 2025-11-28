@@ -747,8 +747,14 @@ export const AttendancePage = () => {
                                             transform: 'translate3d(0, 0, 0)'
                                         }}
                                     >
-                                        <div className="w-full">
-                                            <div className="flex items-start justify-between">
+                                        <div
+                                            className="w-full"
+                                            style={{
+                                                minWidth: `${EMPLOYEE_CONTENT_MIN_WIDTH}px`,
+                                                maxWidth: `${EMPLOYEE_CONTENT_MAX_WIDTH}px`
+                                            }}
+                                        >
+                                            <div className="flex items-start justify-between w-full">
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center justify-between">
                                                         <div className="flex items-center gap-2">

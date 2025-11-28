@@ -713,8 +713,12 @@ export const SchedulePage = () => {
                                             willChange: 'width'
                                         }}
                                     >
-                                        <div
-                                            className="flex items-start justify-between w-full"
+                                        <div 
+                                            className="w-full"
+                                            style={{
+                                                minWidth: `${EMPLOYEE_CONTENT_MIN_WIDTH}px`,
+                                                maxWidth: `${EMPLOYEE_CONTENT_MAX_WIDTH}px`
+                                            }}
                                         >
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center justify-between">

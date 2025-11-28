@@ -1,9 +1,10 @@
+// src/features/reports/ReportsLayout.tsx
 import React from 'react';
 import { View } from '../../types';
-import { ArrowLeft, ClipboardList, AlertTriangle } from 'lucide-react'; // <-- Importar AlertTriangle
+import { ArrowLeft, ClipboardList } from 'lucide-react'; 
 import { Tooltip } from '../../components/ui/Tooltip';
 import { KardexReportPage } from './pages/KardexReportPage'; 
-import { IncidentsControlPage } from './pages/IncidentsControlPage'; // <-- Importar nueva página
+// import { IncidentsControlPage } from './pages/IncidentsControlPage'; // Ya no se necesita aquí
 
 const TabButton = ({ 
     icon, label, isActive, onClick 
@@ -34,16 +35,7 @@ export const ReportsLayout = ({ activeView, setActiveView }: { activeView: View,
             icon: <ClipboardList size={18} />, 
             component: <KardexReportPage /> 
         },
-        { 
-            id: 'report_incidencias', 
-            label: 'Control de Incidencias', 
-            icon: <AlertTriangle size={18} />, 
-            component: <IncidentsControlPage /> 
-        },
-        // Futuros reportes:
-        // { id: 'report_incidencias', label: 'Incidencias', icon: <AlertTriangle size={18} /> },
-        // { id: 'report_prenomina', label: 'Prenómina', icon: <Banknote size={18} /> },
-        // { id: 'report_audit', label: 'Auditoría', icon: <History size={18} /> },
+        // Se elimina la pestaña de Incidencias de este submenú
     ];
 
     const activeTab = reportTabs.find(tab => tab.id === activeView);

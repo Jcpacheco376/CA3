@@ -4,29 +4,30 @@ import sql from 'mssql';
 import { dbConfig } from '../../config/database';
 
 export const saveAttendance = async (req: any, res: Response) => {
-    // --- MODIFICACIÓN: De 'update' a 'assign' ---
+    // Validar permiso de escritura (asignación)
     if (!req.user.permissions['reportesAsistencia.assign']) {
         return res.status(403).json({ message: 'No tienes permiso para registrar la asistencia.' });
     }
     
-    const { empleadoId, fecha, estatusSupervisor, comentarios } = req.body;
-    if (!empleadoId || !fecha || !estatusSupervisor) {
-        return res.status(400).json({ message: 'Faltan parámetros requeridos.' });
+    const { empleadoId, fecha, estatusManual, comentarios } = req.body;
+
+    if (!empleadoId || !fecha || !estatusManual) {
+        return res.status(400).json({ message: 'Faltan parámetros requeridos (empleado, fecha o estatus).' });
     }
-    console.log(req.body);
+
     try {
         const pool = await sql.connect(dbConfig);
         await pool.request()
             .input('EmpleadoId', sql.Int, empleadoId)
             .input('Fecha', sql.Date, new Date(fecha))
-            .input('EstatusSupervisorAbrev', sql.NVarChar, estatusSupervisor)
+            .input('EstatusManualAbrev', sql.NVarChar, estatusManual)
             .input('Comentarios', sql.NVarChar, comentarios || null)
-            .input('SupervisorId', sql.Int, req.user.usuarioId)
-            .execute('sp_FichasAsistencia_SaveSupervisor');
+            .input('UsuarioId', sql.Int, req.user.usuarioId) 
+            .execute('sp_FichasAsistencia_SaveManual'); 
 
-        res.status(200).json({ message: 'Registro guardado con éxito.' });
+        res.status(200).json({ message: 'Registro manual guardado con éxito.' });
     } catch (err: any) {
-        console.error('Error al guardar registro de asistencia:', err);
+        console.error('Error al guardar registro manual:', err);
         res.status(500).json({ message: err.message || 'Error al guardar el registro.' });
     }
 };
@@ -44,7 +45,7 @@ export const approveWeek = async (req: any, res: Response) => {
     try {
         const pool = await sql.connect(dbConfig);
         await pool.request()
-            .input('SupervisorId', sql.Int, req.user.usuarioId)
+            .input('UsuarioId', sql.Int, req.user.usuarioId)
             .input('EmpleadoId', sql.Int, empleadoId)
             .input('FechaInicioSemana', sql.Date, new Date(weekStartDate))
             .execute('sp_FichasAsistencia_ApproveWeek');

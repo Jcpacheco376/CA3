@@ -5,10 +5,9 @@ import { Zap, ZapOff, CheckCircle2, AlertCircle, Eye, EyeOff, Mail, User as User
 import { Modal, Button } from '../../components/ui/Modal.tsx';
 import { useAppContext } from '../../context/AppContext.tsx';
 import { themes } from '../../config/theme.ts';
-import { useAuth } from './AuthContext.tsx';
+// Importamos APP_VERSION
+import { useAuth, APP_VERSION } from './AuthContext.tsx';
 import { API_BASE_URL } from '../../config/api.ts';
-
-// --- Componentes Internos del Modal ---
 
 const AnimationToggle = ({ enabled, onChange }: { enabled: boolean, onChange: (enabled: boolean) => void }) => (
     <button onClick={() => onChange(!enabled)} className="p-2 rounded-full hover:bg-gray-200 text-gray-600" title={enabled ? 'Deshabilitar animaciones' : 'Habilitar animaciones'}>
@@ -32,9 +31,6 @@ const UserProfileModalContent = ({ user, preferences, setPreferences, passwordDa
     const email = user?.Email || 'No disponible';
     const username = user?.NombreUsuario || 'No disponible';
     const roles = user?.Roles?.map((r: any) => r.NombreRol).join(', ') || 'Sin rol asignado';
-
-    console.log("User data in modal:", user);
-
 
     const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value } = e.target;
@@ -96,6 +92,13 @@ const UserProfileModalContent = ({ user, preferences, setPreferences, passwordDa
                         </div>
                     </div>
                 </div>
+            </div>
+
+            {/* --- MODIFICACIÓN: Versión dinámica aquí --- */}
+            <div className="mt-8 pt-4 flex justify-center border-t border-slate-100">
+                <span className="text-[10px] text-slate-300 font-mono tracking-widest select-none">
+                    v{APP_VERSION}
+                </span>
             </div>
         </div>
     );
@@ -159,7 +162,6 @@ export const UserProfileModal = ({ isOpen, onClose, user, setTheme }: any) => {
             
             setSaveStatus('success');
             onClose();
-            //setTimeout(() => { onClose(); }, 1500);
 
         } catch (error) {
             console.error("Error al guardar cambios:", error);
@@ -199,4 +201,3 @@ export const UserProfileModal = ({ isOpen, onClose, user, setTheme }: any) => {
         </Modal>
     );
 };
-

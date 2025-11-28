@@ -1,8 +1,9 @@
 // src/features/auth/LoginPage.tsx
 import React, { useState, useEffect, useRef } from 'react';
-import { useAuth } from './AuthContext.tsx';
+import { useAuth, APP_VERSION } from './AuthContext.tsx';
 import { EyeIcon, EyeOffIcon, ExclamationCircleIcon } from '../../components/ui/Icons.tsx';
-import { themes } from '../../config/theme.ts';
+// Importamos iconos adicionales para los modos de login
+import { Hash, User, ArrowRight } from 'lucide-react'; 
 
 const LoginLogoIcon = () => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth="1.5" stroke="currentColor" className="w-16 h-16 mb-5 mx-auto" style={{filter: 'drop-shadow(0 4px 8px rgba(0, 0, 0, 0.4))'}}>
@@ -11,21 +12,28 @@ const LoginLogoIcon = () => (
     </svg>
 );
 
-
 export const LoginPage = () => {
     const { login } = useAuth();
-    // CAMBIO: Se renombra 'username' a 'identifier' para el login mixto
     const [identifier, setIdentifier] = useState('');
     const [password, setPassword] = useState('');
+    
+    // --- NUEVO: Estado para el modo de login (ID vs Usuario) ---
+    const [loginMode, setLoginMode] = useState<'id' | 'user'>('id');
+    
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isPasswordVisible, setIsPasswordVisible] = useState(false);
     const [isMounted, setIsMounted] = useState(false);
     const [isExiting, setIsExiting] = useState(false);
     const canvasRef = useRef<HTMLCanvasElement>(null);
-    const theme = themes['indigo']; // Usamos un tema fijo para el login
 
-    // --- Lógica de Animación del Canvas (preservada) ---
+    // --- CAMBIO DE COLOR: Usamos el azul exacto del botón (blue-600 de Tailwind es #2563eb) ---
+    // Definimos la paleta para el canvas basada en este azul
+    const brandColor = 'rgba(18, 72, 189, 1)'; 
+
+    // Para las partículas, usamos tonos derivados para que combinen
+    const particleColor = '#60a5fa'; // Azul claro para el efecto tecnológico
+
     useEffect(() => {
         const canvas = canvasRef.current;
         if (!canvas) return;
@@ -42,7 +50,14 @@ export const LoginPage = () => {
         let mouse = { x: undefined as number | undefined, y: undefined as number | undefined };
         let hoveredPoint: Point | null = null;
         
-        const currentTheme = { base: theme[500], bg: theme[900], node: theme[100], secondary: theme[400] };
+        // Tema ajustado para el nuevo fondo oscuro
+        const currentTheme = { 
+            base: particleColor, 
+            bg: brandColor,  
+            node: '#ffffff', 
+            secondary: '#93c5fd' 
+        };
+        
         function hexToRgb(hex: string) { const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex); return result ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}` : null; }
 
         class Point {
@@ -71,7 +86,7 @@ export const LoginPage = () => {
         canvas.addEventListener('mouseout', handleMouseOut);
         
         return () => { cancelAnimationFrame(animationFrameId); window.removeEventListener('resize', handleResize); canvas.removeEventListener('mousemove', handleMouseMove); canvas.removeEventListener('mouseout', handleMouseOut); };
-    }, [theme]);
+    }, []);
 
     useEffect(() => {
         const timer = setTimeout(() => setIsMounted(true), 100);
@@ -82,7 +97,6 @@ export const LoginPage = () => {
         e.preventDefault();
         setError('');
         setIsLoading(true);
-        // CAMBIO: Se pasa el 'identifier' a la función de login
         const result = await login(identifier, password);
         if (result !== true) {
             setError(result as string);
@@ -97,59 +111,137 @@ export const LoginPage = () => {
         setter(e.target.value);
     };
 
+    const handleModeSwitch = (mode: 'id' | 'user') => {
+        setLoginMode(mode);
+        setIdentifier(''); 
+        setError('');
+    };
+
     const formAnimationClasses = error ? 'animate-shake' : '';
 
     return (
         <div className="flex justify-center items-center min-h-screen bg-slate-100 font-sans p-4">
             <div className={`w-[900px] max-w-full h-[550px] max-h-[90vh] bg-white rounded-2xl shadow-2xl overflow-hidden flex flex-col md:flex-row transition-all duration-500 ease-in-out ${isMounted ? 'opacity-100 scale-100' : 'opacity-0 scale-95'} ${isExiting ? 'opacity-0 scale-95' : ''}`}>
                 
-                <div className="flex-1 text-white flex flex-col justify-center items-center p-10 text-center relative" style={{backgroundColor: theme[900]}}>
+                {/* --- PANEL IZQUIERDO: FONDO PROFUNDO PARA CONFIANZA --- */}
+                <div className="flex-1 text-white flex flex-col justify-center items-center p-10 text-center relative" style={{backgroundColor: brandColor}}>
                     <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full z-10"></canvas>
                     <div className="relative z-20">
                         <LoginLogoIcon />
-                        <h1 className="m-0 mb-2.5 text-3xl font-bold" style={{textShadow: '0 2px 10px rgba(0,0,0,0.5)'}}>
-                            Control de Asistencia
+                        {/* --- CAMBIO DE MENSAJE --- 
+                           Reflejando Profesionalismo, Claridad y Transparencia 
+                        */}
+                        <h1 className="m-0 mb-3 text-3xl font-bold" style={{textShadow: '0 2px 10px rgba(0,0,0,0.5)'}}>
+                            Control de asistencia
                         </h1>
-                        <p className="m-0 text-base opacity-90 max-w-xs" style={{textShadow: '0 2px 10px rgba(0,0,0,0.5)'}}>
-                            Gestión de asistencia simple y eficiente para tu equipo.
+                        <p className="m-0 text-base opacity-90 max-w-xs leading-relaxed" style={{textShadow: '0 2px 10px rgba(0,0,0,0.5)'}}>
+                            Plataforma integral para una gestión de nómina clara y transparente.
+                            {/* El estándar profesional para el control de asistencia. */}
+                            {/* Integridad operativa para una nómina precisa. */}
                         </p>
+                        
+                        <div className="mt-8 pt-6 border-t border-white/10 w-32 mx-auto">
+                            <span className="text-[10px] font-mono opacity-40 tracking-[0.2em]">v{APP_VERSION}</span>
+                        </div>
                     </div>
                 </div>
 
+                {/* --- PANEL DERECHO: LIMPIEZA Y AMIGABILIDAD --- */}
                 <div className="flex-1 flex flex-col justify-center p-6 sm:p-12 bg-white overflow-y-auto">
-                    <h2 className="text-3xl font-bold text-slate-800 m-0 mb-2">Iniciar Sesión</h2>
-                    <p className="text-slate-500 m-0 mb-8">Bienvenido de nuevo.</p>
+                    <h2 className="text-3xl font-bold text-slate-800 m-0 mb-2">Bienvenido</h2>
+                    <p className="text-slate-500 m-0 mb-6">Ingresa tus credenciales para acceder al sistema.</p>
 
                     <div className={`transition-all duration-300 ${error ? 'opacity-100' : 'opacity-0 h-0'}`}>
                         {error && (
-                            <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md mb-6 flex items-start">
+                            <div className="bg-red-50 border-l-4 border-red-500 text-red-700 p-3 rounded-md mb-6 flex items-start text-sm">
                                 <ExclamationCircleIcon />
-                                <div className="ml-3">
-                                    <p className="font-bold">Error de Autenticación</p>
-                                    <p className="text-sm">{error}</p>
+                                <div className="ml-2">
+                                    <p className="font-bold">Acceso Denegado</p>
+                                    <p>{error}</p>
                                 </div>
                             </div>
                         )}
                     </div>
                     
                     <form onSubmit={handleSubmit} className={formAnimationClasses}>
-                        <div className="mb-5">
-                            <label htmlFor="identifier" className="block mb-2 text-slate-600 font-semibold text-sm">ID o Nombre de Usuario</label>
-                            <input type="text" id="identifier" value={identifier} onChange={handleInputChange(setIdentifier)} required className={`w-full py-3 px-4 border border-slate-300 rounded-lg text-base box-border transition-all duration-300 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 ${error ? 'border-red-500' : ''}`} />
+                        
+                        {/* Selector de Modo (Pestañas) */}
+                        <div className="flex p-1 bg-slate-100 rounded-lg mb-6 relative">
+                            <div 
+                                className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-white rounded-md shadow-sm transition-all duration-300 ease-out border border-slate-200`}
+                                style={{ left: loginMode === 'id' ? '4px' : 'calc(50%)' }}
+                            ></div>
+
+                            <button 
+                                type="button"
+                                onClick={() => handleModeSwitch('id')}
+                                className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-semibold rounded-md z-10 transition-colors duration-200 ${loginMode === 'id' ? 'text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                <Hash size={16} className={loginMode === 'id' ? 'text-blue-600' : 'text-slate-400'} />
+                                ID de Nómina
+                            </button>
+                            <button 
+                                type="button"
+                                onClick={() => handleModeSwitch('user')}
+                                className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-semibold rounded-md z-10 transition-colors duration-200 ${loginMode === 'user' ? 'text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                <User size={16} className={loginMode === 'user' ? 'text-blue-600' : 'text-slate-400'} />
+                                Usuario
+                            </button>
                         </div>
-                        <div className="mb-5">
-                            <label htmlFor="password"  className="block mb-2 text-slate-600 font-semibold text-sm">Contraseña</label>
-                             <div className="relative">
-                                <input type={isPasswordVisible ? 'text' : 'password'} id="password" value={password} onChange={handleInputChange(setPassword)} required className={`w-full py-3 px-4 border border-slate-300 rounded-lg text-base box-border transition-all duration-300 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 ${error ? 'border-red-500' : ''}`} />
-                                 <button type="button" onClick={() => setIsPasswordVisible(!isPasswordVisible)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600">
+
+                        {/* Campo Identificador */}
+                        <div className="mb-5 relative group">
+                            <label htmlFor="identifier" className="block mb-2 text-slate-600 font-semibold text-xs uppercase tracking-wide">
+                                {loginMode === 'id' ? 'Número de Empleado' : 'Nombre de Usuario'}
+                            </label>
+                            <div className="relative">
+                                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-600 transition-colors">
+                                    {loginMode === 'id' ? <Hash size={20} /> : <User size={20} />}
+                                </div>
+                                <input 
+                                    type={loginMode === 'id' ? 'number' : 'text'} 
+                                    id="identifier" 
+                                    value={identifier} 
+                                    onChange={handleInputChange(setIdentifier)} 
+                                    placeholder={loginMode === 'id' ? 'Ej: 1045' : 'Ej: juan.perez'}
+                                    required 
+                                    autoFocus
+                                    className={`w-full py-3 pl-10 pr-4 border border-slate-300 rounded-lg text-base transition-all duration-300 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 ${error ? 'border-red-500 focus:border-red-500 focus:ring-red-500/10' : ''}`} 
+                                />
+                            </div>
+                        </div>
+
+                        {/* Campo Contraseña */}
+                        <div className="mb-8">
+                            <label htmlFor="password" className="block mb-2 text-slate-600 font-semibold text-xs uppercase tracking-wide">Contraseña</label>
+                             <div className="relative group">
+                                <input 
+                                    type={isPasswordVisible ? 'text' : 'password'} 
+                                    id="password" 
+                                    value={password} 
+                                    onChange={handleInputChange(setPassword)} 
+                                    required 
+                                    placeholder="••••••••"
+                                    className={`w-full py-3 px-4 border border-slate-300 rounded-lg text-base transition-all duration-300 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 ${error ? 'border-red-500 focus:border-red-500 focus:ring-red-500/10' : ''}`} 
+                                />
+                                 <button type="button" onClick={() => setIsPasswordVisible(!isPasswordVisible)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600 focus:outline-none">
                                     {isPasswordVisible ? <EyeOffIcon /> : <EyeIcon />}
                                 </button>
                             </div>
                         </div>
-                        <button type="submit" disabled={isLoading} className={`w-full py-3.5 text-white border-none rounded-lg text-lg font-semibold cursor-pointer transition-all duration-300 hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center bg-blue-600 hover:bg-blue-700`}>
+
+                        <button 
+                            type="submit" 
+                            disabled={isLoading} 
+                            // EL BOTÓN MANTIENE SU AZUL BRILLANTE (blue-600) PARA EL CTA
+                            className={`w-full py-3.5 text-white border-none rounded-lg text-lg font-bold cursor-pointer transition-all duration-300 shadow-md hover:shadow-lg hover:-translate-y-0.5 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center bg-blue-600 hover:bg-blue-700 active:bg-blue-800 group relative overflow-hidden`}
+                        >
+                            <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-[100%] group-hover:animate-[shimmer_1.5s_infinite]"></div>
+                            
                             {isLoading 
                                 ? <svg className="animate-spin h-5 w-5 text-white" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
-                                : 'Ingresar'
+                                : <span className="flex items-center gap-2">Acceder <ArrowRight size={20} className="opacity-80 group-hover:translate-x-1 transition-transform"/></span>
                             }
                         </button>
                     </form>
@@ -158,4 +250,3 @@ export const LoginPage = () => {
         </div>
     );
 };
-

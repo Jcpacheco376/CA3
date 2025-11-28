@@ -105,7 +105,8 @@ export const upsertAttendanceStatus = async (req: any, res: Response) => {
         EsEntradaSalidaIncompleta,
         EsAsistencia,
         DiasRegistroFuturo,
-        PermiteComentario
+        PermiteComentario,
+        Esdefault 
     } = req.body;
 
     try {
@@ -115,7 +116,7 @@ export const upsertAttendanceStatus = async (req: any, res: Response) => {
             .input('Abreviatura', sql.NVarChar, Abreviatura)
             .input('Descripcion', sql.NVarChar, Descripcion)
             .input('ColorUI', sql.NVarChar, ColorUI)
-            .input('ValorNomina', sql.Decimal(3, 2), ValorNomina)
+            .input('ValorNomina', sql.Decimal(5, 2), ValorNomina) 
             .input('VisibleSupervisor', sql.Bit, VisibleSupervisor)
             .input('Activo', sql.Bit, Activo)
             .input('Tipo', sql.NVarChar, Tipo)
@@ -125,6 +126,7 @@ export const upsertAttendanceStatus = async (req: any, res: Response) => {
             .input('EsAsistencia', sql.Bit, EsAsistencia)
             .input('DiasRegistroFuturo', sql.Int, DiasRegistroFuturo)
             .input('PermiteComentario', sql.Bit, PermiteComentario)
+            .input('Esdefault', sql.Bit, Esdefault) 
             .execute('sp_CatalogoEstatusAsistencia_Upsert');
             
         res.status(200).json({ message: 'Estatus guardado correctamente.' });
@@ -132,7 +134,6 @@ export const upsertAttendanceStatus = async (req: any, res: Response) => {
         res.status(409).json({ message: err.message });
     }
 };
-
 export const getSchedulesCatalog = async (req: any, res: Response) => {
     if (!req.user.permissions['catalogo.horarios.read'] && !req.user.permissions['catalogo.horarios.manage']) {
         return res.status(403).json({ message: 'Acceso denegado.' });

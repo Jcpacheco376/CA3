@@ -3,8 +3,11 @@ import React, { createContext, useState, useContext, ReactNode, useCallback, use
 import { User } from '../../types'; 
 import { API_BASE_URL } from '../../config/api';
 import { useNotification } from '../../context/NotificationContext';
+
 const SESSION_STORAGE_KEY = 'app_session';
-const APP_DATA_VERSION = '1.0.6'; 
+
+// --- CAMBIO: Exportamos la versión para usarla en toda la app ---
+export const APP_VERSION = '1.0.6'; 
 
 interface AuthContextType {
     user: User | null;
@@ -23,8 +26,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const savedSession = localStorage.getItem(SESSION_STORAGE_KEY);
         if (savedSession) {
             try {
+                // Usamos la variable exportada APP_VERSION
                 const { version, user: savedUser } = JSON.parse(savedSession);
-                if (version === APP_DATA_VERSION) return savedUser;
+                if (version === APP_VERSION) return savedUser;
             } catch (e) { localStorage.removeItem(SESSION_STORAGE_KEY); }
         }
         return null;
@@ -41,31 +45,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const logout = useCallback(() => {
         setUser(null);
         localStorage.removeItem(SESSION_STORAGE_KEY);
-        // Redirigir a la raíz (que mostrará el Login)
         window.location.href = '/'; 
     }, []);
 
-    // --- NUEVO: Interceptor Global de Fetch ---
-    // Este efecto "vigila" todas las peticiones de la app. Si alguna devuelve 401, cierra la sesión.
     useEffect(() => {
         const originalFetch = window.fetch;
-
         window.fetch = async (input, init) => {
             try {
                 const response = await originalFetch(input, init);
-
-                // Si la respuesta es 401 (Unauthorized)
                 if (response.status === 401) {
-                    // Obtenemos la URL para no interceptar el login (es normal que falle si la clave está mal)
                     const url = typeof input === 'string' ? input : (input instanceof URL ? input.href : input.url);
-                    
-                    // Si NO es la ruta de login, entonces es una sesión caducada -> FORCE LOGOUT
                     if (url && !url.includes('/auth/login')) {
                         console.warn("Sesión inválida detectada globalmente (401). Ejecutando logout automático...");
                         logout();
-                        // Opcional: Retornar una promesa que nunca se resuelve para "congelar" la UI 
-                        // y evitar que el componente muestre errores antes de redirigir.
-                        // return new Promise(() => {}); 
                     }
                 }
                 return response;
@@ -73,13 +65,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 throw error;
             }
         };
-
-        // Limpieza: restaurar el fetch original si el componente se desmonta
-        return () => {
-            window.fetch = originalFetch;
-        };
+        return () => { window.fetch = originalFetch; };
     }, [logout]);
-    // --- FIN DEL INTERCEPTOR ---
 
     const login = useCallback(async (username: string, password: string): Promise<string | true> => {
         try {
@@ -97,7 +84,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             const { token, user: userData } = await response.json(); 
             
             setUser(userData);
-            localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ version: APP_DATA_VERSION, user: userData, token }));
+            // Usamos APP_VERSION aquí también
+            localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ version: APP_VERSION, user: userData, token }));
             return true;
             
         } catch (error: any) {
@@ -116,25 +104,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             const updatedUser = { ...user, ...prefs };
             setUser(updatedUser);
             const token = getToken();
-            localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ version: APP_DATA_VERSION, user: updatedUser, token }));
+            // Usamos APP_VERSION aquí también
+            localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ version: APP_VERSION, user: updatedUser, token }));
         }
     }, [user, getToken]);
 
-    // --- Polling para verificar validez de sesión ---
     const checkSessionStatus = useCallback(async () => {
         if (!user) return;
         const token = getToken();
         if (!token) return;
 
         try {
-            // El interceptor global (arriba) capturará el 401 aquí también,
-            // pero mantenemos la lógica explícita por seguridad.
             const response = await fetch(`${API_BASE_URL}/users/permissions`, { 
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
             if (response.status === 401) {
-                 // El interceptor probablemente ya disparó el logout, pero por si acaso:
                  logout(); 
                  return;
             } 
@@ -143,19 +128,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [user, getToken, logout]);
 
-    // --- EFECTO: Polling cada 60 segundos ---
     useEffect(() => {
         if (!user) return;
-        
         checkSessionStatus();
-
-        const interval = setInterval(() => {
-            checkSessionStatus();
-        }, 60000); 
-
+        const interval = setInterval(() => { checkSessionStatus(); }, 60000); 
         return () => clearInterval(interval);
     }, [user, checkSessionStatus]);
-
 
     const value = useMemo(() => ({
         user, login, logout, can, updateUserPreferences, getToken, checkSessionStatus

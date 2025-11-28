@@ -1,7 +1,7 @@
 // src/features/reports/ReportsHub.tsx
 import React from 'react';
 import { useAuth } from '../auth/AuthContext';
-import { FileText, ClipboardList, AlertTriangle, Banknote, History } from 'lucide-react';
+import { FileText, ClipboardList, Banknote, History } from 'lucide-react'; // Eliminamos AlertTriangle
 
 const ReportCard = ({ title, description, icon, onClick, disabled = false }: any) => (
     <button 
@@ -29,7 +29,7 @@ const ReportCard = ({ title, description, icon, onClick, disabled = false }: any
 );
 
 export const ReportsHub = ({ setActiveView }: { setActiveView: (view: any) => void }) => {
-    const { can } = useAuth();
+    // const { can } = useAuth(); // Ya no se usa si no hay lógica condicional aquí
 
     return (
         <div>
@@ -62,18 +62,10 @@ export const ReportsHub = ({ setActiveView }: { setActiveView: (view: any) => vo
 
                 {/* GRUPO: NÓMINA Y CONTROL */}
                 <div className="col-span-full pb-2 border-b border-slate-200 mb-2 mt-4">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nómina y Control</h4>
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nómina</h4>
                 </div>
 
-                {/* --- CORRECCIÓN: Solo dejamos esta tarjeta (la habilitada) --- */}
-                <ReportCard
-                    title="Control de Incidencias"
-                    description="Tablero para gestionar y autorizar faltas, retardos y excepciones antes de la nómina."
-                    icon={<AlertTriangle />}
-                    onClick={() => setActiveView('report_incidencias')}
-                    disabled={false} 
-                />
-                {/* --- FIN CORRECCIÓN --- */}
+                {/* Se eliminó la tarjeta de Control de Incidencias de aquí */}
 
                 <ReportCard
                     title="Prenómina"

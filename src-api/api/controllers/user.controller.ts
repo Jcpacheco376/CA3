@@ -146,7 +146,7 @@ export const getPermissionsByUserId = async (req: any, res: Response) => {
 
         const permissions: { [key: string]: any[] } = {};
         permissionsResult.recordset.forEach((record: any) => {
-            permissions[record.NombrePermiso] = record.NombrePolitica ? [record.NombrePolitica] : [true];
+            permissions[record.NombrePermiso] = [true]; 
         });
         
         // 3. Obtener filtros activos

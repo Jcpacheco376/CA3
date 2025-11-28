@@ -6,18 +6,16 @@ import { AttendancePage } from '../../features/attendance/AttendancePage';
 import { UsersPage } from '../../features/admin/UsersPage';
 import { RolesPage } from '../../features/admin/RolesPage';
 import { CatalogLayout } from '../../features/admin/CatalogLayout'; 
-import { DepartamentosPage } from '../../features/admin/DepartamentosPage';
-import { GruposNominaPage } from '../../features/admin/GruposNominaPage';
 import { CatalogosPage } from '../../features/admin/CatalogosPage';
 import { UserProfileModal } from '../../features/auth/UserProfileModal';
 import { ProfessionalSidebar } from './ProfessionalSidebar';
 import { AppHeader } from './AppHeader';
-import { BarChartBig, Users, Settings, Folder, FileText, CalendarClock, MapPin, Tag } from 'lucide-react';
-import { EstatusAsistenciaPage } from '../../features/admin/EstatusAsistenciaPage';
+import { BarChartBig, Users, Settings, Folder, FileText, CalendarClock, AlertTriangle } from 'lucide-react'; // Asegúrate de importar AlertTriangle
 import { SchedulePage } from '../../features/attendance/SchedulePage';
-import { HorariosPage } from '../../features/admin/HorariosPage';
 import { ReportsHub } from '../../features/reports/ReportsHub'; 
 import { ReportsLayout } from '../../features/reports/ReportsLayout'; 
+// Importamos la página directamente
+import { IncidentsControlPage } from '../../features/reports/pages/IncidentsControlPage'; 
 
 
 interface MainLayoutProps {
@@ -38,6 +36,14 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
             section: 'Principal',
             items: [
                 { id: 'attendance_weekly', label: 'Registro de Asistencia', icon: <BarChartBig size={20} /> },
+                
+                // --- NUEVO: Control de Incidencias en el menú principal ---
+                can('reportesAsistencia.read') && { 
+                    id: 'report_incidencias', 
+                    label: 'Control de Incidencias', 
+                    icon: <AlertTriangle size={20} /> 
+                },
+                
                 can('horarios.read') && { id: 'schedule_planner', label: 'Programador de Horarios', icon: <CalendarClock size={20} /> },
                 { id: 'attendance_reports', label: 'Reportes', icon: <FileText size={20} /> },
             ].filter(Boolean)
@@ -58,6 +64,9 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
             case 'attendance_weekly': return <AttendancePage />;
             case 'schedule_planner': return <SchedulePage />;
             
+            // --- NUEVO: Renderizado directo de la página de incidencias ---
+            case 'report_incidencias': return <IncidentsControlPage />;
+            
             // Administración de Usuarios y Roles
             case 'admin_users': return <UsersPage />;
             case 'admin_roles': return <RolesPage />;
@@ -74,14 +83,13 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
             case 'admin_puestos':
                 return <CatalogLayout activeView={activeView} setActiveView={setActiveView} />;
 
-            // --- MODIFICACIÓN: Sección de Reportes ---
+            // Sección de Reportes
             case 'attendance_reports': 
                 return <ReportsHub setActiveView={setActiveView} />;
             
+            // Sub-navegación de reportes (Solo queda Kardex por ahora)
             case 'report_kardex':
-            case 'report_incidencias': // <-- ¡ESTO FALTABA!
                 return <ReportsLayout activeView={activeView} setActiveView={setActiveView} />;
-            // --- FIN MODIFICACIÓN ---
 
             default: return <AttendancePage />;
         }
@@ -110,4 +118,3 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
         </div>
     );
 };
-

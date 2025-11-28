@@ -116,7 +116,7 @@ export const saveScheduleAssignments = async (req: any, res: Response) => {
 
             request.input('EmpleadoId', sql.Int, empleadoId);
             request.input('Fecha', sql.Date, new Date(fecha));
-            request.input('SupervisorId', sql.Int, req.user.usuarioId);
+            request.input('UsuarioId', sql.Int, req.user.usuarioId);
             request.input('TipoAsignacion', sql.Char(1), tipoAsignacion);
             request.input('HorarioId', sql.Int, tipoAsignacion === 'H' ? horarioId : null);
             request.input('HorarioDetalleId', sql.Int, tipoAsignacion === 'T' ? detalleId : null);
