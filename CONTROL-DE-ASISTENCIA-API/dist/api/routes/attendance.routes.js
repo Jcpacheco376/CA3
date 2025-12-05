@@ -5,7 +5,7 @@ const attendance_controller_1 = require("../controllers/attendance.controller");
 const auth_middleware_1 = require("../middlewares/auth.middleware");
 const router = (0, express_1.Router)();
 router.post('/', auth_middleware_1.authMiddleware, attendance_controller_1.saveAttendance);
-router.post('/approve-week', auth_middleware_1.authMiddleware, attendance_controller_1.approveWeek);
+//router.post('/approve-week', authMiddleware, approveWeek);
 // router.post('/ensure-week', authMiddleware, ensureWeek);
 // router.post('/ensure-range', authMiddleware, ensureRange);
 router.post('/data-by-range', auth_middleware_1.authMiddleware, attendance_controller_1.getDataByRange);

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, memo } from 'react';
 import ReactDOM from 'react-dom';
 import { AttendanceStatus, AttendanceStatusCode } from '../../types';
-import { Check, Clock, MessageSquare, Save, Lock, AlertTriangle, Trash2 } from 'lucide-react';
+import { Check, CheckCheck, Clock, MessageSquare, Save, Lock, AlertTriangle, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { Tooltip } from '../../components/ui/Tooltip';
 import { statusColorPalette } from '../../config/theme';
@@ -20,7 +20,10 @@ const getColorClasses = (colorName: string = 'slate') => {
 
 const FichaTooltip = memo(({ ficha, isRestDay, statusCatalog }: { ficha: any, isRestDay: boolean, statusCatalog: AttendanceStatus[] }) => {
     if (isRestDay) return <span>Día de descanso.</span>;
-    if (!ficha) return <span>Sin registro del checador para este día.</span>;
+    
+    // --- CORRECCIÓN: Si es borrador limpio, tratar como sin registro ---
+    const isCleanBorrador = ficha?.Estado === 'BORRADOR' && !ficha.EstatusManualAbrev && !ficha.EstatusChecadorAbrev;
+    if (!ficha || isCleanBorrador) return <span>Sin registro del checador para este día.</span>;
 
     const formatTime = (dateString: string) => {
         if (!dateString) return '--:--';
@@ -68,11 +71,15 @@ export const AttendanceCell = memo(({
     const [comment, setComment] = useState('');
     const [justSaved, setJustSaved] = useState(false);
 
+    // --- CORRECCIÓN CRÍTICA PARA FICHAS BORRADOR/FUTURAS ---
+    // Si la ficha existe pero está en estado BORRADOR y no tiene estatus, es visualmente un "-" (Vacío)
+    const isCleanBorrador = ficha?.Estado === 'BORRADOR' && !ficha.EstatusManualAbrev && !ficha.EstatusChecadorAbrev;
+
     let finalStatus = 'F'; 
     if (isRestDay) finalStatus = 'D';
     else if (ficha?.EstatusManualAbrev) finalStatus = ficha.EstatusManualAbrev;
     else if (ficha?.EstatusChecadorAbrev) finalStatus = ficha.EstatusChecadorAbrev;
-    else if (!ficha) finalStatus = '-';
+    else if (!ficha || isCleanBorrador) finalStatus = '-'; // <--- AQUÍ EL CAMBIO
     
     const currentStatusConfig = statusCatalog.find((s: any) => s.Abreviatura === finalStatus) || (finalStatus === '-' ? { ColorUI: 'slate', Descripcion: 'No generado', PermiteComentario: false } : { ColorUI: 'blue', Descripcion: 'Desconocido', PermiteComentario: true });                      
     const theme = getColorClasses(currentStatusConfig.ColorUI);
@@ -83,6 +90,7 @@ export const AttendanceCell = memo(({
     const hasActiveIncident = !!ficha?.IncidenciaActivaId;
     
     const needsManualAction = !ficha?.EstatusManualAbrev && !isRestDay;
+    // Si es "borrador limpio", no es interactivo para arrastrar, pero sí para clickear y asignar
     const isInteractive = canAssign && !isProcessing && !isBlocked && !isRestDay && !isNoSchedule;
 
     const prevStatusRef = useRef(ficha?.EstatusManualAbrev);
@@ -97,14 +105,20 @@ export const AttendanceCell = memo(({
     useEffect(() => {
         if (isOpen && wrapperRef.current) {
             const cellRect = wrapperRef.current.getBoundingClientRect();
-            const panelHeight = currentStatusConfig?.PermiteComentario ? 320 : 200;
+            const panelHeight = currentStatusConfig?.PermiteComentario ? 420 : 320;
             let top = cellRect.bottom + 8;
             let newPlacement: 'top' | 'bottom' = 'bottom';
             if (cellRect.bottom + panelHeight > window.innerHeight && cellRect.top > panelHeight + 8) {
                 top = cellRect.top - panelHeight - 8;
                 newPlacement = 'top';
             }
-            setPanelStyle({ top, left: cellRect.left });
+            
+            // Centrado horizontal
+            let left = cellRect.left + (cellRect.width / 2) - 192; // 192 es la mitad de w-96 (384px)
+            if (left < 10) left = 10;
+            if (left + 384 > window.innerWidth) left = window.innerWidth - 394;
+
+            setPanelStyle({ top, left });
             setPanelPlacement(newPlacement);
             setComment(ficha?.Comentarios || '');
         }
@@ -112,12 +126,9 @@ export const AttendanceCell = memo(({
 
     const handleToggleInteraction = (clickedStatus: AttendanceStatusCode) => {
         const currentManual = ficha?.EstatusManualAbrev;
-        
-        // Si se hace clic en el estatus que YA está asignado manualmente -> DESHACER
         if (currentManual === clickedStatus) {
             onStatusChange(null, null); 
         } else {
-            // Si no, asignar normal
             const selectedStatusConfig = statusCatalog.find((s: AttendanceStatus) => s.Abreviatura === clickedStatus);
             onStatusChange(clickedStatus, selectedStatusConfig?.PermiteComentario ? comment : undefined);
         }
@@ -158,22 +169,17 @@ export const AttendanceCell = memo(({
         </div>
     );
 
-    // Panel Flotante - Estilo Original 3 Columnas
+    // Panel Flotante
     const statusPanel = isOpen && isInteractive ? ReactDOM.createPortal(
         <div className="fixed bg-white rounded-lg shadow-xl border z-50 p-2 w-64 animate-scale-in" style={panelStyle} onMouseDown={(e) => e.stopPropagation()}>
             <div className="grid grid-cols-3 gap-1">
-                {statusCatalog.filter((status: AttendanceStatus) => status.VisibleSupervisor).map((status: AttendanceStatus) => {
+                {statusCatalog.filter((status: AttendanceStatus) => status.VisibleSupervisor || status.Abreviatura === ficha?.EstatusChecadorAbrev).map((status: AttendanceStatus) => {
                         const themeBtn = getColorClasses(status.ColorUI);
                         const isStatusAllowed = fecha ? canAssignStatusToDate(status, fecha) : true;
-                        
-                        // Determinar si es la opción seleccionada MANUALMENTE (para poder deshacer)
                         const isSelected = ficha?.EstatusManualAbrev === status.Abreviatura;
-                        
-                        // Determinar si es el estatus ACTUAL (sea manual o automático) para mostrar el check
-                        const isCurrent = finalStatus === status.Abreviatura;
-
+                        const isSuggested = status.Abreviatura === ficha?.EstatusChecadorAbrev;
                         return (
-                            <Tooltip key={status.EstatusId} text={isSelected ? "Click para restaurar (deshacer)" : (fecha ? getRestrictionMessage(status, fecha) || status.Descripcion : status.Descripcion)} placement="top" offset={8} zIndex={100}>
+                            <Tooltip key={status.EstatusId} text={isSelected ? "Click para DESHACER (Volver a Borrador)" : (fecha ? getRestrictionMessage(status, fecha) || status.Descripcion : status.Descripcion)} placement="top" offset={8} zIndex={100}>
                                 <div className="h-full">
                                     <button 
                                         onClick={() => {
@@ -181,25 +187,29 @@ export const AttendanceCell = memo(({
                                             handleToggleInteraction(status.Abreviatura as AttendanceStatusCode);
                                         }} 
                                         className={`
-                                            w-full h-full p-1.5 rounded-md text-center group transition-transform hover:scale-105 focus:outline-none focus:ring-2 ring-[--theme-500] relative overflow-hidden
+                                            w-full h-full min-h-[3.5rem] p-1.5 rounded-md text-center group transition-transform hover:scale-105 focus:outline-none focus:ring-2 ring-[--theme-500] relative overflow-hidden
                                             ${themeBtn.bgText} 
                                             ${!isStatusAllowed ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'cursor-pointer'} 
                                             ${isSelected ? 'ring-2 ring-offset-1 ring-[--theme-500]' : ''}
                                         `}
                                     >
-                                        {/* CONTENIDO DEL BOTÓN */}
                                         <div className="relative z-10">
-                                            {isCurrent && <Check size={14} className="absolute top-1 right-1 text-black/50" />}
+                                            {isSelected && isSuggested ? (
+                                                <Tooltip text="Sugerido y Confirmado" zIndex={101}><CheckCheck size={16} className="absolute top-1 right-1 text-emerald-600" /></Tooltip>
+                                            ) : isSelected ? (
+                                                <Tooltip text="Confirmado Manualmente" zIndex={101}><Check size={16} className="absolute top-1 right-1 text-blue-600" /></Tooltip>
+                                            ) : isSuggested ? (
+                                                <Tooltip text="Sugerido por Checador" zIndex={101}><Check size={16} className="absolute top-1 right-1 text-slate-500" /></Tooltip>
+                                            ) : null}
                                             <span className="font-bold block text-lg">{status.Abreviatura}</span>
-                                            <span className="text-xs block">{status.Descripcion}</span>
+                                            <span className="text-xs block leading-tight">{status.Descripcion}</span>
                                         </div>
 
-                                        {/* ANIMACIÓN DE VASO LLENÁNDOSE (Solo si está seleccionado manualmente) */}
                                         {isSelected && (
                                             <div className="absolute inset-0 bg-red-500 flex flex-col items-center justify-center text-white 
                                                             translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out z-20">
-                                                <Trash2 size={18} />
-                                                <span className="text-[10px] font-bold uppercase mt-0.5">QUITAR</span>
+                                                <X size={18} strokeWidth={3} />
+                                                <span className="text-[10px] font-bold uppercase mt-0.5">DESHACER</span>
                                             </div>
                                         )}
                                     </button>

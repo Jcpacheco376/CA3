@@ -1,7 +1,7 @@
 // src/features/attendance/AssignFixedScheduleModal.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import ReactDOM from 'react-dom';
-import { X, Sun, Moon, Sunset, Coffee, RotateCw } from 'lucide-react';
+import { X, Sun, Moon, Sunset, Coffee, RotateCcw } from 'lucide-react';
 import { statusColorPalette } from '../../config/theme';
 import { Tooltip } from '../../components/ui/Tooltip';
 
@@ -188,7 +188,7 @@ export const AssignFixedScheduleModal = ({
                         onClick={() => onAssign(null)}
                         className="w-full text-left p-3 rounded-lg flex items-start gap-3 transition-colors border-dashed border-2 border-slate-300 text-slate-600 hover:bg-slate-100 hover:border-slate-400 hover:text-slate-800 focus:outline-none focus:ring-2 ring-offset-1 ring-[--theme-500]"
                     >
-                        <RotateCw size={18} className="shrink-0 mt-0.5 text-slate-500" />
+                        <RotateCcw size={18} className="shrink-0 mt-0.5 text-slate-500" />
                         <div className="flex-1 min-w-0">
                             <p className="text-sm font-semibold">Revertir a Horario Base</p>
                             <p className="text-xs text-slate-500 mt-1 leading-snug">

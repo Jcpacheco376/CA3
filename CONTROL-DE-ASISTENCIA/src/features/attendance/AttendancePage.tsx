@@ -3,28 +3,28 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useAuth } from '../auth/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { API_BASE_URL } from '../../config/api';
-import { 
+import {
     format, isToday as isTodayDateFns, getDay as getDayOfWeek, isSameDay, isWithinInterval,
-    startOfWeek, endOfWeek 
+    startOfWeek, endOfWeek, addDays, subMonths, subWeeks, addMonths, addWeeks, startOfMonth, endOfMonth,
+    isAfter, startOfToday
 } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { 
-    Loader2, ClipboardCheck, Briefcase, Building, Cake, GripVertical, 
-    Contact, CalendarOff, ListTodo, Tag, MapPin, AlertTriangle 
+import {
+    Loader2, ClipboardCheck, Briefcase, Building, Cake, GripVertical,
+    Contact, CalendarOff, ListTodo, Tag, MapPin, AlertTriangle, RotateCcw
 } from 'lucide-react';
 import { AttendanceCell } from './AttendanceCell';
 import { Button, Modal } from '../../components/ui/Modal';
 import { AttendanceStatus, AttendanceStatusCode } from '../../types';
-import { Tooltip, InfoIcon } from '../../components/ui/Tooltip'; 
+import { Tooltip, InfoIcon } from '../../components/ui/Tooltip';
 import { EmployeeProfileModal } from './EmployeeProfileModal';
 import { AttendanceToolbar, FilterConfig } from './AttendanceToolbar';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { TableSkeleton } from '../../components/ui/TableSkeleton';
 import { canAssignStatusToDate } from '../../utils/attendanceValidation';
-// IMPORTACIÓN DEL HOOK COMPARTIDO
 import { useSharedAttendance } from '../../hooks/useSharedAttendance';
 
-// ... (Helpers sin cambios) ...
+// --- Helpers ---
 const isRestDay = (horario: string, date: Date): boolean => {
     if (!horario || horario.length !== 7) return false;
     const dayOfWeek = getDayOfWeek(date);
@@ -37,10 +37,10 @@ const isBirthdayInPeriod = (birthDateStr: string, period: Date[]): boolean => {
     try {
         const parts = birthDateStr.substring(0, 10).split('-');
         const birthDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-        
+
         const today = new Date();
         const birthDateThisYear = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate());
-        
+
         return isWithinInterval(birthDateThisYear, {
             start: period[0],
             end: period[period.length - 1]
@@ -58,40 +58,48 @@ const getHorarioTooltip = (horario: any) => {
     return details;
 };
 
+// Helper para parsear fecha segura desde string YYYY-MM-DD
+const safeDate = (dateString: string) => {
+    const parts = dateString.substring(0, 10).split('-');
+    return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+};
+
 const ConfirmationModal = ({ confirmation, setConfirmation }: any) => {
     if (!confirmation.isOpen) return null;
     const footer = (
         <>
             <Button variant="secondary" onClick={() => setConfirmation({ isOpen: false })}>Cancelar</Button>
-            <Button onClick={() => { confirmation.onConfirm(); setConfirmation({ isOpen: false }); }}>Aprobar</Button>
+            <Button onClick={() => { confirmation.onConfirm(); setConfirmation({ isOpen: false }); }}>
+                {confirmation.confirmText || 'Confirmar'}
+            </Button>
         </>
     );
     return (
         <Modal isOpen={confirmation.isOpen} onClose={() => setConfirmation({ isOpen: false })} title={confirmation.title} footer={footer} size="lg">
-            <p className="text-slate-600">{confirmation.message}</p>
+            <p className="text-slate-600 whitespace-pre-line">{confirmation.message}</p>
         </Modal>
     );
 };
 
-// ... (Constantes) ...
+// --- Constantes ---
 const COLUMN_WIDTH_STORAGE_KEY = 'attendance_employee_column_width';
 const EMPLOYEE_CONTENT_MIN_WIDTH = 360;
 const EMPLOYEE_CONTENT_MAX_WIDTH = 500;
-const MIN_COLUMN_WIDTH = EMPLOYEE_CONTENT_MIN_WIDTH + 16; 
+const MIN_COLUMN_WIDTH = EMPLOYEE_CONTENT_MIN_WIDTH + 16;
 const MAX_COLUMN_WIDTH = EMPLOYEE_CONTENT_MAX_WIDTH + 250;
 const DEFAULT_COLUMN_WIDTH = 384;
-const ROW_HEIGHT_ESTIMATE = 72;
+const ROW_HEIGHT_ESTIMATE = 10;
 
 export const AttendancePage = () => {
     const { getToken, user, can } = useAuth();
     const { addNotification } = useNotification();
-    
-    const { 
-        filters, setFilters, 
-        viewMode, setViewMode, 
-        currentDate, setCurrentDate, 
-        dateRange, rangeLabel, 
-        handleDatePrev, handleDateNext 
+
+    const {
+        filters, setFilters,
+        viewMode, setViewMode,
+        currentDate, setCurrentDate,
+        dateRange, rangeLabel,
+        handleDatePrev, handleDateNext
     } = useSharedAttendance(user);
 
     const [employees, setEmployees] = useState<any[]>([]);
@@ -99,19 +107,18 @@ export const AttendancePage = () => {
     const [statusCatalog, setStatusCatalog] = useState<AttendanceStatus[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    
+
     const [searchTerm, setSearchTerm] = useState('');
     const [showOnlyNoSchedule, setShowOnlyNoSchedule] = useState(false);
     const [showOnlyIncomplete, setShowOnlyIncomplete] = useState(false);
-    
-    // Drag & Drop
+
     const [dragInfo, setDragInfo] = useState<{ EmpleadoId: number, dayIndex: number, status: AttendanceStatusCode } | null>(null);
     const [draggedCells, setDraggedCells] = useState<string[]>([]);
-    
+
     const [confirmation, setConfirmation] = useState<any>({ isOpen: false });
     const [openCellId, setOpenCellId] = useState<string | null>(null);
     const [viewingEmployeeId, setViewingEmployeeId] = useState<number | null>(null);
-    
+
     const [employeeColumnWidth, setEmployeeColumnWidth] = useState(() => {
         try {
             const savedWidth = localStorage.getItem(COLUMN_WIDTH_STORAGE_KEY);
@@ -119,9 +126,9 @@ export const AttendancePage = () => {
         } catch { return DEFAULT_COLUMN_WIDTH; }
     });
 
-    // ... (Filtrado de Empleados sin cambios) ...
     const filteredEmployees = useMemo(() => {
         let filtered = employees;
+
         if (searchTerm) {
             const searchWords = searchTerm.toLowerCase().split(' ').filter(word => word);
             filtered = filtered.filter(emp => {
@@ -129,24 +136,45 @@ export const AttendancePage = () => {
                 return searchWords.every(word => targetText.includes(word));
             });
         }
+
         if (showOnlyNoSchedule) {
-            filtered = filtered.filter(emp => emp.FichasSemana.some((f: any) => f.Estado === 'SIN_HORARIO'));
+            filtered = filtered.filter(emp =>
+                emp.FichasSemana.some((f: any) => f.Estado === 'SIN_HORARIO')
+            );
         }
+
         if (showOnlyIncomplete) {
             filtered = filtered.filter(emp => {
-                const workingDays = dateRange.filter(day => !isRestDay(emp.horario, day));
-                const completedDays = workingDays.filter(day => {
-                    const f = emp.FichasSemana.find((x: any) => x.Fecha.substring(0, 10) === format(day, 'yyyy-MM-dd'));
-                    return f && f.EstatusManualAbrev;
+                // Usamos la misma lógica "robusta" que en el render para filtrar
+                const today = startOfToday();
+
+                // 1. Días validables: Pasados o Hoy + No Descanso + Con Horario
+                const validatableDays = dateRange.filter(day => {
+                    if (isAfter(day, today)) return false; // Ignorar futuros
+                    if (isRestDay(emp.horario, day)) return false;
+
+                    // Buscar si tiene ficha con problema de horario
+                    const ficha = emp.FichasSemana.find((f: any) => f.Fecha.substring(0, 10) === format(day, 'yyyy-MM-dd'));
+                    if (ficha?.Estado === 'SIN_HORARIO') return false;
+
+                    return true;
+                });
+
+                if (validatableDays.length === 0) return false;
+
+                // 2. Días completados
+                const completedCount = validatableDays.filter(day => {
+                    const ficha = emp.FichasSemana.find((f: any) => f.Fecha.substring(0, 10) === format(day, 'yyyy-MM-dd'));
+                    return ficha && ficha.EstatusManualAbrev;
                 }).length;
-                if (workingDays.length === 0) return false;
-                return (completedDays / workingDays.length) * 100 < 100;
+
+                return completedCount < validatableDays.length;
             });
         }
+
         return filtered;
     }, [employees, searchTerm, showOnlyNoSchedule, showOnlyIncomplete, dateRange]);
 
-    // ... (Virtualización y Resize sin cambios) ...
     const tableContainerRef = useRef<HTMLDivElement>(null);
     const rowVirtualizer = useVirtualizer({
         count: filteredEmployees.length,
@@ -178,7 +206,6 @@ export const AttendancePage = () => {
         window.addEventListener('mouseup', handleMouseUp, { once: true });
     };
 
-    // ... (Carga de Datos sin cambios) ...
     const fetchData = useCallback(async () => {
         if (!user || dateRange.length === 0) return;
         const token = getToken();
@@ -208,13 +235,14 @@ export const AttendancePage = () => {
             setStatusCatalog(await statusesRes.json());
             if (schedulesRes && schedulesRes.ok) setScheduleCatalog(await schedulesRes.json());
         } catch (err: any) {
+            console.error("Error en fetchData:", err);
             setError(err.message);
             setEmployees([]);
         } finally { setIsLoading(false); }
     }, [dateRange, user, getToken, filters, can]);
 
     useEffect(() => { fetchData(); }, [fetchData]);
-    
+
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (event.target instanceof Element && !event.target.closest('.status-cell-wrapper')) {
@@ -225,51 +253,69 @@ export const AttendancePage = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // --- MODIFICADO: Aceptar 'estatus' como string | null ---
+    // --- LÓGICA DE ACTUALIZACIÓN (OPTIMISTA Y API) CORREGIDA ---
     const handleBulkStatusChange = useCallback(async (updates: { empleadoId: number, fecha: Date, estatus: string | null, comentarios?: string }[]) => {
         const token = getToken();
         if (!token || updates.length === 0) return;
         const originalEmployees = employees;
+        const today = startOfToday();
 
         setEmployees(prevEmployees => {
-            const updatesMap = new Map<number, { fecha: string; estatus: string | null; comentarios?: string }[]>();
+            const updatesMap = new Map<number, { fecha: Date; estatus: string | null; comentarios?: string }[]>();
             updates.forEach(u => {
                 if (!updatesMap.has(u.empleadoId)) updatesMap.set(u.empleadoId, []);
-                updatesMap.get(u.empleadoId)!.push({ fecha: format(u.fecha, 'yyyy-MM-dd'), estatus: u.estatus, comentarios: u.comentarios });
+                updatesMap.get(u.empleadoId)!.push(u);
             });
+
             return prevEmployees.map(emp => {
                 if (!updatesMap.has(emp.EmpleadoId)) return emp;
                 const empUpdates = updatesMap.get(emp.EmpleadoId)!;
+                // Clonamos el array de fichas
                 const newFichasSemana = [...emp.FichasSemana];
+
                 empUpdates.forEach(update => {
-                    const idx = newFichasSemana.findIndex(f => f.Fecha.substring(0, 10) === update.fecha);
-                    
-                    // Si el estatus es NULL (Deshacer), volvemos a BORRADOR y limpiamos manual
+                    const fechaStr = format(update.fecha, 'yyyy-MM-dd');
+                    const idx = newFichasSemana.findIndex(f => f.Fecha.substring(0, 10) === fechaStr);
+                    const isFutureDate = isAfter(update.fecha, today);
+
                     if (update.estatus === null) {
-                         if (idx > -1) {
-                            newFichasSemana[idx] = { 
-                                ...newFichasSemana[idx], 
-                                EstatusManualAbrev: null,
-                                Comentarios: null,
-                                Estado: 'BORRADOR' // Reversión visual optimista
-                            };
-                         }
+                        // --- CASO DESHACER (NULL) ---
+                        if (isFutureDate) {
+                            // Si es FUTURO y borramos -> ELIMINAR del array para que salga "-" (vacío)
+                            if (idx > -1) {
+                                newFichasSemana.splice(idx, 1);
+                            }
+                        } else {
+                            // Si es PASADO/HOY -> Volver a BORRADOR
+                            if (idx > -1) {
+                                newFichasSemana[idx] = {
+                                    ...newFichasSemana[idx],
+                                    EstatusManualAbrev: null,
+                                    Comentarios: null,
+                                    Estado: 'BORRADOR'
+                                };
+                            }
+                        }
                     } else {
-                        // Asignación normal
+                        // --- CASO ASIGNAR ---
                         if (idx > -1) {
-                            newFichasSemana[idx] = { 
-                                ...newFichasSemana[idx], 
+                            // Actualizar existente
+                            newFichasSemana[idx] = {
+                                ...newFichasSemana[idx],
                                 EstatusManualAbrev: update.estatus,
                                 Comentarios: update.comentarios ?? newFichasSemana[idx].Comentarios,
-                                Estado: 'VALIDADO'
+                                Estado: 'VALIDADO' // Optimista
                             };
                         } else {
+                            // Crear nueva (Importante para Futuros)
                             newFichasSemana.push({
-                                Fecha: new Date(update.fecha).toISOString(),
+                                Fecha: update.fecha.toISOString(), // Guardar con formato completo
                                 EstatusManualAbrev: update.estatus,
                                 Comentarios: update.comentarios,
                                 EstatusChecadorAbrev: null,
-                                Estado: 'VALIDADO'
+                                Estado: 'VALIDADO',
+                                HoraEntrada: null,
+                                HoraSalida: null
                             });
                         }
                     }
@@ -282,7 +328,6 @@ export const AttendancePage = () => {
             await Promise.all(updates.map(u => fetch(`${API_BASE_URL}/attendance`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                // Enviamos estatusManual como null si es deshacer
                 body: JSON.stringify({ empleadoId: u.empleadoId, fecha: format(u.fecha, 'yyyy-MM-dd'), estatusManual: u.estatus, comentarios: u.comentarios })
             })));
         } catch (err) {
@@ -291,52 +336,159 @@ export const AttendancePage = () => {
         }
     }, [employees, getToken, addNotification]);
 
-    // --- MODIFICADO: Aceptar 'newStatus' como AttendanceStatusCode (string) | null ---
     const handleStatusChange = useCallback((empleadoId: number, fecha: Date, newStatus: AttendanceStatusCode | null, newComment?: string) => {
         handleBulkStatusChange([{ empleadoId, fecha, estatus: newStatus, comentarios: newComment }]);
         setOpenCellId(null);
     }, [handleBulkStatusChange]);
 
-    const handleQuickApprove = (employee: any) => {
-        setConfirmation({
-            isOpen: true,
-            title: 'Aprobar Semana',
-            message: `¿Aceptar sugerencias para ${employee.NombreCompleto}?`,
-            onConfirm: () => executeQuickApprove(employee),
-        });
-    };
-
-    const executeQuickApprove = async (employee: any) => {
-        const token = getToken();
-        if (!token) return;
-        
-        setEmployees(prev => prev.map(emp => {
-            if (emp.EmpleadoId === employee.EmpleadoId) {
-                const newFichas = emp.FichasSemana.map((f: any) => {
-                    const isSafe = f.Estado !== 'EN_PROCESO' && f.Estado !== 'BLOQUEADO' && f.Estado !== 'SIN_HORARIO';
-                    if (f.EstatusChecadorAbrev && !f.EstatusManualAbrev && isSafe) {
-                        return { ...f, EstatusManualAbrev: f.EstatusChecadorAbrev, Estado: 'VALIDADO' };
-                    }
-                    return f;
-                });
-                return { ...emp, FichasSemana: newFichas };
-            }
-            return emp;
-        }));
-
-        try {
-            await fetch(`${API_BASE_URL}/attendance/approve-week`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ empleadoId: employee.EmpleadoId, weekStartDate: format(dateRange[0], 'yyyy-MM-dd') }),
+    // --- BOTÓN DE ACCIÓN INTELIGENTE (Semana) ---
+    const handleWeekAction = (employee: any, isComplete: boolean) => {
+        if (isComplete) {
+            // DESHACER SEMANA
+            setConfirmation({
+                isOpen: true,
+                title: 'Restaurar Semana',
+                message: `La semana de ${employee.NombreCompleto} está completa hasta hoy. ¿Deseas deshacer todas las validaciones y regresar las fichas a Borrador?`,
+                confirmText: 'Sí, Restaurar',
+                onConfirm: () => executeQuickRevert(employee),
             });
-            addNotification('Semana Aprobada', `Sugerencias aceptadas para ${employee.NombreCompleto}`, 'success');
-        } catch (e) {
-            addNotification('Error', 'No se pudo aprobar la semana.', 'error');
-            // Recargar datos originales si falla
-             fetchData();
+        } else {
+            // APROBAR SUGERENCIAS
+            setConfirmation({
+                isOpen: true,
+                title: 'Aprobar Semana',
+                message: `¿Deseas aceptar las sugerencias automáticas para ${employee.NombreCompleto}? Esto asignará estatus a los días que aún no tienen validación manual.`,
+                confirmText: 'Sí, Aprobar',
+                onConfirm: () => executeQuickApprove(employee),
+            });
         }
     };
+
+    // const executeQuickApprove = async (employee: any) => {
+    //     const token = getToken();
+    //     if (!token) return;
+
+    //     setEmployees(prev => prev.map(emp => {
+    //         if (emp.EmpleadoId === employee.EmpleadoId) {
+    //             const newFichas = emp.FichasSemana.map((f: any) => {
+    //                 const isSafe = f.Estado !== 'EN_PROCESO' && f.Estado !== 'BLOQUEADO' && f.Estado !== 'SIN_HORARIO';
+    //                 if (f.EstatusChecadorAbrev && !f.EstatusManualAbrev && isSafe) {
+    //                     return { ...f, EstatusManualAbrev: f.EstatusChecadorAbrev, Estado: 'VALIDADO' };
+    //                 }
+    //                 return f;
+    //             });
+    //             return { ...emp, FichasSemana: newFichas };
+    //         }
+    //         return emp;
+    //     }));
+
+    //     try {
+    //         await fetch(`${API_BASE_URL}/attendance/approve-week`, {
+    //             method: 'POST',
+    //             headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+    //             body: JSON.stringify({ empleadoId: employee.EmpleadoId, weekStartDate: format(dateRange[0], 'yyyy-MM-dd') }),
+    //         });
+    //         addNotification('Semana Aprobada', `Sugerencias aceptadas para ${employee.NombreCompleto}`, 'success');
+    //     } catch (e) {
+    //         addNotification('Error', 'No se pudo aprobar la semana.', 'error');
+    //         fetchData();
+    //     }
+    // };
+    const executeQuickApprove = async (employee: any) => {
+        const today = startOfToday();
+
+        // 1. Identificar candidatos para APROBAR en el periodo actual
+        const updates = employee.FichasSemana
+            .filter((f: any) => {
+                const dateObj = safeDate(f.Fecha);
+
+                // REGLAS DE APROBACIÓN:
+                // A. No aprobar fechas futuras (no tienen checadas reales aún)
+                if (isAfter(dateObj, today)) return false;
+
+                // B. Solo aprobar si hay una sugerencia del sistema (Checador)
+                if (!f.EstatusChecadorAbrev) return false;
+
+                // C. Solo si está pendiente (no tiene estatus manual aún)
+                if (f.EstatusManualAbrev) return false;
+
+                // D. Solo si está en estado BORRADOR
+                if (f.Estado !== 'BORRADOR') return false;
+                // D. No tocar días bloqueados o sin horario
+                // if (f.Estado === 'BLOQUEADO' || f.Estado === 'SIN_HORARIO') return false;
+
+                // E. (Opcional) Ignorar descansos si así lo prefieres, 
+                // pero usualmente se aprueban si el sistema los sugiere.
+                // if (isRestDay(employee.horario, dateObj)) return false; 
+
+                return true;
+            })
+            .map((f: any) => ({
+                empleadoId: employee.EmpleadoId,
+                fecha: safeDate(f.Fecha),
+                estatus: f.EstatusChecadorAbrev, // <--- APLICAMOS LA SUGERENCIA
+                comentarios: null
+            }));
+
+        if (updates.length === 0) {
+            addNotification('Info', 'No hay sugerencias pendientes aplicables en este periodo.', 'info');
+            return;
+        }
+
+        // 2. Ejecutar a través del manejador central (usa sp_SaveManual)
+        await handleBulkStatusChange(updates);
+        addNotification('Aprobado', `Se aplicaron ${updates.length} sugerencias para ${employee.NombreCompleto}`, 'success');
+    };
+    const executeQuickRevert = async (employee: any) => {
+        // 1. Identificar candidatos para RESTAURAR (Deshacer)
+        const updates = employee.FichasSemana
+            .filter((f: any) => {
+                // REGLAS DE RESTAURACIÓN:
+                // A. Solo si tiene algo manual que borrar
+                if (!f.EstatusManualAbrev) return false;
+
+                // B. solo si está en estado VALIDADO
+                if (f.Estado !== 'VALIDADO') return false;
+
+                return true;
+            })
+            .map((f: any) => ({
+                empleadoId: employee.EmpleadoId,
+                fecha: safeDate(f.Fecha),
+                estatus: null, 
+                comentarios: null
+            }));
+
+        if (updates.length === 0) {
+            addNotification('Info', 'No hay validaciones para restaurar en este periodo.', 'info');
+            return;
+        }
+
+        // 2. Ejecutar a través del manejador central
+        await handleBulkStatusChange(updates);
+        addNotification('Restaurado', `Se eliminaron las validaciones de ${employee.NombreCompleto}`, 'success');
+    };
+
+    // const executeQuickRevert = async (employee: any) => {
+    //     // Enviar NULL a todos los días que tengan estatus manual y no estén bloqueados
+    //     const updates = employee.FichasSemana
+    //         .filter((f: any) => f.EstatusManualAbrev && f.Estado !== 'BLOQUEADO')
+    //         .map((f: any) => ({
+    //             empleadoId: employee.EmpleadoId,
+    //             fecha: safeDate(f.Fecha),
+    //             estatus: null, 
+    //             comentarios: null
+    //         }));
+
+    //     if (updates.length === 0) {
+    //         addNotification('Info', 'No hay nada que restaurar.', 'info');
+    //         return;
+    //     }
+
+    //     await handleBulkStatusChange(updates);
+    //     addNotification('Semana Restaurada', `Se eliminaron las validaciones de ${employee.NombreCompleto}`, 'success');
+    // };
+
 
     // --- Drag & Drop ---
     const dragDataRef = useRef({ dragInfo, draggedCells, employees, statusCatalog, dateRange });
@@ -357,12 +509,11 @@ export const AttendancePage = () => {
                 const empleadoId = parseInt(empIdStr, 10);
                 const dayIndex = parseInt(dayIdxStr, 10);
                 const employee = employees.find(e => e.EmpleadoId === empleadoId);
-                
+
                 if (!employee || isRestDay(employee.horario, dateRange[dayIndex])) return null;
                 const ficha = employee.FichasSemana.find((f: any) => f.Fecha.substring(0, 10) === format(dateRange[dayIndex], 'yyyy-MM-dd'));
-                if (ficha?.Estado === 'BLOQUEADO' || ficha?.Estado === 'EN_PROCESO' || ficha?.Estado === 'SIN_HORARIO') return null; 
+                if (ficha?.Estado === 'BLOQUEADO' || ficha?.Estado === 'EN_PROCESO' || ficha?.Estado === 'SIN_HORARIO') return null;
                 if (draggedStatusConfig && !canAssignStatusToDate(draggedStatusConfig, dateRange[dayIndex])) return null;
-                
                 return { empleadoId, fecha: dateRange[dayIndex], estatus: dragInfo.status };
             }).filter(Boolean) as any[];
 
@@ -417,28 +568,21 @@ export const AttendancePage = () => {
                 <table className="text-sm text-center border-collapse table-fixed">
                     <thead className="sticky top-0 z-20" style={{ willChange: 'transform', transform: 'translate3d(0, 0, 0)' }}>
                         <tr className="bg-slate-50">
-                            {/* --- COLUMNA EMPLEADO --- */}
                             <th className="p-2 text-left font-semibold text-slate-600 sticky left-0 bg-slate-50 z-30 shadow-sm group relative" style={{ width: `${employeeColumnWidth}px` }}>
                                 <div className="flex items-center gap-3 flex-1 min-w-0 pr-8 h-full">
                                     <span>Empleado</span>
-                                    {/* Botones de filtro rápido */}
                                     <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 focus-within:opacity-100" style={{ opacity: (showOnlyNoSchedule || showOnlyIncomplete) ? 1 : undefined }}>
                                         <Tooltip text={showOnlyNoSchedule ? "Mostrando sin horario • Click para ver todos" : "Filtrar empleados sin horario asignado"}>
-                                            <button onClick={() => setShowOnlyNoSchedule(!showOnlyNoSchedule)} className={`p-1.5 rounded-md transition-colors flex-shrink-0 ${showOnlyNoSchedule ? 'text-amber-600 bg-amber-50 ring-1 ring-amber-200' : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'}`}>
-                                                <CalendarOff size={16} />
-                                            </button>
+                                            <button onClick={() => setShowOnlyNoSchedule(!showOnlyNoSchedule)} className={`p-1.5 rounded-md transition-colors flex-shrink-0 ${showOnlyNoSchedule ? 'text-amber-600 bg-amber-50 ring-1 ring-amber-200' : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'}`}><CalendarOff size={16} /></button>
                                         </Tooltip>
                                         <Tooltip text={showOnlyIncomplete ? "Mostrando incompletos • Click para ver todos" : "Filtrar asignaciones pendientes"}>
-                                            <button onClick={() => setShowOnlyIncomplete(!showOnlyIncomplete)} className={`p-1.5 rounded-md transition-colors flex-shrink-0 ${showOnlyIncomplete ? 'text-sky-600 bg-sky-50 ring-1 ring-sky-200' : 'text-slate-400 hover:text-sky-600 hover:bg-sky-50'}`}>
-                                                <ListTodo size={16} />
-                                            </button>
+                                            <button onClick={() => setShowOnlyIncomplete(!showOnlyIncomplete)} className={`p-1.5 rounded-md transition-colors flex-shrink-0 ${showOnlyIncomplete ? 'text-sky-600 bg-sky-50 ring-1 ring-sky-200' : 'text-slate-400 hover:text-sky-600 hover:bg-sky-50'}`}><ListTodo size={16} /></button>
                                         </Tooltip>
                                     </div>
                                     <div onMouseDown={handleResizeMouseDown} className="absolute right-0 top-0 h-full w-2.5 cursor-col-resize group flex items-center justify-center"><GripVertical className="h-5 text-slate-300 group-hover:text-[--theme-500] transition-colors" /></div>
                                 </div>
                             </th>
-                            
-                            {dateRange.map(day => (
+                            {dateRange.map((day, i) => (
                                 <th key={day.toISOString()} className={`px-1 py-2 font-semibold text-slate-600 ${isTodayDateFns(day) ? 'bg-sky-100' : 'bg-slate-50'}`}>
                                     <span className="capitalize text-base">{format(day, 'eee', { locale: es })}</span>
                                     <span className="block text-xl font-bold text-slate-800">{format(day, 'dd')}</span>
@@ -451,22 +595,58 @@ export const AttendancePage = () => {
                         {virtualRows.map((virtualRow) => {
                             const emp = filteredEmployees[virtualRow.index];
                             const defaultSchedule = scheduleCatalog.find(h => h.HorarioId === emp.horario);
-                            const workingDays = dateRange.filter(day => !isRestDay(emp.horario, day));
-                            const completedDays = workingDays.filter(day => {
-                                const f = emp.FichasSemana.find((x: any) => x.Fecha.substring(0, 10) === format(day, 'yyyy-MM-dd'));
-                                return f && f.EstatusManualAbrev;
-                            }).length;
-                            const progress = workingDays.length > 0 ? (completedDays / workingDays.length) * 100 : 0;
 
-                            let birthdayTooltip = "Cumpleaños en este periodo";
-                            if (emp.FechaNacimiento) {
-                                try {
-                                    const parts = emp.FechaNacimiento.substring(0, 10).split('-');
-                                    const birthDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-                                    const formattedBirthDate = format(birthDate, "d 'de' MMMM", { locale: es });
-                                    birthdayTooltip = `Cumpleaños: ${formattedBirthDate}`;
-                                } catch (e) { /* fallback */ }
+                            // --- CÁLCULO DE PROGRESO (LÓGICA ACTUALIZADA) ---
+                            const generatedFichas = emp.FichasSemana || [];
+
+                            // --- Lógica para la Barra de Progreso (según solicitud) ---
+                            // 1. Base del cálculo: Total de días en el período activo.
+                            const totalDaysInPeriod = dateRange.length;
+
+                            // 2. Progreso: Fichas en estado VALIDADO o BLOQUEADO en el período.
+                            const completedForProgress = generatedFichas.filter(f => {
+                                const fichaDateStr = f.Fecha.substring(0, 10);
+                                const isInPeriod = dateRange.some(d => format(d, 'yyyy-MM-dd') === fichaDateStr);
+                                return isInPeriod && (f.Estado === 'VALIDADO' || f.Estado === 'BLOQUEADO');
+                            }).length;
+
+                            const progress = totalDaysInPeriod > 0 ? (completedForProgress / totalDaysInPeriod) * 100 : 0;
+
+                            // --- Lógica para el Botón (con estado deshabilitado) ---
+                            const generatedFichasInPeriod = generatedFichas.filter(f => {
+                                const fichaDateStr = f.Fecha.substring(0, 10);
+                                return dateRange.some(d => format(d, 'yyyy-MM-dd') === fichaDateStr);
+                            });
+
+                            // 1. Contar fichas "Borrador" (condición: Estado='BORRADOR' y HorarioId en la propia ficha).
+                            const draftCount = generatedFichasInPeriod.filter(f => f.Estado === 'BORRADOR' && f.HorarioId).length;
+
+                            // 2. Contar fichas "Procesadas" (Validadas o Bloqueadas).
+                            const processedCount = generatedFichasInPeriod.filter(f => f.Estado === 'VALIDADO' || f.Estado === 'BLOQUEADO').length;
+
+                            const hasDrafts = draftCount > 0;
+                            const hasProcessed = processedCount > 0;
+
+                            // 3. Determinar el estado y apariencia del botón.
+                            // Icono de "Restaurar" se muestra si no hay borradores pero sí hay algo procesado.
+                            const showRevertIcon = !hasDrafts && hasProcessed;
+                            // Se deshabilita si no hay nada que aprobar y nada que restaurar.
+                            const isDisabled = !hasDrafts && !hasProcessed;
+
+                            // --- LOGS DE DEPURACIÓN (Solo el primer empleado visible para no saturar) ---
+                            if (virtualRow.index === 0) {
+                                console.groupCollapsed(`🔍 DEBUG: ${emp.NombreCompleto}`);
+                                // console.log('📅 Hoy (Sistema):', format(today, 'yyyy-MM-dd'));
+                                console.log('RANGE:', dateRange.map(d => format(d, 'yyyy-MM-dd')));
+                                // console.log('✅ Días que el sistema espera validar (Validatable):', validatableDays.map(d => format(d, 'yyyy-MM-dd')));
+                                // console.log('📊 Conteo:', { Esperados: totalValidatable, Listos: completedCount });
+                                console.log('📈 Progreso:', progress, '%');
+                                //console.log('🔘 Estado Botón:', isComplete ? 'RESTAURAR (Naranja)' : 'APROBAR (Verde)');
+                                console.log('🗂️ Fichas Brutas:', generatedFichas);
+                                console.groupEnd();
                             }
+                            let birthdayTooltip = "Cumpleaños en este periodo";
+                            if (emp.FechaNacimiento) { try { const parts = emp.FechaNacimiento.substring(0, 10).split('-'); const birthDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])); const formattedBirthDate = format(birthDate, "d 'de' MMMM", { locale: es }); birthdayTooltip = `Cumpleaños: ${formattedBirthDate}`; } catch (e) { } }
 
                             return (
                                 <tr key={emp.EmpleadoId} className="group" style={{ height: `${virtualRow.size}px` }}>
@@ -476,27 +656,40 @@ export const AttendancePage = () => {
                                                 <div className="flex-1 min-w-0">
                                                     <div className="flex items-center justify-between">
                                                         <div className="flex items-center gap-2">
-                                                            <Tooltip text={emp.NombreCompleto}>
-                                                                <p className="font-semibold text-slate-800 truncate">{emp.NombreCompleto}</p>
-                                                            </Tooltip>
+                                                            <Tooltip text={emp.NombreCompleto}><p className="font-semibold text-slate-800 truncate ">{emp.NombreCompleto}</p></Tooltip>
                                                             {defaultSchedule && <Tooltip text={getHorarioTooltip(defaultSchedule)}><span className="text-xs font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{defaultSchedule.Abreviatura || defaultSchedule.HorarioId}</span></Tooltip>}
-                                                            {isBirthdayInPeriod(emp.FechaNacimiento, dateRange) && (
-                                                                <Tooltip text={birthdayTooltip}>
-                                                                    <Cake size={18} className="text-pink-400 shrink-0" />
-                                                                </Tooltip>
-                                                            )}
+                                                            {isBirthdayInPeriod(emp.FechaNacimiento, dateRange) && <Tooltip text={birthdayTooltip}><Cake size={18} className="text-pink-400 shrink-0" /></Tooltip>}
                                                         </div>
                                                         <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-2">
                                                             <Tooltip text="Ver Ficha"><button onClick={() => setViewingEmployeeId(emp.EmpleadoId)} className="p-1 rounded-md text-slate-400 hover:text-[--theme-500] hover:bg-slate-200"><Contact size={18} /></button></Tooltip>
                                                         </div>
                                                     </div>
                                                     <div className="grid grid-cols-3 gap-x-3 text-xs text-slate-500 mt-1 w-full">
-                                                        <Tooltip text={`ID: ${emp.CodRef}`}><p className="font-mono col-span-1 truncate">ID: {emp.CodRef}</p></Tooltip>
-                                                        <Tooltip text={emp.puesto_descripcion || 'No asignado'}><p className="col-span-1 flex items-center gap-1.5 truncate"><Briefcase size={12} className="text-slate-400" /> {emp.puesto_descripcion || 'No asignado'}</p></Tooltip>
-                                                        <Tooltip text={emp.departamento_nombre || 'No asignado'}><p className="col-span-1 flex items-center gap-1.5 truncate"><Building size={12} className="text-slate-400" /> {emp.departamento_nombre || 'No asignado'}</p></Tooltip>
+                                                        <Tooltip text={`ID: ${emp.CodRef}`}><p className="font-mono col-span-1 truncate ">ID: {emp.CodRef}</p></Tooltip>
+                                                        <Tooltip text={emp.puesto_descripcion || 'No asignado'}><p className="col-span-1 flex items-center gap-1.5 truncate "><Briefcase size={12} className="text-slate-400" /> {emp.puesto_descripcion || 'No asignado'}</p></Tooltip>
+                                                        <Tooltip text={emp.departamento_nombre || 'No asignado'}><p className="col-span-1 flex items-center gap-1.5 truncate "><Building size={12} className="text-slate-400" /> {emp.departamento_nombre || 'No asignado'}</p></Tooltip>
                                                     </div>
                                                 </div>
-                                                {canApprove && <Tooltip text="Aprobar sugerencias"><button onClick={() => handleQuickApprove(emp)} className="p-1 rounded-md text-slate-400 hover:text-green-600 hover:bg-green-100 opacity-0 group-hover:opacity-100 ml-2"><ClipboardCheck size={20} /></button></Tooltip>}
+                                                {canApprove && (
+                                                    <Tooltip text={isDisabled ? "Nada que aprobar o restaurar" : (showRevertIcon ? "Restaurar semana (Desaprobar todo)" : "Aprobar sugerencias")}>
+                                                        <button
+                                                            onClick={() => handleWeekAction(emp, showRevertIcon)}
+                                                            disabled={isDisabled}
+                                                            className={`
+                                                                p-1 rounded-md opacity-0 group-hover:opacity-100 ml-2 transition-all
+                                                                ${isDisabled
+                                                                    ? 'text-slate-300 '
+                                                                    : (showRevertIcon
+                                                                        ? 'text-orange-500 hover:bg-orange-50 hover:text-orange-700'
+                                                                        : 'text-slate-400 hover:text-green-600 hover:bg-green-100'
+                                                                    )
+                                                                }
+                                                            `}
+                                                        >
+                                                            {showRevertIcon ? <RotateCcw size={20} /> : <ClipboardCheck size={20} />}
+                                                        </button>
+                                                    </Tooltip>
+                                                )}
                                             </div>
                                             <div className="w-full bg-slate-200 rounded-full h-1.5 mt-2"><div className={`h-1.5 rounded-full transition-all duration-200 ${progress === 100 ? 'bg-emerald-500' : 'bg-sky-500'}`} style={{ width: `${progress}%` }}></div></div>
                                         </div>
@@ -505,23 +698,23 @@ export const AttendancePage = () => {
                                         const cellId = `${emp.EmpleadoId}-${i}`;
                                         const ficha = emp.FichasSemana.find((f: any) => f.Fecha.substring(0, 10) === format(day, 'yyyy-MM-dd'));
                                         return (
-                                            <AttendanceCell 
-                                                key={cellId} cellId={cellId} isToday={isTodayDateFns(day)} isOpen={openCellId === cellId} 
-                                                onToggleOpen={() => setOpenCellId(prev => prev === cellId ? null : cellId)} 
-                                                ficha={ficha} viewMode={viewMode} isRestDay={isRestDay(emp.horario, day)} 
-                                                onStatusChange={(s, c) => handleStatusChange(emp.EmpleadoId, day, s, c)} 
-                                                canAssign={canAssign} 
-                                                onDragStart={(s) => handleDragStart(emp.EmpleadoId, i, s)} 
-                                                onDragEnter={() => handleDragEnter(emp.EmpleadoId, i)} 
-                                                isBeingDragged={draggedCells.includes(cellId)} isAnyCellOpen={openCellId !== null} 
-                                                statusCatalog={statusCatalog} fecha={day} 
+                                            <AttendanceCell
+                                                key={cellId} cellId={cellId} isToday={isTodayDateFns(day)} isOpen={openCellId === cellId}
+                                                onToggleOpen={() => setOpenCellId(prev => prev === cellId ? null : cellId)}
+                                                ficha={ficha} viewMode={viewMode} isRestDay={isRestDay(emp.horario, day)}
+                                                onStatusChange={(s, c) => handleStatusChange(emp.EmpleadoId, day, s, c)}
+                                                canAssign={canAssign}
+                                                onDragStart={(s) => handleDragStart(emp.EmpleadoId, i, s)}
+                                                onDragEnter={() => handleDragEnter(emp.EmpleadoId, i)}
+                                                isBeingDragged={draggedCells.includes(cellId)} isAnyCellOpen={openCellId !== null}
+                                                statusCatalog={statusCatalog} fecha={day}
                                             />
                                         );
                                     })}
                                 </tr>
                             );
                         })}
-                        {paddingBottom > 0 && <tr><td colSpan={dateRange.length + 1} style={{ height: `${paddingBottom}px` }}></td></tr>}
+                        {paddingBottom > 0 && <tr><td colSpan={dateRange.length + 1} style={{ padding: 0, border: 'none', height: `${paddingTop}px` }}></td></tr>}
                     </tbody>
                 </table>
             </div>

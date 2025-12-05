@@ -35,34 +35,34 @@ export const saveAttendance = async (req: any, res: Response) => {
 };
 
 // ... (Resto de funciones: approveWeek, getDataByRange se mantienen igual)
-export const approveWeek = async (req: any, res: Response) => {
-    // ... código existente ...
-    // (Simplemente copia el resto del archivo original aquí si lo sobrescribes, 
-    // pero lo importante es el cambio en saveAttendance de arriba)
-     if (!req.user.permissions['reportesAsistencia.approve']) {
-        return res.status(403).json({ message: 'No tienes permiso para aprobar la asistencia.' });
-    }
-    const { empleadoId, weekStartDate } = req.body;
-    if (!empleadoId || !weekStartDate) {
-        return res.status(400).json({ message: 'Faltan parámetros requeridos.' });
-    }
-    try {
-        const pool = await sql.connect(dbConfig);
-        await pool.request()
-            .input('UsuarioId', sql.Int, req.user.usuarioId)
-            .input('EmpleadoId', sql.Int, empleadoId)
-            .input('FechaInicioSemana', sql.Date, new Date(weekStartDate))
-            .execute('sp_FichasAsistencia_ApproveWeek');
+// export const approveWeek = async (req: any, res: Response) => {
+//     // ... código existente ...
+//     // (Simplemente copia el resto del archivo original aquí si lo sobrescribes, 
+//     // pero lo importante es el cambio en saveAttendance de arriba)
+//      if (!req.user.permissions['reportesAsistencia.approve']) {
+//         return res.status(403).json({ message: 'No tienes permiso para aprobar la asistencia.' });
+//     }
+//     const { empleadoId, weekStartDate } = req.body;
+//     if (!empleadoId || !weekStartDate) {
+//         return res.status(400).json({ message: 'Faltan parámetros requeridos.' });
+//     }
+//     try {
+//         const pool = await sql.connect(dbConfig);
+//         console.log('Aprobando semana para EmpleadoId:', empleadoId, 'Semana que inicia en:', weekStartDate);
+//         await pool.request()
+//             .input('UsuarioId', sql.Int, req.user.usuarioId)
+//             .input('EmpleadoId', sql.Int, empleadoId)
+//             .input('FechaInicioSemana', sql.Date, new Date(weekStartDate))
+//             .execute('sp_FichasAsistencia_ApproveWeek');
         
-        res.status(200).json({ message: 'Semana aprobada correctamente.' });
-    } catch (err: any) {
-        console.error('Error en la aprobación rápida:', err);
-        res.status(500).json({ message: err.message || 'Error al aprobar la semana.' });
-    }
-};
+//         res.status(200).json({ message: 'Semana aprobada correctamente.' });
+//     } catch (err: any) {
+//         console.error('Error en la aprobación rápida:', err);
+//         res.status(500).json({ message: err.message || 'Error al aprobar la semana.' });
+//     }
+// };
 
 export const getDataByRange = async (req: any, res: Response) => {
-    // ... código existente ...
      if (!req.user.permissions['reportesAsistencia.read']) {
         return res.status(403).json({ message: 'Acceso denegado.' });
     }
