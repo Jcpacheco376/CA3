@@ -20,7 +20,7 @@ export const createUser = async (req: any, res: Response) => {
     if (!req.user.permissions['usuarios.create'] && !req.user.permissions['usuarios.update']) {
         return res.status(403).json({ message: 'Acceso denegado.' });
     }
-    // Nuevos campos del body
+    
     const { 
         UsuarioId, NombreCompleto, NombreUsuario, Email, Password, EstaActivo, 
         Roles, Departamentos, GruposNomina, Puestos, Establecimientos 
@@ -38,10 +38,17 @@ export const createUser = async (req: any, res: Response) => {
             .input('RolesJSON', sql.NVarChar, JSON.stringify(Roles || []))
             .input('DepartamentosJSON', sql.NVarChar, JSON.stringify(Departamentos || []))
             .input('GruposNominaJSON', sql.NVarChar, JSON.stringify(GruposNomina || []))
-            // Nuevos inputs para el SP
             .input('PuestosJSON', sql.NVarChar, JSON.stringify(Puestos || []))
             .input('EstablecimientosJSON', sql.NVarChar, JSON.stringify(Establecimientos || []))
             .execute('sp_Usuarios_Upsert');
+
+        // --- LÓGICA NUEVA: Invalidar sesiones si es una edición ---
+        if (UsuarioId && UsuarioId > 0) {
+            await pool.request()
+                .input('UsuarioId', sql.Int, UsuarioId)
+                .query('UPDATE dbo.Usuarios SET TokenVersion = ISNULL(TokenVersion, 1) + 1 WHERE UsuarioId = @UsuarioId');
+        }
+        // ----------------------------------------------------------
             
         res.status(200).json({ message: 'Usuario guardado correctamente.', user: result.recordset[0] });
 
@@ -61,11 +68,10 @@ export const getAllUsers = async (req: any, res: Response) => {
             Roles: user.Roles ? JSON.parse(user.Roles) : [],
             Departamentos: user.Departamentos ? JSON.parse(user.Departamentos) : [],
             GruposNomina: user.GruposNomina ? JSON.parse(user.GruposNomina) : [],
-            // Nuevos campos para parsear
             Puestos: user.Puestos ? JSON.parse(user.Puestos) : [],
             Establecimientos: user.Establecimientos ? JSON.parse(user.Establecimientos) : []
         }));
-        res.json(users); // Siempre responde con un arreglo, aunque esté vacío
+        res.json(users); 
     } catch (err) {
         console.error('Error en /api/users:', err);
         res.status(500).json({ 
@@ -96,60 +102,64 @@ export const updateUserPassword = async (req: any, res: Response) => {
             .input('UsuarioId', sql.Int, userId)
             .input('NuevoPassword', sql.NVarChar, password)
             .execute('sp_Usuario_ActualizarPassword');
+
+        // --- LÓGICA NUEVA: Force Logout al cambiar password ---
+        await pool.request()
+            .input('UsuarioId', sql.Int, userId)
+            .query('UPDATE dbo.Usuarios SET TokenVersion = ISNULL(TokenVersion, 1) + 1 WHERE UsuarioId = @UsuarioId');
+        // -----------------------------------------------------
+
         res.status(200).json({ message: 'Contraseña actualizada correctamente.' });
     } catch (err) { res.status(500).json({ message: 'Error al actualizar la contraseña.' }); }
 };
+
 export const resetPassword = async (req: any, res: Response) => {
-    // Solo admins pueden resetear contraseñas
     if (!req.user.permissions['usuarios.update']) {
         return res.status(403).json({ message: 'Acceso denegado.' });
     }
     
     const { userId } = req.params;
-    
-    // 1. Generar contraseña aleatoria segura
-    const newPassword = crypto.randomBytes(6).toString('hex'); // 12 caracteres
+    const newPassword = crypto.randomBytes(6).toString('hex'); 
 
     try {
-        // 2. Llamar al mismo SP que usa updateUserPassword
         const pool = await sql.connect(dbConfig);
         await pool.request()
             .input('UsuarioId', sql.Int, userId)
             .input('NuevoPassword', sql.NVarChar, newPassword)
             .execute('sp_Usuario_ActualizarPassword');
         
-        // 3. Enviar éxito. (Idealmente, aquí se enviaría un email)
+        // --- LÓGICA NUEVA: Force Logout al resetear password ---
+        await pool.request()
+            .input('UsuarioId', sql.Int, userId)
+            .query('UPDATE dbo.Usuarios SET TokenVersion = ISNULL(TokenVersion, 1) + 1 WHERE UsuarioId = @UsuarioId');
+        // -------------------------------------------------------
+
         res.status(200).json({ message: `Contraseña restablecida con éxito. La nueva contraseña es: ${newPassword}` });
-        // NOTA: Devolver la contraseña en la respuesta es opcional y depende de tu política de seguridad.
-        // Podrías solo devolver un 200 OK y forzar al usuario a usar "olvidé mi contraseña".
-        // Por ahora, la devuelvo para que el admin pueda copiarla.
     } catch (err: any) { 
         res.status(500).json({ message: err.message || 'Error al restablecer la contraseña.' }); 
     }
 };
+
 export const getPermissionsByUserId = async (req: any, res: Response) => {
     const userId = req.user.usuarioId;
     if (!userId) return res.status(400).json({ message: 'ID no proporcionado.' });
 
     try {
         const pool = await sql.connect(dbConfig);
-        // 1. Obtener datos base
         const usersResult = await pool.request().execute('sp_Usuarios_GetAll');
         let fullUserDetails = usersResult.recordset.find((u: any) => u.UsuarioId === userId);
 
         if (!fullUserDetails) return res.status(404).json({ message: 'Usuario no encontrado.' });
 
-        // 2. Obtener permisos frescos
         const permissionsResult = await pool.request()
             .input('UsuarioId', sql.Int, userId)
             .execute('sp_Usuario_ObtenerPermisos');
 
         const permissions: { [key: string]: any[] } = {};
         permissionsResult.recordset.forEach((record: any) => {
-            permissions[record.NombrePermiso] = [true]; 
+            permissions[record.NombrePermiso] = record.NombrePolitica ? [record.NombrePolitica] : [true];
         });
         
-        // 3. Obtener filtros activos
         const activeFiltersResult = await pool.request().query(`
             SELECT 
                 CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroDepartamentosActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT) AS departamentos,
@@ -165,7 +175,6 @@ export const getPermissionsByUserId = async (req: any, res: Response) => {
             )
         `);
         
-        // Parsear JSONs
         const updatedUser = {
             ...fullUserDetails,
             Roles: fullUserDetails.Roles ? JSON.parse(fullUserDetails.Roles) : [],

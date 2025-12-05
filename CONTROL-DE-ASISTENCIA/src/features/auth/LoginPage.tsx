@@ -1,6 +1,6 @@
 // src/features/auth/LoginPage.tsx
 import React, { useState, useEffect, useRef } from 'react';
-import { useAuth, APP_VERSION } from './AuthContext.tsx';
+import { useAuth, APP_DATA_VERSION } from './AuthContext.tsx';
 import { EyeIcon, EyeOffIcon, ExclamationCircleIcon } from '../../components/ui/Icons.tsx';
 // Importamos iconos adicionales para los modos de login
 import { Hash, User, ArrowRight } from 'lucide-react'; 
@@ -135,13 +135,13 @@ export const LoginPage = () => {
                             Control de asistencia
                         </h1>
                         <p className="m-0 text-base opacity-90 max-w-xs leading-relaxed" style={{textShadow: '0 2px 10px rgba(0,0,0,0.5)'}}>
-                            Plataforma integral para una gestión de nómina clara y transparente.
-                            {/* El estándar profesional para el control de asistencia. */}
+                            {/* Plataforma integral para una gestión de nómina clara y transparente. */}
+                            El estándar profesional para el control de asistencia.
                             {/* Integridad operativa para una nómina precisa. */}
                         </p>
                         
                         <div className="mt-8 pt-6 border-t border-white/10 w-32 mx-auto">
-                            <span className="text-[10px] font-mono opacity-40 tracking-[0.2em]">v{APP_VERSION}</span>
+                            <span className="text-[10px] font-mono opacity-40 tracking-[0.2em]">v{APP_DATA_VERSION}</span>
                         </div>
                     </div>
                 </div>
@@ -178,7 +178,7 @@ export const LoginPage = () => {
                                 className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-semibold rounded-md z-10 transition-colors duration-200 ${loginMode === 'id' ? 'text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 <Hash size={16} className={loginMode === 'id' ? 'text-blue-600' : 'text-slate-400'} />
-                                ID de Nómina
+                                ID de Usuario
                             </button>
                             <button 
                                 type="button"
@@ -186,14 +186,14 @@ export const LoginPage = () => {
                                 className={`flex-1 flex items-center justify-center gap-2 py-2 text-sm font-semibold rounded-md z-10 transition-colors duration-200 ${loginMode === 'user' ? 'text-blue-700' : 'text-slate-500 hover:text-slate-700'}`}
                             >
                                 <User size={16} className={loginMode === 'user' ? 'text-blue-600' : 'text-slate-400'} />
-                                Usuario
+                                Nombre de Usuario
                             </button>
                         </div>
 
                         {/* Campo Identificador */}
                         <div className="mb-5 relative group">
                             <label htmlFor="identifier" className="block mb-2 text-slate-600 font-semibold text-xs uppercase tracking-wide">
-                                {loginMode === 'id' ? 'Número de Empleado' : 'Nombre de Usuario'}
+                                {loginMode === 'id' ? 'Número de Usuario' : 'Nombre de Usuario'}
                             </label>
                             <div className="relative">
                                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400 group-focus-within:text-blue-600 transition-colors">

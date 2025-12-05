@@ -5,9 +5,15 @@ import { API_BASE_URL } from '../../config/api';
 import { useNotification } from '../../context/NotificationContext';
 
 const SESSION_STORAGE_KEY = 'app_session';
+export const APP_DATA_VERSION = '1.0.7'; 
 
-// --- CAMBIO: Exportamos la versión para usarla en toda la app ---
-export const APP_VERSION = '1.0.6'; 
+// --- NUEVO: Constantes para limpieza inteligente ---
+const LAST_USER_KEY = 'app_last_logged_user';
+const KEYS_TO_CLEAR_ON_USER_CHANGE = [
+    'app_attendance_filters',            // Filtros de asistencia
+    'attendance_employee_column_width',  // Ancho de columna de empleados
+    // Agrega aquí otras preferencias de UI que deban reiniciarse al cambiar de usuario
+];
 
 interface AuthContextType {
     user: User | null;
@@ -26,9 +32,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const savedSession = localStorage.getItem(SESSION_STORAGE_KEY);
         if (savedSession) {
             try {
-                // Usamos la variable exportada APP_VERSION
                 const { version, user: savedUser } = JSON.parse(savedSession);
-                if (version === APP_VERSION) return savedUser;
+                if (version === APP_DATA_VERSION) return savedUser;
             } catch (e) { localStorage.removeItem(SESSION_STORAGE_KEY); }
         }
         return null;
@@ -45,16 +50,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const logout = useCallback(() => {
         setUser(null);
         localStorage.removeItem(SESSION_STORAGE_KEY);
+        // NOTA: No borramos LAST_USER_KEY aquí. Lo validamos al siguiente login.
         window.location.href = '/'; 
     }, []);
 
+    // --- Interceptor Global de Fetch ---
     useEffect(() => {
         const originalFetch = window.fetch;
+
         window.fetch = async (input, init) => {
             try {
                 const response = await originalFetch(input, init);
+
                 if (response.status === 401) {
                     const url = typeof input === 'string' ? input : (input instanceof URL ? input.href : input.url);
+                    
                     if (url && !url.includes('/auth/login')) {
                         console.warn("Sesión inválida detectada globalmente (401). Ejecutando logout automático...");
                         logout();
@@ -65,9 +75,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 throw error;
             }
         };
-        return () => { window.fetch = originalFetch; };
+
+        return () => {
+            window.fetch = originalFetch;
+        };
     }, [logout]);
 
+    // --- LOGIN CON LIMPIEZA INTELIGENTE ---
     const login = useCallback(async (username: string, password: string): Promise<string | true> => {
         try {
             const response = await fetch(`${API_BASE_URL}/auth/login`, {
@@ -83,9 +97,27 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             
             const { token, user: userData } = await response.json(); 
             
+            // --- LÓGICA DE LIMPIEZA DE PREFERENCIAS ---
+            try {
+                const lastUser = localStorage.getItem(LAST_USER_KEY);
+                // Identificador único del usuario actual (ID o Username)
+                const currentUserId = userData.UsuarioId?.toString() || userData.NombreUsuario;
+
+                if (lastUser && lastUser !== currentUserId) {
+                    console.log(`Cambio de usuario detectado (${lastUser} -> ${currentUserId}). Limpiando preferencias de UI...`);
+                    KEYS_TO_CLEAR_ON_USER_CHANGE.forEach(key => {
+                        localStorage.removeItem(key);
+                    });
+                }
+                // Guardamos al nuevo usuario como el "propietario" actual de las preferencias
+                localStorage.setItem(LAST_USER_KEY, currentUserId);
+            } catch (e) {
+                console.warn("No se pudo gestionar la limpieza de preferencias:", e);
+            }
+            // -------------------------------------------
+
             setUser(userData);
-            // Usamos APP_VERSION aquí también
-            localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ version: APP_VERSION, user: userData, token }));
+            localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ version: APP_DATA_VERSION, user: userData, token }));
             return true;
             
         } catch (error: any) {
@@ -104,11 +136,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             const updatedUser = { ...user, ...prefs };
             setUser(updatedUser);
             const token = getToken();
-            // Usamos APP_VERSION aquí también
-            localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ version: APP_VERSION, user: updatedUser, token }));
+            localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ version: APP_DATA_VERSION, user: updatedUser, token }));
         }
     }, [user, getToken]);
 
+    // --- Polling para verificar validez de sesión ---
     const checkSessionStatus = useCallback(async () => {
         if (!user) return;
         const token = getToken();
@@ -128,12 +160,19 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
     }, [user, getToken, logout]);
 
+    // --- EFECTO: Polling cada 60 segundos ---
     useEffect(() => {
         if (!user) return;
+        
         checkSessionStatus();
-        const interval = setInterval(() => { checkSessionStatus(); }, 60000); 
+
+        const interval = setInterval(() => {
+            checkSessionStatus();
+        }, 60000); 
+
         return () => clearInterval(interval);
     }, [user, checkSessionStatus]);
+
 
     const value = useMemo(() => ({
         user, login, logout, can, updateUserPreferences, getToken, checkSessionStatus

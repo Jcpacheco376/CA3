@@ -29,7 +29,6 @@ const ReportCard = ({ title, description, icon, onClick, disabled = false }: any
 );
 
 export const ReportsHub = ({ setActiveView }: { setActiveView: (view: any) => void }) => {
-    // const { can } = useAuth(); // Ya no se usa si no hay lógica condicional aquí
 
     return (
         <div>
@@ -56,8 +55,8 @@ export const ReportsHub = ({ setActiveView }: { setActiveView: (view: any) => vo
                     title="Lista de Asistencia"
                     description="Resumen diario de asistencia (quién vino y quién no)."
                     icon={<FileText />}
-                    onClick={() => console.log("TODO")}
-                    disabled={true}
+                    onClick={() => setActiveView('report_attendance_list')}
+                    disabled={false} 
                 />
 
                 {/* GRUPO: NÓMINA Y CONTROL */}
@@ -66,7 +65,6 @@ export const ReportsHub = ({ setActiveView }: { setActiveView: (view: any) => vo
                 </div>
 
                 {/* Se eliminó la tarjeta de Control de Incidencias de aquí */}
-
                 <ReportCard
                     title="Prenómina"
                     description="Cálculo final de horas y conceptos para pago. Requiere validación de incidencias."

@@ -34,7 +34,6 @@ const createUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
     if (!req.user.permissions['usuarios.create'] && !req.user.permissions['usuarios.update']) {
         return res.status(403).json({ message: 'Acceso denegado.' });
     }
-    // Nuevos campos del body
     const { UsuarioId, NombreCompleto, NombreUsuario, Email, Password, EstaActivo, Roles, Departamentos, GruposNomina, Puestos, Establecimientos } = req.body;
     try {
         const pool = yield mssql_1.default.connect(database_1.dbConfig);
@@ -48,10 +47,16 @@ const createUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
             .input('RolesJSON', mssql_1.default.NVarChar, JSON.stringify(Roles || []))
             .input('DepartamentosJSON', mssql_1.default.NVarChar, JSON.stringify(Departamentos || []))
             .input('GruposNominaJSON', mssql_1.default.NVarChar, JSON.stringify(GruposNomina || []))
-            // Nuevos inputs para el SP
             .input('PuestosJSON', mssql_1.default.NVarChar, JSON.stringify(Puestos || []))
             .input('EstablecimientosJSON', mssql_1.default.NVarChar, JSON.stringify(Establecimientos || []))
             .execute('sp_Usuarios_Upsert');
+        // --- LÓGICA NUEVA: Invalidar sesiones si es una edición ---
+        if (UsuarioId && UsuarioId > 0) {
+            yield pool.request()
+                .input('UsuarioId', mssql_1.default.Int, UsuarioId)
+                .query('UPDATE dbo.Usuarios SET TokenVersion = ISNULL(TokenVersion, 1) + 1 WHERE UsuarioId = @UsuarioId');
+        }
+        // ----------------------------------------------------------
         res.status(200).json({ message: 'Usuario guardado correctamente.', user: result.recordset[0] });
     }
     catch (err) {
@@ -66,10 +71,8 @@ const getAllUsers = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
     try {
         const pool = yield mssql_1.default.connect(database_1.dbConfig);
         const result = yield pool.request().execute('sp_Usuarios_GetAll');
-        const users = (result.recordset || []).map(user => (Object.assign(Object.assign({}, user), { Roles: user.Roles ? JSON.parse(user.Roles) : [], Departamentos: user.Departamentos ? JSON.parse(user.Departamentos) : [], GruposNomina: user.GruposNomina ? JSON.parse(user.GruposNomina) : [], 
-            // Nuevos campos para parsear
-            Puestos: user.Puestos ? JSON.parse(user.Puestos) : [], Establecimientos: user.Establecimientos ? JSON.parse(user.Establecimientos) : [] })));
-        res.json(users); // Siempre responde con un arreglo, aunque esté vacío
+        const users = (result.recordset || []).map(user => (Object.assign(Object.assign({}, user), { Roles: user.Roles ? JSON.parse(user.Roles) : [], Departamentos: user.Departamentos ? JSON.parse(user.Departamentos) : [], GruposNomina: user.GruposNomina ? JSON.parse(user.GruposNomina) : [], Puestos: user.Puestos ? JSON.parse(user.Puestos) : [], Establecimientos: user.Establecimientos ? JSON.parse(user.Establecimientos) : [] })));
+        res.json(users);
     }
     catch (err) {
         console.error('Error en /api/users:', err);
@@ -105,6 +108,11 @@ const updateUserPassword = (req, res) => __awaiter(void 0, void 0, void 0, funct
             .input('UsuarioId', mssql_1.default.Int, userId)
             .input('NuevoPassword', mssql_1.default.NVarChar, password)
             .execute('sp_Usuario_ActualizarPassword');
+        // --- LÓGICA NUEVA: Force Logout al cambiar password ---
+        yield pool.request()
+            .input('UsuarioId', mssql_1.default.Int, userId)
+            .query('UPDATE dbo.Usuarios SET TokenVersion = ISNULL(TokenVersion, 1) + 1 WHERE UsuarioId = @UsuarioId');
+        // -----------------------------------------------------
         res.status(200).json({ message: 'Contraseña actualizada correctamente.' });
     }
     catch (err) {
@@ -113,25 +121,23 @@ const updateUserPassword = (req, res) => __awaiter(void 0, void 0, void 0, funct
 });
 exports.updateUserPassword = updateUserPassword;
 const resetPassword = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    // Solo admins pueden resetear contraseñas
     if (!req.user.permissions['usuarios.update']) {
         return res.status(403).json({ message: 'Acceso denegado.' });
     }
     const { userId } = req.params;
-    // 1. Generar contraseña aleatoria segura
-    const newPassword = crypto_1.default.randomBytes(6).toString('hex'); // 12 caracteres
+    const newPassword = crypto_1.default.randomBytes(6).toString('hex');
     try {
-        // 2. Llamar al mismo SP que usa updateUserPassword
         const pool = yield mssql_1.default.connect(database_1.dbConfig);
         yield pool.request()
             .input('UsuarioId', mssql_1.default.Int, userId)
             .input('NuevoPassword', mssql_1.default.NVarChar, newPassword)
             .execute('sp_Usuario_ActualizarPassword');
-        // 3. Enviar éxito. (Idealmente, aquí se enviaría un email)
+        // --- LÓGICA NUEVA: Force Logout al resetear password ---
+        yield pool.request()
+            .input('UsuarioId', mssql_1.default.Int, userId)
+            .query('UPDATE dbo.Usuarios SET TokenVersion = ISNULL(TokenVersion, 1) + 1 WHERE UsuarioId = @UsuarioId');
+        // -------------------------------------------------------
         res.status(200).json({ message: `Contraseña restablecida con éxito. La nueva contraseña es: ${newPassword}` });
-        // NOTA: Devolver la contraseña en la respuesta es opcional y depende de tu política de seguridad.
-        // Podrías solo devolver un 200 OK y forzar al usuario a usar "olvidé mi contraseña".
-        // Por ahora, la devuelvo para que el admin pueda copiarla.
     }
     catch (err) {
         res.status(500).json({ message: err.message || 'Error al restablecer la contraseña.' });
@@ -144,20 +150,17 @@ const getPermissionsByUserId = (req, res) => __awaiter(void 0, void 0, void 0, f
         return res.status(400).json({ message: 'ID no proporcionado.' });
     try {
         const pool = yield mssql_1.default.connect(database_1.dbConfig);
-        // 1. Obtener datos base
         const usersResult = yield pool.request().execute('sp_Usuarios_GetAll');
         let fullUserDetails = usersResult.recordset.find((u) => u.UsuarioId === userId);
         if (!fullUserDetails)
             return res.status(404).json({ message: 'Usuario no encontrado.' });
-        // 2. Obtener permisos frescos
         const permissionsResult = yield pool.request()
             .input('UsuarioId', mssql_1.default.Int, userId)
             .execute('sp_Usuario_ObtenerPermisos');
         const permissions = {};
         permissionsResult.recordset.forEach((record) => {
-            permissions[record.NombrePermiso] = [true];
+            permissions[record.NombrePermiso] = record.NombrePolitica ? [record.NombrePolitica] : [true];
         });
-        // 3. Obtener filtros activos
         const activeFiltersResult = yield pool.request().query(`
             SELECT 
                 CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroDepartamentosActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT) AS departamentos,
@@ -172,7 +175,6 @@ const getPermissionsByUserId = (req, res) => __awaiter(void 0, void 0, void 0, f
                 'FiltroEstablecimientosActivo'
             )
         `);
-        // Parsear JSONs
         const updatedUser = Object.assign(Object.assign({}, fullUserDetails), { Roles: fullUserDetails.Roles ? JSON.parse(fullUserDetails.Roles) : [], Departamentos: fullUserDetails.Departamentos ? JSON.parse(fullUserDetails.Departamentos) : [], GruposNomina: fullUserDetails.GruposNomina ? JSON.parse(fullUserDetails.GruposNomina) : [], Puestos: fullUserDetails.Puestos ? JSON.parse(fullUserDetails.Puestos) : [], Establecimientos: fullUserDetails.Establecimientos ? JSON.parse(fullUserDetails.Establecimientos) : [], permissions: permissions, activeFilters: activeFiltersResult.recordset[0] });
         res.json({ user: updatedUser });
     }

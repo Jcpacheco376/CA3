@@ -10,13 +10,11 @@ import { CatalogosPage } from '../../features/admin/CatalogosPage';
 import { UserProfileModal } from '../../features/auth/UserProfileModal';
 import { ProfessionalSidebar } from './ProfessionalSidebar';
 import { AppHeader } from './AppHeader';
-import { BarChartBig, Users, Settings, Folder, FileText, CalendarClock, AlertTriangle } from 'lucide-react'; // Asegúrate de importar AlertTriangle
+import { BarChartBig, Users, Settings, Folder, FileText, CalendarClock, AlertTriangle } from 'lucide-react';
 import { SchedulePage } from '../../features/attendance/SchedulePage';
 import { ReportsHub } from '../../features/reports/ReportsHub'; 
 import { ReportsLayout } from '../../features/reports/ReportsLayout'; 
-// Importamos la página directamente
 import { IncidentsControlPage } from '../../features/reports/pages/IncidentsControlPage'; 
-
 
 interface MainLayoutProps {
     user: User;
@@ -37,7 +35,6 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
             items: [
                 { id: 'attendance_weekly', label: 'Registro de Asistencia', icon: <BarChartBig size={20} /> },
                 
-                // --- NUEVO: Control de Incidencias en el menú principal ---
                 can('reportesAsistencia.read') && { 
                     id: 'report_incidencias', 
                     label: 'Control de Incidencias', 
@@ -63,18 +60,14 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
             // Módulos Principales
             case 'attendance_weekly': return <AttendancePage />;
             case 'schedule_planner': return <SchedulePage />;
-            
-            // --- NUEVO: Renderizado directo de la página de incidencias ---
             case 'report_incidencias': return <IncidentsControlPage />;
             
-            // Administración de Usuarios y Roles
+            // Administración
             case 'admin_users': return <UsersPage />;
             case 'admin_roles': return <RolesPage />;
-            
-            // Hub de Catálogos
             case 'admin_catalogs': return <CatalogosPage setActiveView={setActiveView} />;
             
-            // Layout de Catálogos (Sub-navegación)
+            // Catálogos
             case 'admin_departamentos':
             case 'admin_grupos_nomina':
             case 'admin_estatus_asistencia':
@@ -83,12 +76,13 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
             case 'admin_puestos':
                 return <CatalogLayout activeView={activeView} setActiveView={setActiveView} />;
 
-            // Sección de Reportes
+            // Reportes (Hub)
             case 'attendance_reports': 
                 return <ReportsHub setActiveView={setActiveView} />;
             
-            // Sub-navegación de reportes (Solo queda Kardex por ahora)
+            // Reportes (Layout Específico)
             case 'report_kardex':
+            case 'report_attendance_list': 
                 return <ReportsLayout activeView={activeView} setActiveView={setActiveView} />;
 
             default: return <AttendancePage />;

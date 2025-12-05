@@ -1,14 +1,20 @@
 // src/features/reports/pages/IncidentsControlPage.tsx
-import React, { useState,useEffect  } from 'react';
-import { Play, RefreshCw, AlertTriangle, BadgeAlert, User, Shield, Hash, Info } from 'lucide-react';
-import { ReportFilterBar } from './ReportFilterBar';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { 
+    Play, RefreshCw, AlertTriangle, BadgeAlert, User, Shield, Hash, Info, 
+    Building, Briefcase, Tag, MapPin 
+} from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { API_BASE_URL } from '../../../config/api';
 import { useNotification } from '../../../context/NotificationContext';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { IncidentDetailModal } from '../components/IncidentDetailModal';
+import { AttendanceToolbar, FilterConfig } from '../../attendance/AttendanceToolbar';
+// IMPORTACIÓN DEL HOOK COMPARTIDO
+import { useSharedAttendance } from '../../../hooks/useSharedAttendance';
 
+// --- Componente interno para badges (sin cambios) ---
 const SeverityBadge = ({ severity }: { severity: string }) => {
     const config = {
         'Critica': { bg: 'bg-rose-100', text: 'text-rose-700', border: 'border-rose-200', icon: <BadgeAlert size={12}/> },
@@ -25,30 +31,84 @@ const SeverityBadge = ({ severity }: { severity: string }) => {
 };
 
 export const IncidentsControlPage = () => {
-    const { getToken } = useAuth();
+    const { getToken, user } = useAuth(); // Necesitamos 'user' para los catálogos de filtros
     const { addNotification } = useNotification();
     
+    // --- USO DEL HOOK COMPARTIDO ---
+    // Reemplaza los estados locales de filtros, fechas y modo de vista
+    const { 
+        filters, setFilters, 
+        viewMode, setViewMode, 
+        currentDate, setCurrentDate, 
+        dateRange, rangeLabel, 
+        handleDatePrev, handleDateNext 
+    } = useSharedAttendance(user);
+
+    // Estados locales (específicos de esta página)
+    const [searchTerm, setSearchTerm] = useState('');
     const [incidents, setIncidents] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
-    const [currentFilters, setCurrentFilters] = useState<any>(null);
 
     const [selectedIncidentId, setSelectedIncidentId] = useState<number | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
-    // NOTA: Ya no cargamos usuarios ni catálogos aquí. El modal se encarga.
+    // --- CONFIGURACIÓN DE FILTROS DESPLEGABLES ---
+    const filterConfigurations: FilterConfig[] = useMemo(() => {
+        const configs: FilterConfig[] = [
+            {
+                id: 'departamentos',
+                title: 'Departamentos',
+                icon: <Building />,
+                options: user?.Departamentos?.map(d => ({ value: d.DepartamentoId, label: d.Nombre })) || [],
+                selectedValues: filters.depts,
+                onChange: (vals) => setFilters(f => ({ ...f, depts: vals as number[] })),
+                isActive: user?.activeFilters?.departamentos ?? false,
+            },
+            {
+                id: 'gruposNomina',
+                title: 'Grupos Nómina',
+                icon: <Briefcase />,
+                options: user?.GruposNomina?.map(g => ({ value: g.GrupoNominaId, label: g.Nombre })) || [],
+                selectedValues: filters.groups,
+                onChange: (vals) => setFilters(f => ({ ...f, groups: vals as number[] })),
+                isActive: user?.activeFilters?.gruposNomina ?? false,
+            },
+            {
+                id: 'puestos',
+                title: 'Puestos',
+                icon: <Tag />,
+                options: user?.Puestos?.map(p => ({ value: p.PuestoId, label: p.Nombre })) || [],
+                selectedValues: filters.puestos,
+                onChange: (vals) => setFilters(f => ({ ...f, puestos: vals as number[] })),
+                isActive: user?.activeFilters?.puestos ?? false,
+            },
+            {
+                id: 'establecimientos',
+                title: 'Establecimientos',
+                icon: <MapPin />,
+                options: user?.Establecimientos?.map(e => ({ value: e.EstablecimientoId, label: e.Nombre })) || [],
+                selectedValues: filters.estabs,
+                onChange: (vals) => setFilters(f => ({ ...f, estabs: vals as number[] })),
+                isActive: user?.activeFilters?.establecimientos ?? false,
+            }
+        ];
+        return configs.filter(c => c.isActive && c.options.length > 0);
+    }, [user, filters, setFilters]);
 
-    const loadIncidents = async (filters: any) => {
+    // --- CARGA DE DATOS ---
+    const loadIncidents = useCallback(async () => {
+        if (!dateRange || dateRange.length === 0) return; // Protección
+
         setIsLoading(true);
         const token = getToken();
         if (!token) return;
 
         try {
-            if (!filters) { setIsLoading(false); return; }
-
+            // Nota: dateRange ahora es un array de fechas [start, ..., end]
             const queryParams = new URLSearchParams({
-                startDate: filters.startDate,
-                endDate: filters.endDate
+                startDate: format(dateRange[0], 'yyyy-MM-dd'),
+                endDate: format(dateRange[dateRange.length - 1], 'yyyy-MM-dd')
             }).toString();
 
             const response = await fetch(`${API_BASE_URL}/incidents?${queryParams}`, {
@@ -58,33 +118,58 @@ export const IncidentsControlPage = () => {
             if (!response.ok) throw new Error('Error al cargar incidencias.');
             
             setIncidents(await response.json());
-            setCurrentFilters(filters);
             
         } catch (err: any) {
             addNotification('Error', err.message, 'error');
         } finally {
             setIsLoading(false);
         }
-    };
+    }, [dateRange, getToken, addNotification]);
+
+    // Recargar cuando cambian fechas (el hook actualiza dateRange automáticamente)
+    useEffect(() => {
+        loadIncidents();
+    }, [loadIncidents]);
+
+    // --- FILTRADO EN CLIENTE (Búsqueda + Filtros Catálogos) ---
+    const filteredIncidents = useMemo(() => {
+        return incidents.filter(inc => {
+            // 1. Búsqueda por texto (Nombre o ID)
+            if (searchTerm) {
+                const term = searchTerm.toLowerCase();
+                const textMatch = 
+                    inc.EmpleadoNombre?.toLowerCase().includes(term) ||
+                    inc.EmpleadoCodRef?.toLowerCase().includes(term) ||
+                    inc.IncidenciaId?.toString().includes(term);
+                if (!textMatch) return false;
+            }
+            
+            // Nota: Los filtros de departamentos/grupos se aplican idealmente en el backend o aquí si tienes los IDs en 'inc'.
+            // Como el backend (SP) ya filtra por usuario permitido, aquí asumimos filtrado por fecha es lo principal.
+            
+            return true;
+        });
+    }, [incidents, searchTerm]);
 
     const runAnalysis = async () => {
-        if (!currentFilters) {
-            addNotification('Atención', 'Selecciona un periodo primero.', 'info');
-            return;
-        }
+        if (!dateRange || dateRange.length === 0) return;
+
         setIsAnalyzing(true);
         const token = getToken();
         try {
             const response = await fetch(`${API_BASE_URL}/incidents/analyze`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ startDate: currentFilters.startDate, endDate: currentFilters.endDate })
+                body: JSON.stringify({ 
+                    startDate: format(dateRange[0], 'yyyy-MM-dd'), 
+                    endDate: format(dateRange[dateRange.length - 1], 'yyyy-MM-dd') 
+                })
             });
             
             if (!response.ok) throw new Error('Error al ejecutar el análisis.');
             const result = await response.json();
             addNotification('Análisis Completado', `Se detectaron ${result.IncidenciasGeneradas || 0} nuevas discrepancias.`, 'success');
-            await loadIncidents(currentFilters);
+            await loadIncidents();
         } catch (err: any) {
             addNotification('Error de Análisis', err.message, 'error');
         } finally {
@@ -92,17 +177,10 @@ export const IncidentsControlPage = () => {
         }
     };
 
-    const handleOpenModal = (incidentId: number) => {
-        setSelectedIncidentId(incidentId);
-        setIsModalOpen(true);
-    };
-
-    const handleCloseModal = () => {
-        setIsModalOpen(false);
-        setSelectedIncidentId(null);
-    };
-
-    // Función segura para fechas (Corregida para evitar el error Invalid time value)
+    // --- MODALES ---
+    const handleOpenModal = (incidentId: number) => { setSelectedIncidentId(incidentId); setIsModalOpen(true); };
+    const handleCloseModal = () => { setIsModalOpen(false); setSelectedIncidentId(null); };
+    
     const formatDateSafe = (dateString: string) => {
         if (!dateString) return '-';
         try {
@@ -110,13 +188,12 @@ export const IncidentsControlPage = () => {
             const date = new Date(cleanDate + 'T12:00:00'); 
             if (isNaN(date.getTime())) return '-';
             return format(date, 'dd MMM', { locale: es });
-        } catch (e) {
-            return '-';
-        }
+        } catch (e) { return '-'; }
     };
 
     return (
-        <div className="space-y-6 animate-fade-in">
+        <div className="space-y-6 animate-fade-in h-full flex flex-col">
+            {/* CABECERA Y BOTÓN DE ANÁLISIS */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h2 className="text-2xl font-bold text-slate-800">Tablero de Incidencias</h2>
@@ -124,26 +201,41 @@ export const IncidentsControlPage = () => {
                 </div>
                 <button 
                     onClick={runAnalysis}
-                    disabled={!currentFilters || isAnalyzing || isLoading}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold shadow-sm transition-all ${!currentFilters || isAnalyzing ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-md'}`}
+                    disabled={isAnalyzing || isLoading}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold shadow-sm transition-all ${isAnalyzing ? 'bg-slate-100 text-slate-400 cursor-not-allowed' : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-md'}`}
                 >
                     {isAnalyzing ? <RefreshCw size={18} className="animate-spin" /> : <Play size={18} />}
                     {isAnalyzing ? 'Analizando...' : 'Ejecutar Análisis'}
                 </button>
             </div>
 
-            <ReportFilterBar onGenerate={loadIncidents} isLoading={isLoading} />
+            {/* BARRA DE HERRAMIENTAS UNIFICADA */}
+            <div className="bg-white rounded-lg shadow-sm border border-slate-200">
+                <AttendanceToolbar
+                    searchTerm={searchTerm}
+                    setSearchTerm={setSearchTerm}
+                    filterConfigurations={filterConfigurations}
+                    viewMode={viewMode}
+                    setViewMode={setViewMode}
+                    rangeLabel={rangeLabel}
+                    handleDatePrev={handleDatePrev}
+                    handleDateNext={handleDateNext}
+                    currentDate={currentDate}
+                    onDateChange={setCurrentDate}
+                />
+            </div>
 
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden min-h-[400px]">
-                {incidents.length === 0 && !isLoading ? (
+            {/* TABLA DE RESULTADOS */}
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex-1">
+                {filteredIncidents.length === 0 && !isLoading ? (
                     <div className="flex flex-col items-center justify-center p-12 text-slate-400 h-full">
                         <AlertTriangle size={48} className="mb-4 opacity-20" />
-                        <p>No hay incidencias pendientes.</p>
+                        <p>{incidents.length === 0 ? "No hay incidencias en este periodo." : "No se encontraron resultados con los filtros actuales."}</p>
                     </div>
                 ) : (
-                    <div className="overflow-x-auto">
+                    <div className="overflow-auto h-full">
                         <table className="w-full text-sm text-left">
-                            <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs border-b tracking-wider">
+                            <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs border-b tracking-wider sticky top-0 z-10">
                                 <tr>
                                     <th className="p-4 w-16 text-center">ID</th>
                                     <th className="p-4">Estado</th>
@@ -155,7 +247,7 @@ export const IncidentsControlPage = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
-                                {incidents.map((inc) => (
+                                {filteredIncidents.map((inc) => (
                                     <tr key={inc.IncidenciaId} className="hover:bg-slate-50 transition-colors group">
                                         <td className="p-4 text-center font-mono text-slate-400 group-hover:text-indigo-500 transition-colors">
                                             <div className="flex items-center justify-center gap-1">
@@ -168,6 +260,7 @@ export const IncidentsControlPage = () => {
                                                 ${inc.Estado === 'Asignada' ? 'bg-purple-50 text-purple-700 border-purple-100' : ''}
                                                 ${inc.Estado === 'PorAutorizar' ? 'bg-amber-50 text-amber-700 border-amber-100' : ''}
                                                 ${inc.Estado === 'Resuelta' ? 'bg-green-50 text-green-700 border-green-100' : ''}
+                                                ${inc.Estado === 'Cancelada' ? 'bg-slate-50 text-slate-500 border-slate-200' : ''}
                                             `}>
                                                 {inc.Estado}
                                             </span>
@@ -217,12 +310,11 @@ export const IncidentsControlPage = () => {
                 )}
             </div>
 
-            {/* Modal sin pasar catálogos, ahora es autónomo */}
             <IncidentDetailModal 
                 isOpen={isModalOpen}
                 onClose={handleCloseModal}
                 incidentId={selectedIncidentId}
-                onRefresh={() => loadIncidents(currentFilters)}
+                onRefresh={loadIncidents}
             />
         </div>
     );

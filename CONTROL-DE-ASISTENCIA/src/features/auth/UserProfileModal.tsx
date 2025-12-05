@@ -5,8 +5,7 @@ import { Zap, ZapOff, CheckCircle2, AlertCircle, Eye, EyeOff, Mail, User as User
 import { Modal, Button } from '../../components/ui/Modal.tsx';
 import { useAppContext } from '../../context/AppContext.tsx';
 import { themes } from '../../config/theme.ts';
-// Importamos APP_VERSION
-import { useAuth, APP_VERSION } from './AuthContext.tsx';
+import { useAuth, APP_DATA_VERSION } from './AuthContext.tsx';
 import { API_BASE_URL } from '../../config/api.ts';
 
 const AnimationToggle = ({ enabled, onChange }: { enabled: boolean, onChange: (enabled: boolean) => void }) => (
@@ -97,7 +96,7 @@ const UserProfileModalContent = ({ user, preferences, setPreferences, passwordDa
             {/* --- MODIFICACIÓN: Versión dinámica aquí --- */}
             <div className="mt-8 pt-4 flex justify-center border-t border-slate-100">
                 <span className="text-[10px] text-slate-300 font-mono tracking-widest select-none">
-                    v{APP_VERSION}
+                    v{APP_DATA_VERSION}
                 </span>
             </div>
         </div>

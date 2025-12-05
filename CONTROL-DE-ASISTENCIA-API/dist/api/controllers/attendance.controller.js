@@ -12,28 +12,30 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getDataByRange = exports.ensureRange = exports.ensureWeek = exports.approveWeek = exports.saveAttendance = void 0;
+exports.getDataByRange = exports.approveWeek = exports.saveAttendance = void 0;
 const mssql_1 = __importDefault(require("mssql"));
 const database_1 = require("../../config/database");
 const saveAttendance = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    // Validar permiso de escritura (asignación)
+    // Validar permiso
     if (!req.user.permissions['reportesAsistencia.assign']) {
         return res.status(403).json({ message: 'No tienes permiso para registrar la asistencia.' });
     }
+    // estatusManual ahora puede ser null/undefined para la acción de "Deshacer"
     const { empleadoId, fecha, estatusManual, comentarios } = req.body;
-    if (!empleadoId || !fecha || !estatusManual) {
-        return res.status(400).json({ message: 'Faltan parámetros requeridos (empleado, fecha o estatus).' });
+    if (!empleadoId || !fecha) {
+        return res.status(400).json({ message: 'Faltan parámetros requeridos (empleado, fecha).' });
     }
     try {
         const pool = yield mssql_1.default.connect(database_1.dbConfig);
         yield pool.request()
             .input('EmpleadoId', mssql_1.default.Int, empleadoId)
             .input('Fecha', mssql_1.default.Date, new Date(fecha))
-            .input('EstatusManualAbrev', mssql_1.default.NVarChar, estatusManual)
+            .input('EstatusManualAbrev', mssql_1.default.NVarChar, estatusManual || null) // Enviamos NULL si no hay estatus
             .input('Comentarios', mssql_1.default.NVarChar, comentarios || null)
             .input('UsuarioId', mssql_1.default.Int, req.user.usuarioId)
             .execute('sp_FichasAsistencia_SaveManual');
-        res.status(200).json({ message: 'Registro manual guardado con éxito.' });
+        const action = estatusManual ? 'guardado' : 'restaurado';
+        res.status(200).json({ message: `Registro ${action} con éxito.` });
     }
     catch (err) {
         console.error('Error al guardar registro manual:', err);
@@ -41,8 +43,11 @@ const saveAttendance = (req, res) => __awaiter(void 0, void 0, void 0, function*
     }
 });
 exports.saveAttendance = saveAttendance;
+// ... (Resto de funciones: approveWeek, getDataByRange se mantienen igual)
 const approveWeek = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    // --- MODIFICACIÓN: De 'update' a 'approve' ---
+    // ... código existente ...
+    // (Simplemente copia el resto del archivo original aquí si lo sobrescribes, 
+    // pero lo importante es el cambio en saveAttendance de arriba)
     if (!req.user.permissions['reportesAsistencia.approve']) {
         return res.status(403).json({ message: 'No tienes permiso para aprobar la asistencia.' });
     }
@@ -65,57 +70,15 @@ const approveWeek = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
     }
 });
 exports.approveWeek = approveWeek;
-const ensureWeek = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    // --- MODIFICACIÓN: De 'update' a 'assign' ---
-    if (!req.user.permissions['reportesAsistencia.assign']) {
-        return res.status(403).json({ message: 'No tienes permiso para realizar esta acción.' });
-    }
-    const { weekStartDate } = req.body;
-    if (!weekStartDate) {
-        return res.status(400).json({ message: 'Falta la fecha de inicio de semana.' });
-    }
-    try {
-        const pool = yield mssql_1.default.connect(database_1.dbConfig);
-        yield pool.request()
-            .input('UsuarioId', mssql_1.default.Int, req.user.usuarioId)
-            .input('FechaInicioSemana', mssql_1.default.Date, new Date(weekStartDate))
-            .execute('sp_FichasAsistencia_ProcessWeekForSupervisor');
-        res.status(200).json({ message: 'Semana procesada y preparada correctamente.' });
-    }
-    catch (err) {
-        console.error('Error al procesar la semana:', err);
-        res.status(500).json({ message: err.message || 'Error al preparar los datos de la semana.' });
-    }
-});
-exports.ensureWeek = ensureWeek;
-const ensureRange = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    // --- MODIFICACIÓN: De 'update' a 'assign' ---
-    if (!req.user.permissions['reportesAsistencia.assign'])
-        return res.status(403).json({ message: 'Acceso denegado.' });
-    const { startDate, endDate } = req.body;
-    try {
-        const pool = yield mssql_1.default.connect(database_1.dbConfig);
-        yield pool.request()
-            .input('FechaInicio', mssql_1.default.Date, startDate).input('FechaFin', mssql_1.default.Date, endDate)
-            .input('UsuarioId', mssql_1.default.Int, req.user.usuarioId).execute('sp_FichasAsistencia_ProcesarChecadas');
-        res.status(200).json({ message: 'Rango de fechas procesado.' });
-    }
-    catch (err) {
-        res.status(500).json({ message: err.message || 'Error al procesar el rango.' });
-    }
-});
-exports.ensureRange = ensureRange;
 const getDataByRange = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    // --- MODIFICACIÓN: Simplificado a 'read' ---
+    // ... código existente ...
     if (!req.user.permissions['reportesAsistencia.read']) {
         return res.status(403).json({ message: 'Acceso denegado.' });
     }
-    const { startDate, endDate, filters // { departamentos: [1, 2], gruposNomina: [3], puestos: [], establecimientos: [] }
-     } = req.body;
-    // Helper para convertir un array de IDs (o undefined) en un string JSON para el SP
+    const { startDate, endDate, filters } = req.body;
     const toJSONString = (arr) => {
         if (!arr || arr.length === 0)
-            return '[]'; // Enviar '[]' si está vacío
+            return '[]';
         return JSON.stringify(arr);
     };
     try {

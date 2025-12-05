@@ -2,6 +2,7 @@
 import { Request, Response } from 'express';
 import sql from 'mssql';
 import { dbConfig } from '../../config/database';
+import { Console } from 'console';
 
 export const saveAttendance = async (req: any, res: Response) => {
     // Validar permiso de escritura (asignación)
@@ -41,7 +42,7 @@ export const approveWeek = async (req: any, res: Response) => {
     if (!empleadoId || !weekStartDate) {
         return res.status(400).json({ message: 'Faltan parámetros requeridos.' });
     }
-
+console.log('Aprobando semana para empleadoId:', empleadoId, 'semana que inicia en:', weekStartDate);
     try {
         const pool = await sql.connect(dbConfig);
         await pool.request()
@@ -57,42 +58,43 @@ export const approveWeek = async (req: any, res: Response) => {
     }
 };
 
-export const ensureWeek = async (req: any, res: Response) => {
-    // --- MODIFICACIÓN: De 'update' a 'assign' ---
-    if (!req.user.permissions['reportesAsistencia.assign']) {
-        return res.status(403).json({ message: 'No tienes permiso para realizar esta acción.' });
-    }
-    const { weekStartDate } = req.body;
-    if (!weekStartDate) {
-        return res.status(400).json({ message: 'Falta la fecha de inicio de semana.' });
-    }
+// export const ensureWeek = async (req: any, res: Response) => {
+//     // --- MODIFICACIÓN: De 'update' a 'assign' ---
+//     if (!req.user.permissions['reportesAsistencia.assign']) {
+//         return res.status(403).json({ message: 'No tienes permiso para realizar esta acción.' });
+//     }
+//     const { weekStartDate } = req.body;
+//     if (!weekStartDate) {
+//         return res.status(400).json({ message: 'Falta la fecha de inicio de semana.' });
+//     }
 
-    try {
-        const pool = await sql.connect(dbConfig);
-        await pool.request()
-            .input('UsuarioId', sql.Int, req.user.usuarioId)
-            .input('FechaInicioSemana', sql.Date, new Date(weekStartDate))
-            .execute('sp_FichasAsistencia_ProcessWeekForSupervisor');
+//     try {
+//         const pool = await sql.connect(dbConfig);
+//         await pool.request()
+//             .input('UsuarioId', sql.Int, req.user.usuarioId)
+//             .input('FechaInicioSemana', sql.Date, new Date(weekStartDate))
+//             .execute('sp_FichasAsistencia_ProcessWeekForSupervisor');
 
-        res.status(200).json({ message: 'Semana procesada y preparada correctamente.' });
-    } catch (err: any) {
-        console.error('Error al procesar la semana:', err);
-        res.status(500).json({ message: err.message || 'Error al preparar los datos de la semana.' });
-    }
-};
+//         res.status(200).json({ message: 'Semana procesada y preparada correctamente.' });
+//     } catch (err: any) {
+//         console.error('Error al procesar la semana:', err);
+//         res.status(500).json({ message: err.message || 'Error al preparar los datos de la semana.' });
+//     }
+// };
 
-export const ensureRange = async (req: any, res: Response) => {
-    // --- MODIFICACIÓN: De 'update' a 'assign' ---
-    if (!req.user.permissions['reportesAsistencia.assign']) return res.status(403).json({ message: 'Acceso denegado.' });
-    const { startDate, endDate } = req.body;
-    try {
-        const pool = await sql.connect(dbConfig);
-        await pool.request()
-            .input('FechaInicio', sql.Date, startDate).input('FechaFin', sql.Date, endDate)
-            .input('UsuarioId', sql.Int, req.user.usuarioId).execute('sp_FichasAsistencia_ProcesarChecadas');
-        res.status(200).json({ message: 'Rango de fechas procesado.' });
-    } catch (err: any) { res.status(500).json({ message: err.message || 'Error al procesar el rango.' }); }
-};
+// export const ensureRange = async (req: any, res: Response) => {
+//     // --- MODIFICACIÓN: De 'update' a 'assign' ---
+//     if (!req.user.permissions['reportesAsistencia.assign']) return res.status(403).json({ message: 'Acceso denegado.' });
+//     const { startDate, endDate } = req.body;
+//     try {
+//         const pool = await sql.connect(dbConfig);
+//         await pool.request()
+//             .input('FechaInicio', sql.Date, startDate)
+//             .input('FechaFin', sql.Date, endDate)
+//             .input('UsuarioId', sql.Int, req.user.usuarioId).execute('sp_FichasAsistencia_ProcesarChecadas');
+//         res.status(200).json({ message: 'Rango de fechas procesado.' });
+//     } catch (err: any) { res.status(500).json({ message: err.message || 'Error al procesar el rango.' }); }
+// };
 
 export const getDataByRange = async (req: any, res: Response) => {
     // --- MODIFICACIÓN: Simplificado a 'read' ---
@@ -105,12 +107,13 @@ export const getDataByRange = async (req: any, res: Response) => {
         filters // { departamentos: [1, 2], gruposNomina: [3], puestos: [], establecimientos: [] }
     } = req.body;
 
+   
     // Helper para convertir un array de IDs (o undefined) en un string JSON para el SP
     const toJSONString = (arr: number[] | undefined) => {
         if (!arr || arr.length === 0) return '[]'; // Enviar '[]' si está vacío
         return JSON.stringify(arr);
     };
-
+console.log('Obteniendo datos de asistencia desde', startDate, 'hasta', endDate, 'con filtros:', filters);
     try {
         const pool = await sql.connect(dbConfig);
         const result = await pool.request()
@@ -122,7 +125,9 @@ export const getDataByRange = async (req: any, res: Response) => {
             .input('PuestoFiltro', sql.NVarChar, toJSONString(filters?.puestos))
             .input('EstablecimientoFiltro', sql.NVarChar, toJSONString(filters?.establecimientos))
             .execute('sp_FichasAsistencia_GetDataByRange');
-        
+
+            
+        console.log('Datos de asistencia obtenidos:', result.recordset);
         res.json(result.recordset.map(emp => ({ ...emp, FichasSemana: emp.FichasSemana ? JSON.parse(emp.FichasSemana) : [] })));
     } catch (err: any) { 
         res.status(500).json({ message: err.message || 'Error al obtener los datos de asistencia.' }); 
