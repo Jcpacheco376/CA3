@@ -44,7 +44,7 @@ const FichaTooltip = memo(({ ficha, isRestDay, statusCatalog }: { ficha: any, is
             {isNoSchedule && (
                 <div className="mb-1 pb-1 border-b border-orange-200 text-orange-700 font-bold">
                     ⚠️ Sin horario asignado.
-                    <div className="font-normal text-slate-500 mt-0.5">Asigne un horario en el planificador para calcular esta ficha.</div>
+                    <div className="font-normal text-slate-500 mt-0.5">Asigne un horario para calcular esta ficha.</div>
                 </div>
             )}
             

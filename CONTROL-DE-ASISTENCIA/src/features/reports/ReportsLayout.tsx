@@ -16,8 +16,6 @@ const TabButton = ({ icon, label, isActive, onClick }: { icon: React.ReactNode, 
 export const ReportsLayout = ({ activeView, setActiveView }: { activeView: View, setActiveView: (view: View) => void }) => {
     const reportTabs = [
         { id: 'report_kardex', label: 'Kardex Asistencia', icon: <ClipboardList size={18} />, component: <KardexReportPage /> },
-        { id: 'report_incidencias', label: 'Control Incidencias', icon: <AlertTriangle size={18} />, component: <IncidentsControlPage /> },
-        // --- NUEVA PESTAÑA ---
         { id: 'report_attendance_list', label: 'Lista de Asistencia', icon: <FileText size={18} />, component: <AttendanceListReportPage /> },
     ];
 

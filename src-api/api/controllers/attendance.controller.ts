@@ -33,30 +33,30 @@ export const saveAttendance = async (req: any, res: Response) => {
     }
 };
 
-export const approveWeek = async (req: any, res: Response) => {
-    // --- MODIFICACIÓN: De 'update' a 'approve' ---
-    if (!req.user.permissions['reportesAsistencia.approve']) {
-        return res.status(403).json({ message: 'No tienes permiso para aprobar la asistencia.' });
-    }
-    const { empleadoId, weekStartDate } = req.body;
-    if (!empleadoId || !weekStartDate) {
-        return res.status(400).json({ message: 'Faltan parámetros requeridos.' });
-    }
-console.log('Aprobando semana para empleadoId:', empleadoId, 'semana que inicia en:', weekStartDate);
-    try {
-        const pool = await sql.connect(dbConfig);
-        await pool.request()
-            .input('UsuarioId', sql.Int, req.user.usuarioId)
-            .input('EmpleadoId', sql.Int, empleadoId)
-            .input('FechaInicioSemana', sql.Date, new Date(weekStartDate))
-            .execute('sp_FichasAsistencia_ApproveWeek');
+// export const approveWeek = async (req: any, res: Response) => {
+//     // --- MODIFICACIÓN: De 'update' a 'approve' ---
+//     if (!req.user.permissions['reportesAsistencia.approve']) {
+//         return res.status(403).json({ message: 'No tienes permiso para aprobar la asistencia.' });
+//     }
+//     const { empleadoId, weekStartDate } = req.body;
+//     if (!empleadoId || !weekStartDate) {
+//         return res.status(400).json({ message: 'Faltan parámetros requeridos.' });
+//     }
+// console.log('Aprobando semana para empleadoId:', empleadoId, 'semana que inicia en:', weekStartDate);
+//     try {
+//         const pool = await sql.connect(dbConfig);
+//         await pool.request()
+//             .input('UsuarioId', sql.Int, req.user.usuarioId)
+//             .input('EmpleadoId', sql.Int, empleadoId)
+//             .input('FechaInicioSemana', sql.Date, new Date(weekStartDate))
+//             .execute('sp_FichasAsistencia_ApproveWeek');
         
-        res.status(200).json({ message: 'Semana aprobada correctamente.' });
-    } catch (err: any) {
-        console.error('Error en la aprobación rápida:', err);
-        res.status(500).json({ message: err.message || 'Error al aprobar la semana.' });
-    }
-};
+//         res.status(200).json({ message: 'Semana aprobada correctamente.' });
+//     } catch (err: any) {
+//         console.error('Error en la aprobación rápida:', err);
+//         res.status(500).json({ message: err.message || 'Error al aprobar la semana.' });
+//     }
+// };
 
 // export const ensureWeek = async (req: any, res: Response) => {
 //     // --- MODIFICACIÓN: De 'update' a 'assign' ---

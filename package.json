@@ -9,10 +9,14 @@
   "scripts": {
     "deploy:local": "npm run build:all && deploy.bat",
     "deploy:local2": "npm run build:all && deploy_CA.bat",
+    "build:api": "tsc -p CONTROL-DE-ASISTENCIA-API/tsconfig.json",
+    "build": "npm run build --workspace=CONTROL-DE-ASISTENCIA",
+    "deploy:lame": "node scripts/packager.js",
     "deploy:prod": "echo 'Despliegue a producción (Render) se maneja automáticamente al hacer push a la rama main.'",
     "build:all": "npm run build --workspaces"
   },
   "devDependencies": {
+    "archiver": "^7.0.1",
     "dotenv-cli": "^10.0.0"
   },
   "dependencies": {

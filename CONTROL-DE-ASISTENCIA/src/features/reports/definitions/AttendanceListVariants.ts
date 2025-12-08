@@ -62,7 +62,7 @@ export class AttendanceStandardReport extends BaseReportGenerator {
 
             // Usamos drawTable del motor
             y = this.drawTable(
-                ['Fecha', 'Día', 'Entrada', 'Salida', 'Estatus'], 
+                ['Fecha', 'Día', 'Entrada', 'Salida', 'Horas', 'Estatus'], 
                 body, y
             ) + 8;
         });

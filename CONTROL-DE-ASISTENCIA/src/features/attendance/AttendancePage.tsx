@@ -561,7 +561,7 @@ export const AttendancePage = () => {
         if (isLoading) return <TableSkeleton employeeColumnWidth={employeeColumnWidth} dateRange={dateRange} viewMode={viewMode} pageType="attendance" />;
         if (error) return <div className="p-16 text-center text-red-600"><p>Error al cargar: {error}</p></div>;
         const canAssign = can('reportesAsistencia.assign');
-        const canApprove = can('reportesAsistencia.approve');
+        //const canApprove = can('reportesAsistencia.approve');
 
         return (
             <div ref={tableContainerRef} className="overflow-auto relative flex-1 animate-content-fade-in">
@@ -670,7 +670,7 @@ export const AttendancePage = () => {
                                                         <Tooltip text={emp.departamento_nombre || 'No asignado'}><p className="col-span-1 flex items-center gap-1.5 truncate "><Building size={12} className="text-slate-400" /> {emp.departamento_nombre || 'No asignado'}</p></Tooltip>
                                                     </div>
                                                 </div>
-                                                {canApprove && (
+                                               
                                                     <Tooltip text={isDisabled ? "Nada que aprobar o restaurar" : (showRevertIcon ? "Restaurar semana (Desaprobar todo)" : "Aprobar sugerencias")}>
                                                         <button
                                                             onClick={() => handleWeekAction(emp, showRevertIcon)}
@@ -689,7 +689,7 @@ export const AttendancePage = () => {
                                                             {showRevertIcon ? <RotateCcw size={20} /> : <ClipboardCheck size={20} />}
                                                         </button>
                                                     </Tooltip>
-                                                )}
+                                                
                                             </div>
                                             <div className="w-full bg-slate-200 rounded-full h-1.5 mt-2"><div className={`h-1.5 rounded-full transition-all duration-200 ${progress === 100 ? 'bg-emerald-500' : 'bg-sky-500'}`} style={{ width: `${progress}%` }}></div></div>
                                         </div>
