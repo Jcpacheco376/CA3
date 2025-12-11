@@ -24,9 +24,9 @@ router.get('/', authMiddleware, getIncidents);
 router.get('/:id/details', authMiddleware, getIncidentDetails);
 router.post('/:id/assign', authMiddleware, assignIncident);
 router.post('/:id/resolve', authMiddleware, resolveIncident);
-router.post('/:id/auth-request', authMiddleware, requestAuth); // Apelación
+router.post('/:id/auth-request', authMiddleware, requestAuth); 
 router.post('/:id/auth-cancel', authMiddleware, cancelAuthRequest);
-router.get('/managers', authMiddleware, getIncidentManagers); // Lista filtrada de usuarios
-router.get('/:id/resolution-options', authMiddleware, getResolutionOptions); // Estatus válidos para esa incidencia
+router.get('/:id/managers', authMiddleware,getIncidentManagers);
+router.get('/:id/resolution-options', authMiddleware, getResolutionOptions); 
 router.post('/:id/vote', authMiddleware, voteAuth);
 export default router;

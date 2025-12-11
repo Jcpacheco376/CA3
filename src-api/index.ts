@@ -11,7 +11,7 @@ const app = express();
 
 // const allowedOrigins = [
 //     CORS_ORIGIN,                 // La URL principal desde tu archivo .env
-//     'http://localhost:5173'      // Mantenemos localhost para desarrollo local
+//     'http://localhost:'      // Mantenemos localhost para desarrollo local
 // ];
 
 const corsOptions = {

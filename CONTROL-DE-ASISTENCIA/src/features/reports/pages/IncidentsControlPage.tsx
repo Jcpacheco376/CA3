@@ -226,88 +226,92 @@ export const IncidentsControlPage = () => {
             </div>
 
             {/* TABLA DE RESULTADOS */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex-1">
-                {filteredIncidents.length === 0 && !isLoading ? (
-                    <div className="flex flex-col items-center justify-center p-12 text-slate-400 h-full">
-                        <AlertTriangle size={48} className="mb-4 opacity-20" />
-                        <p>{incidents.length === 0 ? "No hay incidencias en este periodo." : "No se encontraron resultados con los filtros actuales."}</p>
-                    </div>
-                ) : (
-                    <div className="overflow-auto h-full">
-                        <table className="w-full text-sm text-left">
-                            <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs border-b tracking-wider sticky top-0 z-10">
-                                <tr>
-                                    <th className="p-4 w-16 text-center">ID</th>
-                                    <th className="p-4">Estado</th>
-                                    <th className="p-4">Severidad</th>
-                                    <th className="p-4">Fecha</th>
-                                    <th className="p-4">Empleado</th>
-                                    <th className="p-4">Asignado A</th>
-                                    <th className="p-4 text-center">Acción</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                                {filteredIncidents.map((inc) => (
-                                    <tr key={inc.IncidenciaId} className="hover:bg-slate-50 transition-colors group">
-                                        <td className="p-4 text-center font-mono text-slate-400 group-hover:text-indigo-500 transition-colors">
-                                            <div className="flex items-center justify-center gap-1">
-                                                <Hash size={12} />{inc.IncidenciaId}
-                                            </div>
-                                        </td>
-                                        <td className="p-4">
-                                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium border
-                                                ${inc.Estado === 'Nueva' ? 'bg-blue-50 text-blue-700 border-blue-100' : ''}
-                                                ${inc.Estado === 'Asignada' ? 'bg-purple-50 text-purple-700 border-purple-100' : ''}
-                                                ${inc.Estado === 'PorAutorizar' ? 'bg-amber-50 text-amber-700 border-amber-100' : ''}
-                                                ${inc.Estado === 'Resuelta' ? 'bg-green-50 text-green-700 border-green-100' : ''}
-                                                ${inc.Estado === 'Cancelada' ? 'bg-slate-50 text-slate-500 border-slate-200' : ''}
-                                            `}>
-                                                {inc.Estado}
-                                            </span>
-                                        </td>
-                                        <td className="p-4"><SeverityBadge severity={inc.Severidad} /></td>
-                                        <td className="p-4 font-medium text-slate-700">
-                                            {formatDateSafe(inc.Fecha)}
-                                        </td>
-                                        <td className="p-4">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex-1 flex flex-col">
+                <div className="overflow-auto h-full">
+                    <table className="w-full text-sm text-left table-fixed">
+                        <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs border-b tracking-wider sticky top-0 z-10">
+                            <tr>
+                                <th className="p-4 w-16 text-center">ID</th>
+                                <th className="p-4 w-32">Estado</th>
+                                <th className="p-4 w-32">Severidad</th>
+                                <th className="p-4 w-28">Fecha</th>
+                                <th className="p-4">Empleado</th>
+                                <th className="p-4">Asignado A</th>
+                                <th className="p-4 w-32 text-center">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                            {filteredIncidents.length > 0 && filteredIncidents.map((inc) => (
+                                <tr key={inc.IncidenciaId} className="hover:bg-slate-50 transition-colors group">
+                                    <td className="p-4 text-center font-mono text-slate-400 group-hover:text-indigo-500 transition-colors">
+                                        <div className="flex items-center justify-center gap-1">
+                                            <Hash size={12} />{inc.IncidenciaId}
+                                        </div>
+                                    </td>
+                                    <td className="p-4">
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium border
+                                            ${inc.Estado === 'Nueva' ? 'bg-blue-50 text-blue-700 border-blue-100' : ''}
+                                            ${inc.Estado === 'Asignada' ? 'bg-purple-50 text-purple-700 border-purple-100' : ''}
+                                            ${inc.Estado === 'PorAutorizar' ? 'bg-amber-50 text-amber-700 border-amber-100' : ''}
+                                            ${inc.Estado === 'Resuelta' ? 'bg-green-50 text-green-700 border-green-100' : ''}
+                                            ${inc.Estado === 'Cancelada' ? 'bg-slate-50 text-slate-500 border-slate-200' : ''}
+                                        `}>
+                                            {inc.Estado}
+                                        </span>
+                                    </td>
+                                    <td className="p-4"><SeverityBadge severity={inc.Severidad} /></td>
+                                    <td className="p-4 font-medium text-slate-700">
+                                        {formatDateSafe(inc.Fecha)}
+                                    </td>
+                                    <td className="p-4">
+                                        <div className="flex flex-col">
+                                            <span className="font-semibold text-slate-800">{inc.EmpleadoNombre}</span>
+                                            <span className="text-[10px] text-slate-400 uppercase tracking-wide">{inc.Departamento}</span>
+                                        </div>
+                                    </td>
+                                    <td className="p-4">
+                                        {inc.AsignadoA ? (
                                             <div className="flex flex-col">
-                                                <span className="font-semibold text-slate-800">{inc.EmpleadoNombre}</span>
-                                                <span className="text-[10px] text-slate-400 uppercase tracking-wide">{inc.Departamento}</span>
-                                            </div>
-                                        </td>
-                                        <td className="p-4">
-                                            {inc.AsignadoA ? (
-                                                <div className="flex flex-col">
-                                                    <div className="flex items-center gap-1.5 text-slate-700">
-                                                        <User size={14} className="text-indigo-400"/>
-                                                        <span className="text-sm font-medium">{inc.AsignadoA}</span>
-                                                    </div>
-                                                    {inc.RolAsignado && (
-                                                        <span className="text-[10px] text-slate-400 ml-5 bg-slate-100 px-1.5 rounded w-fit">
-                                                            {inc.RolAsignado}
-                                                        </span>
-                                                    )}
+                                                <div className="flex items-center gap-1.5 text-slate-700">
+                                                    <User size={14} className="text-indigo-400"/>
+                                                    <span className="text-sm font-medium">{inc.AsignadoA}</span>
                                                 </div>
-                                            ) : (
-                                                <span className="text-xs text-slate-400 italic flex items-center gap-1">
-                                                    <Shield size={12}/> Sin Asignar
-                                                </span>
-                                            )}
-                                        </td>
-                                        <td className="p-4 text-center">
-                                            <button 
-                                                onClick={() => handleOpenModal(inc.IncidenciaId)}
-                                                className="text-indigo-600 hover:text-indigo-800 font-semibold text-xs hover:underline underline-offset-2 decoration-indigo-200"
-                                            >
-                                                Gestionar
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
+                                                {inc.RolAsignado && (
+                                                    <span className="text-[10px] text-slate-400 ml-5 bg-slate-100 px-1.5 rounded w-fit">
+                                                        {inc.RolAsignado}
+                                                    </span>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <span className="text-xs text-slate-400 italic flex items-center gap-1">
+                                                <Shield size={12}/> Sin Asignar
+                                            </span>
+                                        )}
+                                    </td>
+                                    <td className="p-4 text-center">
+                                        <button 
+                                            onClick={() => handleOpenModal(inc.IncidenciaId)}
+                                            className="text-indigo-600 hover:text-indigo-800 font-semibold text-xs hover:underline underline-offset-2 decoration-indigo-200"
+                                        >
+                                            Gestionar
+                                        </button>
+                                    </td>
+                                </tr>
+                            ))}
+                            
+                            {filteredIncidents.length === 0 && !isLoading && (
+                                <tr className="border-none">
+                                    <td colSpan={7}>
+                                        <div className="flex flex-col items-center justify-center p-12 text-slate-400 text-center">
+                                            <AlertTriangle size={48} className="mb-4 opacity-20" />
+                                            <p>{incidents.length === 0 ? "No hay incidencias en este periodo." : "No se encontraron resultados con los filtros actuales."}</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             <IncidentDetailModal 

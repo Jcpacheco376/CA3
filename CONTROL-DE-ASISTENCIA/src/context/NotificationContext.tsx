@@ -1,6 +1,6 @@
 // src/context/NotificationContext.tsx
 import React, { createContext, useContext, useState, useCallback, ReactNode, useEffect } from 'react';
-import { CheckCircle2, AlertCircle, X, Info } from 'lucide-react';
+import { CheckCircle2, AlertCircle, X, Info, AlertTriangle } from 'lucide-react'; // <--- Agregado AlertTriangle
 
 // --- TIPOS Y COMPONENTES INTERNOS ---
 
@@ -8,14 +8,18 @@ interface Notification {
     id: number;
     title: string;
     message: string;
-    type: 'success' | 'error' | 'info';
+    // Agregado 'warning' al tipo
+    type: 'success' | 'error' | 'info' | 'warning';
     read: boolean;
     timestamp: Date;
 }
+
 interface Toast extends Omit<Notification, 'read' | 'timestamp'> {}
+
 interface NotificationContextType {
     notifications: Notification[];
-    addNotification: (title: string, message: string, type: 'success' | 'error' | 'info') => void;
+    // Agregado 'warning' a la función
+    addNotification: (title: string, message: string, type: 'success' | 'error' | 'info' | 'warning') => void;
     markAllAsRead: () => void;
     markOneAsRead: (id: number) => void;
     clearNotifications: () => void;
@@ -37,16 +41,22 @@ const ToastComponent = ({ toast, onRemove }: { toast: Toast; onRemove: (id: numb
         setTimeout(() => onRemove(toast.id), 400);
     };
 
+    // Configuración visual para cada tipo, incluyendo warning
     const typeClasses = {
         success: { bg: 'bg-green-500', icon: <CheckCircle2 /> },
-        error: { bg: 'bg-red-500', icon: <AlertCircle /> },
-        info: { bg: 'bg-blue-500', icon: <Info /> }
+        error:   { bg: 'bg-red-500',   icon: <AlertCircle /> },
+        info:    { bg: 'bg-blue-500',  icon: <Info /> },
+        warning: { bg: 'bg-amber-500', icon: <AlertTriangle /> } // <--- Nuevo estilo
     };
+
     const animationClass = isExiting ? 'animate-fade-out-right' : 'animate-fade-in-right';
+    
+    // Safety check por si llega un tipo desconocido
+    const currentStyle = typeClasses[toast.type] || typeClasses.info;
 
     return (
-        <div className={`relative flex items-start p-4 rounded-lg shadow-2xl text-white w-80 md:w-96 overflow-hidden ${typeClasses[toast.type].bg} ${animationClass}`}>
-            <div className="shrink-0 mr-3 mt-0.5">{typeClasses[toast.type].icon}</div>
+        <div className={`relative flex items-start p-4 rounded-lg shadow-2xl text-white w-80 md:w-96 overflow-hidden ${currentStyle.bg} ${animationClass}`}>
+            <div className="shrink-0 mr-3 mt-0.5">{currentStyle.icon}</div>
             <div className="flex-grow">
                 <p className="font-bold text-sm">{toast.title}</p>
                 <p className="text-sm opacity-90">{toast.message}</p>
@@ -76,7 +86,6 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
         try {
             const savedHistory = localStorage.getItem(NOTIFICATION_STORAGE_KEY);
             if (savedHistory) {
-                // Es crucial convertir las fechas de string a objeto Date al cargar.
                 return JSON.parse(savedHistory).map((n: any) => ({ ...n, timestamp: new Date(n.timestamp) }));
             }
         } catch (e) {
@@ -91,9 +100,8 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
         localStorage.setItem(NOTIFICATION_STORAGE_KEY, JSON.stringify(newHistory));
     };
 
-    const addNotification = useCallback((title: string, message: string, type: 'success' | 'error' | 'info') => {
-        //const newNotification: Notification = { id: Date.now(), title, message, type, read: false, timestamp: new Date() };
-          const uniqueId = Date.now() + Math.random();
+    const addNotification = useCallback((title: string, message: string, type: 'success' | 'error' | 'info' | 'warning') => {
+        const uniqueId = Date.now() + Math.random();
         const newNotification: Notification = { id: uniqueId, title, message, type, read: false, timestamp: new Date() };
         
         const updatedHistory = [newNotification, ...history].slice(0, 10);
@@ -131,4 +139,3 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
         </NotificationContext.Provider>
     );
 };
-

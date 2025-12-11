@@ -4,12 +4,13 @@ import sql from 'mssql';
 import { dbConfig } from '../../config/database';
 
 export const saveAttendance = async (req: any, res: Response) => {
-    // Validar permiso
+    // 1. Validar Permiso
     if (!req.user.permissions['reportesAsistencia.assign']) {
         return res.status(403).json({ message: 'No tienes permiso para registrar la asistencia.' });
     }
     
-    // estatusManual ahora puede ser null/undefined para la acción de "Deshacer"
+    // 2. Obtener datos del Body
+    // estatusManual puede ser null (para deshacer/limpiar)
     const { empleadoId, fecha, estatusManual, comentarios } = req.body;
 
     if (!empleadoId || !fecha) {
@@ -18,18 +19,33 @@ export const saveAttendance = async (req: any, res: Response) => {
 
     try {
         const pool = await sql.connect(dbConfig);
-        await pool.request()
+        
+        // 3. Ejecutar SP
+        const result = await pool.request()
             .input('EmpleadoId', sql.Int, empleadoId)
             .input('Fecha', sql.Date, new Date(fecha))
-            .input('EstatusManualAbrev', sql.NVarChar, estatusManual || null) // Enviamos NULL si no hay estatus
+            .input('EstatusManualAbrev', sql.NVarChar, estatusManual || null) // Null si es deshacer
             .input('Comentarios', sql.NVarChar, comentarios || null)
             .input('UsuarioId', sql.Int, req.user.usuarioId) 
             .execute('sp_FichasAsistencia_SaveManual'); 
 
+        // 4. Capturar la Ficha Actualizada (Sincronización Bidireccional)
+        // El SP ahora hace un SELECT al final con el estado real (incluyendo IncidenciaActivaId)
+        const updatedFicha = result.recordset && result.recordset.length > 0 ? result.recordset[0] : null;
+
         const action = estatusManual ? 'guardado' : 'restaurado';
-        res.status(200).json({ message: `Registro ${action} con éxito.` });
+
+        res.status(200).json({ 
+            message: `Registro ${action} con éxito.`,
+            data: updatedFicha // <--- ESTO ES LO QUE LEERÁ EL FRONTEND
+        });
+
     } catch (err: any) {
         console.error('Error al guardar registro manual:', err);
+        // Manejo de errores específicos de SQL (ej. Bloqueo)
+        if (err.message && err.message.includes('CERRADO')) {
+            return res.status(409).json({ message: err.message }); // 409 Conflict
+        }
         res.status(500).json({ message: err.message || 'Error al guardar el registro.' });
     }
 };

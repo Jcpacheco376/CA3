@@ -56,7 +56,7 @@ const EMPLOYEE_CONTENT_MAX_WIDTH = 500;
 const MIN_COLUMN_WIDTH = EMPLOYEE_CONTENT_MIN_WIDTH + 16; 
 const MAX_COLUMN_WIDTH = EMPLOYEE_CONTENT_MAX_WIDTH + 250;
 const DEFAULT_COLUMN_WIDTH = 384;
-const ROW_HEIGHT_ESTIMATE = 60; // <--- AUMENTADO PARA MEJOR ESPACIADO
+const ROW_HEIGHT_ESTIMATE = 77; // <--- AUMENTADO PARA MEJOR ESPACIADO
 
 export const SchedulePage = () => {
     const { getToken, user, can } = useAuth();
@@ -565,7 +565,7 @@ export const SchedulePage = () => {
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex items-center gap-2">
                                                         <Tooltip text={emp?.NombreCompleto}>
-                                                            <p className="font-semibold text-slate-800 truncate cursor-help">{emp?.NombreCompleto}</p>
+                                                            <p className="font-semibold text-slate-800 truncate ">{emp?.NombreCompleto}</p>
                                                         </Tooltip>
                                                         {defaultSchedule && (
                                                             <Tooltip text={horarioTooltipText}>
@@ -597,13 +597,13 @@ export const SchedulePage = () => {
                                                 </div>
                                                 <div className="grid grid-cols-3 gap-x-3 text-xs text-slate-500 mt-1 w-full">
                                                     <Tooltip text={`ID: ${emp?.CodRef}`}>
-                                                        <p className="font-mono col-span-1 truncate cursor-help">ID: {emp?.CodRef}</p>
+                                                        <p className="font-mono col-span-1 truncate ">ID: {emp?.CodRef}</p>
                                                     </Tooltip>
                                                     <Tooltip text={emp?.puesto_descripcion || 'No asignado'}>
-                                                        <p className="col-span-1 flex items-center gap-1.5 truncate cursor-help"><Briefcase size={12} className="text-slate-400 shrink-0" /><span className="truncate">{emp?.puesto_descripcion || 'No asignado'}</span></p>
+                                                        <p className="col-span-1 flex items-center gap-1.5 truncate "><Briefcase size={12} className="text-slate-400 shrink-0" /><span className="truncate">{emp?.puesto_descripcion || 'No asignado'}</span></p>
                                                     </Tooltip>
                                                     <Tooltip text={emp?.departamento_nombre || 'No asignado'}>
-                                                        <p className="col-span-1 flex items-center gap-1.5 truncate cursor-help"><Building size={12} className="text-slate-400 shrink-0" /><span className="truncate">{emp?.departamento_nombre || 'No asignado'}</span></p>
+                                                        <p className="col-span-1 flex items-center gap-1.5 truncate "><Building size={12} className="text-slate-400 shrink-0" /><span className="truncate">{emp?.departamento_nombre || 'No asignado'}</span></p>
                                                     </Tooltip>
                                                 </div>
                                             </div>

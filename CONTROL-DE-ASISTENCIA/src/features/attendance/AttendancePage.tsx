@@ -88,7 +88,7 @@ const EMPLOYEE_CONTENT_MAX_WIDTH = 500;
 const MIN_COLUMN_WIDTH = EMPLOYEE_CONTENT_MIN_WIDTH + 16;
 const MAX_COLUMN_WIDTH = EMPLOYEE_CONTENT_MAX_WIDTH + 250;
 const DEFAULT_COLUMN_WIDTH = 384;
-const ROW_HEIGHT_ESTIMATE = 10;
+const ROW_HEIGHT_ESTIMATE = 77;
 
 export const AttendancePage = () => {
     const { getToken, user, can } = useAuth();
@@ -176,11 +176,15 @@ export const AttendancePage = () => {
     }, [employees, searchTerm, showOnlyNoSchedule, showOnlyIncomplete, dateRange]);
 
     const tableContainerRef = useRef<HTMLDivElement>(null);
+
+    const getScrollElement = useCallback(() => tableContainerRef.current, []);
+    const estimateSize = useCallback(() => ROW_HEIGHT_ESTIMATE, []);
+
     const rowVirtualizer = useVirtualizer({
         count: filteredEmployees.length,
-        getScrollElement: () => tableContainerRef.current,
-        estimateSize: () => ROW_HEIGHT_ESTIMATE,
-        overscan: 15,
+        getScrollElement,
+        estimateSize,
+        overscan: 10,
     });
     const virtualRows = rowVirtualizer.getVirtualItems();
     const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
@@ -253,13 +257,18 @@ export const AttendancePage = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    const handleToggleOpen = useCallback((cellId: string) => {
+        setOpenCellId(prev => (prev === cellId ? null : cellId));
+    }, []);
+
     // --- LÓGICA DE ACTUALIZACIÓN (OPTIMISTA Y API) CORREGIDA ---
-    const handleBulkStatusChange = useCallback(async (updates: { empleadoId: number, fecha: Date, estatus: string | null, comentarios?: string }[]) => {
+const handleBulkStatusChange = useCallback(async (updates: { empleadoId: number, fecha: Date, estatus: string | null, comentarios?: string }[]) => {
         const token = getToken();
         if (!token || updates.length === 0) return;
         const originalEmployees = employees;
         const today = startOfToday();
 
+        // 1. ACTUALIZACIÓN OPTIMISTA (TU LÓGICA EXACTA)
         setEmployees(prevEmployees => {
             const updatesMap = new Map<number, { fecha: Date; estatus: string | null; comentarios?: string }[]>();
             updates.forEach(u => {
@@ -270,7 +279,6 @@ export const AttendancePage = () => {
             return prevEmployees.map(emp => {
                 if (!updatesMap.has(emp.EmpleadoId)) return emp;
                 const empUpdates = updatesMap.get(emp.EmpleadoId)!;
-                // Clonamos el array de fichas
                 const newFichasSemana = [...emp.FichasSemana];
 
                 empUpdates.forEach(update => {
@@ -279,37 +287,32 @@ export const AttendancePage = () => {
                     const isFutureDate = isAfter(update.fecha, today);
 
                     if (update.estatus === null) {
-                        // --- CASO DESHACER (NULL) ---
+                        // CASO DESHACER
                         if (isFutureDate) {
-                            // Si es FUTURO y borramos -> ELIMINAR del array para que salga "-" (vacío)
-                            if (idx > -1) {
-                                newFichasSemana.splice(idx, 1);
-                            }
+                            if (idx > -1) newFichasSemana.splice(idx, 1);
                         } else {
-                            // Si es PASADO/HOY -> Volver a BORRADOR
                             if (idx > -1) {
                                 newFichasSemana[idx] = {
                                     ...newFichasSemana[idx],
                                     EstatusManualAbrev: null,
                                     Comentarios: null,
-                                    Estado: 'BORRADOR'
+                                    Estado: 'BORRADOR',
+                                    IncidenciaActivaId: null // Limpiamos incidencia optimista
                                 };
                             }
                         }
                     } else {
-                        // --- CASO ASIGNAR ---
+                        // CASO ASIGNAR
                         if (idx > -1) {
-                            // Actualizar existente
                             newFichasSemana[idx] = {
                                 ...newFichasSemana[idx],
                                 EstatusManualAbrev: update.estatus,
                                 Comentarios: update.comentarios ?? newFichasSemana[idx].Comentarios,
-                                Estado: 'VALIDADO' // Optimista
+                                Estado: 'VALIDADO'
                             };
                         } else {
-                            // Crear nueva (Importante para Futuros)
                             newFichasSemana.push({
-                                Fecha: update.fecha.toISOString(), // Guardar con formato completo
+                                Fecha: update.fecha.toISOString(),
                                 EstatusManualAbrev: update.estatus,
                                 Comentarios: update.comentarios,
                                 EstatusChecadorAbrev: null,
@@ -325,11 +328,101 @@ export const AttendancePage = () => {
         });
 
         try {
-            await Promise.all(updates.map(u => fetch(`${API_BASE_URL}/attendance`, {
+            // 2. PETICIONES AL SERVIDOR
+            const responses = await Promise.all(updates.map(u => fetch(`${API_BASE_URL}/attendance`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({ empleadoId: u.empleadoId, fecha: format(u.fecha, 'yyyy-MM-dd'), estatusManual: u.estatus, comentarios: u.comentarios })
             })));
+
+            // 3. SINCRONIZACIÓN REAL (Lectura de respuesta para Incidencias)
+            const results = await Promise.all(responses.map(r => r.json()));
+
+            let incidenciasCreadas = 0;
+            let incidenciasResueltas = 0;
+
+            results.forEach((res: any) => {
+                if (res.data) {
+                    const newItem = res.data;
+                    
+                    // --- CORRECCIÓN CRÍTICA ---
+                    // Usamos una lógica que respete el valor NULL explícito
+                    let newIncidenciaId = newItem.IncidenciaActivaId;
+                    if (newIncidenciaId === undefined) {
+                        newIncidenciaId = newItem.incidenciaActivaId;
+                    }
+                    // --------------------------
+
+                    // Buscar el empleado original para comparar
+                    // (Soportamos mayúsculas/minúsculas en el ID también por seguridad)
+                    const empId = newItem.EmpleadoId || newItem.empleadoId;
+                    const originalEmp = originalEmployees.find(e => e.EmpleadoId === empId);
+                    
+                    if (originalEmp) {
+                        const dateToCheck = (newItem.Fecha || newItem.fecha).substring(0, 10);
+                        const originalFicha = originalEmp.FichasSemana.find((f: any) => 
+                            f.Fecha.substring(0, 10) === dateToCheck
+                        );
+
+                        if (originalFicha) {
+                            // ¿Tenía incidencia antes? (Si tiene un ID numérico es true)
+                            const hadIncidencia = !!originalFicha.IncidenciaActivaId;
+                            
+                            // ¿Tiene incidencia ahora? (Si es número es true, si es null es false)
+                            const hasIncidenciaNow = typeof newIncidenciaId === 'number';
+
+                            // CASO 1: SE CREÓ (Antes No -> Ahora Sí)
+                            if (!hadIncidencia && hasIncidenciaNow) {
+                                incidenciasCreadas++;
+                            } 
+                            // CASO 2: SE RESOLVIÓ (Antes Sí -> Ahora Null explícito)
+                            else if (hadIncidencia && newIncidenciaId === null) {
+                                incidenciasResueltas++;
+                            }
+                        }
+                    }
+                }
+            });
+
+            if (incidenciasCreadas > 0) addNotification('Atención', `Se detectaron ${incidenciasCreadas} nueva(s) incidencia(s).`, 'warning');
+            
+            // Ahora sí debería entrar aquí
+            if (incidenciasResueltas > 0) addNotification('Resolución', `Se resolvieron ${incidenciasResueltas} incidencia(s) automáticamente.`, 'success');
+
+            // --- ACTUALIZACIÓN DE ESTADO VISUAL ---
+            setEmployees(currentEmployees => {
+                const updatedEmployees = [...currentEmployees];
+
+                results.forEach((res: any) => {
+                    if (res.data) {
+                        // Misma lógica de extracción segura
+                        const newItem = res.data;
+                        let finalIncidenciaId = newItem.IncidenciaActivaId;
+                        if (finalIncidenciaId === undefined) finalIncidenciaId = newItem.incidenciaActivaId;
+
+                        const empId = newItem.EmpleadoId || newItem.empleadoId;
+                        const fechaStr = (newItem.Fecha || newItem.fecha).substring(0, 10);
+                        
+                        const empIndex = updatedEmployees.findIndex(e => e.EmpleadoId === empId);
+                        if (empIndex > -1) {
+                            const emp = { ...updatedEmployees[empIndex] };
+                            const fichas = [...emp.FichasSemana];
+                            const fichaIndex = fichas.findIndex(f => f.Fecha.substring(0, 10) === fechaStr);
+                            
+                            if (fichaIndex > -1) {
+                                fichas[fichaIndex] = {
+                                    ...fichas[fichaIndex],
+                                    IncidenciaActivaId: finalIncidenciaId // Asignamos el valor corregido (null o numero)
+                                };
+                                emp.FichasSemana = fichas;
+                                updatedEmployees[empIndex] = emp;
+                            }
+                        }
+                    }
+                });
+                return updatedEmployees;
+            });
+
         } catch (err) {
             addNotification('Error', 'Fallaron algunos cambios.', 'error');
             setEmployees(originalEmployees);
@@ -583,7 +676,7 @@ export const AttendancePage = () => {
                                 </div>
                             </th>
                             {dateRange.map((day, i) => (
-                                <th key={day.toISOString()} className={`px-1 py-2 font-semibold text-slate-600 ${isTodayDateFns(day) ? 'bg-sky-100' : 'bg-slate-50'}`}>
+                                <th key={day.toISOString()} className={`px-1 py-2 font-semibold text-slate-600 min-w-[6rem] ${isTodayDateFns(day) ? 'bg-sky-100' : 'bg-slate-50'}`}>
                                     <span className="capitalize text-base">{format(day, 'eee', { locale: es })}</span>
                                     <span className="block text-xl font-bold text-slate-800">{format(day, 'dd')}</span>
                                 </th>
@@ -591,130 +684,146 @@ export const AttendancePage = () => {
                         </tr>
                     </thead>
                     <tbody style={{ height: `${rowVirtualizer.getTotalSize()}px` }} className="animate-content-fade-in">
-                        {paddingTop > 0 && <tr><td colSpan={dateRange.length + 1} style={{ padding: 0, border: 'none', height: `${paddingTop}px` }}></td></tr>}
-                        {virtualRows.map((virtualRow) => {
-                            const emp = filteredEmployees[virtualRow.index];
-                            const defaultSchedule = scheduleCatalog.find(h => h.HorarioId === emp.horario);
+                        {virtualRows.length === 0 && !isLoading ? (
+                            <tr>
+                                <td colSpan={dateRange.length + 1} className="text-center py-12 px-6">
+                                    <div className="flex flex-col items-center">
+                                        <ClipboardCheck size={48} className="text-slate-300" />
+                                        <h3 className="mt-4 text-lg font-semibold text-slate-600">No se encontraron empleados</h3>
+                                        <p className="mt-1 text-sm text-slate-500">
+                                            Intenta ajustar los filtros de búsqueda o seleccionar un rango de fechas diferente.
+                                        </p>
+                                    </div>
+                                </td>
+                            </tr>
+                        ) : (
+                            <>
+                                {paddingTop > 0 && <tr><td colSpan={dateRange.length + 1} style={{ padding: 0, border: 'none', height: `${paddingTop}px` }}></td></tr>}
+                                {virtualRows.map((virtualRow) => {
+                                    const emp = filteredEmployees[virtualRow.index];
+                                    const defaultSchedule = scheduleCatalog.find(h => h.HorarioId === emp.horario);
 
-                            // --- CÁLCULO DE PROGRESO (LÓGICA ACTUALIZADA) ---
-                            const generatedFichas = emp.FichasSemana || [];
+                                    // --- CÁLCULO DE PROGRESO (LÓGICA ACTUALIZADA) ---
+                                    const generatedFichas = emp.FichasSemana || [];
 
-                            // --- Lógica para la Barra de Progreso (según solicitud) ---
-                            // 1. Base del cálculo: Total de días en el período activo.
-                            const totalDaysInPeriod = dateRange.length;
+                                    // --- Lógica para la Barra de Progreso (según solicitud) ---
+                                    // 1. Base del cálculo: Total de días en el período activo.
+                                    const totalDaysInPeriod = dateRange.length;
 
-                            // 2. Progreso: Fichas en estado VALIDADO o BLOQUEADO en el período.
-                            const completedForProgress = generatedFichas.filter(f => {
-                                const fichaDateStr = f.Fecha.substring(0, 10);
-                                const isInPeriod = dateRange.some(d => format(d, 'yyyy-MM-dd') === fichaDateStr);
-                                return isInPeriod && (f.Estado === 'VALIDADO' || f.Estado === 'BLOQUEADO');
-                            }).length;
+                                    // 2. Progreso: Fichas en estado VALIDADO o BLOQUEADO en el período.
+                                    const completedForProgress = generatedFichas.filter(f => {
+                                        const fichaDateStr = f.Fecha.substring(0, 10);
+                                        const isInPeriod = dateRange.some(d => format(d, 'yyyy-MM-dd') === fichaDateStr);
+                                        return isInPeriod && (f.Estado === 'VALIDADO' || f.Estado === 'BLOQUEADO');
+                                    }).length;
 
-                            const progress = totalDaysInPeriod > 0 ? (completedForProgress / totalDaysInPeriod) * 100 : 0;
+                                    const progress = totalDaysInPeriod > 0 ? (completedForProgress / totalDaysInPeriod) * 100 : 0;
 
-                            // --- Lógica para el Botón (con estado deshabilitado) ---
-                            const generatedFichasInPeriod = generatedFichas.filter(f => {
-                                const fichaDateStr = f.Fecha.substring(0, 10);
-                                return dateRange.some(d => format(d, 'yyyy-MM-dd') === fichaDateStr);
-                            });
+                                    // --- Lógica para el Botón (con estado deshabilitado) ---
+                                    const generatedFichasInPeriod = generatedFichas.filter(f => {
+                                        const fichaDateStr = f.Fecha.substring(0, 10);
+                                        return dateRange.some(d => format(d, 'yyyy-MM-dd') === fichaDateStr);
+                                    });
 
-                            // 1. Contar fichas "Borrador" (condición: Estado='BORRADOR' y HorarioId en la propia ficha).
-                            const draftCount = generatedFichasInPeriod.filter(f => f.Estado === 'BORRADOR' && f.HorarioId).length;
+                                    // 1. Contar fichas "Borrador" (condición: Estado='BORRADOR' y HorarioId en la propia ficha).
+                                    const draftCount = generatedFichasInPeriod.filter(f => f.Estado === 'BORRADOR' && f.HorarioId).length;
 
-                            // 2. Contar fichas "Procesadas" (Validadas o Bloqueadas).
-                            const processedCount = generatedFichasInPeriod.filter(f => f.Estado === 'VALIDADO' || f.Estado === 'BLOQUEADO').length;
+                                    // 2. Contar fichas "Procesadas" (Validadas o Bloqueadas).
+                                    const processedCount = generatedFichasInPeriod.filter(f => f.Estado === 'VALIDADO' || f.Estado === 'BLOQUEADO').length;
 
-                            const hasDrafts = draftCount > 0;
-                            const hasProcessed = processedCount > 0;
+                                    const hasDrafts = draftCount > 0;
+                                    const hasProcessed = processedCount > 0;
 
-                            // 3. Determinar el estado y apariencia del botón.
-                            // Icono de "Restaurar" se muestra si no hay borradores pero sí hay algo procesado.
-                            const showRevertIcon = !hasDrafts && hasProcessed;
-                            // Se deshabilita si no hay nada que aprobar y nada que restaurar.
-                            const isDisabled = !hasDrafts && !hasProcessed;
+                                    // 3. Determinar el estado y apariencia del botón.
+                                    // Icono de "Restaurar" se muestra si no hay borradores pero sí hay algo procesado.
+                                    const showRevertIcon = !hasDrafts && hasProcessed;
+                                    // Se deshabilita si no hay nada que aprobar y nada que restaurar.
+                                    const isDisabled = !hasDrafts && !hasProcessed;
 
-                            // --- LOGS DE DEPURACIÓN (Solo el primer empleado visible para no saturar) ---
-                            if (virtualRow.index === 0) {
-                                console.groupCollapsed(`🔍 DEBUG: ${emp.NombreCompleto}`);
-                                // console.log('📅 Hoy (Sistema):', format(today, 'yyyy-MM-dd'));
-                                console.log('RANGE:', dateRange.map(d => format(d, 'yyyy-MM-dd')));
-                                // console.log('✅ Días que el sistema espera validar (Validatable):', validatableDays.map(d => format(d, 'yyyy-MM-dd')));
-                                // console.log('📊 Conteo:', { Esperados: totalValidatable, Listos: completedCount });
-                                console.log('📈 Progreso:', progress, '%');
-                                //console.log('🔘 Estado Botón:', isComplete ? 'RESTAURAR (Naranja)' : 'APROBAR (Verde)');
-                                console.log('🗂️ Fichas Brutas:', generatedFichas);
-                                console.groupEnd();
-                            }
-                            let birthdayTooltip = "Cumpleaños en este periodo";
-                            if (emp.FechaNacimiento) { try { const parts = emp.FechaNacimiento.substring(0, 10).split('-'); const birthDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])); const formattedBirthDate = format(birthDate, "d 'de' MMMM", { locale: es }); birthdayTooltip = `Cumpleaños: ${formattedBirthDate}`; } catch (e) { } }
+                                    // --- LOGS DE DEPURACIÓN (Solo el primer empleado visible para no saturar) ---
+                                    if (virtualRow.index === 0) {
+                                        console.groupCollapsed(`🔍 DEBUG: ${emp.NombreCompleto}`);
+                                        // console.log('📅 Hoy (Sistema):', format(today, 'yyyy-MM-dd'));
+                                        console.log('RANGE:', dateRange.map(d => format(d, 'yyyy-MM-dd')));
+                                        // console.log('✅ Días que el sistema espera validar (Validatable):', validatableDays.map(d => format(d, 'yyyy-MM-dd')));
+                                        // console.log('📊 Conteo:', { Esperados: totalValidatable, Listos: completedCount });
+                                        console.log('📈 Progreso:', progress, '%');
+                                        //console.log('🔘 Estado Botón:', isComplete ? 'RESTAURAR (Naranja)' : 'APROBAR (Verde)');
+                                        console.log('🗂️ Fichas Brutas:', generatedFichas);
+                                        console.groupEnd();
+                                    }
+                                    let birthdayTooltip = "Cumpleaños en este periodo";
+                                    if (emp.FechaNacimiento) { try { const parts = emp.FechaNacimiento.substring(0, 10).split('-'); const birthDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])); const formattedBirthDate = format(birthDate, "d 'de' MMMM", { locale: es }); birthdayTooltip = `Cumpleaños: ${formattedBirthDate}`; } catch (e) { } }
 
-                            return (
-                                <tr key={emp.EmpleadoId} className="group" style={{ height: `${virtualRow.size}px` }}>
-                                    <td className="p-2 text-left sticky left-0 bg-white group-hover:bg-slate-50 z-10 shadow-sm align-top border-b border-slate-100" style={{ width: `${employeeColumnWidth}px` }}>
-                                        <div className="w-full" style={{ minWidth: `${EMPLOYEE_CONTENT_MIN_WIDTH}px`, maxWidth: `${EMPLOYEE_CONTENT_MAX_WIDTH}px` }}>
-                                            <div className="flex items-start justify-between w-full">
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center justify-between">
-                                                        <div className="flex items-center gap-2">
-                                                            <Tooltip text={emp.NombreCompleto}><p className="font-semibold text-slate-800 truncate ">{emp.NombreCompleto}</p></Tooltip>
-                                                            {defaultSchedule && <Tooltip text={getHorarioTooltip(defaultSchedule)}><span className="text-xs font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{defaultSchedule.Abreviatura || defaultSchedule.HorarioId}</span></Tooltip>}
-                                                            {isBirthdayInPeriod(emp.FechaNacimiento, dateRange) && <Tooltip text={birthdayTooltip}><Cake size={18} className="text-pink-400 shrink-0" /></Tooltip>}
+                                    return (
+                                        <tr key={emp.EmpleadoId} ref={virtualRow.measureElement} className="group" style={{ height: `${virtualRow.size}px` }}>
+                                            <td className="p-2 text-left sticky left-0 bg-white group-hover:bg-slate-50 z-10 shadow-sm align-top border-b border-slate-100" style={{ width: `${employeeColumnWidth}px` }}>
+                                                <div className="w-full" style={{ minWidth: `${EMPLOYEE_CONTENT_MIN_WIDTH}px`, maxWidth: `${EMPLOYEE_CONTENT_MAX_WIDTH}px` }}>
+                                                    <div className="flex items-start justify-between w-full">
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="flex items-center justify-between">
+                                                                <div className="flex items-center gap-2">
+                                                                    <Tooltip text={emp.NombreCompleto}><p className="font-semibold text-slate-800 truncate ">{emp.NombreCompleto}</p></Tooltip>
+                                                                    {defaultSchedule && <Tooltip text={getHorarioTooltip(defaultSchedule)}><span className="text-xs font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{defaultSchedule.Abreviatura || defaultSchedule.HorarioId}</span></Tooltip>}
+                                                                    {isBirthdayInPeriod(emp.FechaNacimiento, dateRange) && <Tooltip text={birthdayTooltip}><Cake size={18} className="text-pink-400 shrink-0" /></Tooltip>}
+                                                                </div>
+                                                                <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-2">
+                                                                    <Tooltip text="Ver Ficha"><button onClick={() => setViewingEmployeeId(emp.EmpleadoId)} className="p-1 rounded-md text-slate-400 hover:text-[--theme-500] hover:bg-slate-200"><Contact size={18} /></button></Tooltip>
+                                                                </div>
+                                                            </div>
+                                                            <div className="grid grid-cols-3 gap-x-3 text-xs text-slate-500 mt-1 w-full">
+                                                                <Tooltip text={`ID: ${emp.CodRef}`}><p className="font-mono col-span-1 truncate ">ID: {emp.CodRef}</p></Tooltip>
+                                                                <Tooltip text={emp.puesto_descripcion || 'No asignado'}><p className="col-span-1 flex items-center gap-1.5 truncate "><Briefcase size={12} className="text-slate-400" /> {emp.puesto_descripcion || 'No asignado'}</p></Tooltip>
+                                                                <Tooltip text={emp.departamento_nombre || 'No asignado'}><p className="col-span-1 flex items-center gap-1.5 truncate "><Building size={12} className="text-slate-400" /> {emp.departamento_nombre || 'No asignado'}</p></Tooltip>
+                                                            </div>
                                                         </div>
-                                                        <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-2">
-                                                            <Tooltip text="Ver Ficha"><button onClick={() => setViewingEmployeeId(emp.EmpleadoId)} className="p-1 rounded-md text-slate-400 hover:text-[--theme-500] hover:bg-slate-200"><Contact size={18} /></button></Tooltip>
-                                                        </div>
+                                                       
+                                                            <Tooltip text={isDisabled ? "Nada que aprobar o restaurar" : (showRevertIcon ? "Restaurar semana (Desaprobar todo)" : "Aprobar sugerencias")}>
+                                                                <button
+                                                                    onClick={() => handleWeekAction(emp, showRevertIcon)}
+                                                                    disabled={isDisabled}
+                                                                    className={`
+                                                                        p-1 rounded-md opacity-0 group-hover:opacity-100 ml-2 transition-all
+                                                                        ${isDisabled
+                                                                            ? 'text-slate-300 '
+                                                                            : (showRevertIcon
+                                                                                ? 'text-orange-500 hover:bg-orange-50 hover:text-orange-700'
+                                                                                : 'text-slate-400 hover:text-green-600 hover:bg-green-100'
+                                                                            )
+                                                                        }
+                                                                    `}
+                                                                >
+                                                                    {showRevertIcon ? <RotateCcw size={20} /> : <ClipboardCheck size={20} />}
+                                                                </button>
+                                                            </Tooltip>
+                                                        
                                                     </div>
-                                                    <div className="grid grid-cols-3 gap-x-3 text-xs text-slate-500 mt-1 w-full">
-                                                        <Tooltip text={`ID: ${emp.CodRef}`}><p className="font-mono col-span-1 truncate ">ID: {emp.CodRef}</p></Tooltip>
-                                                        <Tooltip text={emp.puesto_descripcion || 'No asignado'}><p className="col-span-1 flex items-center gap-1.5 truncate "><Briefcase size={12} className="text-slate-400" /> {emp.puesto_descripcion || 'No asignado'}</p></Tooltip>
-                                                        <Tooltip text={emp.departamento_nombre || 'No asignado'}><p className="col-span-1 flex items-center gap-1.5 truncate "><Building size={12} className="text-slate-400" /> {emp.departamento_nombre || 'No asignado'}</p></Tooltip>
-                                                    </div>
+                                                    <div className="w-full bg-slate-200 rounded-full h-1.5 mt-2"><div className={`h-1.5 rounded-full transition-all duration-200 ${progress === 100 ? 'bg-emerald-500' : 'bg-sky-500'}`} style={{ width: `${progress}%` }}></div></div>
                                                 </div>
-                                               
-                                                    <Tooltip text={isDisabled ? "Nada que aprobar o restaurar" : (showRevertIcon ? "Restaurar semana (Desaprobar todo)" : "Aprobar sugerencias")}>
-                                                        <button
-                                                            onClick={() => handleWeekAction(emp, showRevertIcon)}
-                                                            disabled={isDisabled}
-                                                            className={`
-                                                                p-1 rounded-md opacity-0 group-hover:opacity-100 ml-2 transition-all
-                                                                ${isDisabled
-                                                                    ? 'text-slate-300 '
-                                                                    : (showRevertIcon
-                                                                        ? 'text-orange-500 hover:bg-orange-50 hover:text-orange-700'
-                                                                        : 'text-slate-400 hover:text-green-600 hover:bg-green-100'
-                                                                    )
-                                                                }
-                                                            `}
-                                                        >
-                                                            {showRevertIcon ? <RotateCcw size={20} /> : <ClipboardCheck size={20} />}
-                                                        </button>
-                                                    </Tooltip>
-                                                
-                                            </div>
-                                            <div className="w-full bg-slate-200 rounded-full h-1.5 mt-2"><div className={`h-1.5 rounded-full transition-all duration-200 ${progress === 100 ? 'bg-emerald-500' : 'bg-sky-500'}`} style={{ width: `${progress}%` }}></div></div>
-                                        </div>
-                                    </td>
-                                    {dateRange.map((day, i) => {
-                                        const cellId = `${emp.EmpleadoId}-${i}`;
-                                        const ficha = emp.FichasSemana.find((f: any) => f.Fecha.substring(0, 10) === format(day, 'yyyy-MM-dd'));
-                                        return (
-                                            <AttendanceCell
-                                                key={cellId} cellId={cellId} isToday={isTodayDateFns(day)} isOpen={openCellId === cellId}
-                                                onToggleOpen={() => setOpenCellId(prev => prev === cellId ? null : cellId)}
-                                                ficha={ficha} viewMode={viewMode} isRestDay={isRestDay(emp.horario, day)}
-                                                onStatusChange={(s, c) => handleStatusChange(emp.EmpleadoId, day, s, c)}
-                                                canAssign={canAssign}
-                                                onDragStart={(s) => handleDragStart(emp.EmpleadoId, i, s)}
-                                                onDragEnter={() => handleDragEnter(emp.EmpleadoId, i)}
-                                                isBeingDragged={draggedCells.includes(cellId)} isAnyCellOpen={openCellId !== null}
-                                                statusCatalog={statusCatalog} fecha={day}
-                                            />
-                                        );
-                                    })}
-                                </tr>
-                            );
-                        })}
-                        {paddingBottom > 0 && <tr><td colSpan={dateRange.length + 1} style={{ padding: 0, border: 'none', height: `${paddingTop}px` }}></td></tr>}
+                                            </td>
+                                            {dateRange.map((day, i) => {
+                                                const cellId = `${emp.EmpleadoId}-${i}`;
+                                                const ficha = emp.FichasSemana.find((f: any) => f.Fecha.substring(0, 10) === format(day, 'yyyy-MM-dd'));
+                                                return (
+                                                    <AttendanceCell
+                                                        key={cellId} cellId={cellId} isToday={isTodayDateFns(day)} isOpen={openCellId === cellId}
+                                                        onToggleOpen={() => handleToggleOpen(cellId)}
+                                                        ficha={ficha} viewMode={viewMode} isRestDay={isRestDay(emp.horario, day)}
+                                                        onStatusChange={(s, c) => handleStatusChange(emp.EmpleadoId, day, s, c)}
+                                                        canAssign={canAssign}
+                                                        onDragStart={(s) => handleDragStart(emp.EmpleadoId, i, s)}
+                                                        onDragEnter={() => handleDragEnter(emp.EmpleadoId, i)}
+                                                        isBeingDragged={draggedCells.includes(cellId)} isAnyCellOpen={openCellId !== null}
+                                                        statusCatalog={statusCatalog} fecha={day}
+                                                    />
+                                                );
+                                            })}
+                                        </tr>
+                                    );
+                                })}
+                                {paddingBottom > 0 && <tr><td colSpan={dateRange.length + 1} style={{ padding: 0, border: 'none', height: `${paddingBottom}px` }}></td></tr>}
+                            </>
+                        )}
                     </tbody>
                 </table>
             </div>
@@ -723,7 +832,7 @@ export const AttendancePage = () => {
 
     return (
         <div className="space-y-6 h-full flex flex-col">
-            <header className="flex items-center gap-2"><h1 className="text-3xl font-bld text-slate-800">Registro de Asistencia</h1><Tooltip text="Gestión de asistencia"><InfoIcon /></Tooltip></header>
+            <header className="flex items-center gap-2"><h1 className="text-3xl font-bold text-slate-800">Registro de Asistencia </h1><Tooltip text="Gestión de asistencia"><InfoIcon /></Tooltip></header>
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 flex-1 flex flex-col overflow-hidden">
                 <AttendanceToolbar searchTerm={searchTerm} setSearchTerm={setSearchTerm} filterConfigurations={filterConfigurations} viewMode={viewMode} setViewMode={setViewMode} rangeLabel={rangeLabel} handleDatePrev={handleDatePrev} handleDateNext={handleDateNext} currentDate={currentDate} onDateChange={setCurrentDate} />
                 {renderContent()}
