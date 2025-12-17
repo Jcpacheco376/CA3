@@ -1,5 +1,6 @@
 // src/features/reports/components/IncidentDetailModal.tsx
-import React, { useState, useEffect } from 'react';
+import ReactDOM from 'react-dom';
+import React, { useState, useEffect,useRef } from 'react';
 import { Modal, Button } from '../../../components/ui/Modal';
 import {
     MessageSquare, User, CheckCircle, Shield, Loader2,
@@ -36,6 +37,22 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
     const [selectedStatus, setSelectedStatus] = useState('');
     const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
     const [userSearchTerm, setUserSearchTerm] = useState('');
+    const [dropdownCoords, setDropdownCoords] = useState({ bottom: 0, left: 0, width: 0 });
+    const triggerRef = useRef<HTMLButtonElement>(null);
+
+const handleToggleDropdown = () => {
+        if (!isUserDropdownOpen && triggerRef.current) {
+            const rect = triggerRef.current.getBoundingClientRect();
+            // Calculamos síncronamente para que nazca en su lugar
+            setDropdownCoords({
+                // Lo pegamos ARRIBA del botón (viewport height - button top)
+                bottom: window.innerHeight - rect.top + 6, 
+                left: rect.left,
+                width: rect.width
+            });
+        }
+        setIsUserDropdownOpen(!isUserDropdownOpen);
+    };
 
     // Carga Inicial
     useEffect(() => {
@@ -44,6 +61,18 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
             fetchDetails();
         }
     }, [isOpen, incidentId]);
+
+useEffect(() => {
+        if (isUserDropdownOpen && triggerRef.current) {
+            const rect = triggerRef.current.getBoundingClientRect();
+            setDropdownCoords({
+                // Lo pegamos a la parte SUPERIOR del botón trigger (bottom = viewport - top)
+                bottom: window.innerHeight - rect.top + 5, 
+                left: rect.left,
+                width: rect.width
+            });
+        }
+    }, [isUserDropdownOpen]);
 
     // Carga Lazy
     useEffect(() => {
@@ -409,23 +438,28 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
                             <div className="space-y-3">
                                 {action === 'assign' && (
                                     <div className="relative">
-                                        {/* TRIGGER (El botón que abre la lista) */}
-                                        <button 
-                                            onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
-                                            className={`w-full p-3 bg-white border rounded-xl text-left flex items-center justify-between transition-all shadow-sm ${
-                                                isUserDropdownOpen ? 'border-blue-500 ring-2 ring-blue-100' : 'border-slate-200 hover:border-slate-300'
-                                            }`}
+                                        {/* TRIGGER BUTTON */}
+                                        <button
+                                            ref={triggerRef}
+                                            onClick={handleToggleDropdown} // <--- USAMOS LA NUEVA FUNCIÓN
+                                            className={`w-full p-3 bg-white border rounded-xl text-left flex items-center justify-between transition-all shadow-sm group ${isUserDropdownOpen ? 'border-blue-500 ring-2 ring-blue-100' : 'border-slate-200 hover:border-slate-300'
+                                                }`}
                                         >
                                             {selectedUser ? (
-                                                <div className="flex items-center gap-3">
+                                                <div className="flex items-center gap-3 overflow-hidden">
                                                     {(() => {
                                                         const sel = managers.find(m => m.UsuarioId.toString() === selectedUser.toString());
                                                         return (
                                                             <>
-                                                                <div className="w-6 h-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-[10px] font-bold">
+                                                                <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center text-xs font-bold shrink-0 shadow-sm border border-blue-700">
                                                                     {sel?.NombreCompleto?.charAt(0) || '?'}
                                                                 </div>
-                                                                <span className="text-sm font-medium text-slate-700">{sel?.NombreCompleto || 'Usuario desconocido'}</span>
+                                                                <div className="flex flex-col min-w-0">
+                                                                    <span className="text-sm font-bold text-slate-700 truncate leading-tight">{sel?.NombreCompleto || 'Desconocido'}</span>
+                                                                    <span className="text-[10px] text-blue-600 font-medium flex items-center gap-1">
+                                                                        <Shield size={10} /> {sel?.RolPrincipal || 'Usuario'}
+                                                                    </span>
+                                                                </div>
                                                             </>
                                                         );
                                                     })()}
@@ -433,24 +467,32 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
                                             ) : (
                                                 <span className="text-sm text-slate-400">Seleccionar Gestor...</span>
                                             )}
-                                            <ChevronDown size={16} className={`text-slate-400 transition-transform ${isUserDropdownOpen ? 'rotate-180' : ''}`} />
+                                            <ChevronDown size={16} className={`text-slate-400 transition-transform ${isUserDropdownOpen ? 'rotate-180' : ''} shrink-0 ml-2`} />
                                         </button>
 
-                                        {/* DROPDOWN (La lista flotante) */}
-                                        {isUserDropdownOpen && (
+                                        {/* MENÚ DESPLEGABLE (PORTAL) */}
+                                        {isUserDropdownOpen && ReactDOM.createPortal(
                                             <>
-                                                {/* Backdrop invisible para cerrar al hacer clic fuera */}
-                                                <div className="fixed inset-0 z-40" onClick={() => setIsUserDropdownOpen(false)}></div>
-                                                
-                                                <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-slate-100 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
-                                                    {/* Buscador interno */}
-                                                    <div className="p-2 border-b border-slate-100 sticky top-0 bg-white">
+                                                <div className="fixed inset-0 z-[9998]" onClick={() => setIsUserDropdownOpen(false)}></div>
+
+                                                <div
+                                                    // AJUSTE DE ANIMACIÓN: origin-bottom para que crezca desde el botón hacia arriba
+                                                    className="fixed bg-white border border-slate-200 rounded-xl shadow-2xl z-[9999] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 slide-in-from-bottom-2 duration-150 origin-bottom"
+                                                    style={{
+                                                        bottom: dropdownCoords.bottom,
+                                                        left: dropdownCoords.left,
+                                                        width: dropdownCoords.width,
+                                                        maxHeight: '300px'
+                                                    }}
+                                                >
+                                                    {/* Buscador */}
+                                                    <div className="p-2 border-b border-slate-100 bg-slate-50 sticky top-0 z-10">
                                                         <div className="relative">
-                                                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"/>
-                                                            <input 
-                                                                type="text" 
-                                                                className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
-                                                                placeholder="Buscar usuario..."
+                                                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                                                            <input
+                                                                type="text"
+                                                                className="w-full pl-9 pr-3 py-2 bg-white border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 transition-all placeholder:text-slate-400"
+                                                                placeholder="Buscar..."
                                                                 autoFocus
                                                                 value={userSearchTerm}
                                                                 onChange={(e) => setUserSearchTerm(e.target.value)}
@@ -459,10 +501,13 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
                                                         </div>
                                                     </div>
 
-                                                    {/* Lista de Usuarios */}
-                                                    <div className="max-h-48 overflow-y-auto custom-scrollbar">
+                                                    {/* Lista */}
+                                                    <div className="overflow-y-auto custom-scrollbar p-1">
                                                         {managers
-                                                            .filter(m => m.NombreCompleto.toLowerCase().includes(userSearchTerm.toLowerCase()))
+                                                            .filter(m =>
+                                                                m.NombreCompleto.toLowerCase().includes(userSearchTerm.toLowerCase()) ||
+                                                                (m.RolPrincipal && m.RolPrincipal.toLowerCase().includes(userSearchTerm.toLowerCase()))
+                                                            )
                                                             .map(m => (
                                                                 <button
                                                                     key={m.UsuarioId}
@@ -470,40 +515,46 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
                                                                         setSelectedUser(m.UsuarioId);
                                                                         setIsUserDropdownOpen(false);
                                                                     }}
-                                                                    className="w-full flex items-center justify-between p-3 hover:bg-blue-50 transition-colors text-left group"
+                                                                    className={`w-full flex items-center justify-between p-2.5 rounded-lg transition-colors text-left group mb-0.5 ${selectedUser.toString() === m.UsuarioId.toString()
+                                                                            ? 'bg-blue-50 ring-1 ring-blue-100'
+                                                                            : 'hover:bg-slate-50'
+                                                                        }`}
                                                                 >
-                                                                    <div className="flex items-center gap-3">
-                                                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border ${
-                                                                            selectedUser.toString() === m.UsuarioId.toString() 
-                                                                                ? 'bg-blue-600 text-white border-blue-600' 
+                                                                    <div className="flex items-center gap-3 min-w-0">
+                                                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border transition-colors shrink-0 ${selectedUser.toString() === m.UsuarioId.toString()
+                                                                                ? 'bg-blue-600 text-white border-blue-600'
                                                                                 : 'bg-white text-slate-500 border-slate-200 group-hover:border-blue-200'
-                                                                        }`}>
+                                                                            }`}>
                                                                             {m.NombreCompleto.charAt(0)}
                                                                         </div>
-                                                                        <div className="flex flex-col">
-                                                                            <span className={`text-sm font-medium ${selectedUser.toString() === m.UsuarioId.toString() ? 'text-blue-700' : 'text-slate-700'}`}>
+                                                                        <div className="flex flex-col min-w-0">
+                                                                            <span className={`text-sm font-medium truncate ${selectedUser.toString() === m.UsuarioId.toString() ? 'text-blue-700 font-bold' : 'text-slate-700'}`}>
                                                                                 {m.NombreCompleto}
                                                                             </span>
-                                                                            {/* Opcional: mostrar rol o email si viene en el objeto */}
-                                                                            {/* <span className="text-[10px] text-slate-400">Rol o Email</span> */}
+                                                                            <span className="text-[10px] text-slate-400 flex items-center gap-1 group-hover:text-blue-500 transition-colors">
+                                                                                <Shield size={10} /> {m.RolPrincipal}
+                                                                            </span>
                                                                         </div>
                                                                     </div>
                                                                     {selectedUser.toString() === m.UsuarioId.toString() && (
-                                                                        <Check size={16} className="text-blue-600" />
+                                                                        <Check size={16} className="text-blue-600 shrink-0 ml-2" />
                                                                     )}
                                                                 </button>
                                                             ))
                                                         }
                                                         {managers.length === 0 && (
-                                                            <div className="p-4 text-center text-xs text-slate-400">No se encontraron gestores.</div>
+                                                            <div className="p-6 text-center text-xs text-slate-400 flex flex-col items-center">
+                                                                <User size={24} className="mb-2 opacity-20"/>
+                                                                No se encontraron gestores.
+                                                            </div>
                                                         )}
                                                     </div>
                                                 </div>
-                                            </>
+                                            </>,
+                                            document.body
                                         )}
                                     </div>
                                 )}
-
                                 {action === 'resolve' && (
                                     <select className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-emerald-500 outline-none" onChange={e => setSelectedStatus(e.target.value)} autoFocus>
                                         <option value="">-- Seleccionar Estatus Correcto --</option>

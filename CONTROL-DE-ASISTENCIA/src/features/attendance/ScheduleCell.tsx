@@ -2,12 +2,9 @@
 import React, { useState, useEffect, useMemo, useRef, memo } from 'react';
 import ReactDOM from 'react-dom';
 import { Tooltip } from '../../components/ui/Tooltip';
-import { Sun, Moon, Sunset, Coffee, RotateCw, X, Check, AlertTriangle, Clock, XCircle } from 'lucide-react';
-import { themes, statusColorPalette } from '../../config/theme';
+import { Sun, Moon, Sunset, Coffee, RotateCw, X, AlertTriangle, Clock, Lock, CheckCheck } from 'lucide-react';
+import { statusColorPalette } from '../../config/theme';
 import { getDay as getDayOfWeek } from 'date-fns';
-
-// ... (helpers: getTurnoIcon, determineTurnoFromTime, ScheduleTooltipContent, SchedulePreviewCard, ScheduleSelectionPanel... todos se quedan igual) ...
-// (Los helpers que ya están envueltos en 'memo' se quedan así)
 
 const getTurnoIcon = (turno: 'M' | 'V' | 'N' | string | null | undefined, size = 14) => {
     switch (turno) {
@@ -17,6 +14,7 @@ const getTurnoIcon = (turno: 'M' | 'V' | 'N' | string | null | undefined, size =
         default: return null;
     }
 };
+
 const determineTurnoFromTime = (horaEntrada: string): 'M' | 'V' | 'N' | null => {
     if (!horaEntrada || horaEntrada === '00:00') return null;
     try {
@@ -27,7 +25,19 @@ const determineTurnoFromTime = (horaEntrada: string): 'M' | 'V' | 'N' | null => 
     } catch { return null; }
     return null;
 };
-const ScheduleTooltipContent = memo(({ details, horario, tipo, scheduleData, isPending }: { details: any, horario: any, tipo: string, scheduleData: any, isPending?: boolean }) => {
+
+const ScheduleTooltipContent = memo(({ details, horario, tipo, scheduleData, isPending, fichaStatus }: { details: any, horario: any, tipo: string, scheduleData: any, isPending?: boolean, fichaStatus?: string }) => {
+    // 1. Bloqueo
+    if (fichaStatus === 'BLOQUEADO') {
+        return (
+            <div className="p-2 text-xs text-left w-52">
+                <p className="font-bold text-red-200 mb-1 flex items-center gap-2"><Lock size={14}/> Periodo Cerrado</p>
+                <p className="text-white">Este día ya se encuentra cerrado, No se pueden hacer cambios.</p>
+            </div>
+        );
+    }
+
+    // 2. Pendiente
     if (isPending) {
         return (
             <div className="p-2 text-xs text-left w-52">
@@ -37,12 +47,14 @@ const ScheduleTooltipContent = memo(({ details, horario, tipo, scheduleData, isP
         );
     }
     
+    // 3. Info Normal
     let title = "Horario Base";
     let scheduleName = horario?.Nombre || "";
     let hours = "";
     let hasMeal = false;
     let tolerance = horario?.MinutosTolerancia;
     const conflict = scheduleData?.EstatusConflictivo;
+
     if (tipo === 'descanso') {
         title = scheduleData?.TipoAsignacion === 'D' ? "Descanso (Asignado)" : "Descanso (Horario)";
         scheduleName = "";
@@ -53,15 +65,21 @@ const ScheduleTooltipContent = memo(({ details, horario, tipo, scheduleData, isP
     } else if (tipo === 'fijo') {
         title = "Excepción: Horario Fijo";
     }
+
     if (details?.EsDiaLaboral) {
         const entrada = details.HoraEntrada ? details.HoraEntrada.substring(0, 5) : '??:??';
         const salida = details.HoraSalida ? details.HoraSalida.substring(0, 5) : '??:??';
         hours = `${entrada} - ${salida}`;
         hasMeal = details.TieneComida;
     }
+
     return (
         <div className="p-1.5 text-xs text-left w-52">
-            <p className="font-bold text-white mb-1.5">{title}</p>
+            <div className="flex justify-between items-start mb-1.5">
+                <p className="font-bold text-white">{title}</p>
+                {fichaStatus === 'VALIDADO' && <span className="bg-blue-900 text-blue-100 px-1.5 rounded text-[10px] border border-blue-700">Validado</span>}
+            </div>
+            
             {scheduleName && (
                 <p className="text-slate-200">{scheduleName} ({horario?.Abreviatura || 'N/A'})</p>
             )}
@@ -83,18 +101,27 @@ const ScheduleTooltipContent = memo(({ details, horario, tipo, scheduleData, isP
                     <span className="text-orange-300 font-semibold">{conflict}</span>
                 </div>
             )}
+            {fichaStatus === 'VALIDADO' && (
+                <div className="mt-2 pt-2 border-t border-slate-600 text-blue-200 italic">
+                    * Al cambiar, se perderá la validación manual.
+                </div>
+            )}
         </div>
     );
 });
-const SchedulePreviewCard = memo(({ details, horario, tipo, isPending }: { details: any, horario: any, tipo: 'fijo' | 'rotativo' | 'descanso' | 'default', isPending?: boolean }) => {
+
+const SchedulePreviewCard = memo(({ details, horario, tipo, isPending, fichaStatus }: { details: any, horario: any, tipo: 'fijo' | 'rotativo' | 'descanso' | 'default', isPending?: boolean, fichaStatus?: string }) => {
     const colorKey = horario?.ColorUI || 'slate';
     const theme = statusColorPalette[colorKey as keyof typeof statusColorPalette] || statusColorPalette.slate;
     const { bgText, border, pastel, lightBorder } = theme as any;
     const esRotativo = horario?.EsRotativo || tipo === 'rotativo';
     
+    // Flags visuales
+    const isBlocked = fichaStatus === 'BLOQUEADO';
+    const isValidated = fichaStatus === 'VALIDADO';
+
     let content;
     if (isPending) {
-        // Estado pendiente: mostrar triángulo de advertencia
         content = (
             <div className="flex items-center justify-center gap-1 h-full w-full flex-col">
                 <AlertTriangle size={24} className="text-amber-500 opacity-75" />
@@ -121,25 +148,44 @@ const SchedulePreviewCard = memo(({ details, horario, tipo, isPending }: { detai
         );
     }
     
-    // Seleccionar estilos: pastel punteado si está pendiente, sólido si no
-    const borderClass = isPending 
-        ? `border-2 border-dashed ${lightBorder}` 
-        : `border-b-4 ${border}`;
-    const bgClass = isPending ? pastel : bgText;
-    
+    // Tus estilos originales + manejo de bloqueo
+    let borderClass = `border-b-4 ${border}`;
+    if (isPending) borderClass = `border-2 border-dashed ${lightBorder}`;
+
+    let bgClass = isPending ? pastel : bgText;
+    let opacityClass = isPending ? 'bg-opacity-60' : 'bg-opacity-90';
+
     return (
         <div className={`relative w-24 h-16 mx-auto rounded-md font-bold flex items-center justify-center transition-all duration-200 ${borderClass}`}>
-            {esRotativo && tipo !== 'rotativo' && !isPending && (
+            
+            {/* Icono Rotativo */}
+            {esRotativo && tipo !== 'rotativo' && !isPending && !isBlocked && (
                 <div className="absolute top-1 right-1 text-slate-500 opacity-70">
                     <RotateCw size={10} title="Horario Rotativo"/>
                 </div>
             )}
-            <div className={`w-full h-full rounded-md ${bgClass} ${!isPending ? 'bg-opacity-90' : 'bg-opacity-60'} flex items-center justify-center shadow-inner-sm overflow-hidden`}>
+
+            {/* Icono BLOQUEADO */}
+            {isBlocked && (
+                <div className="absolute -top-2 -right-2 bg-red-100 text-red-600 rounded-full p-1 border border-red-200 shadow-sm z-20">
+                    <Lock size={12} />
+                </div>
+            )}
+
+            {/* Icono VALIDADO */}
+            {isValidated && !isBlocked && (
+                <div className="absolute -top-2 -right-2 bg-blue-100 text-blue-600 rounded-full p-1 border border-blue-200 shadow-sm z-20">
+                    <CheckCheck size={12} />
+                </div>
+            )}
+
+            <div className={`w-full h-full rounded-md ${bgClass} ${opacityClass} flex items-center justify-center shadow-inner-sm overflow-hidden`}>
                 {content}
             </div>
         </div>
     );
 });
+
 const ScheduleSelectionPanel = memo(({
     isOpen,
     panelStyle,
@@ -147,14 +193,7 @@ const ScheduleSelectionPanel = memo(({
     onSelect,
     onClose,
     currentSelection
-}: {
-    isOpen: boolean,
-    panelStyle: React.CSSProperties,
-    allRotativoTurns: any[],
-    onSelect: (payload: any) => void,
-    onClose: () => void,
-    currentSelection: { tipo: string, id: number | null }
-}) => {
+}: any) => {
     const panelRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -183,7 +222,7 @@ const ScheduleSelectionPanel = memo(({
             <h4 className="text-base font-semibold text-slate-800 mb-3">Asignar Turno para este Día</h4>
             {allRotativoTurns.length > 0 ? (
                 <div className="space-y-1 max-h-64 overflow-y-auto pr-1 mb-3">
-                    {allRotativoTurns.map(({ horario, turno }) => {
+                    {allRotativoTurns.map(({ horario, turno }: any) => {
                          const entrada = turno.HoraEntrada ? turno.HoraEntrada.substring(0, 5) : '??:??';
                          const salida = turno.HoraSalida ? turno.HoraSalida.substring(0, 5) : '??:??';
                          const turnoLabel = `Turno ${turno.DiaSemana}`;
@@ -206,7 +245,7 @@ const ScheduleSelectionPanel = memo(({
                                 title={`${horario.Nombre} - ${turnoLabel} (${entrada} - ${salida})`}
                             >
                                 <span
-                                    className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${theme.bgText} bg-opacity-90`}
+                                    className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${(theme as any).bgText} bg-opacity-90`}
                                 >
                                      {getTurnoIcon(determineTurnoFromTime(turno.HoraEntrada), 16)}
                                 </span>
@@ -253,8 +292,6 @@ const ScheduleSelectionPanel = memo(({
     );
 });
 
-
-// --- Componente principal ---
 export const ScheduleCell = memo(({
     cellId,
     day,
@@ -268,7 +305,8 @@ export const ScheduleCell = memo(({
     canAssign,
     viewMode,
     className,
-    isRotativoEmployee
+    isRotativoEmployee,
+    existingFichaStatus // <--- PROP CRÍTICA
 }: any) => {
 
     const wrapperRef = useRef<HTMLTableCellElement>(null);
@@ -279,7 +317,7 @@ export const ScheduleCell = memo(({
 
     useEffect(() => {
         if (JSON.stringify(prevScheduleDataRef.current) !== JSON.stringify(scheduleData)) {
-            if (scheduleData) { // Animar solo cuando hay una nueva asignación
+            if (scheduleData) {
                 setIsJustUpdated(true);
                 const timer = setTimeout(() => setIsJustUpdated(false), 300);
                 return () => clearTimeout(timer);
@@ -330,7 +368,6 @@ export const ScheduleCell = memo(({
 
     }, [scheduleData, horarioDefaultId, scheduleCatalog, day]);
 
-    // NUEVO: Detectar si es un horario rotativo sin asignación (pendiente)
     const isPendingRotativoAssignment = useMemo(() => {
         return isRotativoEmployee === true && (!scheduleData || scheduleData?.TipoAsignacion === null);
     }, [isRotativoEmployee, scheduleData]);
@@ -373,65 +410,51 @@ export const ScheduleCell = memo(({
         }
      }, [isOpen]);
 
+    // --- BLOQUEO EFECTIVO ---
+    const isBlocked = existingFichaStatus === 'BLOQUEADO';
+    const isConflict = !!scheduleData?.EstatusConflictivo;
 
     const handleToggle = () => {
-        if (scheduleData?.EstatusConflictivo || !canAssign) return;
+        // Bloqueo total si está cerrado
+        if (isBlocked || isConflict || !canAssign) return;
         onToggleOpen(cellId);
     };
 
     const handleSelectInPanel = (payload: any) => {
         onScheduleChange(payload);
-        onToggleOpen(null); // Cerrar panel
+        onToggleOpen(null);
     };
 
     const currentSelection = useMemo(() => {
-        if (scheduleData?.TipoAsignacion === 'T') {
-            return { tipo: 'T', id: scheduleData.HorarioDetalleIdAplicable };
-        }
-        if (scheduleData?.TipoAsignacion === 'D') {
-            return { tipo: 'D', id: null };
-        }
-        if (scheduleData?.TipoAsignacion === 'H') {
-            return { tipo: 'H', id: scheduleData.HorarioIdAplicable };
-        }
+        if (scheduleData?.TipoAsignacion === 'T') return { tipo: 'T', id: scheduleData.HorarioDetalleIdAplicable };
+        if (scheduleData?.TipoAsignacion === 'D') return { tipo: 'D', id: null };
+        if (scheduleData?.TipoAsignacion === 'H') return { tipo: 'H', id: scheduleData.HorarioIdAplicable };
         return { tipo: 'default', id: null };
     }, [scheduleData]);
 
-    const isConflict = !!scheduleData?.EstatusConflictivo;
-    
-    // Ancho consistente con AttendanceCell y el thead
     const cellWidthClass = viewMode === 'week' ? 'min-w-[6rem]' : 'min-w-[4rem]';
-    
     const tooltipPlacement = panelPlacement === 'top' ? 'left' : 'top';
 
     const wrapperContent = (
         <button
             onClick={handleToggle}
+            // Aquí está la clave: deshabilitamos el botón nativo si está bloqueado
+            disabled={!canAssign || isConflict || isBlocked} 
             className={`w-full h-full rounded-lg transition-all duration-200 focus:outline-none focus:visible:ring-0
-                ${isConflict ? 'cursor-not-allowed opacity-70' : ''}
-                ${canAssign && !isConflict ? 'hover:scale-105' : 'cursor-default'}
+                ${isConflict ? ' opacity-70' : ''}
+                ${canAssign && !isConflict && !isBlocked ? 'hover:scale-105' : 'cursor-default'}
                 ${isJustUpdated ? 'animate-drop-in' : ''}
-            `} // <-- Clase de animación añadida
-            disabled={!canAssign && !isConflict}
+            `}
         >
-            {isConflict ? (
+            <div className={`transition-all duration-200 ${isOpen ? 'ring-4 ring-blue-500/50 rounded-lg' : ''}`}>
                 <SchedulePreviewCard
                     details={displayDetails}
                     horario={displayHorario}
                     tipo={displayType}
                     isPending={isPendingRotativoAssignment}
+                    fichaStatus={existingFichaStatus}
                 />
-            ) : (
-                // Aplicamos el contorno azul aquí, en el componente que se muestra
-                <div className={`transition-all duration-200 ${isOpen ? 'ring-4 ring-blue-500/50 rounded-lg' : ''}`}>
-                    <SchedulePreviewCard
-                        details={displayDetails}
-                        horario={displayHorario}
-                        tipo={displayType}
-                        isPending={isPendingRotativoAssignment}
-                    />
-                </div>
-            )}
+            </div>
         </button>
     );
 
@@ -447,6 +470,7 @@ export const ScheduleCell = memo(({
                     tipo={displayType} 
                     scheduleData={scheduleData}
                     isPending={isPendingRotativoAssignment}
+                    fichaStatus={existingFichaStatus}
                 />} 
                 placement={tooltipPlacement} 
                 offset={32} 
@@ -455,6 +479,7 @@ export const ScheduleCell = memo(({
                 {wrapperContent}
             </Tooltip>
 
+            {/* El Panel de Selección siempre está presente, pero isOpen lo controla */}
             <ScheduleSelectionPanel
                 isOpen={isOpen}
                 panelStyle={panelStyle}

@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.saveScheduleAssignments = exports.getScheduleAssignments = exports.getSchedules = void 0;
+exports.saveScheduleAssignments = exports.validateScheduleBatch = exports.getScheduleAssignments = exports.getSchedules = void 0;
 const mssql_1 = __importDefault(require("mssql"));
 const database_1 = require("../../config/database");
 // No necesitas importar 'Console'
@@ -38,15 +38,13 @@ const getScheduleAssignments = (req, res) => __awaiter(void 0, void 0, void 0, f
     if (!req.user.permissions['horarios.read']) {
         return res.status(403).json({ message: 'Acceso denegado.' });
     }
-    // Los parámetros ahora vienen del BODY
     const { startDate, endDate, filters } = req.body;
     if (!startDate || !endDate) {
         return res.status(400).json({ message: 'Se requieren fechas de inicio y fin.' });
     }
-    // Helper para convertir un array de IDs (o undefined) en un string JSON para el SP
     const toJSONString = (arr) => {
         if (!arr || arr.length === 0)
-            return '[]'; // Enviar '[]' si está vacío
+            return '[]';
         return JSON.stringify(arr);
     };
     try {
@@ -55,13 +53,16 @@ const getScheduleAssignments = (req, res) => __awaiter(void 0, void 0, void 0, f
             .input('UsuarioId', mssql_1.default.Int, req.user.usuarioId)
             .input('FechaInicio', mssql_1.default.Date, startDate)
             .input('FechaFin', mssql_1.default.Date, endDate)
-            // Nuevos parámetros de filtro
             .input('DepartamentoFiltro', mssql_1.default.NVarChar, toJSONString(filters === null || filters === void 0 ? void 0 : filters.departamentos))
             .input('GrupoNominaFiltro', mssql_1.default.NVarChar, toJSONString(filters === null || filters === void 0 ? void 0 : filters.gruposNomina))
             .input('PuestoFiltro', mssql_1.default.NVarChar, toJSONString(filters === null || filters === void 0 ? void 0 : filters.puestos))
             .input('EstablecimientoFiltro', mssql_1.default.NVarChar, toJSONString(filters === null || filters === void 0 ? void 0 : filters.establecimientos))
             .execute('sp_HorariosTemporales_GetByPeriodo');
-        const processedResults = result.recordset.map(emp => (Object.assign(Object.assign({}, emp), { HorariosAsignados: emp.HorariosAsignados ? JSON.parse(emp.HorariosAsignados) : [] })));
+        const processedResults = result.recordset.map(emp => (Object.assign(Object.assign({}, emp), { 
+            // Parseamos los Horarios (Asignaciones)
+            HorariosAsignados: emp.HorariosAsignados ? JSON.parse(emp.HorariosAsignados) : [], 
+            // NUEVO: Parseamos los Estados de las Fichas
+            FichasExistentes: emp.FichasExistentes ? JSON.parse(emp.FichasExistentes) : [] })));
         res.json(processedResults);
     }
     catch (err) {
@@ -70,76 +71,107 @@ const getScheduleAssignments = (req, res) => __awaiter(void 0, void 0, void 0, f
     }
 });
 exports.getScheduleAssignments = getScheduleAssignments;
-// saveScheduleAssignments CORREGIDO (eliminado .rolledBack)
+const validateScheduleBatch = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
+    // Validación de permisos
+    if (!req.user.permissions['horarios.assign'])
+        return res.status(403).json({ message: 'Acceso denegado.' });
+    const assignments = Array.isArray(req.body) ? req.body : (req.body.assignments || []);
+    const validAssignments = assignments.filter((a) => a.empleadoId && a.fecha);
+    if (validAssignments.length === 0)
+        return res.json({ status: 'OK' });
+    let pool = null;
+    try {
+        pool = yield mssql_1.default.connect(database_1.dbConfig);
+        let hasValidated = false;
+        // Iteramos para verificar el estado de cada día
+        for (const assignment of validAssignments) {
+            const { empleadoId, fecha } = assignment;
+            const request = new mssql_1.default.Request(pool);
+            request.input('EmpId', mssql_1.default.Int, empleadoId);
+            request.input('Fecha', mssql_1.default.Date, new Date(fecha));
+            // Consultamos el estado directo de la ficha
+            const result = yield request.query(`
+                SELECT Estado 
+                FROM dbo.FichaAsistencia 
+                WHERE EmpleadoId = @EmpId AND Fecha = @Fecha
+            `);
+            const estado = (_a = result.recordset[0]) === null || _a === void 0 ? void 0 : _a.Estado;
+            if (estado === 'BLOQUEADO') {
+                // Si encontramos UN SOLO día bloqueado, detenemos todo.
+                return res.json({
+                    status: 'BLOCKING_ERROR',
+                    message: `El empleado ${empleadoId} tiene el día ${fecha} en un periodo CERRADO (Bloqueado). No se pueden aplicar cambios.`
+                });
+            }
+            if (estado === 'VALIDADO') {
+                hasValidated = true;
+            }
+        }
+        // Si pasamos el bucle sin errores bloqueantes, revisamos si hubo advertencias
+        if (hasValidated) {
+            return res.json({
+                status: 'CONFIRMATION_REQUIRED',
+                message: 'Existen fichas ya VALIDADAS en el rango seleccionado. Se requiere confirmación para regenerarlas.'
+            });
+        }
+        // Si todo está limpio
+        return res.json({ status: 'OK' });
+    }
+    catch (err) {
+        console.error("Error en validación:", err);
+        return res.status(500).json({ message: 'Error interno al validar el periodo.' });
+    }
+    finally {
+        if (pool && pool.connected)
+            yield pool.close();
+    }
+});
+exports.validateScheduleBatch = validateScheduleBatch;
 const saveScheduleAssignments = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     if (!req.user.permissions['horarios.assign'])
         return res.status(403).json({ message: 'Acceso denegado.' });
-    // El body ahora es un array de objetos con la nueva estructura
-    const assignments = req.body;
-    if (!Array.isArray(assignments)) {
-        return res.status(400).json({ message: 'Se esperaba un arreglo de asignaciones.' });
-    }
-    // Filtrar asignaciones inválidas (por si acaso)
-    const validAssignments = assignments.filter(a => a.empleadoId && a.fecha);
-    if (validAssignments.length === 0) {
-        return res.status(400).json({ message: 'No hay asignaciones válidas para procesar.' });
-    }
-    let pool = null; // Definir pool fuera del try para usarlo en finally
-    let transaction = null; // Definir transaction fuera del try
+    const assignments = Array.isArray(req.body) ? req.body : (req.body.assignments || []);
+    const validAssignments = assignments.filter((a) => a.empleadoId && a.fecha);
+    if (validAssignments.length === 0)
+        return res.status(400).json({ message: 'Sin datos.' });
+    let pool = null;
+    let transaction = null;
     try {
         pool = yield mssql_1.default.connect(database_1.dbConfig);
         transaction = new mssql_1.default.Transaction(pool);
         yield transaction.begin();
-        console.log(`Iniciando transacción para ${validAssignments.length} asignaciones.`); // Log
-        // Usar un bucle for...of con await
         for (const assignment of validAssignments) {
             const { empleadoId, fecha, tipoAsignacion, horarioId, detalleId } = assignment;
-            // Log detallado de cada asignación
-            console.log(`Procesando: Empleado ${empleadoId}, Fecha ${fecha}, Tipo ${tipoAsignacion}, HorarioId ${horarioId}, DetalleId ${detalleId}`);
-            // Crear una NUEVA request DENTRO del bucle para cada llamada
             const request = new mssql_1.default.Request(transaction);
             request.input('EmpleadoId', mssql_1.default.Int, empleadoId);
             request.input('Fecha', mssql_1.default.Date, new Date(fecha));
             request.input('UsuarioId', mssql_1.default.Int, req.user.usuarioId);
-            request.input('TipoAsignacion', mssql_1.default.Char(1), tipoAsignacion);
-            request.input('HorarioId', mssql_1.default.Int, tipoAsignacion === 'H' ? horarioId : null);
-            request.input('HorarioDetalleId', mssql_1.default.Int, tipoAsignacion === 'T' ? detalleId : null);
+            request.input('TipoAsignacion', mssql_1.default.Char(1), tipoAsignacion || null);
+            request.input('HorarioId', mssql_1.default.Int, (tipoAsignacion === 'H' ? horarioId : null) || null);
+            request.input('HorarioDetalleId', mssql_1.default.Int, (tipoAsignacion === 'T' ? detalleId : null) || null);
             yield request.execute('sp_HorariosTemporales_Upsert');
-            console.log(` -> Completado: Empleado ${empleadoId}, Fecha ${fecha}`); // Log
         }
-        console.log("Todas las operaciones completadas, haciendo commit..."); // Log
         yield transaction.commit();
-        console.log("Commit exitoso."); // Log
-        res.status(200).json({ message: 'Asignaciones guardadas correctamente.' });
+        res.status(200).json({ message: 'Guardado correctamente.' });
     }
     catch (err) {
-        console.error('Error durante la transacción:', err); // Log del error
-        // Intentar rollback solo si la transacción existe
-        // ¡FIX! Se elimina la comprobación de '.rolledBack'
         if (transaction) {
-            console.log("Intentando rollback..."); // Log
             try {
                 yield transaction.rollback();
-                console.log("Rollback exitoso."); // Log
             }
-            catch (rollbackErr) {
-                // Loguear el error de rollback, pero devolver el error original
-                console.error('Error durante el rollback:', rollbackErr);
-            }
+            catch (e) { }
         }
-        res.status(500).json({ message: err.message || 'Error al guardar las asignaciones.' });
+        // El SP aún puede lanzar 51000 si intentan saltarse la validación
+        if (err.number === 51000) {
+            return res.status(409).json({ error: 'BLOCKING_ERROR', message: err.message });
+        }
+        console.error('Error saveScheduleAssignments:', err);
+        res.status(500).json({ message: err.message || 'Error interno.' });
     }
     finally {
-        // Asegurarse de cerrar la conexión si se abrió
-        if (pool && pool.connected) {
-            try {
-                yield pool.close();
-                console.log("Conexión cerrada."); // Log
-            }
-            catch (closeErr) {
-                console.error("Error al cerrar la conexión:", closeErr);
-            }
-        }
+        if (pool && pool.connected)
+            yield pool.close();
     }
 });
 exports.saveScheduleAssignments = saveScheduleAssignments;

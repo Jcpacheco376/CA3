@@ -197,16 +197,33 @@ export const UsersPage = () => {
                                     <td className="p-3 text-slate-600">{u.NombreUsuario}</td>
                                     <td className="p-3">
                                         <Tooltip
-                                            text={u.Roles?.map(r => r.NombreRol).join(', ') || 'N/A'}
+                                            text={u.Roles?.map((r, i) => i === 0 ? `${r.NombreRol} (Principal)` : r.NombreRol).join(', ') || 'N/A'}
                                             placement="top"
                                             disabled={!u.Roles || u.Roles.length <= CATALOG_DISPLAY_LIMIT}
                                         >
                                             <div className="flex flex-wrap gap-1 items-center">
-                                                {u.Roles?.slice(0, CATALOG_DISPLAY_LIMIT).map(role => (
-                                                    <span key={role.RoleId} className="text-xs bg-slate-200 text-slate-700 px-2 py-1 rounded-full">{role.NombreRol}</span>
-                                                ))}
+                                                {u.Roles?.slice(0, CATALOG_DISPLAY_LIMIT).map((role, index) => {
+                                                    // LÓGICA IMPLÍCITA: Índice 0 es el Principal
+                                                    const isPrincipal = index === 0;
+
+                                                    return (
+                                                        <span
+                                                            key={role.RoleId}
+                                                            className={`
+                            text-xs px-2 py-1 rounded-full border transition-colors
+                            ${isPrincipal
+                                                                    ? 'bg-indigo-100 text-indigo-800 border-indigo-200 font-medium' // Estilo Principal (Armonizado)
+                                                                    : 'bg-slate-100 text-slate-600 border-slate-200' // Estilo Secundario
+                                                                }
+                        `}
+                                                        >
+                                                            {role.NombreRol}
+                                                        </span>
+                                                    );
+                                                })}
+
                                                 {u.Roles && u.Roles.length > CATALOG_DISPLAY_LIMIT && (
-                                                    <span className="text-xs bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded-full">
+                                                    <span className="text-xs bg-slate-50 text-slate-500 px-1.5 py-0.5 rounded-full border border-slate-200">
                                                         +{u.Roles.length - CATALOG_DISPLAY_LIMIT}
                                                     </span>
                                                 )}
@@ -293,7 +310,7 @@ export const UsersPage = () => {
                                     </td>
                                     <td className="p-3 text-center">
                                         {/* --- MODIFICACIÓN: Botón condicional --- */}
-                                        {canManage  && (
+                                        {canManage && (
                                             <button onClick={() => handleOpenModal(u)} className="p-2 text-slate-500 hover:text-[--theme-500] rounded-full hover:bg-slate-100">
                                                 <PencilIcon />
                                             </button>
@@ -307,12 +324,12 @@ export const UsersPage = () => {
             </div>
 
             {isModalOpen && (
-                <UserModal 
+                <UserModal
                     isOpen={isModalOpen}
-                    user={editingUser} 
-                    allRoles={allRoles} 
-                    onClose={handleCloseModal} 
-                    onSave={handleSaveUser} 
+                    user={editingUser}
+                    allRoles={allRoles}
+                    onClose={handleCloseModal}
+                    onSave={handleSaveUser}
                 />
             )}
         </div>

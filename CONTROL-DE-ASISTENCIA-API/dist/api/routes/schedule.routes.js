@@ -6,5 +6,6 @@ const auth_middleware_1 = require("../middlewares/auth.middleware");
 const router = (0, express_1.Router)();
 router.get('/', auth_middleware_1.authMiddleware, schedule_controller_1.getSchedules);
 router.post('/assignments', auth_middleware_1.authMiddleware, schedule_controller_1.getScheduleAssignments);
+router.post('/assignments/validate', auth_middleware_1.authMiddleware, schedule_controller_1.validateScheduleBatch);
 router.put('/assignments', auth_middleware_1.authMiddleware, schedule_controller_1.saveScheduleAssignments);
 exports.default = router;

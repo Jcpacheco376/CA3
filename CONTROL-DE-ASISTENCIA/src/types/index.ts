@@ -52,6 +52,7 @@ export interface Role {
     NombreRol: string;
     Descripcion?: string;
     Permisos?: Permission[];
+    EsPrincipal?: boolean;
     
 }
 export interface Permission {

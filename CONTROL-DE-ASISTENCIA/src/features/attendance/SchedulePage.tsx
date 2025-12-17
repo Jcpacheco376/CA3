@@ -3,13 +3,13 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useAuth } from '../auth/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { API_BASE_URL } from '../../config/api';
-import { 
-    format, startOfWeek, endOfWeek, addDays, isToday as isTodayDateFns, 
-    isWithinInterval, getDay as getDayOfWeek, isSameDay 
+import {
+    format, startOfWeek, endOfWeek, addDays, isToday as isTodayDateFns,
+    isWithinInterval, getDay as getDayOfWeek, isSameDay
 } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { 
-    Loader2, Briefcase, Building, Cake, GripVertical, Contact, InfoIcon as Info, 
+import {
+    Loader2, Briefcase, Building, Cake, GripVertical, Contact, InfoIcon as Info,
     CalendarCheck, Tag, MapPin, AlertTriangle, CalendarOff, ListTodo
 } from 'lucide-react';
 import { AttendanceToolbar, FilterConfig } from './AttendanceToolbar';
@@ -19,8 +19,9 @@ import { AssignFixedScheduleModal } from './AssignFixedScheduleModal';
 import { Tooltip, InfoIcon } from '../../components/ui/Tooltip';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { TableSkeleton } from '../../components/ui/TableSkeleton';
-// IMPORTACIÓN DEL HOOK COMPARTIDO
 import { useSharedAttendance } from '../../hooks/useSharedAttendance';
+// IMPORTACIÓN DEL MODAL
+import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
 
 // --- Helpers ---
 const isBirthdayInPeriod = (birthDateStr: string, period: Date[]): boolean => {
@@ -28,10 +29,10 @@ const isBirthdayInPeriod = (birthDateStr: string, period: Date[]): boolean => {
     try {
         const parts = birthDateStr.substring(0, 10).split('-');
         const birthDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-        
+
         const today = new Date();
         const birthDateThisYear = new Date(today.getFullYear(), birthDate.getMonth(), birthDate.getDate());
-        
+
         return isWithinInterval(birthDateThisYear, {
             start: period[0],
             end: period[period.length - 1]
@@ -53,22 +54,22 @@ const getHorarioTooltip = (horario: any) => {
 const COLUMN_WIDTH_STORAGE_KEY = 'schedule_employee_column_width';
 const EMPLOYEE_CONTENT_MIN_WIDTH = 360;
 const EMPLOYEE_CONTENT_MAX_WIDTH = 500;
-const MIN_COLUMN_WIDTH = EMPLOYEE_CONTENT_MIN_WIDTH + 16; 
+const MIN_COLUMN_WIDTH = EMPLOYEE_CONTENT_MIN_WIDTH + 16;
 const MAX_COLUMN_WIDTH = EMPLOYEE_CONTENT_MAX_WIDTH + 250;
 const DEFAULT_COLUMN_WIDTH = 384;
-const ROW_HEIGHT_ESTIMATE = 77; // <--- AUMENTADO PARA MEJOR ESPACIADO
+const ROW_HEIGHT_ESTIMATE = 77;
 
 export const SchedulePage = () => {
     const { getToken, user, can } = useAuth();
     const { addNotification } = useNotification();
-    
+
     // --- USO DEL HOOK COMPARTIDO ---
-    const { 
-        filters, setFilters, 
-        viewMode, setViewMode, 
-        currentDate, setCurrentDate, 
-        dateRange, rangeLabel, 
-        handleDatePrev, handleDateNext 
+    const {
+        filters, setFilters,
+        viewMode, setViewMode,
+        currentDate, setCurrentDate,
+        dateRange, rangeLabel,
+        handleDatePrev, handleDateNext
     } = useSharedAttendance(user);
 
     // Estados Locales
@@ -81,10 +82,15 @@ export const SchedulePage = () => {
     const [openCellId, setOpenCellId] = useState<string | null>(null);
     const [showOnlyPending, setShowOnlyPending] = useState(false);
     const [viewingEmployeeId, setViewingEmployeeId] = useState<number | null>(null);
-    
+
+    // --- ESTADOS PARA EL MODAL ---
+    const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
+    const [pendingUpdates, setPendingUpdates] = useState<any[]>([]);
+    const [confirmMessage, setConfirmMessage] = useState("");
+
     const canRead = can('horarios.read');
     const canAssign = can('horarios.assign');
-    
+
     const [employeeColumnWidth, setEmployeeColumnWidth] = useState(() => {
         try {
             const savedWidth = localStorage.getItem(COLUMN_WIDTH_STORAGE_KEY);
@@ -96,13 +102,13 @@ export const SchedulePage = () => {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const scrollTimerRef = useRef<number | null>(null);
 
-    // Lógica de "Semana Activa" (Sincronización con Scroll)
+    // Lógica de "Semana Activa"
     const updateActiveWeek = useCallback(() => {
         if (!scrollContainerRef.current || dateRange.length === 0) return;
         const { scrollLeft, clientWidth, scrollWidth } = scrollContainerRef.current;
         let startOfActiveWeek: Date | null = null;
         const scrollEndTolerance = 5;
-        
+
         if (scrollLeft <= 0) {
             startOfActiveWeek = startOfWeek(dateRange[0], { weekStartsOn: 1 });
         } else if (scrollLeft + clientWidth >= scrollWidth - scrollEndTolerance) {
@@ -117,7 +123,7 @@ export const SchedulePage = () => {
                 startOfActiveWeek = startOfWeek(activeDay, { weekStartsOn: 1 });
             }
         }
-        
+
         if (startOfActiveWeek) {
             setActiveWeekStartDate(currentActiveWeek => {
                 if (!currentActiveWeek || !isSameDay(currentActiveWeek, startOfActiveWeek!)) {
@@ -220,22 +226,9 @@ export const SchedulePage = () => {
         fetchData();
     }, [fetchData]);
 
-    const handleBulkScheduleChange = async (updates: {
-        empleadoId: number,
-        fecha: Date,
-        tipoAsignacion: 'H' | 'T' | 'D' | null,
-        horarioId?: number | null,
-        detalleId?: number | null
-    }[]) => {
-        if (!canAssign) {
-            addNotification('Acceso Denegado', 'No tienes permiso para asignar horarios.', 'error');
-            return;
-        }
-        const token = getToken();
-        if (!token || updates.length === 0) return;
-
-        const originalEmployees = employees;
-
+    // --- FUNCIÓN HELPER: ACTUALIZAR ESTADO LOCAL ---
+    // Extraída para poder usarla tanto al guardar directo como al confirmar
+    const updateLocalState = (updates: any[]) => {
         const updatesByEmployee = new Map<number, any[]>();
         for (const update of updates) {
             if (!updatesByEmployee.has(update.empleadoId)) {
@@ -246,15 +239,16 @@ export const SchedulePage = () => {
 
         setEmployees(prevEmployees => {
             return prevEmployees.map(emp => {
-                if (!updatesByEmployee.has(emp.EmpleadoId)) {
-                    return emp;
-                }
+                if (!updatesByEmployee.has(emp.EmpleadoId)) return emp;
 
                 const empUpdates = updatesByEmployee.get(emp.EmpleadoId)!;
                 const newHorariosAsignados = [...emp.HorariosAsignados];
+                const newFichasExistentes = [...(emp.FichasExistentes || [])]; // Copia para mutar
 
                 for (const update of empUpdates) {
                     const fechaStr = format(update.fecha, 'yyyy-MM-dd');
+
+                    // 1. Actualizar HorariosAsignados (lógica existente)
                     const recordIndex = newHorariosAsignados.findIndex(h => h.Fecha === fechaStr);
 
                     let newAsignacion = null;
@@ -269,35 +263,116 @@ export const SchedulePage = () => {
                     }
 
                     if (recordIndex > -1) {
-                        if (newAsignacion) {
-                            newHorariosAsignados[recordIndex] = newAsignacion;
-                        } else {
-                            newHorariosAsignados.splice(recordIndex, 1);
-                        }
+                        if (newAsignacion) newHorariosAsignados[recordIndex] = newAsignacion;
+                        else newHorariosAsignados.splice(recordIndex, 1);
                     } else if (newAsignacion) {
                         newHorariosAsignados.push(newAsignacion);
                     }
-                }
 
-                return { ...emp, HorariosAsignados: newHorariosAsignados };
+                    // 2. Invalidar Ficha si es necesario (nueva lógica)
+                    const fichaIndex = newFichasExistentes.findIndex(f => f.Fecha === fechaStr);
+                    if (fichaIndex > -1 && newFichasExistentes[fichaIndex].Estado === 'VALIDADO') {
+                        // Anulamos el estado para que la palomita desaparezca
+                        newFichasExistentes[fichaIndex].Estado = null;
+                    }
+                }
+                return { ...emp, HorariosAsignados: newHorariosAsignados, FichasExistentes: newFichasExistentes };
             });
         });
+    };
 
+    // --- PASO 2: EJECUTAR GUARDADO FINAL (Sin Refresh) ---
+    const executeSave = async (updates: any[]) => {
+        const token = getToken();
         try {
             const res = await fetch(`${API_BASE_URL}/schedules/assignments`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify(updates),
+                body: JSON.stringify({
+                    assignments: updates,
+                    confirmarCambio: true // Ahora sí guardamos
+                }),
             });
+
+            const data = await res.json();
+
             if (!res.ok) {
-                const errorData = await res.json();
-                throw new Error(errorData.message || 'El servidor rechazó la actualización.');
+                if (res.status === 409 && data.error === 'BLOCKING_ERROR') {
+                    throw new Error(data.message || "Periodo bloqueado por nómina.");
+                }
+                throw new Error(data.message || 'Error al guardar.');
             }
+
             addNotification('Guardado', `${updates.length} asignacion(es) guardada(s).`, 'success');
+
+            // AQUI OCURRE LA MAGIA: Actualizamos la pantalla SOLO tras el éxito
+            updateLocalState(updates);
+
+            // Cerramos modal si estaba abierto
+            setIsConfirmModalOpen(false);
+            setPendingUpdates([]);
+
         } catch (err: any) {
-            addNotification('Error al Guardar', `No se pudieron guardar los cambios: ${err.message}`, 'error');
-            setEmployees(originalEmployees);
+            addNotification('Error', err.message, 'error');
+            // Si hay error, no actualizamos el estado local, así que visualmente "rebota"
         }
+    };
+
+    // --- PASO 1: INTENTAR CAMBIAR (VALIDACIÓN) ---
+    const handleBulkScheduleChange = async (updates: {
+        empleadoId: number,
+        fecha: Date,
+        tipoAsignacion: 'H' | 'T' | 'D' | null,
+        horarioId?: number | null,
+        detalleId?: number | null
+    }[]) => {
+        if (!canAssign) {
+            addNotification('Acceso Denegado', 'No tienes permiso para asignar horarios.', 'error');
+            return;
+        }
+        if (updates.length === 0) return;
+
+        const token = getToken();
+
+        try {
+            // 1. VALIDAMOS PRIMERO (Sin tocar el estado visual aún)
+            const validateRes = await fetch(`${API_BASE_URL}/schedules/assignments/validate`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ assignments: updates }),
+            });
+
+            const validation = await validateRes.json();
+
+            // CASO A: BLOQUEO TOTAL
+            if (validation.status === 'BLOCKING_ERROR') {
+                addNotification('Acción Bloqueada', validation.message, 'error');
+                return;
+            }
+
+            // CASO B: REQUIERE CONFIRMACIÓN -> ABRIR MODAL
+            if (validation.status === 'CONFIRMATION_REQUIRED') {
+                setPendingUpdates(updates);
+                setConfirmMessage(validation.message);
+                setIsConfirmModalOpen(true);
+                // El estado visual sigue intacto, así que el usuario ve el valor "viejo" en el fondo
+                return;
+            }
+
+            // CASO C: TODO LIMPIO -> GUARDAR DIRECTO
+            if (validation.status === 'OK') {
+                await executeSave(updates);
+            }
+
+        } catch (err: any) {
+            console.error(err);
+            addNotification('Error de comunicación', 'No se pudo validar la operación.', 'error');
+        }
+    };
+
+    // Botón del Modal
+    const handleConfirmRegenerate = () => {
+        executeSave(pendingUpdates);
     };
 
     const handleAssignFixedToWeek = (horarioId: number | null) => {
@@ -309,25 +384,13 @@ export const SchedulePage = () => {
         const { employeeId } = assignFixedModalInfo;
         const weekDays = Array.from({ length: 7 }).map((_, i) => addDays(activeWeekStartDate, i));
 
-        let updates;
-
-        if (horarioId === null) {
-            updates = weekDays.map(day => ({
-                empleadoId: employeeId,
-                fecha: day,
-                tipoAsignacion: null,
-                horarioId: null,
-                detalleId: null
-            }));
-        } else {
-            updates = weekDays.map(day => ({
-                empleadoId: employeeId,
-                fecha: day,
-                tipoAsignacion: 'H' as 'H',
-                horarioId: horarioId,
-                detalleId: null
-            }));
-        }
+        const updates = weekDays.map(day => ({
+            empleadoId: employeeId,
+            fecha: day,
+            tipoAsignacion: horarioId === null ? null : ('H' as 'H'),
+            horarioId: horarioId,
+            detalleId: null
+        }));
 
         handleBulkScheduleChange(updates);
         setAssignFixedModalInfo(null);
@@ -353,42 +416,28 @@ export const SchedulePage = () => {
 
     const pendingEmployeeIds = useMemo(() => {
         const pendingIds = new Set<number>();
-
         employees.forEach(emp => {
             if (!emp.HorarioDefaultId) return;
-
             const isRotativo = rotatvivoCache.get(emp.HorarioDefaultId);
             if (!isRotativo) return;
-
             const hasPending = dateRange.some(day => {
                 const fechaStr = format(day, 'yyyy-MM-dd');
                 const assignment = emp.HorariosAsignados?.find((h: any) => h.Fecha === fechaStr);
                 return !assignment || !assignment.TipoAsignacion;
             });
-
-            if (hasPending) {
-                pendingIds.add(emp.EmpleadoId);
-            }
+            if (hasPending) pendingIds.add(emp.EmpleadoId);
         });
-
         return pendingIds;
     }, [employees, dateRange, rotatvivoCache]);
 
     const filteredEmployees = useMemo(() => {
         const searchWords = searchTerm.toLowerCase().split(' ').filter(word => word);
-
         return employees.filter(emp => {
             if (searchWords.length > 0) {
                 const targetText = ((emp?.NombreCompleto || '') + ' ' + (emp?.CodRef || '')).toLowerCase();
-                if (!searchWords.every(word => targetText.includes(word))) {
-                    return false;
-                }
+                if (!searchWords.every(word => targetText.includes(word))) return false;
             }
-
-            if (showOnlyPending) {
-                return pendingEmployeeIds.has(emp.EmpleadoId);
-            }
-
+            if (showOnlyPending) return pendingEmployeeIds.has(emp.EmpleadoId);
             return true;
         });
     }, [employees, searchTerm, showOnlyPending, pendingEmployeeIds]);
@@ -396,42 +445,28 @@ export const SchedulePage = () => {
     const handleResizeMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
         e.preventDefault();
         document.body.classList.add('select-none', 'cursor-col-resize');
-        
         const startX = e.clientX;
         const startWidth = employeeColumnWidth;
         let rAFId: number | null = null;
-
         const handleMouseMove = (moveEvent: MouseEvent) => {
-            if (rAFId !== null) {
-                cancelAnimationFrame(rAFId);
-            }
-            
+            if (rAFId !== null) cancelAnimationFrame(rAFId);
             rAFId = requestAnimationFrame(() => {
                 const newWidth = startWidth + (moveEvent.clientX - startX);
                 const clampedWidth = Math.max(MIN_COLUMN_WIDTH, Math.min(newWidth, MAX_COLUMN_WIDTH));
-                
                 setEmployeeColumnWidth(clampedWidth);
                 rAFId = null;
             });
         };
-
         const handleMouseUp = (upEvent: MouseEvent) => {
-            if (rAFId !== null) {
-                cancelAnimationFrame(rAFId);
-                rAFId = null;
-            }
-            
+            if (rAFId !== null) cancelAnimationFrame(rAFId);
             document.body.classList.remove('select-none', 'cursor-col-resize');
             window.removeEventListener('mousemove', handleMouseMove);
             window.removeEventListener('mouseup', handleMouseUp);
-            
             const finalWidth = startWidth + (upEvent.clientX - startX);
             const clampedFinalWidth = Math.max(MIN_COLUMN_WIDTH, Math.min(finalWidth, MAX_COLUMN_WIDTH));
-            
             setEmployeeColumnWidth(clampedFinalWidth);
             localStorage.setItem(COLUMN_WIDTH_STORAGE_KEY, clampedFinalWidth.toString());
         };
-
         window.addEventListener('mousemove', handleMouseMove);
         window.addEventListener('mouseup', handleMouseUp, { once: true });
     };
@@ -448,40 +483,18 @@ export const SchedulePage = () => {
 
     const filterConfigurations: FilterConfig[] = useMemo(() => {
         const filtersConfig: FilterConfig[] = [
-            {
-                id: 'departamentos', title: 'Departamentos', icon: <Building />,
-                options: user?.Departamentos?.map(d => ({ value: d.DepartamentoId, label: d.Nombre })) || [],
-                selectedValues: filters.depts, onChange: (depts) => setFilters(f => ({ ...f, depts: depts as number[] })),
-                isActive: user?.activeFilters?.departamentos ?? false,
-            },
-            {
-                id: 'gruposNomina', title: 'Grupos Nómina', icon: <Briefcase />,
-                options: user?.GruposNomina?.map(g => ({ value: g.GrupoNominaId, label: g.Nombre })) || [],
-                selectedValues: filters.groups, onChange: (groups) => setFilters(f => ({ ...f, groups: groups as number[] })),
-                isActive: user?.activeFilters?.gruposNomina ?? false,
-            },
-            {
-                id: 'puestos', title: 'Puestos', icon: <Tag />,
-                options: user?.Puestos?.map(p => ({ value: p.PuestoId, label: p.Nombre })) || [],
-                selectedValues: filters.puestos, onChange: (puestos) => setFilters(f => ({ ...f, puestos: puestos as number[] })),
-                isActive: user?.activeFilters?.puestos ?? false,
-            },
-            {
-                id: 'establecimientos', title: 'Establecimientos', icon: <MapPin />,
-                options: user?.Establecimientos?.map(e => ({ value: e.EstablecimientoId, label: e.Nombre })) || [],
-                selectedValues: filters.estabs, onChange: (estabs) => setFilters(f => ({ ...f, estabs: estabs as number[] })),
-                isActive: user?.activeFilters?.establecimientos ?? false,
-            }
+            { id: 'departamentos', title: 'Departamentos', icon: <Building />, options: user?.Departamentos?.map(d => ({ value: d.DepartamentoId, label: d.Nombre })) || [], selectedValues: filters.depts, onChange: (depts) => setFilters(f => ({ ...f, depts: depts as number[] })), isActive: user?.activeFilters?.departamentos ?? false },
+            { id: 'gruposNomina', title: 'Grupos Nómina', icon: <Briefcase />, options: user?.GruposNomina?.map(g => ({ value: g.GrupoNominaId, label: g.Nombre })) || [], selectedValues: filters.groups, onChange: (groups) => setFilters(f => ({ ...f, groups: groups as number[] })), isActive: user?.activeFilters?.gruposNomina ?? false },
+            { id: 'puestos', title: 'Puestos', icon: <Tag />, options: user?.Puestos?.map(p => ({ value: p.PuestoId, label: p.Nombre })) || [], selectedValues: filters.puestos, onChange: (puestos) => setFilters(f => ({ ...f, puestos: puestos as number[] })), isActive: user?.activeFilters?.puestos ?? false },
+            { id: 'establecimientos', title: 'Establecimientos', icon: <MapPin />, options: user?.Establecimientos?.map(e => ({ value: e.EstablecimientoId, label: e.Nombre })) || [], selectedValues: filters.estabs, onChange: (estabs) => setFilters(f => ({ ...f, estabs: estabs as number[] })), isActive: user?.activeFilters?.establecimientos ?? false }
         ];
         return filtersConfig.filter(f => f.isActive && f.options.length > 0);
-    }, [user, filters]); 
+    }, [user, filters]);
 
     const renderContent = () => {
-        if (isLoading) {
-            return <TableSkeleton employeeColumnWidth={employeeColumnWidth} dateRange={dateRange} viewMode={viewMode} pageType="schedule" />;
-        }
-        if (error) { return <div className="p-16 text-center"> <p className="font-semibold text-red-600">Error al Cargar</p> <p className="text-slate-500 text-sm mt-1">{error}</p> </div>; }
-        
+        if (isLoading) return <TableSkeleton employeeColumnWidth={employeeColumnWidth} dateRange={dateRange} viewMode={viewMode} pageType="schedule" />;
+        if (error) return <div className="p-16 text-center"> <p className="font-semibold text-red-600">Error al Cargar</p> <p className="text-slate-500 text-sm mt-1">{error}</p> </div>;
+
         return (
             <div ref={scrollContainerRef} className="overflow-auto relative flex-1 animate-content-fade-in">
                 <table className="text-sm text-center border-collapse table-fixed">
@@ -490,42 +503,24 @@ export const SchedulePage = () => {
                             <th className="p-2 text-left font-semibold text-slate-600 sticky left-0 bg-slate-50 z-30 shadow-sm group relative" style={{ width: `${employeeColumnWidth}px` }}>
                                 <div className="flex items-center gap-3 flex-1 min-w-0 pr-8">
                                     <span>Empleado</span>
-                                    {/* --- BOTONES DE FILTRO RÁPIDO (IGUAL QUE ATTENDANCE) --- */}
                                     <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 focus-within:opacity-100" style={{ opacity: showOnlyPending ? 1 : undefined }}>
                                         <Tooltip text={showOnlyPending ? "Mostrando solo pendientes • Click para ver todos" : "Ver solo asignaciones pendientes"}>
-                                            <button
-                                                onClick={() => setShowOnlyPending(!showOnlyPending)}
-                                                className={`p-1.5 rounded-md transition-colors flex-shrink-0 ${showOnlyPending
-                                                        ? 'text-amber-600 bg-amber-50 ring-1 ring-amber-200'
-                                                        : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'
-                                                    }`}
-                                            >
+                                            <button onClick={() => setShowOnlyPending(!showOnlyPending)} className={`p-1.5 rounded-md transition-colors flex-shrink-0 ${showOnlyPending ? 'text-amber-600 bg-amber-50 ring-1 ring-amber-200' : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'}`}>
                                                 <AlertTriangle size={18} />
                                             </button>
                                         </Tooltip>
                                     </div>
                                 </div>
-                                <div onMouseDown={handleResizeMouseDown} className="absolute right-0 top-0 h-full w-2.5 cursor-col-resize group flex items-center justify-center">
-                                    <GripVertical className="h-5 text-slate-300 group-hover:text-[--theme-500] transition-colors" />
-                                </div>
+                                <div onMouseDown={handleResizeMouseDown} className="absolute right-0 top-0 h-full w-2.5 cursor-col-resize group flex items-center justify-center"><GripVertical className="h-5 text-slate-300 group-hover:text-[--theme-500] transition-colors" /></div>
                             </th>
-
                             {dateRange.map((day, dayIndex) => {
                                 const isMonday = getDayOfWeek(day) === 1;
                                 const startOfWeekForDay = startOfWeek(day, { weekStartsOn: 1 });
                                 const isActiveWeek = activeWeekStartDate && isSameDay(startOfWeekForDay, activeWeekStartDate);
                                 const isFirstDay = dayIndex === 0;
                                 let thClasses = `px-1 py-2 font-semibold text-slate-600 min-w-[${viewMode === 'week' ? '6rem' : '4rem'}] transition-colors duration-150 relative `;
-                                if (isTodayDateFns(day)) {
-                                    thClasses += 'bg-sky-100';
-                                } else if (isActiveWeek) {
-                                    thClasses += 'bg-slate-100';
-                                } else {
-                                    thClasses += 'bg-slate-50';
-                                }
-                                if (isMonday && !isFirstDay) {
-                                    thClasses += ' border-l-2 border-slate-300';
-                                }
+                                if (isTodayDateFns(day)) thClasses += 'bg-sky-100'; else if (isActiveWeek) thClasses += 'bg-slate-100'; else thClasses += 'bg-slate-50';
+                                if (isMonday && !isFirstDay) thClasses += ' border-l-2 border-slate-300';
                                 return (
                                     <th key={day.toISOString()} className={thClasses}>
                                         <span className="capitalize text-base">{format(day, 'eee', { locale: es })}</span>
@@ -547,64 +542,31 @@ export const SchedulePage = () => {
                                 try {
                                     const parts = emp.FechaNacimiento.substring(0, 10).split('-');
                                     const birthDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
-                                    const formattedBirthDate = format(birthDate, "d 'de' MMMM", { locale: es });
-                                    birthdayTooltip = `Cumpleaños: ${formattedBirthDate}`;
-                                } catch (e) { /* fallback */ }
+                                    birthdayTooltip = `Cumpleaños: ${format(birthDate, "d 'de' MMMM", { locale: es })}`;
+                                } catch (e) { }
                             }
-
                             return (
-                                <tr 
-                                    key={emp.EmpleadoId} 
-                                    data-index={virtualRow.index} 
-                                    ref={rowVirtualizer.measureElement} // <-- FIX: Altura dinámica
-                                    className="group" 
-                                >
+                                <tr key={emp.EmpleadoId} data-index={virtualRow.index} ref={rowVirtualizer.measureElement} className="group">
                                     <td className="p-2 text-left sticky left-0 bg-white group-hover:bg-slate-50 z-10 shadow-sm align-top border-b border-slate-100" style={{ width: `${employeeColumnWidth}px` }}>
                                         <div className="w-full py-1" style={{ minWidth: `${EMPLOYEE_CONTENT_MIN_WIDTH}px`, maxWidth: `${EMPLOYEE_CONTENT_MAX_WIDTH}px` }}>
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex items-center gap-2">
-                                                        <Tooltip text={emp?.NombreCompleto}>
-                                                            <p className="font-semibold text-slate-800 truncate ">{emp?.NombreCompleto}</p>
-                                                        </Tooltip>
-                                                        {defaultSchedule && (
-                                                            <Tooltip text={horarioTooltipText}>
-                                                                <span className="text-xs font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{defaultSchedule.Abreviatura || defaultSchedule.HorarioId}</span>
-                                                            </Tooltip>
-                                                        )}
-                                                        {isBirthdayInPeriod(emp.FechaNacimiento, dateRange) && (
-                                                            <Tooltip text={birthdayTooltip}>
-                                                                <Cake size={18} className="text-pink-400 shrink-0" />
-                                                            </Tooltip>
-                                                        )}
+                                                        <Tooltip text={emp?.NombreCompleto}><p className="font-semibold text-slate-800 truncate ">{emp?.NombreCompleto}</p></Tooltip>
+                                                        {defaultSchedule && <Tooltip text={horarioTooltipText}><span className="text-xs font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{defaultSchedule.Abreviatura || defaultSchedule.HorarioId}</span></Tooltip>}
+                                                        {isBirthdayInPeriod(emp.FechaNacimiento, dateRange) && <Tooltip text={birthdayTooltip}><Cake size={18} className="text-pink-400 shrink-0" /></Tooltip>}
                                                     </div>
                                                     <div className="flex items-center space-x-2 flex-shrink-0 ml-2">
                                                         <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                            <Tooltip text="Ver Ficha de Empleado">
-                                                                <button onClick={() => setViewingEmployeeId(emp.EmpleadoId)} className="p-1 rounded-md text-slate-400 hover:text-[--theme-500] hover:bg-slate-200">
-                                                                    <Contact size={18} />
-                                                                </button>
-                                                            </Tooltip>
-                                                            {canAssign && (
-                                                                <Tooltip text={activeWeekStartDate ? `Asignar a la semana del ${format(activeWeekStartDate, 'd MMM', { locale: es })}` : "Asignar horario"}>
-                                                                    <button onClick={() => setAssignFixedModalInfo({ employeeId: emp.EmpleadoId, employeeName: emp.NombreCompleto || 'Empleado' })} className="p-1 rounded-md text-slate-500 hover:text-[--theme-600] hover:bg-slate-200 transition-colors">
-                                                                        <CalendarCheck size={20} />
-                                                                    </button>
-                                                                </Tooltip>
-                                                            )}
+                                                            <Tooltip text="Ver Ficha de Empleado"><button onClick={() => setViewingEmployeeId(emp.EmpleadoId)} className="p-1 rounded-md text-slate-400 hover:text-[--theme-500] hover:bg-slate-200"><Contact size={18} /></button></Tooltip>
+                                                            {canAssign && <Tooltip text={activeWeekStartDate ? `Asignar a la semana del ${format(activeWeekStartDate, 'd MMM', { locale: es })}` : "Asignar horario"}><button onClick={() => setAssignFixedModalInfo({ employeeId: emp.EmpleadoId, employeeName: emp.NombreCompleto || 'Empleado' })} className="p-1 rounded-md text-slate-500 hover:text-[--theme-600] hover:bg-slate-200 transition-colors"><CalendarCheck size={20} /></button></Tooltip>}
                                                         </div>
                                                     </div>
                                                 </div>
                                                 <div className="grid grid-cols-3 gap-x-3 text-xs text-slate-500 mt-1 w-full">
-                                                    <Tooltip text={`ID: ${emp?.CodRef}`}>
-                                                        <p className="font-mono col-span-1 truncate ">ID: {emp?.CodRef}</p>
-                                                    </Tooltip>
-                                                    <Tooltip text={emp?.puesto_descripcion || 'No asignado'}>
-                                                        <p className="col-span-1 flex items-center gap-1.5 truncate "><Briefcase size={12} className="text-slate-400 shrink-0" /><span className="truncate">{emp?.puesto_descripcion || 'No asignado'}</span></p>
-                                                    </Tooltip>
-                                                    <Tooltip text={emp?.departamento_nombre || 'No asignado'}>
-                                                        <p className="col-span-1 flex items-center gap-1.5 truncate "><Building size={12} className="text-slate-400 shrink-0" /><span className="truncate">{emp?.departamento_nombre || 'No asignado'}</span></p>
-                                                    </Tooltip>
+                                                    <Tooltip text={`ID: ${emp?.CodRef}`}><p className="font-mono col-span-1 truncate ">ID: {emp?.CodRef}</p></Tooltip>
+                                                    <Tooltip text={emp?.puesto_descripcion || 'No asignado'}><p className="col-span-1 flex items-center gap-1.5 truncate "><Briefcase size={12} className="text-slate-400 shrink-0" /><span className="truncate">{emp?.puesto_descripcion || 'No asignado'}</span></p></Tooltip>
+                                                    <Tooltip text={emp?.departamento_nombre || 'No asignado'}><p className="col-span-1 flex items-center gap-1.5 truncate "><Building size={12} className="text-slate-400 shrink-0" /><span className="truncate">{emp?.departamento_nombre || 'No asignado'}</span></p></Tooltip>
                                                 </div>
                                             </div>
                                         </div>
@@ -612,12 +574,17 @@ export const SchedulePage = () => {
                                     {dateRange.map((day, dayIndex) => {
                                         const cellId = `${emp.EmpleadoId}-${dayIndex}`;
                                         const scheduleData = emp?.HorariosAsignados?.find((h: any) => h.Fecha === format(day, 'yyyy-MM-dd'));
+
+                                        // --- AQUÍ EL CAMBIO CLAVE ---
+                                        // Buscamos si existe ficha para este día y extraemos su estado
+                                        const fichaExistente = emp?.FichasExistentes?.find((f: any) => f.Fecha === format(day, 'yyyy-MM-dd'));
+                                        const fichaStatus = fichaExistente?.Estado; // 'BLOQUEADO', 'VALIDADO', 'BORRADOR', etc.
+                                        // ----------------------------
+
                                         const isMonday = getDayOfWeek(day) === 1;
                                         const isFirstDay = dayIndex === 0;
                                         let tdClasses = "align-top border-b border-slate-100";
-                                        if (isMonday && !isFirstDay) {
-                                            tdClasses += ' border-l-2 border-slate-300';
-                                        }
+                                        if (isMonday && !isFirstDay) tdClasses += ' border-l-2 border-slate-300';
                                         const horarioDefault = scheduleCatalog.find(h => h.HorarioId === emp.HorarioDefaultId);
                                         const isRotativoEmployee = horarioDefault?.EsRotativo === true;
 
@@ -636,6 +603,9 @@ export const SchedulePage = () => {
                                                 scheduleCatalog={scheduleCatalog} isToday={isTodayDateFns(day)}
                                                 canAssign={canAssign} viewMode={viewMode} className={tdClasses}
                                                 isRotativoEmployee={isRotativoEmployee}
+
+                                                // --- PASAMOS LA NUEVA PROP ---
+                                                existingFichaStatus={fichaStatus}
                                             />
                                         );
                                     })}
@@ -676,6 +646,27 @@ export const SchedulePage = () => {
                 employeeName={assignFixedModalInfo?.employeeName || ''} fixedSchedules={fixedSchedules}
                 onAssign={handleAssignFixedToWeek} targetWeekLabel={activeWeekStartDate ? getActiveWeekLabel() : "Asignar a semana..."}
             />
+
+            {/* --- CONFIRMATION MODAL --- */}
+            <ConfirmationModal
+                isOpen={isConfirmModalOpen}
+                onClose={() => {
+                    setIsConfirmModalOpen(false);
+                    setPendingUpdates([]);
+                }}
+                onConfirm={handleConfirmRegenerate}
+                title="Advertencia de Conflictos"
+                confirmText="Regenerar Fichas"
+                variant="warning"
+            >
+                <p className="font-medium text-slate-800 mb-3">{confirmMessage || "Existen fichas ya validadas."}</p>
+                <ul className="list-disc list-inside space-y-1 text-slate-600">
+                    <li>Se detectaron fichas que ya fueron <strong>validadas</strong>.</li>
+                    <li>Si continúas, estas fichas se <strong>regenerarán</strong> con el nuevo horario.</li>
+                    <li>Cualquier ajuste manual  <strong>se perderá</strong>.</li>
+                </ul>
+                <p className="mt-4 text-sm font-semibold text-amber-700">¿Deseas sobrescribir estos datos?</p>
+            </ConfirmationModal>
         </div>
     );
 };

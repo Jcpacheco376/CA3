@@ -16,29 +16,41 @@ exports.getDataByRange = exports.saveAttendance = void 0;
 const mssql_1 = __importDefault(require("mssql"));
 const database_1 = require("../../config/database");
 const saveAttendance = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    // Validar permiso
+    // 1. Validar Permiso
     if (!req.user.permissions['reportesAsistencia.assign']) {
         return res.status(403).json({ message: 'No tienes permiso para registrar la asistencia.' });
     }
-    // estatusManual ahora puede ser null/undefined para la acción de "Deshacer"
+    // 2. Obtener datos del Body
+    // estatusManual puede ser null (para deshacer/limpiar)
     const { empleadoId, fecha, estatusManual, comentarios } = req.body;
     if (!empleadoId || !fecha) {
         return res.status(400).json({ message: 'Faltan parámetros requeridos (empleado, fecha).' });
     }
     try {
         const pool = yield mssql_1.default.connect(database_1.dbConfig);
-        yield pool.request()
+        // 3. Ejecutar SP
+        const result = yield pool.request()
             .input('EmpleadoId', mssql_1.default.Int, empleadoId)
             .input('Fecha', mssql_1.default.Date, new Date(fecha))
-            .input('EstatusManualAbrev', mssql_1.default.NVarChar, estatusManual || null) // Enviamos NULL si no hay estatus
+            .input('EstatusManualAbrev', mssql_1.default.NVarChar, estatusManual || null) // Null si es deshacer
             .input('Comentarios', mssql_1.default.NVarChar, comentarios || null)
             .input('UsuarioId', mssql_1.default.Int, req.user.usuarioId)
             .execute('sp_FichasAsistencia_SaveManual');
+        // 4. Capturar la Ficha Actualizada (Sincronización Bidireccional)
+        // El SP ahora hace un SELECT al final con el estado real (incluyendo IncidenciaActivaId)
+        const updatedFicha = result.recordset && result.recordset.length > 0 ? result.recordset[0] : null;
         const action = estatusManual ? 'guardado' : 'restaurado';
-        res.status(200).json({ message: `Registro ${action} con éxito.` });
+        res.status(200).json({
+            message: `Registro ${action} con éxito.`,
+            data: updatedFicha // <--- ESTO ES LO QUE LEERÁ EL FRONTEND
+        });
     }
     catch (err) {
         console.error('Error al guardar registro manual:', err);
+        // Manejo de errores específicos de SQL (ej. Bloqueo)
+        if (err.message && err.message.includes('CERRADO')) {
+            return res.status(409).json({ message: err.message }); // 409 Conflict
+        }
         res.status(500).json({ message: err.message || 'Error al guardar el registro.' });
     }
 });
