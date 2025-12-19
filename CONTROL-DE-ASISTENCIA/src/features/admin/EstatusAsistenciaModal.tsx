@@ -34,15 +34,16 @@ export const EstatusAsistenciaModal = ({ isOpen, onClose, onSave, status }: { is
     useEffect(() => {
         if (isOpen) {
             if (status) {
-                // Aseguramos que los nombres coincidan con la BD
-                setFormData({ ...status, Esdefault: status.Esdefault });
+                // Al editar, simplemente usamos el objeto que llega.
+                // La propiedad 'Esdefault' ya viene en el objeto 'status'.
+                setFormData(status);
             } else {
                 setFormData({
                     Abreviatura: '', Descripcion: '', ColorUI: 'slate', ValorNomina: 1.00,
                     VisibleSupervisor: true, Activo: true, Tipo: 'Incidencia',
                     EsFalta: false, EsRetardo: false, EsDescanso: false, EsEntradaSalidaIncompleta: false,
                     EsAsistencia: false, DiasRegistroFuturo: 0, PermiteComentario: false,
-                    EsPredeterminado: false // Inicializar correctamente
+                    Esdefault: false // Corregido: El nombre de la propiedad debe ser consistente.
                 });
             }
         }
@@ -134,7 +135,7 @@ export const EstatusAsistenciaModal = ({ isOpen, onClose, onSave, status }: { is
                         <Tooltip text="Valor para el cálculo de nómina. 1.0 = día completo, 0.5 = medio día, 0.0 = sin goce.">
                             <label className="block text-sm font-medium text-slate-700">Valor Nómina</label>
                         </Tooltip>
-                        <input type="number" name="ValorNomina" value={formData.ValorNomina ?? 0} onChange={handleChange} className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[--theme-500]" step="0.01" />
+                        <input type="number" name="ValorNomina" value={formData.ValorNomina ?? 0} onChange={handleChange} className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[--theme-500]" step="1.00" />
                     </div>
                 </div>
 
@@ -211,9 +212,9 @@ export const EstatusAsistenciaModal = ({ isOpen, onClose, onSave, status }: { is
                                 <span className={`font-bold text-sm ${formData.Esdefault ? 'text-indigo-900' : 'text-slate-700'}`}>
                                     Valor Predeterminado del Sistema                                     
                                 </span>    
-                                <Toggle enabled={formData.Esdefault || false} onChange={(val) => handleToggleChange('Esdefault', val)} />                          
+                                <Toggle enabled={formData.Esdefault || false} onChange={(val) => handleToggleChange('Esdefault', val)} />
                             </div>
-                            <span className={`text-xs leading-relaxed ${formData.Esdefault ? 'text-indigo-700' : 'text-slate-500'}`}>
+                            <span className={`text-xs leading-relaxed mt-1 ${formData.Esdefault ? 'text-indigo-700' : 'text-slate-500'}`}>
                                 Si activas esto, el sistema usará este estatus automáticamente cuando detecte el evento marcado arriba (ej. Falta). Solo puede haber uno por tipo.
                             </span>
                         </div>

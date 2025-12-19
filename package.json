@@ -7,7 +7,7 @@
     "CONTROL-DE-ASISTENCIA-API"
   ],
   "scripts": {
-    "deploy:local": "npm run build:all && deploy.bat",
+    "deploy:local": "node scripts/increment-version.js && npm run build:all && deploy.bat",
     "deploy:local2": "npm run build:all && deploy_CA.bat",
     "build:api": "tsc -p CONTROL-DE-ASISTENCIA-API/tsconfig.json",
     "build": "npm run build --workspace=CONTROL-DE-ASISTENCIA",
