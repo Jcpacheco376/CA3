@@ -313,6 +313,7 @@ export const KardexReportPage = () => {
                     viewMode={viewMode} setViewMode={setViewMode} rangeLabel={rangeLabel}
                     handleDatePrev={handleDatePrev} handleDateNext={handleDateNext}
                     currentDate={currentDate} onDateChange={setCurrentDate}
+                    showSearch={true} 
                 />
             </div>
 

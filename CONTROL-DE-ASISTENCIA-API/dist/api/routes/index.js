@@ -12,8 +12,9 @@ const catalog_routes_1 = __importDefault(require("./catalog.routes"));
 const attendance_routes_1 = __importDefault(require("./attendance.routes"));
 const employee_routes_1 = __importDefault(require("./employee.routes"));
 const schedule_routes_1 = __importDefault(require("./schedule.routes"));
-const report_routes_1 = __importDefault(require("./report.routes")); // <-- Importar
-const incidents_routes_1 = __importDefault(require("./incidents.routes")); // <-- 1. Importar
+const report_routes_1 = __importDefault(require("./report.routes"));
+const incidents_routes_1 = __importDefault(require("./incidents.routes"));
+const payroll_routes_1 = __importDefault(require("./payroll.routes"));
 const router = (0, express_1.Router)();
 router.use('/auth', auth_routes_1.default);
 router.use('/users', user_routes_1.default);
@@ -22,6 +23,7 @@ router.use('/catalogs', catalog_routes_1.default);
 router.use('/attendance', attendance_routes_1.default);
 router.use('/employees', employee_routes_1.default);
 router.use('/schedules', schedule_routes_1.default);
-router.use('/reports', report_routes_1.default); // <-- Registrar
+router.use('/reports', report_routes_1.default);
 router.use('/incidents', incidents_routes_1.default);
+router.use('/payroll', payroll_routes_1.default);
 exports.default = router;

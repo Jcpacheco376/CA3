@@ -4,7 +4,7 @@ import { Permission } from '../types';
 // --- MODIFICACIÓN: Importamos todos los íconos necesarios ---
 import { 
     Users, Settings, FileText, Folder, PlusCircle, Pencil, Trash, Eye, 
-    Check, CalendarClock, Building, Clock, Briefcase, Tag, MapPin 
+    Check, CalendarClock, Building, Clock, Briefcase, Tag, MapPin, Lock,Unlock
 } from 'lucide-react';
 
 // --- MODIFICACIÓN: Etiquetas de Recurso actualizadas ---
@@ -19,6 +19,7 @@ const resourceLabels: { [key: string]: string } = {
     'catalogo.horarios': 'Catálogo: Horarios',
     'catalogo.puestos': 'Catálogo: Puestos',
     'catalogo.establecimientos': 'Catálogo: Establecimientos',
+    'nomina': 'Gestión de Nómina',
 };
 
 // --- MODIFICACIÓN: Etiquetas de Acción actualizadas a tu DB ---
@@ -29,7 +30,8 @@ const actionLabels: { [key: string]: string } = {
     'delete': 'Eliminar',
     'assign': 'Asignar / Modificar', // (usado por 'horarios' y 'reportesAsistencia')
     'approve': 'Aprobar',
-    'manage': 'Administrar' // (usado por 'roles' y 'catalogos')
+    'manage': 'Administrar',
+    'unlock': 'Desbloquear Periodos'
 };
 
 // --- MODIFICACIÓN: Iconos de Recurso (para el modal de roles) ---
@@ -44,6 +46,7 @@ export const permissionIcons: { [key: string]: JSX.Element } = {
     'catalogo.horarios': <Clock size={18} />,
     'catalogo.puestos': <Tag size={18} />,
     'catalogo.establecimientos': <MapPin size={18} />,
+    'nomina': <Lock size={18} />, 
     'default': <Folder size={18} />
 };
 
@@ -53,10 +56,11 @@ export const actionIcons: { [key: string]: JSX.Element } = {
     'read': <Eye size={16} />,
     'update': <Pencil size={16} />,
     'delete': <Trash size={16} />,
-    'assign': <Pencil size={16}/>, // 'assign' ahora usa el lápiz, igual que 'update'
+    'assign': <Pencil size={16}/>, 
     'approve': <Check size={16}/>,
     'manage': <Settings size={16} />,
-    'default': <Check size={16} /> // Un ícono por defecto
+    'unlock': <Unlock size={16} />, 
+    'default': <Check size={16} />
 };
 
 const getParts = (permissionName: string) => {

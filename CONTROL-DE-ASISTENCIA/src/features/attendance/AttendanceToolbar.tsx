@@ -20,6 +20,7 @@ export interface FilterConfig {
     selectedValues: (string | number)[];
     onChange: (newSelectedValues: (string | number)[]) => void;
     isActive: boolean; 
+    selectionMode?: 'multiple' | 'single'; // <-- Nueva propiedad opcional
 }
 
 interface AttendanceToolbarProps {
@@ -34,6 +35,7 @@ interface AttendanceToolbarProps {
     // Nuevas props para el DatePicker
     currentDate: Date; // Necesitamos saber la fecha actual para inicializar el calendario
     onDateChange: (date: Date) => void; // Para actualizar la fecha desde el calendario
+    showSearch?: boolean; // <-- Nueva propiedad opcional para mostrar/ocultar el buscador
 }
 
 export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
@@ -46,7 +48,8 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
     handleDatePrev,
     handleDateNext,
     currentDate,   // <-- Nuevo
-    onDateChange   // <-- Nuevo
+    onDateChange,   // <-- Nuevo
+    showSearch = true // <-- Por defecto es true para no romper otras pantallas
 }) => {
 
  return (
@@ -55,13 +58,15 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
                 
                 {/* SECCIÓN IZQUIERDA: Búsqueda y Filtros */}
                 <div className="flex items-center gap-2 w-full lg:w-auto flex-wrap">
-                    <Tooltip text="Busca por nombre, apellido o ID de empleado.">
-                         <div className="relative flex-grow lg:flex-grow-0">
-                            <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                            <input type="text" placeholder="Buscar empleado..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-                                className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[--theme-500] lg:min-w-[240px] text-sm"/>
-                        </div>
-                    </Tooltip>
+                    {showSearch && (
+                        <Tooltip text="Busca por nombres, apellido o ID de empleado.">
+                             <div className="relative flex-grow lg:flex-grow-0">
+                                <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+                                <input type="text" placeholder="Buscar empleado..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+                                    className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[--theme-500] lg:min-w-[240px] text-sm"/>
+                            </div>
+                        </Tooltip>
+                    )}
 
                     {filterConfigurations.map(config => (
                         (config.isActive && config.options.length > 0) && (
@@ -72,6 +77,7 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
                                 options={config.options}
                                 selectedValues={config.selectedValues}
                                 onChange={config.onChange}
+                                selectionMode={config.selectionMode} // <-- Pasamos la propiedad
                             />
                         )
                     ))}

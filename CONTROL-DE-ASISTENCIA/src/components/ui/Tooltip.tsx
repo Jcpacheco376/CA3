@@ -31,6 +31,13 @@ export const Tooltip = ({
     const targetRef = useRef<HTMLSpanElement>(null);
     const timerRef = useRef<number | null>(null);
 
+    // Limpieza de temporizadores al desmontar para evitar fugas de memoria
+    useEffect(() => {
+        return () => {
+            if (timerRef.current) clearTimeout(timerRef.current);
+        };
+    }, []);
+
     const handleMouseEnter = () => {
         if (disabled) return;
         timerRef.current = window.setTimeout(() => {
@@ -84,7 +91,7 @@ export const Tooltip = ({
 
     const tooltipContent = (
         <div
-            className={`fixed bg-slate-800 text-white text-xs rounded-md p-2 shadow-lg transition-opacity duration-200 ${getTooltipPositionClasses()} ${visible && !disabled ? 'opacity-100' : 'opacity-0'} ${className || ''}`}
+            className={`fixed bg-slate-800 text-white text-xs rounded-md p-2 shadow-lg z-50 ${getTooltipPositionClasses()} ${className || ''}`}
             style={{ top: position.top, left: position.left, pointerEvents: 'none', zIndex }} // <-- zIndex aplicado aquí
         >
             {text}
@@ -118,8 +125,8 @@ export const Tooltip = ({
     return (
         <>
             {target}
-            {ReactDOM.createPortal(tooltipContent, document.getElementById('portal-root-tooltip')!)}
+            {/* Solo renderizamos el portal si es visible, ahorrando miles de nodos DOM */}
+            {(visible && !disabled) && ReactDOM.createPortal(tooltipContent, document.getElementById('portal-root-tooltip')!)}
         </>
     );
 };
-

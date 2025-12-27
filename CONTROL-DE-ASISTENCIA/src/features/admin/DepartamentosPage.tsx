@@ -76,7 +76,7 @@ export const DepartamentosPage = () => {
         const lowercasedFilter = searchTerm.toLowerCase();
         return data.filter(item =>
             (item.Nombre?.toLowerCase().includes(lowercasedFilter)) ||
-            (item.DepartamentoId?.toLowerCase().includes(lowercasedFilter))
+            (item.DepartamentoId?.toString().toLowerCase().includes(lowercasedFilter))
         );
     }, [data, searchTerm]);
 
@@ -167,4 +167,3 @@ export const DepartamentosPage = () => {
         </div>
     );
 };
-

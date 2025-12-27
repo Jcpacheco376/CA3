@@ -5,7 +5,7 @@ import { API_BASE_URL } from '../../config/api';
 import { useNotification } from '../../context/NotificationContext';
 
 const SESSION_STORAGE_KEY = 'app_session';
-export const APP_DATA_VERSION = '0.9.2'; 
+export const APP_DATA_VERSION = '0.9.3'; 
 
 // --- NUEVO: Constantes para limpieza inteligente ---
 const LAST_USER_KEY = 'app_last_logged_user';
