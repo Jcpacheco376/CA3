@@ -12,7 +12,8 @@ import { NotificationProvider } from './context/NotificationContext';
 function AppContent() {
     const auth = useAuth();
     const [theme, setTheme] = useState(auth.user?.Theme || 'indigo');
-    const [activeView, setActiveView] = useState<View>('attendance_weekly');
+    // CAMBIO IMPORTANTE: Estado inicial es 'dashboard'
+    const [activeView, setActiveView] = useState<View>('dashboard');
     
     useEffect(() => {
         setTheme(auth.user?.Theme || 'indigo');
@@ -20,21 +21,16 @@ function AppContent() {
 
     const themeColors = themes[theme] || themes.indigo;
 
-    // --- SOLUCIÓN AL PROBLEMA DE COLORES EN PORTALES ---
-    // Aplicamos las variables CSS al :root (html) para que estén disponibles
-    // GLOBALMENTE, incluyendo Modales, Popovers y DateRangePicker que usan Portals.
     useEffect(() => {
         const root = document.documentElement;
         Object.entries(themeColors).forEach(([key, value]) => {
             root.style.setProperty(`--theme-${key}`, value);
         });
         
-        // Limpieza opcional (no estrictamente necesaria en SPA, pero buena práctica)
         return () => {
             // No removemos las variables para evitar parpadeos al desmontar
         };
     }, [themeColors]);
-    // --- FIN DE LA SOLUCIÓN ---
     
     const handleSetTheme = (newTheme: string) => {
         if (!auth.user) return;
@@ -46,13 +42,11 @@ function AppContent() {
     }
     
     if (auth.user.DebeCambiarPassword) {
-        // Ya no necesitamos el style={{...}} aquí
         return (
              <ForcePasswordChangeModal user={auth.user} />
         );
     }
 
-    // Ya no necesitamos el style={{...}} aquí tampoco
     return (
         <MainLayout 
             user={auth.user}

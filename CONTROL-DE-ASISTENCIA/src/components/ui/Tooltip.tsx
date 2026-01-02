@@ -1,3 +1,4 @@
+// src/components/ui/Tooltip.tsx
 import React, { useState, useRef, useEffect } from 'react'; // <--- Añadido useEffect aquí
 import ReactDOM from 'react-dom';
 
@@ -15,7 +16,8 @@ export const Tooltip = ({
     delay = 100,
     zIndex = 50, // <-- Nueva propiedad zIndex
     disabled = false,
-    className
+    className,
+    withArrow = false // Nueva propiedad para la "colita"
 }: { 
     text: React.ReactNode; 
     children: React.ReactNode; 
@@ -24,7 +26,8 @@ export const Tooltip = ({
     delay?: number,
     zIndex?: number, // <-- Nueva propiedad zIndex
     disabled?: boolean,
-    className?: string
+    className?: string,
+    withArrow?: boolean
 }) => {
     const [visible, setVisible] = useState(false);
     const [position, setPosition] = useState({ top: 0, left: 0 });
@@ -83,6 +86,18 @@ export const Tooltip = ({
         }
     }
 
+    const getArrowClasses = () => {
+        if (!withArrow) return '';
+        const base = "before:content-[''] before:absolute before:border-[6px] before:border-transparent";
+        switch (placement) {
+            case 'top': return `${base} before:top-full before:left-1/2 before:-translate-x-1/2 before:border-t-slate-800`;
+            case 'bottom': return `${base} before:bottom-full before:left-1/2 before:-translate-x-1/2 before:border-b-slate-800`;
+            case 'left': return `${base} before:left-full before:top-1/2 before:-translate-y-1/2 before:border-l-slate-800`;
+            case 'right': return `${base} before:right-full before:top-1/2 before:-translate-y-1/2 before:border-r-slate-800`;
+            default: return '';
+        }
+    }
+
     const target = (
         <span ref={targetRef} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
             {children}
@@ -91,7 +106,7 @@ export const Tooltip = ({
 
     const tooltipContent = (
         <div
-            className={`fixed bg-slate-800 text-white text-xs rounded-md p-2 shadow-lg z-50 ${getTooltipPositionClasses()} ${className || ''}`}
+            className={`fixed bg-slate-800 text-white text-xs rounded-md p-2 shadow-lg z-50 ${getTooltipPositionClasses()} ${getArrowClasses()} ${className || ''}`}
             style={{ top: position.top, left: position.left, pointerEvents: 'none', zIndex }} // <-- zIndex aplicado aquí
         >
             {text}

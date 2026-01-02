@@ -37,7 +37,7 @@ export const saveAttendance = async (req: any, res: Response) => {
 
         res.status(200).json({ 
             message: `Registro ${action} con éxito.`,
-            data: updatedFicha // <--- ESTO ES LO QUE LEERÁ EL FRONTEND
+            data: updatedFicha 
         });
 
     } catch (err: any) {

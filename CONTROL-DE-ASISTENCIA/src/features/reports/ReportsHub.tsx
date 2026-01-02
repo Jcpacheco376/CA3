@@ -29,6 +29,7 @@ const ReportCard = ({ title, description, icon, onClick, disabled = false }: any
 );
 
 export const ReportsHub = ({ setActiveView }: { setActiveView: (view: any) => void }) => {
+    const { can } = useAuth();
 
     return (
         <div>
@@ -40,51 +41,65 @@ export const ReportsHub = ({ setActiveView }: { setActiveView: (view: any) => vo
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 
                 {/* GRUPO: OPERATIVOS */}
-                <div className="col-span-full pb-2 border-b border-slate-200 mb-2">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Operativos</h4>
-                </div>
+                {(can('reportes.kardex.read') || can('reportes.lista_asistencia.read')) && (
+                    <div className="col-span-full pb-2 border-b border-slate-200 mb-2">
+                        <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Operativos</h4>
+                    </div>
+                )}
 
-                <ReportCard
-                    title="Kardex de Asistencia"
-                    description="Historial detallado de asistencia por empleado en un periodo."
-                    icon={<ClipboardList />}
-                    onClick={() => setActiveView('report_kardex')}
-                />
+                {can('reportes.kardex.read') && (
+                    <ReportCard
+                        title="Kardex de Asistencia"
+                        description="Historial detallado de asistencia por empleado en un periodo."
+                        icon={<ClipboardList />}
+                        onClick={() => setActiveView('report_kardex')}
+                    />
+                )}
                 
-                <ReportCard
-                    title="Lista de Asistencia"
-                    description="Resumen diario de asistencia (quién vino y quién no)."
-                    icon={<FileText />}
-                    onClick={() => setActiveView('report_attendance_list')}
-                    disabled={false} 
-                />
+                {can('reportes.lista_asistencia.read') && (
+                    <ReportCard
+                        title="Lista de Asistencia"
+                        description="Resumen diario de asistencia (quién vino y quién no)."
+                        icon={<FileText />}
+                        onClick={() => setActiveView('report_attendance_list')}
+                        disabled={false} 
+                    />
+                )}
 
                 {/* GRUPO: NÓMINA Y CONTROL */}
-                <div className="col-span-full pb-2 border-b border-slate-200 mb-2 mt-4">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nómina</h4>
-                </div>
+                {can('reportes.prenomina.read') && (
+                    <>
+                        <div className="col-span-full pb-2 border-b border-slate-200 mb-2 mt-4">
+                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Nómina</h4>
+                        </div>
 
-                {/* Se eliminó la tarjeta de Control de Incidencias de aquí */}
-                <ReportCard
-                    title="Prenómina"
-                    description="Cálculo final de horas y conceptos para pago. Requiere validación de incidencias."
-                    icon={<Banknote />}
-                    onClick={() => console.log("TODO")}
-                    disabled={true}
-                />
+                        {/* Se eliminó la tarjeta de Control de Incidencias de aquí */}
+                        <ReportCard
+                            title="Prenómina"
+                            description="Cálculo final de horas y conceptos para pago. Requiere validación de incidencias."
+                            icon={<Banknote />}
+                            onClick={() => console.log("TODO")}
+                            disabled={true}
+                        />
+                    </>
+                )}
 
                 {/* GRUPO: AUDITORÍA */}
-                <div className="col-span-full pb-2 border-b border-slate-200 mb-2 mt-4">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Auditoría</h4>
-                </div>
+                {can('reportes.bitacora.read') && (
+                    <>
+                        <div className="col-span-full pb-2 border-b border-slate-200 mb-2 mt-4">
+                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Auditoría</h4>
+                        </div>
 
-                <ReportCard
-                    title="Bitácora de Cambios"
-                    description="Historial de modificaciones manuales realizadas en Registro de Asistencia."
-                    icon={<History />}
-                    onClick={() => console.log("TODO")}
-                    disabled={true}
-                />
+                        <ReportCard
+                            title="Bitácora de Cambios"
+                            description="Historial de modificaciones manuales realizadas en Registro de Asistencia."
+                            icon={<History />}
+                            onClick={() => console.log("TODO")}
+                            disabled={true}
+                        />
+                    </>
+                )}
             </div>
         </div>
     );

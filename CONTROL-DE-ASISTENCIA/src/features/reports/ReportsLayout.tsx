@@ -1,5 +1,6 @@
 // src/features/reports/ReportsLayout.tsx
 import React from 'react';
+import { useAuth } from '../auth/AuthContext';
 import { View } from '../../types';
 import { ArrowLeft, ClipboardList, AlertTriangle, FileText } from 'lucide-react'; // <-- Importar FileText
 import { Tooltip } from '../../components/ui/Tooltip';
@@ -14,12 +15,14 @@ const TabButton = ({ icon, label, isActive, onClick }: { icon: React.ReactNode, 
 );
 
 export const ReportsLayout = ({ activeView, setActiveView }: { activeView: View, setActiveView: (view: View) => void }) => {
-    const reportTabs = [
-        { id: 'report_kardex', label: 'Kardex Asistencia', icon: <ClipboardList size={18} />, component: <KardexReportPage /> },
-        { id: 'report_attendance_list', label: 'Lista de Asistencia', icon: <FileText size={18} />, component: <AttendanceListReportPage /> },
-    ];
+    const { can } = useAuth();
 
-    const activeTab = reportTabs.find(tab => tab.id === activeView);
+    const reportTabs = [
+        can('reportes.kardex.read') && { id: 'report_kardex', label: 'Kardex Asistencia', icon: <ClipboardList size={18} />, component: <KardexReportPage /> },
+        can('reportes.lista_asistencia.read') && { id: 'report_attendance_list', label: 'Lista de Asistencia', icon: <FileText size={18} />, component: <AttendanceListReportPage /> },
+    ].filter(Boolean);
+
+    const activeTab = reportTabs.find((tab: any) => tab.id === activeView);
     const pageTitle = activeTab?.label || 'Reportes';
 
     return (
@@ -33,8 +36,8 @@ export const ReportsLayout = ({ activeView, setActiveView }: { activeView: View,
                 </div>
             </header>
             <nav className="flex items-center border-b border-slate-200 -mt-2 overflow-x-auto">
-                {reportTabs.map(tab => (
-                    <TabButton key={tab.id} label={tab.label} icon={tab.icon} isActive={activeView === tab.id} onClick={() => setActiveView(tab.id as View)} />
+                {reportTabs.map((tab: any) => (
+                    <TabButton key={tab.id} label={tab.label} icon={tab.icon} isActive={activeView === tab.id} onClick={() => setActiveView(tab.id)} />
                 ))}
             </nav>
             <div className="mt-6">{activeTab?.component || <div className="p-8 text-center text-slate-500">Seleccione un reporte.</div>}</div>

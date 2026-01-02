@@ -10,13 +10,16 @@ import { CatalogosPage } from '../../features/admin/CatalogosPage';
 import { UserProfileModal } from '../../features/auth/UserProfileModal';
 import { ProfessionalSidebar } from './ProfessionalSidebar';
 import { AppHeader } from './AppHeader';
-import { BarChartBig, Users, Settings, Folder, FileText, CalendarClock, AlertTriangle, Lock } from 'lucide-react';
+import { 
+    BarChartBig, Users, Settings, Folder, FileText, CalendarClock, 
+    AlertTriangle, Lock, LayoutDashboard 
+} from 'lucide-react';
 import { SchedulePage } from '../../features/attendance/SchedulePage';
 import { ReportsHub } from '../../features/reports/ReportsHub';
 import { ReportsLayout } from '../../features/reports/ReportsLayout';
 import { IncidentsControlPage } from '../../features/reports/pages/IncidentsControlPage';
 import PayrollClosingPage from '../../features/payroll/PayrollClosingPage';
-
+import { DashboardPage } from '../../features/dashboard/DashboardPage';
 
 interface MainLayoutProps {
     user: User;
@@ -35,7 +38,8 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
         {
             section: 'Principal',
             items: [
-                { id: 'attendance_weekly', label: 'Registro de Asistencia', icon: <BarChartBig size={20} /> },
+                { id: 'dashboard', label: 'Inicio', icon: <LayoutDashboard size={20} /> },
+                can('reportesAsistencia.read') && { id: 'attendance_weekly', label: 'Registro de Asistencia', icon: <BarChartBig size={20} /> },
 
                 can('reportesAsistencia.read') && {
                     id: 'report_incidencias',
@@ -44,7 +48,10 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
                 },
 
                 can('horarios.read') && { id: 'schedule_planner', label: 'Programador de Horarios', icon: <CalendarClock size={20} /> },
-                { id: 'attendance_reports', label: 'Reportes', icon: <FileText size={20} /> },
+                (can('reportes.kardex.read') || can('reportes.lista_asistencia.read') || can('reportes.prenomina.read') || can('reportes.bitacora.read')) && {
+                    id: 'attendance_reports',
+                    label: 'Reportes', icon: <FileText size={20} />
+                },
             ].filter(Boolean)
         },
         (can('usuarios.read') || can('roles.manage') || can('catalogo.departamentos.read') || can('catalogo.gruposNomina.read') || can('catalogo.estatusAsistencia.read') || can('catalogo.horarios.read') || can('catalogo.establecimientos.read') || can('catalogo.puestos.read')) && {
@@ -63,22 +70,19 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
                     label: 'Cierre de Periodo',
                     icon: <Lock size={20} />
                 }
-            ] // No necesitamos filter(Boolean) aquí porque es un array estático simple si entramos al if
+            ]
         },
     ].filter(Boolean);
+    
     const renderContent = () => {
         switch (activeView) {
-            // Módulos Principales
+            case 'dashboard': return <DashboardPage setActiveView={setActiveView} />;
             case 'attendance_weekly': return <AttendancePage />;
             case 'schedule_planner': return <SchedulePage />;
             case 'report_incidencias': return <IncidentsControlPage />;
-
-            // Administración
             case 'admin_users': return <UsersPage />;
             case 'admin_roles': return <RolesPage />;
             case 'admin_catalogs': return <CatalogosPage setActiveView={setActiveView} />;
-
-            // Catálogos
             case 'admin_departamentos':
             case 'admin_grupos_nomina':
             case 'admin_estatus_asistencia':
@@ -86,19 +90,17 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
             case 'admin_establecimientos':
             case 'admin_puestos':
                 return <CatalogLayout activeView={activeView} setActiveView={setActiveView} />;
-
-            // Reportes (Hub)
             case 'attendance_reports':
-                return <ReportsHub setActiveView={setActiveView} />;
-
-            // Reportes (Layout Específico)
+                return <ReportsHub setActiveView={setActiveView} />; // El Hub debe tener sus propios permisos internos para cada tarjeta/link
             case 'report_kardex':
+                if (!can('reportes.kardex.read')) return <DashboardPage setActiveView={setActiveView} />;
+                return <ReportsLayout activeView={activeView} setActiveView={setActiveView} />;
             case 'report_attendance_list':
+                if (!can('reportes.lista_asistencia.read')) return <DashboardPage setActiveView={setActiveView} />;
                 return <ReportsLayout activeView={activeView} setActiveView={setActiveView} />;
             case 'payroll_closing':
                 return <PayrollClosingPage />;
-
-            default: return <AttendancePage />;
+            default: return <DashboardPage setActiveView={setActiveView} />;
         }
     };
 
@@ -112,7 +114,7 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
             />
             <div className="flex-1 flex flex-col overflow-hidden">
                 <AppHeader user={user} onProfileClick={() => setIsProfileModalOpen(true)} themeColors={themeColors} />
-                <main className="flex-1 p-8 text-slate-900 overflow-y-auto">
+                <main className="flex-1 p-4 md:p-8 text-slate-900 overflow-y-auto">
                     {renderContent()}
                 </main>
             </div>

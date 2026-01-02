@@ -1,19 +1,20 @@
 // src/types/index.ts
 
 // AÑADIMOS LAS NUEVAS VISTAS DE ADMINISTRACIÓN
-export type View = 
-    'attendance_weekly' | 
-    'attendance_reports' | 
-    'report_kardex' | 
+export type View =
+    'dashboard' |
+    'attendance_weekly' |
+    'attendance_reports' |
+    'report_kardex' |
     'report_incidencias' |
-    'employees' | 
-    'admin_users' | 
+    'employees' |
+    'admin_users' |
     'admin_roles' |
-    'admin_catalogs' | 
+    'admin_catalogs' |
     'admin_departamentos' |
-    'admin_grupos_nomina' | 
-    'admin_puestos' |         
-    'admin_establecimientos' | 
+    'admin_grupos_nomina' |
+    'admin_puestos' |
+    'admin_establecimientos' |
     'admin_estatus_asistencia' |
     'admin_horarios' |
     'schedule_planner';
@@ -29,15 +30,15 @@ export interface ActiveFilters {
 }
 
 // ... (El resto de las interfaces User, Role, etc., se mantienen sin cambios)
-export interface User { 
+export interface User {
     UsuarioId: number;
-    NombreUsuario: string; 
-    NombreCompleto: string; 
+    NombreUsuario: string;
+    NombreCompleto: string;
     Email: string;
     EstaActivo: boolean;
     Roles: Role[];
-    Departamentos?: { DepartamentoId: string, Nombre: string }[]; 
-    GruposNomina?: { GrupoNominaId: string, Nombre: string }[]; 
+    Departamentos?: { DepartamentoId: string, Nombre: string }[];
+    GruposNomina?: { GrupoNominaId: string, Nombre: string }[];
     Puestos?: { PuestoId: number, Nombre: string }[];
     Establecimientos?: { EstablecimientoId: number, Nombre: string }[];
     permissions?: { [key: string]: string[] };
@@ -53,7 +54,7 @@ export interface Role {
     Descripcion?: string;
     Permisos?: Permission[];
     EsPrincipal?: boolean;
-    
+
 }
 export interface Permission {
     PermisoId: number;
@@ -77,7 +78,7 @@ export interface AttendanceStatus {
     EsEntradaSalidaIncompleta: boolean;
     EsAsistencia: boolean;
     DiasRegistroFuturo: number;
-    PermiteComentario: boolean; 
+    PermiteComentario: boolean;
     Esdefault: boolean;
 }
 export type AttendanceStatusCode = string;

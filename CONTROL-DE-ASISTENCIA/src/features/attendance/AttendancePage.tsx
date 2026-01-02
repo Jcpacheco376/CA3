@@ -778,7 +778,8 @@ const handleBulkStatusChange = useCallback(async (updates: { empleadoId: number,
                                                             </div>
                                                         </div>
                                                        
-                                                            <Tooltip text={isDisabled ? "Nada que aprobar o restaurar" : (showRevertIcon ? "Restaurar semana (Desaprobar todo)" : "Aprobar sugerencias")}>
+                                                            {canAssign && (
+                                                                <Tooltip text={isDisabled ? "Nada que aprobar o restaurar" : (showRevertIcon ? "Restaurar semana (Desaprobar todo)" : "Aprobar sugerencias")}>
                                                                 <button
                                                                     onClick={() => handleWeekAction(emp, showRevertIcon)}
                                                                     disabled={isDisabled}
@@ -796,6 +797,7 @@ const handleBulkStatusChange = useCallback(async (updates: { empleadoId: number,
                                                                     {showRevertIcon ? <RotateCcw size={20} /> : <ClipboardCheck size={20} />}
                                                                 </button>
                                                             </Tooltip>
+                                                            )}
                                                         
                                                     </div>
                                                     <div className="w-full bg-slate-200 rounded-full h-1.5 mt-2"><div className={`h-1.5 rounded-full transition-all duration-200 ${progress === 100 ? 'bg-emerald-500' : 'bg-sky-500'}`} style={{ width: `${progress}%` }}></div></div>

@@ -2,29 +2,39 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronsRight, Menu, LogOut } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext.tsx';
+import { Tooltip } from '../../components/ui/Tooltip.tsx';
 
 const SidebarItem = ({ item, isActive, onClick, isVisible, isCollapsed }: any) => {
     const { animationsEnabled } = useAppContext();
     const textColor = isActive ? 'text-white' : 'text-slate-600 hover:text-slate-800';
     const iconColor = isActive ? 'text-white' : 'text-slate-500 group-hover:text-slate-800';
     
-    return (
+    const itemContent = (
         <div 
             onClick={() => onClick(item.id)} 
-            className={`flex items-center w-full cursor-pointer text-sm font-medium rounded-md group relative ${animationsEnabled ? 'transition-all duration-300 ease-in-out' : ''} ${isVisible ? 'opacity-100' : 'opacity-0'}`} 
+            className={`flex items-center w-full cursor-pointer text-sm font-medium rounded-md group relative ${animationsEnabled ? 'transition-all duration-300 ease-in-out' : ''} ${isVisible ? 'opacity-100' : 'opacity-0'} ${isCollapsed ? 'justify-center' : ''}`} 
             style={{ 
                 transform: isVisible ? 'translateY(0)' : 'translateY(5px)', 
-                paddingLeft: isCollapsed ? '0.625rem' : '1rem', 
+                paddingLeft: isCollapsed ? 0 : '1rem', 
                 height: '44px' 
             }}
         >
-            <div className={`mr-3 shrink-0 ${animationsEnabled ? 'transition-all duration-300 group-hover:scale-110' : ''} ${iconColor} ${isCollapsed ? 'ml-0.5' : ''}`}>
+            <div className={`shrink-0 ${animationsEnabled ? 'transition-all duration-300 group-hover:scale-110' : ''} ${iconColor} ${isCollapsed ? '' : 'mr-3'}`}>
                 {item.icon}
             </div>
             {!isCollapsed && <span className={`flex-grow truncate ${animationsEnabled ? 'transition-colors duration-200' : ''} ${textColor}`}>{item.label}</span>}
-            {isCollapsed && <div className={`absolute left-full rounded-md px-2 py-1 ml-2 bg-[--theme-600] text-white text-sm invisible opacity-20 ${animationsEnabled ? 'transition-all' : ''} group-hover:visible group-hover:opacity-100 whitespace-nowrap z-20`}>{item.label}</div>}
         </div>
     );
+
+    if (isCollapsed) {
+        return (
+            <Tooltip text={item.label} placement="right" withArrow={true}>
+                {itemContent}
+            </Tooltip>
+        );
+    }
+
+    return itemContent;
 };
 
 export const ProfessionalSidebar = ({ onLogout, activeView, setActiveView, menuConfig }: any) => {
@@ -71,9 +81,11 @@ export const ProfessionalSidebar = ({ onLogout, activeView, setActiveView, menuC
             className={`relative h-screen bg-white flex flex-col ${animationsEnabled ? 'transition-all duration-300 ease-in-out' : ''} border-r border-gray-200 ${isCollapsed ? 'w-20' : 'w-72'}`}
         >
             <div className="flex items-center p-4 h-16 border-b border-gray-200 gap-2 shrink-0">
-                 <button onClick={() => setIsAutoCollapse(prev => !prev)} className={`p-2 rounded-md hover:bg-gray-100 ${isAutoCollapse ? 'text-[--theme-500]' : 'text-slate-500'}`} title="Activar/Desactivar menú automático">
-                    <Menu size={20} />
-                </button>
+                <Tooltip text="Activar/Desactivar menú automático" placement="right">
+                    <button onClick={() => setIsAutoCollapse(prev => !prev)} className={`p-2 rounded-md hover:bg-gray-100 ${isAutoCollapse ? 'text-[--theme-500]' : 'text-slate-500'}`}>
+                        <Menu size={20} />
+                    </button>
+                </Tooltip>
                 {!isCollapsed && <h1 className="text-xl font-bold text-slate-800 truncate">Control de Asistencia</h1>}
             </div>
             
@@ -81,7 +93,7 @@ export const ProfessionalSidebar = ({ onLogout, activeView, setActiveView, menuC
                 <ChevronsRight size={20} className={`${animationsEnabled ? 'transition-transform duration-300' : ''} ${isManuallyCollapsed ? '' : 'rotate-180'}`} />
             </button>
 
-            <nav ref={navRef} className="flex-grow p-2 relative overflow-y-auto">
+            <nav ref={navRef} className="flex-grow p-2 relative overflow-y-auto overflow-x-hidden">
                 <div 
                     className={`absolute bg-gradient-to-br from-[--theme-500] to-[--theme-700] rounded-lg shadow-lg shadow-[--theme-500]/30 ${animationsEnabled ? 'transition-all duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)]' : ''}`} 
                     style={{...indicatorStyle, left: isCollapsed ? 4 : 8, right: isCollapsed ? 4 : 8}}
@@ -117,5 +129,3 @@ export const ProfessionalSidebar = ({ onLogout, activeView, setActiveView, menuC
         </aside>
     );
 };
-
-

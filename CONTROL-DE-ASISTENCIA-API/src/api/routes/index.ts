@@ -10,6 +10,7 @@ import scheduleRoutes from './schedule.routes';
 import reportRoutes from './report.routes'; 
 import incidentsRoutes from './incidents.routes'; 
 import payrollRoutes from './payroll.routes';
+import dashboardRoutes from './dashboard.routes'; 
 
 const router = Router();
 
@@ -23,5 +24,6 @@ router.use('/schedules', scheduleRoutes);
 router.use('/reports', reportRoutes);
 router.use('/incidents', incidentsRoutes); 
 router.use('/payroll', payrollRoutes);
+router.use('/dashboard', dashboardRoutes);
 
 export default router;
