@@ -4,6 +4,8 @@ const express_1 = require("express");
 const catalog_controller_1 = require("../controllers/catalog.controller");
 const auth_middleware_1 = require("../middlewares/auth.middleware");
 const router = (0, express_1.Router)();
+//configuración
+router.get('/system-config', auth_middleware_1.authMiddleware, catalog_controller_1.getSystemConfig);
 // Departamentos
 router.get('/departamentos', auth_middleware_1.authMiddleware, catalog_controller_1.getDepartamentos);
 router.get('/departamentos/management', auth_middleware_1.authMiddleware, catalog_controller_1.getDepartamentosManagement);

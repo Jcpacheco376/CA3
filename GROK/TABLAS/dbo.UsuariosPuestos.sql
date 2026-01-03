@@ -1,6 +1,0 @@
-CREATE TABLE [dbo].[UsuariosPuestos] (
-
-[UsuarioId] int NOT NULL,
-[PuestoId] int NOT NULL,
-CONSTRAINT [PK_UsuariosPuestos] PRIMARY KEY CLUSTERED ([UsuarioId] ASC, [PuestoId] ASC) WITH (PAD_INDEX = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY]

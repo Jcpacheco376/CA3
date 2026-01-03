@@ -261,3 +261,23 @@ export const saveEstablecimiento = async (req: any, res: Response) => {
         res.status(201).json({ message: 'Establecimiento guardado con éxito' });
     } catch (err: any) { res.status(500).json({ message: 'Error al guardar el establecimiento.', error: err.message }); }
 };
+// Agrega esto al final de src-API/api/controllers/catalog.controller.ts
+
+export const getSystemConfig = async (req: any, res: Response) => {
+    try {
+        const pool = await sql.connect(dbConfig);
+        // Traemos toda la config para tenerla disponible, o filtramos por keys específicas
+        const result = await pool.request().query("SELECT ConfigKey, ConfigValue FROM ConfiguracionSistema");
+        
+
+        const configObject = result.recordset.reduce((acc: any, curr: any) => {
+            acc[curr.ConfigKey] = curr.ConfigValue;
+            return acc;
+        }, {});
+
+        res.json(configObject);
+    } catch (err) { 
+        console.error('Error getting system config:', err);
+        res.status(500).json({ message: 'Error al obtener configuración del sistema.' }); 
+    }
+};

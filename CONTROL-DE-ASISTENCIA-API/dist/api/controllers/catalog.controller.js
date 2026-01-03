@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.saveEstablecimiento = exports.getEstablecimientosManagement = exports.getEstablecimientos = exports.savePuesto = exports.getPuestosManagement = exports.getPuestos = exports.deleteScheduleCatalog = exports.upsertScheduleCatalog = exports.getSchedulesCatalog = exports.upsertAttendanceStatus = exports.getAttendanceStatusesManagement = exports.getAttendanceStatuses = exports.saveGrupoNomina = exports.getGruposNominaManagement = exports.saveDepartamento = exports.getDepartamentosManagement = exports.getGruposNomina = exports.getDepartamentos = void 0;
+exports.getSystemConfig = exports.saveEstablecimiento = exports.getEstablecimientosManagement = exports.getEstablecimientos = exports.savePuesto = exports.getPuestosManagement = exports.getPuestos = exports.deleteScheduleCatalog = exports.upsertScheduleCatalog = exports.getSchedulesCatalog = exports.upsertAttendanceStatus = exports.getAttendanceStatusesManagement = exports.getAttendanceStatuses = exports.saveGrupoNomina = exports.getGruposNominaManagement = exports.saveDepartamento = exports.getDepartamentosManagement = exports.getGruposNomina = exports.getDepartamentos = void 0;
 const mssql_1 = __importDefault(require("mssql"));
 const database_1 = require("../../config/database");
 const getDepartamentos = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -309,3 +309,21 @@ const saveEstablecimiento = (req, res) => __awaiter(void 0, void 0, void 0, func
     }
 });
 exports.saveEstablecimiento = saveEstablecimiento;
+// Agrega esto al final de src-API/api/controllers/catalog.controller.ts
+const getSystemConfig = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const pool = yield mssql_1.default.connect(database_1.dbConfig);
+        // Traemos toda la config para tenerla disponible, o filtramos por keys específicas
+        const result = yield pool.request().query("SELECT ConfigKey, ConfigValue FROM ConfiguracionSistema");
+        const configObject = result.recordset.reduce((acc, curr) => {
+            acc[curr.ConfigKey] = curr.ConfigValue;
+            return acc;
+        }, {});
+        res.json(configObject);
+    }
+    catch (err) {
+        console.error('Error getting system config:', err);
+        res.status(500).json({ message: 'Error al obtener configuración del sistema.' });
+    }
+});
+exports.getSystemConfig = getSystemConfig;

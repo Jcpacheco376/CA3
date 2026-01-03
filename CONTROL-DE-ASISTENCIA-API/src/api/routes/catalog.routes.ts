@@ -17,11 +17,15 @@ import {
     savePuesto,
     getEstablecimientos,
     getEstablecimientosManagement,
-    saveEstablecimiento
+    saveEstablecimiento,
+    getSystemConfig
 } from '../controllers/catalog.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 
 const router = Router();
+
+//configuración
+router.get('/system-config', authMiddleware, getSystemConfig);
 
 // Departamentos
 router.get('/departamentos', authMiddleware, getDepartamentos);

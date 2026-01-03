@@ -75,7 +75,8 @@ export const WeeklyTrendsWidget = () => {
         if (data.length === 0) return "";
         const slotWidth = 100 / data.length;
         return data.map((d, i) => {
-            const x = i * slotWidth + slotWidth / 2; // Recalculado para centro exacto
+            let x = i * slotWidth + slotWidth / 2;
+            if (i === data.length - 1) x -= 1; // Pequeño ajuste para sábado
             const y = 100 - Math.max(2, d.value);
             return `${x},${y}`;
         }).join(' ');
@@ -163,29 +164,29 @@ export const WeeklyTrendsWidget = () => {
                             ))}
                             </div>
 
-                            {/* Línea de promedio + bolita al final con Tooltip */}
+                            {/* Línea de promedio + bolita al final con title nativo */}
                             {!loading && data.length > 0 && (
                                 <div className="absolute inset-0 z-10 pointer-events-none">
-                                    {/* Línea punteada, termina justo antes de la bolita */}
+                                    {/* Línea punteada */}
                                     <div 
                                         className="absolute left-0 border-t-2 border-dashed border-amber-400 opacity-75"
-                                        style={{ bottom: `${avg}%`, width: 'calc(100% - 16px)' }}
+                                        style={{ bottom: `${avg}%`, width: 'calc(100% - 20px)' }}
                                     />
-                                    {/* Bolita al final derecho */}
+                                    {/* Bolita con title nativo */}
                                     <Tooltip text={`Promedio semanal: ${avg}%`}>
                                         <div 
-                                            className="absolute w-4 h-4 bg-amber-400 rounded-full border-4 border-white shadow-lg cursor-help hover:scale-125 transition-transform"
+                                            className="absolute w-4 h-4 bg-amber-400 rounded-full border-4 border-white shadow-lg cursor hover:scale-125 transition-transform pointer-events-auto"
                                             style={{ 
                                                 bottom: `calc(${avg}% - 8px)`, // centra verticalmente
-                                                right: '8px' // pegada al borde derecho
+                                                right: '8px' // pegada al borde
                                             }}
                                         />
                                     </Tooltip>
                                 </div>
                             )}
 
-                            {/* Contenedor Barras + SVG, con paddings simétricos */}
-                            <div className="absolute inset-0 pl-6 pr-6 flex items-end">
+                            {/* Contenedor Barras + SVG */}
+                            <div className="absolute inset-0 pl-6 flex items-end">
                                 {/* Línea de tendencia */}
                                 {showTrendLine && !loading && data.length > 0 && (
                                     <svg className="absolute inset-0 w-full h-full pointer-events-none z-30 overflow-visible" preserveAspectRatio="none" viewBox="0 0 100 100">
@@ -225,7 +226,7 @@ export const WeeklyTrendsWidget = () => {
                                     return (
                                         <div 
                                             key={i}
-                                            className="flex-1 h-full flex flex-col justify-end items-center relative" // Quité px-1 y group de aquí
+                                            className="flex-1 h-full flex flex-col justify-end items-center relative"
                                         >
                                             {/* Tooltip del día, centrado */}
                                             <div className={`
@@ -258,8 +259,8 @@ export const WeeklyTrendsWidget = () => {
                             </div>
                         </div>
 
-                        {/* Eje X, alineado con barras */}
-                        <div className="h-6 flex justify-between w-full pl-6 pr-6 z-20">
+                        {/* Eje X */}
+                        <div className="h-6 flex justify-between w-full pl-6 z-20">
                             {data.map((d, i) => {
                                 const isHovered = hoveredPoint === i;
                                 return (
@@ -270,7 +271,7 @@ export const WeeklyTrendsWidget = () => {
                                         onMouseLeave={() => setHoveredPoint(null)}
                                     >
                                         <span className={`
-                                            text-[10px] font-medium transition-colors duration-200 uppercase tracking-wider inline-block transform -translate-x-1/2
+                                            text-[10px] font-medium transition-colors duration-200 uppercase tracking-wider inline-block transform -translate-x-[35%]
                                             ${isHovered ? 'text-indigo-600 font-bold' : 'text-slate-400'}
                                         `}>
                                             {d.day ? d.day.substring(0, 3) : ''} 

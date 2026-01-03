@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
+import { useAppContext } from '../../context/AppContext';
 import { API_BASE_URL } from '../../config/api';
 import {
     format, startOfWeek, endOfWeek, addDays, isToday as isTodayDateFns,
@@ -15,12 +16,11 @@ import {
 import { AttendanceToolbar, FilterConfig } from './AttendanceToolbar';
 import { ScheduleCell } from './ScheduleCell';
 import { EmployeeProfileModal } from './EmployeeProfileModal';
-import { AssignFixedScheduleModal } from './AssignFixedScheduleModal';
+import { AssignFixedScheduleModal, AssignScope } from './AssignFixedScheduleModal'; // <--- Importamos AssignScope
 import { Tooltip, InfoIcon } from '../../components/ui/Tooltip';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { TableSkeleton } from '../../components/ui/TableSkeleton';
 import { useSharedAttendance } from '../../hooks/useSharedAttendance';
-// IMPORTACIÓN DEL MODAL
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
 
 // --- Helpers ---
@@ -62,6 +62,7 @@ const ROW_HEIGHT_ESTIMATE = 77;
 export const SchedulePage = () => {
     const { getToken, user, can } = useAuth();
     const { addNotification } = useNotification();
+    const { weekStartDay } = useAppContext();
 
     // --- USO DEL HOOK COMPARTIDO ---
     const {
@@ -102,7 +103,38 @@ export const SchedulePage = () => {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const scrollTimerRef = useRef<number | null>(null);
 
-    // Lógica de "Semana Activa"
+    // --- NUEVA FUNCIÓN: Scroll Programático a una Fecha ---
+    const scrollToDate = (targetDate: Date) => {
+        if (!scrollContainerRef.current || dateRange.length === 0) return;
+
+        const dayIndex = dateRange.findIndex(d => isSameDay(d, targetDate));
+        
+        if (dayIndex !== -1) {
+            const columnWidth = viewMode === 'week' ? 96 : 64;
+            const scrollLeft = dayIndex * columnWidth;
+            
+            scrollContainerRef.current.scrollTo({
+                left: scrollLeft,
+                behavior: 'smooth'
+            });
+
+            const newActiveWeek = startOfWeek(targetDate, { weekStartsOn: weekStartDay });
+            setActiveWeekStartDate(newActiveWeek);
+        }
+    };
+
+    // --- Manejador: Click en Cabecero ---
+    const handleHeaderClick = (day: Date) => {
+        const weekStart = startOfWeek(day, { weekStartsOn: weekStartDay });
+        scrollToDate(weekStart);
+    };
+
+    // --- Manejador: Cambio de Semana desde el Modal ---
+    const handleModalWeekChange = (newWeekStart: Date) => {
+        scrollToDate(newWeekStart);
+    };
+
+    // Lógica de "Semana Activa" (Ajustada para respetar weekStartDay)
     const updateActiveWeek = useCallback(() => {
         if (!scrollContainerRef.current || dateRange.length === 0) return;
         const { scrollLeft, clientWidth, scrollWidth } = scrollContainerRef.current;
@@ -110,9 +142,9 @@ export const SchedulePage = () => {
         const scrollEndTolerance = 5;
 
         if (scrollLeft <= 0) {
-            startOfActiveWeek = startOfWeek(dateRange[0], { weekStartsOn: 1 });
+            startOfActiveWeek = startOfWeek(dateRange[0], { weekStartsOn: weekStartDay });
         } else if (scrollLeft + clientWidth >= scrollWidth - scrollEndTolerance) {
-            startOfActiveWeek = startOfWeek(dateRange[dateRange.length - 1], { weekStartsOn: 1 });
+            startOfActiveWeek = startOfWeek(dateRange[dateRange.length - 1], { weekStartsOn: weekStartDay });
         } else {
             const cellWidth = viewMode === 'week' ? 96 : 64;
             const detectionPoint = scrollLeft + (clientWidth * 0.3);
@@ -120,7 +152,7 @@ export const SchedulePage = () => {
             dayIndex = Math.max(0, Math.min(dayIndex, dateRange.length - 1));
             const activeDay = dateRange[dayIndex];
             if (activeDay) {
-                startOfActiveWeek = startOfWeek(activeDay, { weekStartsOn: 1 });
+                startOfActiveWeek = startOfWeek(activeDay, { weekStartsOn: weekStartDay });
             }
         }
 
@@ -132,7 +164,7 @@ export const SchedulePage = () => {
                 return currentActiveWeek;
             });
         }
-    }, [dateRange, viewMode]);
+    }, [dateRange, viewMode, weekStartDay]);
 
     useEffect(() => {
         const scrollContainer = scrollContainerRef.current;
@@ -161,10 +193,10 @@ export const SchedulePage = () => {
             scrollContainerRef.current.scrollLeft = 0;
         }
         if (dateRange.length > 0) {
-            const firstWeekStart = startOfWeek(dateRange[0], { weekStartsOn: 1 });
+            const firstWeekStart = startOfWeek(dateRange[0], { weekStartsOn: weekStartDay });
             setActiveWeekStartDate(firstWeekStart);
         }
-    }, [dateRange]);
+    }, [dateRange, weekStartDay]);
 
     // Carga de Datos
     const fetchData = useCallback(async () => {
@@ -227,7 +259,6 @@ export const SchedulePage = () => {
     }, [fetchData]);
 
     // --- FUNCIÓN HELPER: ACTUALIZAR ESTADO LOCAL ---
-    // Extraída para poder usarla tanto al guardar directo como al confirmar
     const updateLocalState = (updates: any[]) => {
         const updatesByEmployee = new Map<number, any[]>();
         for (const update of updates) {
@@ -243,12 +274,11 @@ export const SchedulePage = () => {
 
                 const empUpdates = updatesByEmployee.get(emp.EmpleadoId)!;
                 const newHorariosAsignados = [...emp.HorariosAsignados];
-                const newFichasExistentes = [...(emp.FichasExistentes || [])]; // Copia para mutar
+                const newFichasExistentes = [...(emp.FichasExistentes || [])];
 
                 for (const update of empUpdates) {
                     const fechaStr = format(update.fecha, 'yyyy-MM-dd');
 
-                    // 1. Actualizar HorariosAsignados (lógica existente)
                     const recordIndex = newHorariosAsignados.findIndex(h => h.Fecha === fechaStr);
 
                     let newAsignacion = null;
@@ -269,10 +299,8 @@ export const SchedulePage = () => {
                         newHorariosAsignados.push(newAsignacion);
                     }
 
-                    // 2. Invalidar Ficha si es necesario (nueva lógica)
                     const fichaIndex = newFichasExistentes.findIndex(f => f.Fecha === fechaStr);
                     if (fichaIndex > -1 && newFichasExistentes[fichaIndex].Estado === 'VALIDADO') {
-                        // Anulamos el estado para que la palomita desaparezca
                         newFichasExistentes[fichaIndex].Estado = null;
                     }
                 }
@@ -281,7 +309,7 @@ export const SchedulePage = () => {
         });
     };
 
-    // --- PASO 2: EJECUTAR GUARDADO FINAL (Sin Refresh) ---
+    // --- PASO 2: EJECUTAR GUARDADO FINAL ---
     const executeSave = async (updates: any[]) => {
         const token = getToken();
         try {
@@ -290,7 +318,7 @@ export const SchedulePage = () => {
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
                 body: JSON.stringify({
                     assignments: updates,
-                    confirmarCambio: true // Ahora sí guardamos
+                    confirmarCambio: true
                 }),
             });
 
@@ -304,17 +332,12 @@ export const SchedulePage = () => {
             }
 
             addNotification('Guardado', `${updates.length} asignacion(es) guardada(s).`, 'success');
-
-            // AQUI OCURRE LA MAGIA: Actualizamos la pantalla SOLO tras el éxito
             updateLocalState(updates);
-
-            // Cerramos modal si estaba abierto
             setIsConfirmModalOpen(false);
             setPendingUpdates([]);
 
         } catch (err: any) {
             addNotification('Error', err.message, 'error');
-            // Si hay error, no actualizamos el estado local, así que visualmente "rebota"
         }
     };
 
@@ -335,7 +358,6 @@ export const SchedulePage = () => {
         const token = getToken();
 
         try {
-            // 1. VALIDAMOS PRIMERO (Sin tocar el estado visual aún)
             const validateRes = await fetch(`${API_BASE_URL}/schedules/assignments/validate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -344,22 +366,18 @@ export const SchedulePage = () => {
 
             const validation = await validateRes.json();
 
-            // CASO A: BLOQUEO TOTAL
             if (validation.status === 'BLOCKING_ERROR') {
                 addNotification('Acción Bloqueada', validation.message, 'error');
                 return;
             }
 
-            // CASO B: REQUIERE CONFIRMACIÓN -> ABRIR MODAL
             if (validation.status === 'CONFIRMATION_REQUIRED') {
                 setPendingUpdates(updates);
                 setConfirmMessage(validation.message);
                 setIsConfirmModalOpen(true);
-                // El estado visual sigue intacto, así que el usuario ve el valor "viejo" en el fondo
                 return;
             }
 
-            // CASO C: TODO LIMPIO -> GUARDAR DIRECTO
             if (validation.status === 'OK') {
                 await executeSave(updates);
             }
@@ -370,21 +388,29 @@ export const SchedulePage = () => {
         }
     };
 
-    // Botón del Modal
     const handleConfirmRegenerate = () => {
         executeSave(pendingUpdates);
     };
 
-    const handleAssignFixedToWeek = (horarioId: number | null) => {
-        if (!assignFixedModalInfo || !activeWeekStartDate) {
-            addNotification('Error', 'No se ha seleccionado una semana activa.', 'error');
-            return;
+    // --- Handler actualizado para el Modal ---
+    const handleAssignSchedule = (
+        horarioId: number | null, 
+        scope: AssignScope, 
+        targetWeekStart: Date
+    ) => {
+        if (!assignFixedModalInfo) return;
+        const { employeeId } = assignFixedModalInfo;
+
+        let daysToUpdate: Date[] = [];
+
+        if (scope === 'week') {
+            const start = startOfWeek(targetWeekStart, { weekStartsOn: weekStartDay });
+            daysToUpdate = Array.from({ length: 7 }).map((_, i) => addDays(start, i));
+        } else {
+            daysToUpdate = [...dateRange];
         }
 
-        const { employeeId } = assignFixedModalInfo;
-        const weekDays = Array.from({ length: 7 }).map((_, i) => addDays(activeWeekStartDate, i));
-
-        const updates = weekDays.map(day => ({
+        const updates = daysToUpdate.map(day => ({
             empleadoId: employeeId,
             fecha: day,
             tipoAsignacion: horarioId === null ? null : ('H' as 'H'),
@@ -402,7 +428,7 @@ export const SchedulePage = () => {
 
     const getActiveWeekLabel = () => {
         if (!activeWeekStartDate) return "Cargando semana...";
-        const endDate = endOfWeek(activeWeekStartDate, { weekStartsOn: 1 });
+        const endDate = endOfWeek(activeWeekStartDate, { weekStartsOn: weekStartDay });
         return `Semana del ${format(activeWeekStartDate, 'd MMM')} al ${format(endDate, 'd MMM, yyyy', { locale: es })}`;
     };
 
@@ -491,6 +517,8 @@ export const SchedulePage = () => {
         return filtersConfig.filter(f => f.isActive && f.options.length > 0);
     }, [user, filters]);
 
+    const fixedSchedules = useMemo(() => scheduleCatalog.filter(h => !h.EsRotativo), [scheduleCatalog]);
+
     const renderContent = () => {
         if (isLoading) return <TableSkeleton employeeColumnWidth={employeeColumnWidth} dateRange={dateRange} viewMode={viewMode} pageType="schedule" />;
         if (error) return <div className="p-16 text-center"> <p className="font-semibold text-red-600">Error al Cargar</p> <p className="text-slate-500 text-sm mt-1">{error}</p> </div>;
@@ -514,15 +542,25 @@ export const SchedulePage = () => {
                                 <div onMouseDown={handleResizeMouseDown} className="absolute right-0 top-0 h-full w-2.5 cursor-col-resize group flex items-center justify-center"><GripVertical className="h-5 text-slate-300 group-hover:text-[--theme-500] transition-colors" /></div>
                             </th>
                             {dateRange.map((day, dayIndex) => {
-                                const isMonday = getDayOfWeek(day) === 1;
-                                const startOfWeekForDay = startOfWeek(day, { weekStartsOn: 1 });
+                                const startOfWeekForDay = startOfWeek(day, { weekStartsOn: weekStartDay });
                                 const isActiveWeek = activeWeekStartDate && isSameDay(startOfWeekForDay, activeWeekStartDate);
                                 const isFirstDay = dayIndex === 0;
-                                let thClasses = `px-1 py-2 font-semibold text-slate-600 min-w-[${viewMode === 'week' ? '6rem' : '4rem'}] transition-colors duration-150 relative `;
-                                if (isTodayDateFns(day)) thClasses += 'bg-sky-100'; else if (isActiveWeek) thClasses += 'bg-slate-100'; else thClasses += 'bg-slate-50';
-                                if (isMonday && !isFirstDay) thClasses += ' border-l-2 border-slate-300';
+                                const isWeekStart = getDayOfWeek(day) === weekStartDay;
+
+                                let thClasses = `px-1 py-2 font-semibold text-slate-600 min-w-[${viewMode === 'week' ? '6rem' : '4rem'}] transition-colors duration-150 relative cursor-pointer hover:bg-slate-200 `;
+                                if (isTodayDateFns(day)) thClasses += 'bg-sky-100 hover:bg-sky-200';
+                                else if (isActiveWeek) thClasses += 'bg-slate-100';
+                                else thClasses += 'bg-slate-50';
+
+                                if (isWeekStart && !isFirstDay) thClasses += ' border-l-2 border-slate-300';
+
                                 return (
-                                    <th key={day.toISOString()} className={thClasses}>
+                                    <th 
+                                        key={day.toISOString()} 
+                                        className={thClasses}
+                                        onClick={() => handleHeaderClick(day)}
+                                        title="Click para seleccionar esta semana"
+                                    >
                                         <span className="capitalize text-base">{format(day, 'eee', { locale: es })}</span>
                                         <span className="block text-xl font-bold text-slate-800">{format(day, 'dd')}</span>
                                         {isActiveWeek && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[--theme-500]"></div>}
@@ -574,17 +612,14 @@ export const SchedulePage = () => {
                                     {dateRange.map((day, dayIndex) => {
                                         const cellId = `${emp.EmpleadoId}-${dayIndex}`;
                                         const scheduleData = emp?.HorariosAsignados?.find((h: any) => h.Fecha === format(day, 'yyyy-MM-dd'));
-
-                                        // --- AQUÍ EL CAMBIO CLAVE ---
-                                        // Buscamos si existe ficha para este día y extraemos su estado
                                         const fichaExistente = emp?.FichasExistentes?.find((f: any) => f.Fecha === format(day, 'yyyy-MM-dd'));
-                                        const fichaStatus = fichaExistente?.Estado; // 'BLOQUEADO', 'VALIDADO', 'BORRADOR', etc.
-                                        // ----------------------------
+                                        const fichaStatus = fichaExistente?.Estado;
 
-                                        const isMonday = getDayOfWeek(day) === 1;
+                                        const isWeekStart = getDayOfWeek(day) === weekStartDay;
                                         const isFirstDay = dayIndex === 0;
                                         let tdClasses = "align-top border-b border-slate-100";
-                                        if (isMonday && !isFirstDay) tdClasses += ' border-l-2 border-slate-300';
+                                        if (isWeekStart && !isFirstDay) tdClasses += ' border-l-2 border-slate-300';
+
                                         const horarioDefault = scheduleCatalog.find(h => h.HorarioId === emp.HorarioDefaultId);
                                         const isRotativoEmployee = horarioDefault?.EsRotativo === true;
 
@@ -603,8 +638,6 @@ export const SchedulePage = () => {
                                                 scheduleCatalog={scheduleCatalog} isToday={isTodayDateFns(day)}
                                                 canAssign={canAssign} viewMode={viewMode} className={tdClasses}
                                                 isRotativoEmployee={isRotativoEmployee}
-
-                                                // --- PASAMOS LA NUEVA PROP ---
                                                 existingFichaStatus={fichaStatus}
                                             />
                                         );
@@ -618,8 +651,6 @@ export const SchedulePage = () => {
             </div>
         );
     };
-
-    const fixedSchedules = useMemo(() => scheduleCatalog.filter(h => !h.EsRotativo), [scheduleCatalog]);
 
     return (
         <div className="space-y-6 h-full flex flex-col">
@@ -642,12 +673,18 @@ export const SchedulePage = () => {
             </div>
             {viewingEmployeeId && <EmployeeProfileModal employeeId={viewingEmployeeId as any} onClose={() => setViewingEmployeeId(null)} getToken={getToken} user={user} />}
             <AssignFixedScheduleModal
-                isOpen={!!assignFixedModalInfo} onClose={() => setAssignFixedModalInfo(null)}
-                employeeName={assignFixedModalInfo?.employeeName || ''} fixedSchedules={fixedSchedules}
-                onAssign={handleAssignFixedToWeek} targetWeekLabel={activeWeekStartDate ? getActiveWeekLabel() : "Asignar a semana..."}
+                isOpen={!!assignFixedModalInfo}
+                onClose={() => setAssignFixedModalInfo(null)}
+                employeeName={assignFixedModalInfo?.employeeName || ''}
+                fixedSchedules={fixedSchedules}
+                viewMode={viewMode}
+                activeWeekStart={activeWeekStartDate}
+                periodStart={dateRange[0]}
+                periodEnd={dateRange[dateRange.length - 1]}
+                onAssign={handleAssignSchedule}
+                onWeekChange={handleModalWeekChange} // <--- Nueva prop para sincronizar scroll desde el modal
             />
 
-            {/* --- CONFIRMATION MODAL --- */}
             <ConfirmationModal
                 isOpen={isConfirmModalOpen}
                 onClose={() => {

@@ -2,9 +2,11 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
     format, startOfWeek, endOfWeek, startOfMonth, endOfMonth,
-    addDays, subDays, addWeeks, subWeeks, addMonths, subMonths
+    eachDayOfInterval,
+    addWeeks, subWeeks, addMonths, subMonths
 } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { useAppContext } from '../context/AppContext'; // <--- 1. IMPORTAR CONTEXTO
 
 const SHARED_CONFIG_KEY = 'app_shared_attendance_config';
 
@@ -39,10 +41,12 @@ export const useSharedAttendance = (user: any) => {
     // Desestructuramos para mantener la API del hook intacta
     const { viewMode, currentDate, filters } = sharedState;
 
+    // <--- 2. OBTENER CONFIGURACIÓN DE LA APP (día de inicio de semana configurable)
+    const { weekStartDay } = useAppContext();
+
     // 2. Persistencia Automática
     useEffect(() => {
         try {
-            // Guardamos el estado completo, asegurando consistencia.
             localStorage.setItem(SHARED_CONFIG_KEY, JSON.stringify({
                 ...sharedState,
                 currentDate: sharedState.currentDate.toISOString() 
@@ -65,9 +69,11 @@ export const useSharedAttendance = (user: any) => {
         setSharedState(prev => ({ ...prev, currentDate: typeof updater === 'function' ? updater(prev.currentDate) : updater }));
     };
     
-    // 4. Lógica de Cálculo de Rangos (sin cambios, pero ahora usa el estado unificado)
+    // 4. Lógica de Cálculo de Rangos (con soporte para weekStartDay configurable)
     const { dateRange, rangeLabel } = useMemo(() => {
-        let start, end, label = '';
+        let start: Date = new Date();
+        let end: Date = new Date();
+        let label = '';
         const now = currentDate;
 
         switch (viewMode) {
@@ -89,30 +95,31 @@ export const useSharedAttendance = (user: any) => {
                 break;
             case 'week':
             default:
-                start = startOfWeek(now, { weekStartsOn: 1 });
-                end = endOfWeek(now, { weekStartsOn: 1 });
+                const weekStartsOn = weekStartDay ?? 1; // Fallback a lunes si no está definido
+                start = startOfWeek(now, { weekStartsOn });
+                end = endOfWeek(now, { weekStartsOn });
                 label = `${format(start, 'd')} - ${format(end, 'd \'de\' MMMM, yyyy', { locale: es })}`;
                 break;
         }
         
-        const range = [];
-        let dayCalc = start;
-        while (dayCalc <= end) {
-            range.push(dayCalc);
-            dayCalc = addDays(dayCalc, 1);
-        }
+        const range = eachDayOfInterval({ start, end });
 
         return { dateRange: range, rangeLabel: label }; 
 
-    }, [currentDate, viewMode]);
+    }, [currentDate, viewMode, weekStartDay]); // <--- weekStartDay añadido a dependencias
 
-    // 5. Handlers de Navegación (ahora usan los setters customizados)
+    // 5. Handlers de Navegación (se mantienen como estaban, ya que subWeeks/addWeeks funcionan correctamente con el nuevo cálculo de semana)
     const handleDatePrev = () => {
         setCurrentDate((prev: Date) => {
             switch (viewMode) {
-                case 'fortnight': return prev.getDate() <= 15 ? new Date(prev.getFullYear(), prev.getMonth() - 1, 16) : new Date(prev.getFullYear(), prev.getMonth(), 1);
-                case 'month': return subMonths(prev, 1);
-                default: return subWeeks(prev, 1);
+                case 'fortnight': 
+                    return prev.getDate() <= 15 
+                        ? new Date(prev.getFullYear(), prev.getMonth() - 1, 16) 
+                        : new Date(prev.getFullYear(), prev.getMonth(), 1);
+                case 'month': 
+                    return subMonths(prev, 1);
+                default: 
+                    return subWeeks(prev, 1);
             }
         });
     };
@@ -120,9 +127,14 @@ export const useSharedAttendance = (user: any) => {
     const handleDateNext = () => {
         setCurrentDate((prev: Date) => {
             switch (viewMode) {
-                case 'fortnight': return prev.getDate() <= 15 ? new Date(prev.getFullYear(), prev.getMonth(), 16) : new Date(prev.getFullYear(), prev.getMonth() + 1, 1);
-                case 'month': return addMonths(prev, 1);
-                default: return addWeeks(prev, 1);
+                case 'fortnight': 
+                    return prev.getDate() <= 15 
+                        ? new Date(prev.getFullYear(), prev.getMonth(), 16) 
+                        : new Date(prev.getFullYear(), prev.getMonth() + 1, 1);
+                case 'month': 
+                    return addMonths(prev, 1);
+                default:
+                    return addWeeks(prev, 1);
             }
         });
     };
