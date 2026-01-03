@@ -1,0 +1,14 @@
+CREATE TABLE [dbo].[CatalogoHorarios] (
+
+[HorarioId] int IDENTITY(1,1) NOT NULL,
+[CodRef] nvarchar(20) NULL,
+[Abreviatura] nvarchar(20) NOT NULL,
+[Nombre] nvarchar(200) NOT NULL,
+[MinutosTolerancia] int DEFAULT ((0)) NOT NULL,
+[ColorUI] nvarchar(100) DEFAULT ('slate') NOT NULL,
+[Activo] bit DEFAULT ((1)) NOT NULL,
+[EsRotativo] bit DEFAULT ((0)) NOT NULL,
+[Turno] char(1) DEFAULT ('') NULL,
+CONSTRAINT [PK__Catalogo__BB881B7EFA5F410B] PRIMARY KEY CLUSTERED ([HorarioId] ASC) WITH (PAD_INDEX = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY],
+CONSTRAINT [UQ__Catalogo__84823DEF251EDF4B] UNIQUE NONCLUSTERED ([CodRef] ASC) WITH (PAD_INDEX = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]

@@ -42,7 +42,7 @@ const saveAttendance = (req, res) => __awaiter(void 0, void 0, void 0, function*
         const action = estatusManual ? 'guardado' : 'restaurado';
         res.status(200).json({
             message: `Registro ${action} con éxito.`,
-            data: updatedFicha // <--- ESTO ES LO QUE LEERÁ EL FRONTEND
+            data: updatedFicha
         });
     }
     catch (err) {
