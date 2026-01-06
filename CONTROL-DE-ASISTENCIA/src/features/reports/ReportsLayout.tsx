@@ -2,11 +2,11 @@
 import React from 'react';
 import { useAuth } from '../auth/AuthContext';
 import { View } from '../../types';
-import { ArrowLeft, ClipboardList, AlertTriangle, FileText } from 'lucide-react'; // <-- Importar FileText
+import { ArrowLeft, ClipboardList, FileText,Banknote  } from 'lucide-react'; // <-- Importar FileText
 import { Tooltip } from '../../components/ui/Tooltip';
 import { KardexReportPage } from './pages/KardexReportPage'; 
-import { IncidentsControlPage } from './pages/IncidentsControlPage'; 
 import { AttendanceListReportPage } from './pages/AttendanceListReportPage'; // <-- Importar Página
+import { PrenominaReportPage } from './pages/PrenominaReportPage'; // <--- IMPORTAR NUEVA PÁGINA
 
 const TabButton = ({ icon, label, isActive, onClick }: { icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void }) => (
     <button onClick={onClick} className={`flex items-center gap-2 px-4 py-3 border-b-2 font-semibold transition-colors ${isActive ? 'border-[--theme-500] text-[--theme-600]' : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'}`}>
@@ -20,6 +20,12 @@ export const ReportsLayout = ({ activeView, setActiveView }: { activeView: View,
     const reportTabs = [
         can('reportes.kardex.read') && { id: 'report_kardex', label: 'Kardex Asistencia', icon: <ClipboardList size={18} />, component: <KardexReportPage /> },
         can('reportes.lista_asistencia.read') && { id: 'report_attendance_list', label: 'Lista de Asistencia', icon: <FileText size={18} />, component: <AttendanceListReportPage /> },
+    can('reportes.prenomina.read') && { 
+            id: 'report_prenomina', 
+            label: 'Prenómina', 
+            icon: <Banknote size={18} />, 
+            component: <PrenominaReportPage /> 
+        },
     ].filter(Boolean);
 
     const activeTab = reportTabs.find((tab: any) => tab.id === activeView);

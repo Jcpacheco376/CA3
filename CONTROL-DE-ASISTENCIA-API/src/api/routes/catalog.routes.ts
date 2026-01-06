@@ -1,3 +1,4 @@
+// src/api/routes/catalog.routes.ts
 import { Router } from 'express';
 import {
     getDepartamentos,
@@ -18,7 +19,10 @@ import {
     getEstablecimientos,
     getEstablecimientosManagement,
     saveEstablecimiento,
-    getSystemConfig
+    getSystemConfig,
+    getCalculationTypes,
+    getPayrollConcepts,
+    upsertPayrollConcept
 } from '../controllers/catalog.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 
@@ -56,5 +60,9 @@ router.post('/puestos', authMiddleware, savePuesto);
 router.get('/establecimientos', authMiddleware, getEstablecimientos);
 router.get('/establecimientos/management', authMiddleware, getEstablecimientosManagement);
 router.post('/establecimientos', authMiddleware, saveEstablecimiento);
+router.get('/calculation-types', authMiddleware, getCalculationTypes);
+
+router.get('/payroll-concepts', authMiddleware, getPayrollConcepts);
+router.post('/payroll-concepts', authMiddleware, upsertPayrollConcept);
 
 export default router;

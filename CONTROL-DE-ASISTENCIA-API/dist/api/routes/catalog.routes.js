@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+// src/api/routes/catalog.routes.ts
 const express_1 = require("express");
 const catalog_controller_1 = require("../controllers/catalog.controller");
 const auth_middleware_1 = require("../middlewares/auth.middleware");
@@ -30,4 +31,7 @@ router.post('/puestos', auth_middleware_1.authMiddleware, catalog_controller_1.s
 router.get('/establecimientos', auth_middleware_1.authMiddleware, catalog_controller_1.getEstablecimientos);
 router.get('/establecimientos/management', auth_middleware_1.authMiddleware, catalog_controller_1.getEstablecimientosManagement);
 router.post('/establecimientos', auth_middleware_1.authMiddleware, catalog_controller_1.saveEstablecimiento);
+router.get('/calculation-types', auth_middleware_1.authMiddleware, catalog_controller_1.getCalculationTypes);
+router.get('/payroll-concepts', auth_middleware_1.authMiddleware, catalog_controller_1.getPayrollConcepts);
+router.post('/payroll-concepts', auth_middleware_1.authMiddleware, catalog_controller_1.upsertPayrollConcept);
 exports.default = router;

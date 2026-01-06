@@ -1,6 +1,4 @@
 // src/types/index.ts
-
-// AÑADIMOS LAS NUEVAS VISTAS DE ADMINISTRACIÓN
 export type View =
     'dashboard' |
     'attendance_weekly' |
@@ -72,17 +70,13 @@ export interface AttendanceStatus {
     ValorNomina: number;
     VisibleSupervisor: boolean;
     Activo: boolean;
-    Tipo: string;
-    EsFalta: boolean;
-    EsRetardo: boolean;
-    EsEntradaSalidaIncompleta: boolean;
-    EsAsistencia: boolean;
+    tipoCalculoId: string; // 'ASISTENCIA', 'FALTA', etc. 
     DiasRegistroFuturo: number;
     PermiteComentario: boolean;
-    Esdefault: boolean;
+    ConceptoNominaId?: number | null;
 }
 export type AttendanceStatusCode = string;
-//export type AttendanceStatusCode = 'A' | 'F' | 'PSS' | 'SPS' | 'VAC' | 'INC' | 'D' | 'RET' | 'SES';
+
 
 
 

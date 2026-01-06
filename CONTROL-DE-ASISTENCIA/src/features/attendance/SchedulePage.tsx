@@ -107,10 +107,12 @@ export const SchedulePage = () => {
     const scrollToDate = (targetDate: Date) => {
         if (!scrollContainerRef.current || dateRange.length === 0) return;
 
-        const dayIndex = dateRange.findIndex(d => isSameDay(d, targetDate));
+        // FIX: Find the first day in the range that is on or after the target week start.
+        // This handles cases where the period starts mid-week.
+        const dayIndex = dateRange.findIndex(d => d >= targetDate);
         
         if (dayIndex !== -1) {
-            const columnWidth = viewMode === 'week' ? 96 : 64;
+            const columnWidth = 96; // Corregido a un valor constante
             const scrollLeft = dayIndex * columnWidth;
             
             scrollContainerRef.current.scrollTo({
@@ -123,80 +125,155 @@ export const SchedulePage = () => {
         }
     };
 
-    // --- Manejador: Click en Cabecero ---
-    const handleHeaderClick = (day: Date) => {
-        const weekStart = startOfWeek(day, { weekStartsOn: weekStartDay });
-        scrollToDate(weekStart);
-    };
+        // --- Manejador: Click en Cabecero ---
 
-    // --- Manejador: Cambio de Semana desde el Modal ---
-    const handleModalWeekChange = (newWeekStart: Date) => {
-        scrollToDate(newWeekStart);
-    };
+        const handleHeaderClick = (day: Date) => {
 
-    // Lógica de "Semana Activa" (Ajustada para respetar weekStartDay)
-    const updateActiveWeek = useCallback(() => {
-        if (!scrollContainerRef.current || dateRange.length === 0) return;
-        const { scrollLeft, clientWidth, scrollWidth } = scrollContainerRef.current;
-        let startOfActiveWeek: Date | null = null;
-        const scrollEndTolerance = 5;
+            const weekStart = startOfWeek(day, { weekStartsOn: weekStartDay });
 
-        if (scrollLeft <= 0) {
-            startOfActiveWeek = startOfWeek(dateRange[0], { weekStartsOn: weekStartDay });
-        } else if (scrollLeft + clientWidth >= scrollWidth - scrollEndTolerance) {
-            startOfActiveWeek = startOfWeek(dateRange[dateRange.length - 1], { weekStartsOn: weekStartDay });
-        } else {
-            const cellWidth = viewMode === 'week' ? 96 : 64;
-            const detectionPoint = scrollLeft + (clientWidth * 0.3);
-            let dayIndex = Math.floor(detectionPoint / cellWidth);
-            dayIndex = Math.max(0, Math.min(dayIndex, dateRange.length - 1));
-            const activeDay = dateRange[dayIndex];
-            if (activeDay) {
-                startOfActiveWeek = startOfWeek(activeDay, { weekStartsOn: weekStartDay });
-            }
-        }
+            scrollToDate(weekStart);
 
-        if (startOfActiveWeek) {
-            setActiveWeekStartDate(currentActiveWeek => {
-                if (!currentActiveWeek || !isSameDay(currentActiveWeek, startOfActiveWeek!)) {
-                    return startOfActiveWeek;
+        };
+
+    
+
+        // --- Manejador: Cambio de Semana desde el Modal ---
+
+        const handleModalWeekChange = (newWeekStart: Date) => {
+
+            scrollToDate(newWeekStart);
+
+        };
+
+    
+
+        // Lógica de "Semana Activa" (Ajustada para respetar weekStartDay)
+
+        const updateActiveWeek = useCallback(() => {
+
+            if (!scrollContainerRef.current || dateRange.length === 0) return;
+
+            const { scrollLeft, clientWidth, scrollWidth } = scrollContainerRef.current;
+
+            let startOfActiveWeek: Date | null = null;
+
+            const scrollEndTolerance = 5;
+
+    
+
+            if (scrollLeft <= 0) {
+
+                startOfActiveWeek = startOfWeek(dateRange[0], { weekStartsOn: weekStartDay });
+
+            } else if (scrollLeft + clientWidth >= scrollWidth - scrollEndTolerance) {
+
+                startOfActiveWeek = startOfWeek(dateRange[dateRange.length - 1], { weekStartsOn: weekStartDay });
+
+            } else {
+
+                const cellWidth = 96; // Corregido a un valor constante que refleja el contenido real (w-24 = 6rem = 96px)
+
+                const detectionPoint = scrollLeft + (clientWidth * 0.3);
+
+                let dayIndex = Math.floor(detectionPoint / cellWidth);
+
+                dayIndex = Math.max(0, Math.min(dayIndex, dateRange.length - 1));
+
+                const activeDay = dateRange[dayIndex];
+
+                if (activeDay) {
+
+                    startOfActiveWeek = startOfWeek(activeDay, { weekStartsOn: weekStartDay });
+
                 }
-                return currentActiveWeek;
-            });
-        }
-    }, [dateRange, viewMode, weekStartDay]);
 
-    useEffect(() => {
-        const scrollContainer = scrollContainerRef.current;
-        const handleScroll = () => {
-            if (scrollTimerRef.current) {
-                cancelAnimationFrame(scrollTimerRef.current);
             }
-            scrollTimerRef.current = requestAnimationFrame(updateActiveWeek);
-        };
-        if (scrollContainer) {
-            scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
-            updateActiveWeek();
-        }
-        return () => {
+
+    
+
+            if (startOfActiveWeek) {
+
+                setActiveWeekStartDate(currentActiveWeek => {
+
+                    const isSame = currentActiveWeek && isSameDay(currentActiveWeek, startOfActiveWeek!);
+
+                    if (!isSame) {
+
+                        return startOfActiveWeek;
+
+                    }
+
+                    return currentActiveWeek;
+
+                });
+
+            }
+
+        }, [dateRange, viewMode, weekStartDay]);
+
+    
+
+        useEffect(() => {
+
+            const scrollContainer = scrollContainerRef.current;
+
+            const handleScroll = () => {
+
+                if (scrollTimerRef.current) {
+
+                    cancelAnimationFrame(scrollTimerRef.current);
+
+                }
+
+                scrollTimerRef.current = requestAnimationFrame(updateActiveWeek);
+
+            };
+
             if (scrollContainer) {
-                scrollContainer.removeEventListener('scroll', handleScroll);
-            }
-            if (scrollTimerRef.current) {
-                cancelAnimationFrame(scrollTimerRef.current);
-            }
-        };
-    }, [updateActiveWeek]);
 
-    useEffect(() => {
-        if (scrollContainerRef.current) {
-            scrollContainerRef.current.scrollLeft = 0;
-        }
-        if (dateRange.length > 0) {
-            const firstWeekStart = startOfWeek(dateRange[0], { weekStartsOn: weekStartDay });
-            setActiveWeekStartDate(firstWeekStart);
-        }
-    }, [dateRange, weekStartDay]);
+                scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+
+                updateActiveWeek();
+
+            }
+
+            return () => {
+
+                if (scrollContainer) {
+
+                    scrollContainer.removeEventListener('scroll', handleScroll);
+
+                }
+
+                if (scrollTimerRef.current) {
+
+                    cancelAnimationFrame(scrollTimerRef.current);
+
+                }
+
+            };
+
+        }, [updateActiveWeek]);
+
+    
+
+        useEffect(() => {
+
+            if (scrollContainerRef.current) {
+
+                scrollContainerRef.current.scrollLeft = 0;
+
+            }
+
+            if (dateRange.length > 0) {
+
+                const firstWeekStart = startOfWeek(dateRange[0], { weekStartsOn: weekStartDay });
+
+                setActiveWeekStartDate(firstWeekStart);
+
+            }
+
+        }, [dateRange, weekStartDay]);
 
     // Carga de Datos
     const fetchData = useCallback(async () => {
@@ -520,7 +597,7 @@ export const SchedulePage = () => {
     const fixedSchedules = useMemo(() => scheduleCatalog.filter(h => !h.EsRotativo), [scheduleCatalog]);
 
     const renderContent = () => {
-        if (isLoading) return <TableSkeleton employeeColumnWidth={employeeColumnWidth} dateRange={dateRange} viewMode={viewMode} pageType="schedule" />;
+        if (isLoading) return <TableSkeleton employeeColumnWidth={employeeColumnWidth} dateRange={dateRange} viewMode={viewMode} weekStartDay={weekStartDay} />;
         if (error) return <div className="p-16 text-center"> <p className="font-semibold text-red-600">Error al Cargar</p> <p className="text-slate-500 text-sm mt-1">{error}</p> </div>;
 
         return (
@@ -547,7 +624,7 @@ export const SchedulePage = () => {
                                 const isFirstDay = dayIndex === 0;
                                 const isWeekStart = getDayOfWeek(day) === weekStartDay;
 
-                                let thClasses = `px-1 py-2 font-semibold text-slate-600 min-w-[${viewMode === 'week' ? '6rem' : '4rem'}] transition-colors duration-150 relative cursor-pointer hover:bg-slate-200 `;
+                                let thClasses = `px-1 py-2 font-semibold text-slate-600 min-w-[6rem] transition-colors duration-150 relative cursor-pointer hover:bg-slate-200 `;
                                 if (isTodayDateFns(day)) thClasses += 'bg-sky-100 hover:bg-sky-200';
                                 else if (isActiveWeek) thClasses += 'bg-slate-100';
                                 else thClasses += 'bg-slate-50';
@@ -585,7 +662,7 @@ export const SchedulePage = () => {
                             }
                             return (
                                 <tr key={emp.EmpleadoId} data-index={virtualRow.index} ref={rowVirtualizer.measureElement} className="group">
-                                    <td className="p-2 text-left sticky left-0 bg-white group-hover:bg-slate-50 z-10 shadow-sm align-top border-b border-slate-100" style={{ width: `${employeeColumnWidth}px` }}>
+                                    <td className="p-2 text-left sticky left-0 bg-white group-hover:bg-slate-50 z-30 shadow-sm align-top border-b border-slate-100" style={{ width: `${employeeColumnWidth}px` }}>
                                         <div className="w-full py-1" style={{ minWidth: `${EMPLOYEE_CONTENT_MIN_WIDTH}px`, maxWidth: `${EMPLOYEE_CONTENT_MAX_WIDTH}px` }}>
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center justify-between">

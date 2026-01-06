@@ -200,3 +200,63 @@ const calculateNetHours = (
 
     return 0;
 };
+
+
+export const getPrenominaReport = async (req: any, res: Response) => {
+    // 1. Verificación de Permisos (Coincide con ReportsHub)
+    if (!req.user.permissions['reportes.prenomina.read']) {
+        return res.status(403).json({ message: 'Acceso denegado.' });
+    }
+
+    const { startDate, endDate, filters } = req.body;
+
+    try {
+        const pool = await sql.connect(dbConfig);
+        
+        // 2. Ejecutar el Stored Procedure
+        const result = await pool.request()
+            .input('UsuarioId', sql.Int, req.user.usuarioId)
+            .input('FechaInicio', sql.Date, startDate)
+            .input('FechaFin', sql.Date, endDate)
+            // Reutilizamos el helper toJSONString que ya tienes en este archivo
+            .input('DepartamentoFiltro', sql.NVarChar, toJSONString(filters?.departamentos))
+            .input('GrupoNominaFiltro', sql.NVarChar, toJSONString(filters?.gruposNomina))
+            .input('PuestoFiltro', sql.NVarChar, toJSONString(filters?.puestos))
+            .input('EstablecimientoFiltro', sql.NVarChar, toJSONString(filters?.establecimientos))
+            .execute('sp_Reporte_Prenomina'); // Asegúrate de que este SP exista en tu BD
+        
+        // 3. Procesar Resultados
+        // Asumimos que el SP devuelve una columna 'ConceptosCalculados' como JSON String
+        // (Similar a como lo hace el Kardex con FichasSemana)
+        const reportData = result.recordset.map(row => {
+            let conceptos = [];
+            try {
+                if (row.ConceptosCalculados && typeof row.ConceptosCalculados === 'string') {
+                    conceptos = JSON.parse(row.ConceptosCalculados);
+                } else if (Array.isArray(row.ConceptosCalculados)) {
+                    conceptos = row.ConceptosCalculados;
+                }
+            } catch (e) {
+                console.error("Error parseando JSON de conceptos para empleado:", row.EmpleadoId);
+                conceptos = []; 
+            }
+
+            return {
+                EmpleadoId: row.EmpleadoId,
+                CodigoEmpleado: row.CodigoEmpleado,
+                NombreCompleto: row.NombreCompleto,
+                GrupoNomina: row.GrupoNomina,
+                Departamento: row.Departamento,
+                Puesto: row.Puesto,
+                FechaIngreso: row.FechaIngreso,
+                ConceptosCalculados: conceptos // Esto espera el Frontend
+            };
+        });
+
+        res.json(reportData);
+
+    } catch (err: any) {
+        console.error("Error en getPrenominaReport:", err);
+        res.status(500).json({ message: 'Error al generar la prenómina.' });
+    }
+};

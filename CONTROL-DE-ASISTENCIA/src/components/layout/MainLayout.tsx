@@ -95,6 +95,9 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
             case 'report_kardex':
                 if (!can('reportes.kardex.read')) return <DashboardPage setActiveView={setActiveView} />;
                 return <ReportsLayout activeView={activeView} setActiveView={setActiveView} />;
+            case 'report_prenomina':
+                if (!can('reportes.prenomina.read')) return <DashboardPage setActiveView={setActiveView} />;
+                return <ReportsLayout activeView={activeView} setActiveView={setActiveView} />;
             case 'report_attendance_list':
                 if (!can('reportes.lista_asistencia.read')) return <DashboardPage setActiveView={setActiveView} />;
                 return <ReportsLayout activeView={activeView} setActiveView={setActiveView} />;

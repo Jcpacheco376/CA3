@@ -4,11 +4,14 @@ import { Modal, Button } from '../../components/ui/Modal';
 import { AttendanceStatus } from '../../types/index';
 import { Tooltip } from '../../components/ui/Tooltip';
 import { statusColorPalette } from '../../config/theme';
-// import { Info, AlertCircle } from 'lucide-react';
+import { useAuth } from '../auth/AuthContext';
+import { API_BASE_URL } from '../../config/api';
+import { Calculator, Settings2, Banknote } from 'lucide-react';
+import { SmartSelect } from '../../components/ui/SmartSelect'; // Ajusta la ruta según donde guardes el componente
 
+// --- Componentes Auxiliares ---
 const FichaPreview = ({ abreviatura, colorUI }: { abreviatura: string, colorUI: string }) => {
     const { bgText, border } = statusColorPalette[colorUI] || statusColorPalette.slate;
-
     return (
         <div className="space-y-2 text-center">
             <label className="block text-sm font-medium text-slate-700">Vista Previa</label>
@@ -22,53 +25,82 @@ const FichaPreview = ({ abreviatura, colorUI }: { abreviatura: string, colorUI: 
 };
 
 const Toggle = ({ enabled, onChange }: { enabled: boolean, onChange: (enabled: boolean) => void }) => (
-    <button type="button" onClick={() => onChange(!enabled)} className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${enabled ? 'bg-[--theme-500]' : 'bg-gray-200'}`}>
+    <button type="button" onClick={() => onChange(!enabled)} className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors focus:outline-none ${enabled ? 'bg-[--theme-500]' : 'bg-gray-200'}`}>
         <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${enabled ? 'translate-x-6' : 'translate-x-1'}`} />
     </button>
 );
 
+const formatTitle = (id: string) => {
+    if (!id) return 'Seleccionar...';
+    return id.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+};
+
 export const EstatusAsistenciaModal = ({ isOpen, onClose, onSave, status }: { isOpen: boolean; onClose: () => void; onSave: (status: AttendanceStatus) => void; status: AttendanceStatus | null; }) => {
+    const { getToken } = useAuth();
     const [formData, setFormData] = useState<Partial<AttendanceStatus>>({});
+    
+    // Estados para Catálogos
+    const [calculationTypes, setCalculationTypes] = useState<{ TipoCalculoId: string, Descripcion: string }[]>([]);
+    const [payrollConcepts, setPayrollConcepts] = useState<{ ConceptoId: number, Nombre: string, CodRef: string }[]>([]);
+    const [isLoadingCatalogs, setIsLoadingCatalogs] = useState(false);
+
     const isNew = !status?.EstatusId;
 
+    // Cargar catálogos
+    useEffect(() => {
+        const fetchCatalogs = async () => {
+            if (!isOpen) return;
+            setIsLoadingCatalogs(true);
+            try {
+                const token = getToken();
+                const headers = { 'Authorization': `Bearer ${token}` };
+                const [calcRes, payrollRes] = await Promise.all([
+                    fetch(`${API_BASE_URL}/catalogs/calculation-types`, { headers }),
+                    fetch(`${API_BASE_URL}/catalogs/payroll-concepts`, { headers })
+                ]);
+                if (calcRes.ok) setCalculationTypes(await calcRes.json());
+                if (payrollRes.ok) setPayrollConcepts(await payrollRes.json());
+            } catch (error) {
+                console.error("Error cargando catálogos", error);
+            } finally {
+                setIsLoadingCatalogs(false);
+            }
+        };
+        fetchCatalogs();
+    }, [isOpen, getToken]);
+
+    // Inicializar Formulario
     useEffect(() => {
         if (isOpen) {
             if (status) {
-                // Al editar, simplemente usamos el objeto que llega.
-                // La propiedad 'Esdefault' ya viene en el objeto 'status'.
                 setFormData(status);
             } else {
                 setFormData({
                     Abreviatura: '', Descripcion: '', ColorUI: 'slate', ValorNomina: 1.00,
-                    VisibleSupervisor: true, Activo: true, Tipo: 'Incidencia',
-                    EsFalta: false, EsRetardo: false, EsDescanso: false, EsEntradaSalidaIncompleta: false,
-                    EsAsistencia: false, DiasRegistroFuturo: 0, PermiteComentario: false,
-                    Esdefault: false // Corregido: El nombre de la propiedad debe ser consistente.
+                    VisibleSupervisor: true, Activo: true,
+                    TipoCalculoId: '',
+                    ConceptoNominaId: undefined,
+                    DiasRegistroFuturo: 0, PermiteComentario: false,
+                    Esdefault: false
                 });
             }
         }
     }, [status, isOpen]);
 
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const { name, value, type } = e.target;
-
         let val: string | number | null = value;
         if (type === 'number') {
-            if (value === '') {
-                val = null;
-            } else if (name === 'ValorNomina') {
-                val = parseFloat(value);
-            } else {
-                val = parseInt(value, 10);
-            }
+            if (value === '') val = null;
+            else if (name === 'ValorNomina') val = parseFloat(value);
+            else val = parseInt(value, 10);
         }
-
         setFormData(prev => ({ ...prev, [name]: val }));
     };
 
     const handleToggleChange = (name: keyof AttendanceStatus, value: boolean) => {
         setFormData(prev => ({ ...prev, [name]: value }));
-    }
+    };
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -78,7 +110,7 @@ export const EstatusAsistenciaModal = ({ isOpen, onClose, onSave, status }: { is
     const footer = (
         <>
             <Button variant="secondary" onClick={onClose}>Cancelar</Button>
-            <Button type="submit" form="status-modal-form">Guardar</Button>
+            <Button type="submit" form="status-modal-form" disabled={!formData.TipoCalculoId}>Guardar</Button>
         </>
     );
 
@@ -86,23 +118,23 @@ export const EstatusAsistenciaModal = ({ isOpen, onClose, onSave, status }: { is
         <Modal isOpen={isOpen} onClose={onClose} title={isNew ? 'Crear Estatus de Asistencia' : 'Editar Estatus de Asistencia'} footer={footer} size="xl">
             <form id="status-modal-form" onSubmit={handleSubmit} className="space-y-6">
 
-                {/* --- SECCIÓN 1: DISEÑO VISUAL --- */}
+                {/* --- SECCIÓN 1: DATOS GENERALES --- */}
                 <div className="flex gap-6 items-start">
                     <div className="w-1/3">
                         <FichaPreview abreviatura={formData.Abreviatura || ''} colorUI={formData.ColorUI || 'slate'} />
                     </div>
-                    <div className="w-2/3 space-y-4">
-                        <div>
-                            <Tooltip text="El código corto que aparecerá en la ficha (ej: 'A', 'VAC'). Max 10 caracteres.">
-                                <label className="block text-sm font-medium text-slate-700">Abreviatura</label>
-                            </Tooltip>
-                            <input type="text" name="Abreviatura" value={formData.Abreviatura || ''} onChange={handleChange} className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[--theme-500]" required maxLength={10} autoFocus />
-                        </div>
-                        <div> 
-                            <Tooltip text="El nombre completo del estatus (ej: 'Asistencia', 'Vacaciones').">
+                    <div className="w-2/3">
+                        <div className="grid grid-cols-4 gap-4">
+                            <div className="col-span-1">
+                                <Tooltip text="Código corto (ej: 'A', 'VAC'). Max 5 chars.">
+                                    <label className="block text-sm font-medium text-slate-700">Abreviatura</label>
+                                </Tooltip>
+                                <input type="text" name="Abreviatura" value={formData.Abreviatura || ''} onChange={handleChange} className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[--theme-500]" required maxLength={5} autoFocus />
+                            </div>
+                            <div className="col-span-3">
                                 <label className="block text-sm font-medium text-slate-700">Descripción</label>
-                            </Tooltip>
-                            <input type="text" name="Descripcion" value={formData.Descripcion || ''} onChange={handleChange} className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[--theme-500]" required />
+                                <input type="text" name="Descripcion" value={formData.Descripcion || ''} onChange={handleChange} className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[--theme-500]" required />
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -117,106 +149,117 @@ export const EstatusAsistenciaModal = ({ isOpen, onClose, onSave, status }: { is
                                 type="button"
                                 onClick={() => setFormData(prev => ({ ...prev, ColorUI: colorName }))}
                                 className={`w-8 h-8 rounded-full transition-transform hover:scale-110 focus:outline-none ring-offset-2 ${formData.ColorUI === colorName ? `ring-2 ring-[--theme-500] scale-110` : ''} ${statusColorPalette[colorName].main}`}
-                                title={colorName.charAt(0).toUpperCase() + colorName.slice(1)}
+                                title={colorName}
                             />
                         ))}
                     </div>
                 </div>
 
-                {/* --- SECCIÓN 3: DATOS DE NÓMINA --- */}
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <Tooltip text="Agrupa los estatus por su naturaleza (ej: 'Asistencia', 'Justificacion').">
-                            <label className="block text-sm font-medium text-slate-700">Tipo / Categoría</label>
-                        </Tooltip>
-                        <input type="text" name="Tipo" value={formData.Tipo || ''} onChange={handleChange} className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[--theme-500]" required />
-                    </div>
-                    <div>
-                        <Tooltip text="Valor para el cálculo de nómina. 1.0 = día completo, 0.5 = medio día, 0.0 = sin goce.">
-                            <label className="block text-sm font-medium text-slate-700">Valor Nómina</label>
-                        </Tooltip>
-                        <input type="number" name="ValorNomina" value={formData.ValorNomina ?? 0} onChange={handleChange} className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[--theme-500]" step="1.00" />
-                    </div>
-                </div>
-
-                {/* --- SECCIÓN 4: COMPORTAMIENTO --- */}
+                {/* --- SECCIÓN 3: CONFIGURACIÓN LÓGICA --- */}
                 <div className="border-t pt-6">
-                    <h3 className="text-md font-bold text-slate-800 mb-4 flex items-center gap-2">
-                        Configuración de Comportamiento
-                    </h3>
+                    <h3 className="text-md font-bold text-slate-800 mb-4">Configuración de Comportamiento</h3>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
-                        {/* Columna 1: Semántica Básica */}
-                        <div className="space-y-4">
-                            <div className="flex items-center justify-between">
-                                <Tooltip text="El sistema lo contará como asistencia"><span className="font-medium text-slate-700">Es Asistencia</span></Tooltip>
-                                <Toggle enabled={formData.EsAsistencia || false} onChange={(val) => handleToggleChange('EsAsistencia', val)} />
+                        
+                        {/* COLUMNA 1: LÓGICA Y NÓMINA */}
+                        <div className="space-y-6">
+
+                            {/* 1. CÁLCULO AUTOMÁTICO */}
+                            <SmartSelect
+                                label={
+                                    <Tooltip text="Define cómo el sistema interpreta este estatus para cálculos.">
+                                        <label className="block text-sm font-medium text-slate-700">
+                                            Cálculo Automático <span className="text-red-500">*</span>
+                                        </label>
+                                    </Tooltip>
+                                }
+                                value={formData.TipoCalculoId}
+                                options={calculationTypes.map(t => ({
+                                    value: t.TipoCalculoId,
+                                    title: formatTitle(t.TipoCalculoId),
+                                    subtitle: t.Descripcion,
+                                }))}
+                                onChange={(val) => setFormData(prev => ({ ...prev, TipoCalculoId: val as string }))}
+                                isLoading={isLoadingCatalogs}
+                                placeholder="Seleccionar..."
+                                loadingText="Cargando..."
+                                buttonIcon={Calculator}
+                                itemIcon={Settings2}
+                                colorScheme="primary"
+                                showButtonSubtitle={false}
+                                maxHeightClass="max-h-72"
+                            />
+
+                            {/* 2. CONCEPTO NÓMINA */}
+                            <SmartSelect
+                                label={
+                                    <Tooltip text="Concepto contable para el reporte de prenómina.">
+                                        <label className="block text-sm font-medium text-slate-700">
+                                            Concepto Nómina
+                                        </label>
+                                    </Tooltip>
+                                }
+                                value={formData.ConceptoNominaId}
+                                options={payrollConcepts.map(c => ({
+                                    value: c.ConceptoId,
+                                    title: c.CodRef,
+                                    subtitle: c.Nombre,
+                                }))}
+                                onChange={(val) => setFormData(prev => ({ ...prev, ConceptoNominaId: val as number | undefined }))}
+                                isLoading={isLoadingCatalogs}
+                                placeholder="Sin Concepto Asignado"
+                                loadingText="..."
+                                buttonIcon={Banknote}
+                                itemIcon={Banknote}
+                                colorScheme="emerald"
+                                includeNoneOption={true}
+                                noneLabel="Ninguno / Sin Efecto en Nómina"
+                                maxHeightClass="max-h-60"
+                            />
+
+                            {/* 3. VALOR NÓMINA */}
+                            <div>
+                                <Tooltip text="Factor multiplicador: 1.0 = Día Completo, 0.5 = Medio Día, 0.0 = Sin Pago.">
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">Valor / Factor Nómina</label>
+                                </Tooltip>
+                                <input type="number" name="ValorNomina" value={formData.ValorNomina ?? 0} onChange={handleChange} className="w-24 p-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[--theme-500] text-center font-semibold" step="0.1" min="0" max="3" />
+                                <span className="text-slate-500 text-sm ml-2">días/unidad</span>
                             </div>
-                            <div className="flex items-center justify-between">
-                                <Tooltip text="El sistema lo contará como falta"><span className="font-medium text-slate-700">Es Falta</span></Tooltip>
-                                <Toggle enabled={formData.EsFalta || false} onChange={(val) => handleToggleChange('EsFalta', val)} />
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <Tooltip text="El sistema lo contará como retardo"><span className="font-medium text-slate-700">Es Retardo</span></Tooltip>
-                                <Toggle enabled={formData.EsRetardo || false} onChange={(val) => handleToggleChange('EsRetardo', val)} />
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <Tooltip text="El sistema lo contará como descanso"><span className="font-medium text-slate-700">Es Descanso</span></Tooltip>
-                                <Toggle enabled={formData.EsDescanso || false} onChange={(val) => handleToggleChange('EsDescanso', val)} />
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <Tooltip text="Checada incompleta (solo entrada o solo salida)."><span className="font-medium text-slate-700">E/S Incompleta</span></Tooltip>
-                                <Toggle enabled={formData.EsEntradaSalidaIncompleta || false} onChange={(val) => handleToggleChange('EsEntradaSalidaIncompleta', val)} />
-                            </div>
-                           
                         </div>
 
-                        {/* Columna 2: Reglas de Negocio */}
-                        <div className="space-y-4">
+                        {/* COLUMNA 2: REGLAS DE NEGOCIO */}
+                        <div className="space-y-4 border-l pl-6 border-slate-100">
                             <div className="flex items-center justify-between">
-                                <Tooltip text="Permite a los supervisores seleccionarlo manualmente."><span className="font-medium text-slate-700">Asignable Manualmente</span></Tooltip>
+                                <Tooltip text="Visible para asignación manual por supervisores."><span className="font-medium text-slate-700">Asignable Manualmente</span></Tooltip>
                                 <Toggle enabled={formData.VisibleSupervisor || false} onChange={(val) => handleToggleChange('VisibleSupervisor', val)} />
                             </div>
                             <div className="flex items-center justify-between">
-                                <Tooltip text="Requiere un comentario obligatorio al asignarse."><span className="font-medium text-slate-700">Permite Comentario</span></Tooltip>
+                                <Tooltip text="Habilita el campo de comentarios (opcional) al asignar.">
+                                    <span className="font-medium text-slate-700">Permite Comentario</span>
+                                </Tooltip>
                                 <Toggle enabled={formData.PermiteComentario || false} onChange={(val) => handleToggleChange('PermiteComentario', val)} />
                             </div>
                             <div className="flex items-center justify-between">
-                                <Tooltip text="Usar cuando un empleado rotativo no tiene turno asignado."><span className="text-sm font-medium text-slate-700">Sin Horario</span></Tooltip>
-                                <Toggle enabled={formData.SinHorario || false} onChange={(val) => handleToggleChange('SinHorario', val)} />
+                                <Tooltip text="Disponible para uso general."><span className="font-medium text-slate-700">Estatus Activo</span></Tooltip>
+                                <Toggle enabled={formData.Activo !== false} onChange={(val) => handleToggleChange('Activo', val)} />
                             </div>
-                            <div className="flex items-center justify-between">
-                                <Tooltip text="Ocultar este estatus sin borrarlo."><span className="font-medium text-slate-700">Estatus Activo</span></Tooltip>
-                                <Toggle enabled={formData.Activo || false} onChange={(val) => handleToggleChange('Activo', val)} />
-                            </div>
-                            <div className="flex items-center justify-between">
-                                <Tooltip text="Días máximos a futuro permitidos (0 = solo hoy/pasado).">
+                            
+                            <div className="flex items-center justify-between border-t border-slate-100 pt-4 mt-4">
+                                <Tooltip text="Días a futuro permitidos (0 = Solo hoy/pasado).">
                                     <span className="text-sm font-medium text-slate-700">Días Registro Futuro</span>
                                 </Tooltip>
-                                <input
-                                    type="number"
-                                    name="DiasRegistroFuturo"
-                                    value={formData.DiasRegistroFuturo ?? 0}
-                                    onChange={handleChange}
-                                    className="w-16 p-1 border border-slate-300 rounded-md text-center text-sm focus:outline-none focus:border-[--theme-500]"
-                                    min="0"
-                                />
+                                <div className="flex items-center gap-2">
+                                    <input
+                                        type="number"
+                                        name="DiasRegistroFuturo"
+                                        value={formData.DiasRegistroFuturo ?? 0}
+                                        onChange={handleChange}
+                                        className="w-16 p-1 border border-slate-300 rounded-md text-center text-sm focus:outline-none focus:ring-1 focus:ring-[--theme-500]"
+                                        min="0"
+                                    />
+                                    <span className="text-xs text-slate-500">días</span>
+                                </div>
                             </div>
-                        </div>
-                    </div>
-
-                    <div className={`mt-6 flex items-start gap-4 p-4 rounded-lg border transition-colors ${formData.Esdefault ? 'bg-indigo-50 border-indigo-200' : 'bg-slate-50 border-slate-200'}`}>
-                   
-                        <div className="flex flex-col">
-                            <div className="flex items-center gap-4 justify-between w-full">
-                                <span className={`font-bold text-sm ${formData.Esdefault ? 'text-indigo-900' : 'text-slate-700'}`}>
-                                    Valor Predeterminado del Sistema                                     
-                                </span>    
-                                <Toggle enabled={formData.Esdefault || false} onChange={(val) => handleToggleChange('Esdefault', val)} />
-                            </div>
-                            <span className={`text-xs leading-relaxed mt-1 ${formData.Esdefault ? 'text-indigo-700' : 'text-slate-500'}`}>
-                                Si activas esto, el sistema usará este estatus automáticamente cuando detecte el evento marcado arriba (ej. Falta). Solo puede haber uno por tipo.
-                            </span>
                         </div>
                     </div>
                 </div>

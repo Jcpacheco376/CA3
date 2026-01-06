@@ -9,7 +9,6 @@ import { PlusCircleIcon, PencilIcon } from '../../components/ui/Icons.tsx';
 import { AttendanceStatus } from '../../types/index.ts';
 import { EstatusAsistenciaModal } from './EstatusAsistenciaModal.tsx';
 import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
-// --- MODIFICACIÓN: Importamos la paleta de colores ---
 import { statusColorPalette } from '../../config/theme.ts';
 
 export const EstatusAsistenciaPage = () => {

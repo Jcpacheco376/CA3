@@ -78,8 +78,8 @@ export const ReportsHub = ({ setActiveView }: { setActiveView: (view: any) => vo
                             title="Prenómina"
                             description="Cálculo final de horas y conceptos para pago. Requiere validación de incidencias."
                             icon={<Banknote />}
-                            onClick={() => console.log("TODO")}
-                            disabled={true}
+                            onClick={() => setActiveView('report_prenomina')}
+                           disabled={false}
                         />
                     </>
                 )}

@@ -21,11 +21,13 @@ const SkeletonBar = ({ width }: { width: string }) => (
 export const TableSkeleton = ({ 
     employeeColumnWidth, 
     dateRange, 
-    viewMode 
+    viewMode,
+    weekStartDay = 1 // Default to Monday if not provided
 }: { 
     employeeColumnWidth: number, 
     dateRange: Date[], 
-    viewMode: string 
+    viewMode: string,
+    weekStartDay?: number 
 }) => {
     
     const skeletonRows = Array(15).fill(0);
@@ -55,9 +57,9 @@ export const TableSkeleton = ({
                         </th>
                         
                         {dateRange.map((day, dayIndex) => {
-                             const isMonday = getDay(day) === 1;
+                             const isWeekStart = getDay(day) === weekStartDay;
                              let thClasses = `px-1 py-2 font-semibold text-slate-600 ${getHeaderWidthClass(viewMode)} ${isTodayDateFns(day) ? 'bg-sky-100' : 'bg-slate-50'}`;
-                             if (isMonday && dayIndex > 0) {
+                             if (isWeekStart && dayIndex > 0) {
                                  thClasses += ' border-l-2 border-slate-300';
                              }
 
@@ -101,7 +103,7 @@ export const TableSkeleton = ({
                                     key={dayIndex} 
                                     viewMode={viewMode}
                                     isToday={isTodayDateFns(day)}
-                                    isMonday={getDay(day) === 1}
+                                    isWeekStart={getDay(day) === weekStartDay}
                                     isFirstDay={dayIndex === 0}
                                 />
                             ))}

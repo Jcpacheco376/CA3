@@ -27,14 +27,14 @@ const authMiddleware = (req, res, next) => __awaiter(void 0, void 0, void 0, fun
         const decoded = jsonwebtoken_1.default.verify(token, config_1.JWT_SECRET);
         // Si es el super admin temporal, asigna todos los permisos
         if (decoded.usuarioId === 0) {
-            const pool = yield mssql_1.default.connect(database_1.dbConfig);
+            const pool = yield database_1.poolPromise;
             const permissionsResult = yield pool.request().execute('sp_Permisos_GetAll');
             const permissions = {};
             permissionsResult.recordset.forEach(p => { permissions[p.NombrePermiso] = [true]; });
             req.user = { usuarioId: 0, permissions };
             return next();
         }
-        const pool = yield mssql_1.default.connect(database_1.dbConfig);
+        const pool = yield database_1.poolPromise;
         const userVersionResult = yield pool.request()
             .input('UsuarioId', mssql_1.default.Int, decoded.usuarioId)
             .query('SELECT TokenVersion FROM dbo.Usuarios WHERE UsuarioId = @UsuarioId');

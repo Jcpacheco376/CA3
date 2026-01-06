@@ -4,12 +4,12 @@ import React from 'react';
 export const SkeletonCell = ({ 
     viewMode, 
     isToday, 
-    isMonday, 
+    isWeekStart, 
     isFirstDay 
 }: { 
     viewMode: string, 
     isToday: boolean, 
-    isMonday: boolean, 
+    isWeekStart: boolean, 
     isFirstDay: boolean 
 }) => {
     
@@ -17,7 +17,7 @@ export const SkeletonCell = ({
     
     let tdClasses = `p-1 align-middle ${cellWidthClass} ${isToday ? 'bg-sky-50/50' : 'bg-white'}`;
     
-    if (isMonday && !isFirstDay) {
+    if (isWeekStart && !isFirstDay) {
         tdClasses += ' border-l-2 border-slate-300';
     }
 
