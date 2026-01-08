@@ -150,6 +150,8 @@ export const EstatusAsistenciaPage = () => {
                     onClose={handleCloseModal}
                     onSave={handleSave}
                     status={editingStatus}
+                    statuses={statuses}
+                    onSwitch={(newStatus) => setEditingStatus(newStatus)}
                 />
              )}
         </div>

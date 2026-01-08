@@ -18,7 +18,7 @@ export const Button = ({ variant = 'primary', children, disabled, ...props }: an
     return <button className={`${baseClasses} ${styles[variant]}`} disabled={disabled} {...props}>{children}</button>;
 };
 
-export const Modal = ({ isOpen, onClose, title, children, footer, size = 'md' }: any) => {
+export const Modal = ({ isOpen, onClose, title, children, footer, footerActions, size = 'md' }: any) => {
     const { animationsEnabled } = useAppContext();
     const [show, setShow] = useState(isOpen);
 
@@ -67,9 +67,14 @@ export const Modal = ({ isOpen, onClose, title, children, footer, size = 'md' }:
                     {children}
                 </div>
                 
-                {footer && (
-                    <div className="flex justify-end gap-3 p-4 bg-gray-50 rounded-b-xl border-t shrink-0">
-                        {footer}
+                {(footer || footerActions) && (
+                    <div className="flex justify-between items-center gap-3 p-4 bg-gray-50 rounded-b-xl border-t shrink-0">
+                        <div>
+                            {footerActions}
+                        </div>
+                        <div className="flex gap-3">
+                            {footer}
+                        </div>
                     </div>
                 )}
             </div>

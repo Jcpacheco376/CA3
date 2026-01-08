@@ -73,38 +73,44 @@ export const PrenominaReportPage = () => {
     const handleValidateClick = async () => {
         if (!dateRange || dateRange.length === 0) return;
 
+        if (!filters.groups || filters.groups.length === 0) {
+            setError("Debe seleccionar un grupo de nómina para generar el reporte.");
+            return;
+        }
+
         setIsLoading(true);
         setError(null);
         const token = getToken();
 
-        const activeFilters = {
-            startDate: format(dateRange[0], 'yyyy-MM-dd'),
-            endDate: format(dateRange[dateRange.length - 1], 'yyyy-MM-dd'),
-            filters: {
-                departamentos: filters.depts,
-                gruposNomina: filters.groups,
-                puestos: filters.puestos,
-                establecimientos: filters.estabs
-            }
-        };
+        const startDate = format(dateRange[0], 'yyyy-MM-dd');
+        const endDate = format(dateRange[dateRange.length - 1], 'yyyy-MM-dd');
 
+        const validationPayload = {
+            startDate,
+            endDate,
+            grupoNominaId: filters.groups?.[0] ?? null,
+        };
+            console.log("Payload de validación de prenómina:", validationPayload);
         try {
-            const res = await fetch(`${API_BASE_URL}/reports/validate-period`, {
+            const res = await fetch(`${API_BASE_URL}/reports/validate-prenomina`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify(activeFilters)
+                body: JSON.stringify(validationPayload)
             });
 
-            if (!res.ok) throw new Error('Error al validar el periodo.');
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => ({ message: 'Error al validar el periodo.' }));
+                throw new Error(errorData.message);
+            }
             const result = await res.json();
 
             setValidationResult(result);
-            setPendingFilters(activeFilters);
+            setPendingFilters(validationPayload);
             setIsGuardModalOpen(true);
 
         } catch (err: any) {
             console.error(err);
-            setError('No se pudo validar el estado del periodo. Intente nuevamente.');
+            setError(err.message || 'No se pudo validar el estado del periodo. Intente nuevamente.');
         } finally {
             setIsLoading(false);
         }
@@ -116,19 +122,38 @@ export const PrenominaReportPage = () => {
         setIsLoading(true);
         const token = getToken();
 
+        if (!filters.groups || filters.groups.length === 0) {
+            setError("Debe seleccionar un grupo de nómina para generar el reporte.");
+            return;
+        }
+
+        const startDate = format(dateRange[0], 'yyyy-MM-dd');
+        const endDate = format(dateRange[dateRange.length - 1], 'yyyy-MM-dd');
+
+        const generationPayload = {
+            startDate,
+            endDate,
+            grupoNominaId: filters.groups?.[0] ?? null,
+        };
+        console.log("Payload de generación de prenómina:", generationPayload);
         try {
             const res = await fetch(`${API_BASE_URL}/reports/prenomina`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify(pendingFilters)
+                body: JSON.stringify(generationPayload)
             });
 
-            if (!res.ok) throw new Error('Error al calcular la prenómina.');
+            if (!res.ok) {
+                const errorData = await res.json().catch(() => null);
+                const message = errorData?.message || 'Error al calcular la prenómina.';
+                throw new Error(`${message} (Código: ${res.status})`);
+            }
+            
             const jsonData = await res.json();
             setData(jsonData);
         } catch (err: any) {
             console.error(err);
-            setError('Error al generar los datos. Verifique la conexión.');
+            setError(err.message || 'Error al generar los datos. Verifique la conexión.');
         } finally {
             setIsLoading(false);
         }
@@ -198,14 +223,14 @@ export const PrenominaReportPage = () => {
 
     const filterConfigurations: FilterConfig[] = useMemo(() => [
         { id: 'depts', title: 'Deptos', icon: <Building />, options: user?.Departamentos?.map(d => ({ value: d.DepartamentoId, label: d.Nombre })) || [], selectedValues: filters.depts, onChange: v => setFilters(f => ({ ...f, depts: v as number[] })), isActive: user?.activeFilters?.departamentos ?? false },
-        { id: 'groups', title: 'Grupos', icon: <Briefcase />, options: user?.GruposNomina?.map(g => ({ value: g.GrupoNominaId, label: g.Nombre })) || [], selectedValues: filters.groups, onChange: v => setFilters(f => ({ ...f, groups: v as number[] })), isActive: user?.activeFilters?.gruposNomina ?? false },
+        { id: 'groups', title: 'Grupos', icon: <Briefcase />, options: user?.GruposNomina?.map(g => ({ value: g.GrupoNominaId, label: g.Nombre })) || [], selectedValues: filters.groups, selectionMode: 'single', onChange: v => setFilters(f => ({ ...f, groups: v as number[] })), isActive: user?.activeFilters?.gruposNomina ?? false },
         { id: 'puestos', title: 'Puestos', icon: <Tag />, options: user?.Puestos?.map(p => ({ value: p.PuestoId, label: p.Nombre })) || [], selectedValues: filters.puestos, onChange: v => setFilters(f => ({ ...f, puestos: v as number[] })), isActive: user?.activeFilters?.puestos ?? false },
         { id: 'estabs', title: 'Estabs', icon: <MapPin />, options: user?.Establecimientos?.map(e => ({ value: e.EstablecimientoId, label: e.Nombre })) || [], selectedValues: filters.estabs, onChange: v => setFilters(f => ({ ...f, estabs: v as number[] })), isActive: user?.activeFilters?.establecimientos ?? false },
     ].filter(c => c.isActive), [user, filters]);
 
     return (
         <div className="space-y-6 animate-fade-in pb-10 h-full flex flex-col">
-            
+
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
                     <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
@@ -213,25 +238,25 @@ export const PrenominaReportPage = () => {
                     </h2>
                     <p className="text-slate-500 text-sm">Resumen consolidado de conceptos para pago.</p>
                 </div>
-                <button 
-                    onClick={handleValidateClick} 
-                    disabled={isLoading} 
+                <button
+                    onClick={handleValidateClick}
+                    disabled={isLoading}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold shadow-sm transition-all bg-emerald-600 text-white hover:bg-emerald-700 hover:shadow-md ${isLoading ? 'opacity-70' : ''}`}
                 >
-                    {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} />} 
+                    {isLoading ? <Loader2 size={18} className="animate-spin" /> : <Play size={18} />}
                     {isLoading ? 'Procesando...' : 'Generar Prenómina'}
                 </button>
             </div>
 
             <div className="bg-white rounded-lg shadow-sm border border-slate-200">
                 <AttendanceToolbar
-                    searchTerm={searchTerm} setSearchTerm={setSearchTerm} 
+                    searchTerm={searchTerm} setSearchTerm={setSearchTerm}
                     filterConfigurations={filterConfigurations}
-                    viewMode={viewMode} setViewMode={setViewMode} 
+                    viewMode={viewMode} setViewMode={setViewMode}
                     rangeLabel={rangeLabel}
                     handleDatePrev={handleDatePrev} handleDateNext={handleDateNext}
                     currentDate={currentDate} onDateChange={setCurrentDate}
-                    showSearch={true} 
+                    showSearch={true}
                 />
             </div>
 
@@ -345,9 +370,9 @@ export const PrenominaReportPage = () => {
                 isOpen={isGuardModalOpen}
                 onClose={() => setIsGuardModalOpen(false)}
                 onConfirm={handleConfirmGeneration}
-                validation={validationResult}
-                canOverride={can('nomina.override')}
-                reportType="prenomina"
+                validation={validationResult} 
+                //canOverride={can('nomina.override')}
+                reportType="kardex" 
             />
         </div>
     );

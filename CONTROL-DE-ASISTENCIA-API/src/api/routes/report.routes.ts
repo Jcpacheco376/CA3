@@ -4,7 +4,8 @@ import {
     getKardexReport, 
     getAttendanceListReport, 
     validatePayrollPeriod,
-    getPrenominaReport
+    getPrenominaReport,
+    validatePrenominaPeriod
 } from '../controllers/report.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 
@@ -14,5 +15,5 @@ router.post('/kardex', authMiddleware, getKardexReport);
 router.post('/attendance-list', authMiddleware, getAttendanceListReport); 
 router.post('/validate-period', authMiddleware, validatePayrollPeriod);
 router.post('/prenomina', authMiddleware, getPrenominaReport);
-
+router.post('/validate-prenomina', authMiddleware, validatePrenominaPeriod);
 export default router;
