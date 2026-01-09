@@ -208,12 +208,12 @@ export const getPrenominaReport = async (req: any, res: Response) => {
     if (!req.user.permissions['reportes.prenomina.read']) {
         return res.status(403).json({ message: 'Acceso denegado.' });
     }
-    console.log(req.body);
+    
     const { startDate, endDate, grupoNominaId } = req.body;
 
     try {
         const pool = await sql.connect(dbConfig);
-        console.log("Generando prenómina con filtros:", { startDate, endDate, grupoNominaId });
+        
         // 2. Ejecutar el Stored Procedure
         const result = await pool.request()
             .input('UsuarioId', sql.Int, req.user.usuarioId)
@@ -222,20 +222,25 @@ export const getPrenominaReport = async (req: any, res: Response) => {
             .input('GrupoNominaId', sql.Int, grupoNominaId)
             .execute('sp_Reporte_Prenomina');
 
-        console.log("Resultado del SP sp_Reporte_Prenomina:", result.recordset);
+        // 3. Procesar Resultados
         const reportData = result.recordset.map(row => {
-            let conceptos = [];
+            let detalle = [];
             try {
-                if (row.ConceptosCalculados) {
-                    conceptos = typeof row.ConceptosCalculados === 'string'
-                        ? JSON.parse(row.ConceptosCalculados)
-                        : row.ConceptosCalculados;
+                if (row.DetalleNomina) {
+                    detalle = typeof row.DetalleNomina === 'string'
+                        ? JSON.parse(row.DetalleNomina)
+                        : row.DetalleNomina;
                 }
             } catch (e) {
-                conceptos = [];
+                console.error("Error parseando JSON de nómina:", e);
+                detalle = [];
             }
 
-            return { ...row, ConceptosCalculados: conceptos };
+            return { 
+                ...row, 
+                DetalleNomina: detalle, 
+                ConceptosCalculados: undefined 
+            };
         });
 
         res.json(reportData);
