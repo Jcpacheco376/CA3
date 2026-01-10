@@ -1,10 +1,10 @@
 // src/features/reports/pages/AttendanceListReportPage.tsx
 import React, { useState, useRef, useMemo, useEffect } from 'react';
 import {
-    Search, FileSpreadsheet, ChevronDown, ChevronUp,
+    Search, FileSpreadsheet, FileText, ChevronDown, ChevronUp,
     ArrowUpDown, ArrowUp, ArrowDown, Play, Loader2,
     Building, Briefcase, Tag, MapPin,
-    Contact, ShieldAlert, CalendarOff, Timer, FileText // <-- Usamos FileText para PDF
+    Contact, ShieldAlert, CalendarOff, Timer
 } from 'lucide-react';
 import { Tooltip } from '../../../components/ui/Tooltip';
 import { useAuth } from '../../auth/AuthContext';
@@ -73,6 +73,7 @@ export const AttendanceListReportPage = () => {
 
     const [searchTerm, setSearchTerm] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [isInitialLoading, setIsInitialLoading] = useState(false); // <--- ESTADO ANTI-PARPADEO
     const [reportData, setReportData] = useState<EmpleadoReporte[]>([]);
     const [expandedRows, setExpandedRows] = useState<number[]>([]);
     const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({ key: 'nombre', direction: 'asc' });
@@ -85,7 +86,7 @@ export const AttendanceListReportPage = () => {
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const reportBuilderRef = useRef<BaseReportGenerator | null>(null);
 
-    // Limpiar datos al cambiar fechas para evitar confusión
+    // Limpiar datos al cambiar filtros para evitar confusión
     useEffect(() => {
         if (reportData.length > 0) { 
             setReportData([]); 
@@ -99,18 +100,17 @@ export const AttendanceListReportPage = () => {
 
     // --- CARGA DE DATOS ---
     const handleGenerateClick = async () => {
-        // Validación de seguridad del rango
         if (!dateRange || dateRange.length === 0) return;
 
         setIsLoading(true);
+        // NO activamos isInitialLoading aquí porque es solo validación (semáforo)
+        // La carga real de datos ocurre en handleConfirmGeneration
+
         const token = getToken();
         if (!token) return;
 
-        // Tomamos explícitamente el inicio y fin del array del hook
         const startDateStr = format(dateRange[0], 'yyyy-MM-dd');
         const endDateStr = format(dateRange[dateRange.length - 1], 'yyyy-MM-dd');
-
-        console.log(`Generando reporte para periodo: ${startDateStr} al ${endDateStr} (Modo: ${viewMode})`);
 
         const activeFilters = {
             startDate: startDateStr,
@@ -135,9 +135,8 @@ export const AttendanceListReportPage = () => {
             setIsGuardModalOpen(true);
         } catch (err) { 
             console.error(err);
-            // Si falla validación, intentamos generar directo (fallback)
             setPendingFilters(activeFilters); 
-            handleConfirmGeneration(); 
+            handleConfirmGeneration(); // Fallback si falla validación
         } finally { 
             setIsLoading(false); 
         }
@@ -146,6 +145,8 @@ export const AttendanceListReportPage = () => {
     const handleConfirmGeneration = async () => {
         setIsGuardModalOpen(false);
         setIsLoading(true);
+        setIsInitialLoading(true); // <--- ACTIVAMOS EL ANTI-PARPADEO (Oculta tabla vacía)
+        
         const token = getToken();
         try {
             const response = await fetch(`${API_BASE_URL}/reports/attendance-list`, {
@@ -156,7 +157,12 @@ export const AttendanceListReportPage = () => {
             const data = await response.json();
             setReportData(data);
             setExpandedRows([]);
-        } catch (e) { console.error(e); } finally { setIsLoading(false); }
+        } catch (e) { 
+            console.error(e); 
+        } finally { 
+            setIsLoading(false); 
+            setIsInitialLoading(false); // <--- DESACTIVAMOS AL TERMINAR (Muestra tabla llena)
+        }
     };
 
     // --- PROCESAMIENTO ---
@@ -221,9 +227,7 @@ export const AttendanceListReportPage = () => {
             return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200"><CalendarOff size={10} /> Sin Horario</span>;
         }
 
-        // Prioridad Checador
         const estatus = ficha.EstatusChecadorAbrev || '-';
-        
         const styles: { [key: string]: string } = {
             'A': 'bg-green-50 text-green-700 border-green-200',
             'F': 'bg-red-50 text-red-700 border-red-200',
@@ -236,8 +240,8 @@ export const AttendanceListReportPage = () => {
     };
 
     const filterConfigurations: FilterConfig[] = useMemo(() => [
-        { id: 'depts', title: 'Deptos', icon: <Building />, options: user?.Departamentos?.map(d => ({ value: d.DepartamentoId, label: d.Nombre })) || [], selectedValues: filters.depts, onChange: v => setFilters(f => ({ ...f, depts: v as number[] })), isActive: user?.activeFilters?.departamentos ?? false },
-        { id: 'groups', title: 'Grupos', icon: <Briefcase />, options: user?.GruposNomina?.map(g => ({ value: g.GrupoNominaId, label: g.Nombre })) || [], selectedValues: filters.groups, onChange: v => setFilters(f => ({ ...f, groups: v as number[] })), isActive: user?.activeFilters?.gruposNomina ?? false },
+        { id: 'depts', title: 'Departamentos', icon: <Building />, options: user?.Departamentos?.map(d => ({ value: d.DepartamentoId, label: d.Nombre })) || [], selectedValues: filters.depts, onChange: v => setFilters(f => ({ ...f, depts: v as number[] })), isActive: user?.activeFilters?.departamentos ?? false },
+        { id: 'groups', title: 'Grupos Nómina', icon: <Briefcase />, options: user?.GruposNomina?.map(g => ({ value: g.GrupoNominaId, label: g.Nombre })) || [], selectedValues: filters.groups, onChange: v => setFilters(f => ({ ...f, groups: v as number[] })), isActive: user?.activeFilters?.gruposNomina ?? false },
         { id: 'puestos', title: 'Puestos', icon: <Tag />, options: user?.Puestos?.map(p => ({ value: p.PuestoId, label: p.Nombre })) || [], selectedValues: filters.puestos, onChange: v => setFilters(f => ({ ...f, puestos: v as number[] })), isActive: user?.activeFilters?.puestos ?? false },
         { id: 'estabs', title: 'Estabs', icon: <MapPin />, options: user?.Establecimientos?.map(e => ({ value: e.EstablecimientoId, label: e.Nombre })) || [], selectedValues: filters.estabs, onChange: v => setFilters(f => ({ ...f, estabs: v as number[] })), isActive: user?.activeFilters?.establecimientos ?? false },
     ].filter(c => c.isActive), [user, filters]);
@@ -260,133 +264,114 @@ export const AttendanceListReportPage = () => {
                 />
             </div>
 
-            <div className="bg-white rounded-lg shadow-sm border border-slate-200 min-h-[400px] flex flex-col overflow-hidden flex-1">
-                <div className="px-4 py-3 border-b border-slate-200 flex justify-between items-center bg-slate-50">
-                    <h3 className="font-semibold text-slate-700">Resultados {processedData.length > 0 && <span className="font-normal text-slate-400">({processedData.length})</span>}</h3>
-                    <div className="flex gap-2">
-                        <Tooltip text="Exportar Excel">
-                            <button onClick={handleExportExcel} disabled={!processedData.length} className="p-2 text-green-600 hover:bg-green-50 rounded-md disabled:opacity-50 transition-colors"><FileSpreadsheet size={18} /></button>
-                        </Tooltip>
-                        <Tooltip text="Vista Previa PDF">
-                            {/* --- NUEVO BOTÓN PDF: Color rojo y icono FileText --- */}
-                            <button onClick={handleInitialPreview} disabled={!processedData.length} className="p-2 text-rose-600 hover:bg-rose-50 rounded-md disabled:opacity-50 transition-colors">
-                                <FileText size={18} />
-                            </button>
-                            {/* --------------------------------------------------- */}
-                        </Tooltip>
-                    </div>
-                </div>
+            <div className="bg-white rounded-lg shadow-sm border border-slate-200 min-h-[400px] flex flex-col overflow-hidden flex-1 relative"> {/* relative para el overlay */}
+                
+                {/* LÓGICA ANTI-PARPADEO */}
+                {!isInitialLoading && processedData.length > 0 ? (
+                    <>
+                        <div className="px-4 py-3 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+                            <h3 className="font-semibold text-slate-700">Resultados {processedData.length > 0 && <span className="font-normal text-slate-400">({processedData.length})</span>}</h3>
+                            <div className="flex gap-2">
+                                <Tooltip text="Exportar Excel">
+                                    <button onClick={handleExportExcel} disabled={!processedData.length} className="p-2 text-green-600 hover:bg-green-50 rounded-md disabled:opacity-50 transition-colors"><FileSpreadsheet size={18} /></button>
+                                </Tooltip>
+                                <Tooltip text="Vista Previa PDF">
+                                    <button onClick={handleInitialPreview} disabled={!processedData.length} className="p-2 text-rose-600 hover:bg-rose-50 rounded-md disabled:opacity-50 transition-colors">
+                                        <FileText size={18} />
+                                    </button>
+                                </Tooltip>
+                            </div>
+                        </div>
 
-                <div className="flex-grow overflow-auto bg-slate-50/50">
-                    {processedData.length === 0 && !isLoading ? (
-                        <div className="h-64 flex flex-col items-center justify-center text-slate-400"><Search size={48} className="mb-4 opacity-20" /><p className="text-sm">Selecciona un periodo para ver la lista.</p></div>
-                    ) : (
-                        <table className="w-full text-sm text-left border-collapse">
-                            <thead className="bg-slate-100 text-slate-500 font-semibold border-b border-slate-200 sticky top-0 z-10 shadow-sm">
-                                <tr>
-                                    <th className="p-3 w-10"></th>
-                                    <SortableHeader label="ID" sortKey="empleadoId" className="w-24 font-mono" />
-                                    <SortableHeader label="Empleado" sortKey="nombre" />
-                                    <SortableHeader label="Depto." sortKey="departamento" className="hidden md:table-cell" />
-                                    <SortableHeader label="Puesto" sortKey="puesto" className="hidden md:table-cell" />
-                                    <th className="p-3 text-center w-32 text-slate-600">Resumen</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100 bg-white">
-                                {processedData.map(emp => {
-                                    const isExpanded = expandedRows.includes(emp.empleadoId);
+                        <div className="flex-grow overflow-auto bg-slate-50/50">
+                            <table className="w-full text-sm text-left border-collapse">
+                                <thead className="bg-slate-100 text-slate-500 font-semibold border-b border-slate-200 sticky top-0 z-10 shadow-sm">
+                                    <tr>
+                                        <th className="p-3 w-10"></th>
+                                        <SortableHeader label="ID" sortKey="empleadoId" className="w-24 font-mono" />
+                                        <SortableHeader label="Empleado" sortKey="nombre" />
+                                        <SortableHeader label="Depto." sortKey="departamento" className="hidden md:table-cell" />
+                                        <SortableHeader label="Puesto" sortKey="puesto" className="hidden md:table-cell" />
+                                        <th className="p-3 text-center w-32 text-slate-600">Resumen</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100 bg-white">
+                                    {processedData.map(emp => {
+                                        const isExpanded = expandedRows.includes(emp.empleadoId);
+                                        const diasAsistidos = emp.fichas.filter(f => f.HoraEntrada && f.HoraEntrada !== '00:00').length;
+                                        const sinHorarioCount = emp.fichas.filter(f => f.Estado === 'SIN_HORARIO').length;
+                                        const incidentCount = emp.fichas.filter(f => f.IncidenciaActivaId).length;
+                                        const isAllGood = sinHorarioCount === 0 && incidentCount === 0;
 
-                                    const diasAsistidos = emp.fichas.filter(f => f.HoraEntrada && f.HoraEntrada !== '00:00').length;
-                                    
-                                    // --- INDICADORES ---
-                                    const sinHorarioCount = emp.fichas.filter(f => f.Estado === 'SIN_HORARIO').length;
-                                    const incidentCount = emp.fichas.filter(f => f.IncidenciaActivaId).length;
-                                    const isAllGood = sinHorarioCount === 0 && incidentCount === 0;
-
-                                    return (
-                                        <React.Fragment key={emp.empleadoId}>
-                                            <tr onClick={() => toggleRow(emp.empleadoId)} className={`cursor-pointer hover:bg-slate-50 ${isExpanded ? 'bg-indigo-50/30' : ''}`}>
-                                                <td className="p-3 text-center text-slate-400">{isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</td>
-                                                <td className="p-3 font-mono text-slate-500">{emp.codRef}</td>
-                                                <td className="p-3 font-medium text-slate-800">
-                                                    <div className="flex items-center gap-2 group/name">
-                                                        {/* Círculo Verde (Limpio) */}
-                                                        {isAllGood && (
-                                                            <Tooltip text="Sin problemas de configuración">
-                                                                <div className="w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-emerald-100"></div>
-                                                            </Tooltip>
-                                                        )}
-                                                        {/* Círculo Morado (Incidencias) */}
-                                                        {incidentCount > 0 && (
-                                                            <Tooltip text={`${incidentCount} incidencias detectadas`}>
-                                                                <div className="w-2 h-2 rounded-full bg-purple-500 ring-2 ring-purple-100"></div>
-                                                            </Tooltip>
-                                                        )}
-                                                        {/* Círculo Gris (Sin Horario) */}
-                                                        {sinHorarioCount > 0 && (
-                                                            <Tooltip text={`${sinHorarioCount} días sin horario asignado`}>
-                                                                <div className="w-2 h-2 rounded-full bg-slate-400 ring-2 ring-slate-200"></div>
-                                                            </Tooltip>
-                                                        )}
-                                                        {emp.nombre}
-
-                                                        <Tooltip text="Ver Ficha">
-                                                            <button onClick={(e) => { e.stopPropagation(); setViewingEmployeeId(emp.empleadoId); }} className="p-1 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-full opacity-0 group-hover/name:opacity-100 transition-opacity ml-auto">
-                                                                <Contact size={16} />
-                                                            </button>
-                                                        </Tooltip>
-                                                    </div>
-                                                </td>
-                                                <td className="p-3 hidden md:table-cell text-slate-500 text-xs">{emp.departamento}</td>
-                                                <td className="p-3 hidden md:table-cell text-slate-500 text-xs">{emp.puesto}</td>
-                                                <td className="p-3 text-center">
-                                                    <div className="flex flex-col items-center gap-1">
-                                                        <span className="px-2 py-0.5 bg-slate-100 rounded-full text-xs font-bold text-slate-600">{diasAsistidos} asist.</span>
-                                                        {parseFloat(emp.totalHoras) > 0 && <span className="text-[10px] text-blue-600 font-mono flex items-center gap-1"><Timer size={10} /> {emp.totalHoras} hrs</span>}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                            {isExpanded && (
-                                                <tr className="bg-slate-50 shadow-inner">
-                                                    <td colSpan={6} className="p-0">
-                                                        <div className="p-4 pl-12 animate-slide-down">
-                                                            <div className="rounded-lg border border-slate-200 overflow-hidden bg-white">
-                                                                <table className="w-full text-xs">
-                                                                    <thead className="bg-slate-100 text-slate-500 font-semibold border-b">
-                                                                        <tr><th className="p-2 pl-4 text-left">Fecha</th><th className="p-2 text-center">Entrada</th><th className="p-2 text-center">Salida</th><th className="p-2 text-center">Horas</th><th className="p-2 text-center">Checador</th></tr>
-                                                                    </thead>
-                                                                    <tbody className="divide-y divide-slate-100">
-                                                                        {emp.fichas.map((f, idx) => {
-                                                                            const rowBg = f.Estado === 'SIN_HORARIO' ? 'bg-gray-50' : 'bg-white';
-                                                                            return (
-                                                                                <tr key={idx} className={`hover:bg-slate-50/80 ${rowBg}`}>
-                                                                                    <td className="p-2 pl-4 font-medium text-slate-700 border-r border-slate-100">{format(safeDate(f.Fecha), 'EEE d MMM', { locale: es })}</td>
-                                                                                    <td className="p-2 text-center font-mono text-slate-600">{f.HoraEntrada ? format(new Date(f.HoraEntrada), 'HH:mm') : '--'}</td>
-                                                                                    <td className="p-2 text-center font-mono text-slate-600">{f.HoraSalida ? format(new Date(f.HoraSalida), 'HH:mm') : '--'}</td>
-                                                                                    <td className="p-2 text-center font-mono text-blue-600 font-semibold">{f.HorasTrabajadas > 0 ? f.HorasTrabajadas : '-'}</td>
-                                                                                    <td className="p-2 text-center">
-                                                                                        <div className="flex items-center justify-center gap-2">
-                                                                                            {renderStatus(f)}
-                                                                                            {f.IncidenciaActivaId && <Tooltip text="Incidencia"><ShieldAlert size={12} className="text-purple-500" /></Tooltip>}
-                                                                                        </div>
-                                                                                    </td>
-                                                                                </tr>
-                                                                            );
-                                                                        })}
-                                                                    </tbody>
-                                                                </table>
-                                                            </div>
+                                        return (
+                                            <React.Fragment key={emp.empleadoId}>
+                                                <tr onClick={() => toggleRow(emp.empleadoId)} className={`cursor-pointer hover:bg-slate-50 ${isExpanded ? 'bg-indigo-50/30' : ''}`}>
+                                                    <td className="p-3 text-center text-slate-400">{isExpanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</td>
+                                                    <td className="p-3 font-mono text-slate-500">{emp.codRef}</td>
+                                                    <td className="p-3 font-medium text-slate-800">
+                                                        <div className="flex items-center gap-2 group/name">
+                                                            {isAllGood && (<Tooltip text="Sin problemas"><div className="w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-emerald-100"></div></Tooltip>)}
+                                                            {incidentCount > 0 && (<Tooltip text={`${incidentCount} incidencias`}><div className="w-2 h-2 rounded-full bg-purple-500 ring-2 ring-purple-100"></div></Tooltip>)}
+                                                            {sinHorarioCount > 0 && (<Tooltip text={`${sinHorarioCount} sin horario`}><div className="w-2 h-2 rounded-full bg-slate-400 ring-2 ring-slate-200"></div></Tooltip>)}
+                                                            {emp.nombre}
+                                                            <Tooltip text="Ver Ficha"><button onClick={(e) => { e.stopPropagation(); setViewingEmployeeId(emp.empleadoId); }} className="p-1 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-full opacity-0 group-hover/name:opacity-100 transition-opacity ml-auto"><Contact size={16} /></button></Tooltip>
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-3 hidden md:table-cell text-slate-500 text-xs">{emp.departamento}</td>
+                                                    <td className="p-3 hidden md:table-cell text-slate-500 text-xs">{emp.puesto}</td>
+                                                    <td className="p-3 text-center">
+                                                        <div className="flex flex-col items-center gap-1">
+                                                            <span className="px-2 py-0.5 bg-slate-100 rounded-full text-xs font-bold text-slate-600">{diasAsistidos} asist.</span>
+                                                            {parseFloat(emp.totalHoras) > 0 && <span className="text-[10px] text-blue-600 font-mono flex items-center gap-1"><Timer size={10} /> {emp.totalHoras} hrs</span>}
                                                         </div>
                                                     </td>
                                                 </tr>
-                                            )}
-                                        </React.Fragment>
-                                    );
-                                })}
-                            </tbody>
-                        </table>
-                    )}
-                </div>
+                                                {isExpanded && (
+                                                    <tr className="bg-slate-50 shadow-inner">
+                                                        <td colSpan={6} className="p-0">
+                                                            <div className="p-4 pl-12 animate-slide-down">
+                                                                <div className="rounded-lg border border-slate-200 overflow-hidden bg-white">
+                                                                    <table className="w-full text-xs">
+                                                                        <thead className="bg-slate-100 text-slate-500 font-semibold border-b">
+                                                                            <tr><th className="p-2 pl-4 text-left">Fecha</th><th className="p-2 text-center">Entrada</th><th className="p-2 text-center">Salida</th><th className="p-2 text-center">Horas</th><th className="p-2 text-center">Checador</th></tr>
+                                                                        </thead>
+                                                                        <tbody className="divide-y divide-slate-100">
+                                                                            {emp.fichas.map((f, idx) => {
+                                                                                const rowBg = f.Estado === 'SIN_HORARIO' ? 'bg-gray-50' : 'bg-white';
+                                                                                return (
+                                                                                    <tr key={idx} className={`hover:bg-slate-50/80 ${rowBg}`}>
+                                                                                        <td className="p-2 pl-4 font-medium text-slate-700 border-r border-slate-100">{format(safeDate(f.Fecha), 'EEE d MMM', { locale: es })}</td>
+                                                                                        <td className="p-2 text-center font-mono text-slate-600">{f.HoraEntrada ? format(new Date(f.HoraEntrada), 'HH:mm') : '--'}</td>
+                                                                                        <td className="p-2 text-center font-mono text-slate-600">{f.HoraSalida ? format(new Date(f.HoraSalida), 'HH:mm') : '--'}</td>
+                                                                                        <td className="p-2 text-center font-mono text-blue-600 font-semibold">{f.HorasTrabajadas > 0 ? f.HorasTrabajadas : '-'}</td>
+                                                                                        <td className="p-2 text-center"><div className="flex items-center justify-center gap-2">{renderStatus(f)}{f.IncidenciaActivaId && <Tooltip text="Incidencia"><ShieldAlert size={12} className="text-purple-500" /></Tooltip>}</div></td>
+                                                                                    </tr>
+                                                                                );
+                                                                            })}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </React.Fragment>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </>
+                ) : (
+                    /* ESTADO DE ESPERA / CARGA */
+                    <div className="flex-1 flex flex-col items-center justify-center text-slate-400 bg-slate-50/50">
+                        {isInitialLoading ? (
+                            <><Loader2 className="animate-spin mb-4 text-indigo-600" size={48} /><p className="text-sm font-medium animate-pulse">Obteniendo registros...</p></>
+                        ) : (
+                            <><Search size={48} className="mb-4 opacity-20" /><p className="text-sm">Selecciona un periodo para ver la lista.</p></>
+                        )}
+                    </div>
+                )}
             </div>
 
             <PayrollGuardModal

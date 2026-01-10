@@ -12,7 +12,7 @@ const toJSONString = (arr: number[] | undefined) => {
 
 // --- REPORTE KARDEX ---
 export const getKardexReport = async (req: any, res: Response) => {
-    if (!req.user.permissions['reportesAsistencia.read']) {
+    if (!req.user.permissions['reportes.kardex.read']) {
         return res.status(403).json({ message: 'Acceso denegado.' });
     }
 
@@ -53,7 +53,7 @@ export const getKardexReport = async (req: any, res: Response) => {
 
 // --- REPORTE LISTA DE ASISTENCIA ---
 export const getAttendanceListReport = async (req: any, res: Response) => {
-    if (!req.user.permissions['reportesAsistencia.read']) {
+    if (!req.user.permissions['reportes.lista_asistencia.read']) {
         return res.status(403).json({ message: 'Acceso denegado.' });
     }
 
