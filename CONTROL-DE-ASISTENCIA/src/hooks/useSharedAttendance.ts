@@ -16,7 +16,8 @@ const getInitialState = (user: any) => {
         depts: user?.Departamentos?.length === 1 ? [user.Departamentos[0].DepartamentoId] : [],
         groups: user?.GruposNomina?.length === 1 ? [user.GruposNomina[0].GrupoNominaId] : [],
         puestos: user?.Puestos?.length === 1 ? [user.Puestos[0].PuestoId] : [],
-        estabs: user?.Establecimientos?.length === 1 ? [user.Establecimientos[0].EstablecimientoId] : []
+        estabs: user?.Establecimientos?.length === 1 ? [user.Establecimientos[0].EstablecimientoId] : [],
+        search: '' // <--- IMPORTANTE: Inicializar search para que sea parte del estado
     };
 
     try {
@@ -24,7 +25,7 @@ const getInitialState = (user: any) => {
         if (saved) {
             const parsed = JSON.parse(saved);
             return {
-                filters: { ...defaultFilters, ...parsed.filters },
+                filters: { ...defaultFilters, ...(parsed.filters || {}) }, // Merge seguro
                 viewMode: parsed.viewMode || 'week',
                 currentDate: parsed.currentDate ? new Date(parsed.currentDate) : new Date()
             };

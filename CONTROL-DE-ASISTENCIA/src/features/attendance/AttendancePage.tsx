@@ -22,7 +22,7 @@ import { AttendanceToolbar, FilterConfig } from './AttendanceToolbar';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { TableSkeleton } from '../../components/ui/TableSkeleton';
 import { canAssignStatusToDate } from '../../utils/attendanceValidation';
-import { useSharedAttendance } from '../../hooks/useSharedAttendance';
+import { AttendanceToolbarProvider, useAttendanceToolbarContext } from './AttendanceToolbarContext';
 
 // --- Helpers ---
 const isRestDay = (horario: string, date: Date): boolean => {
@@ -91,16 +91,22 @@ const DEFAULT_COLUMN_WIDTH = 384;
 const ROW_HEIGHT_ESTIMATE = 77;
 
 export const AttendancePage = () => {
+    return (
+        <AttendanceToolbarProvider>
+            <AttendancePageContent />
+        </AttendanceToolbarProvider>
+    );
+};
+
+const AttendancePageContent = () => {
     const { getToken, user, can } = useAuth();
     const { addNotification } = useNotification();
 
     const {
-        filters, setFilters,
-        viewMode, setViewMode,
-        currentDate, setCurrentDate,
-        dateRange, rangeLabel,
-        handleDatePrev, handleDateNext
-    } = useSharedAttendance(user);
+        filters, // Ya no necesitamos setFilters aquí, solo leer
+        viewMode,
+        dateRange, rangeLabel
+    } = useAttendanceToolbarContext();
 
     const [employees, setEmployees] = useState<any[]>([]);
     const [scheduleCatalog, setScheduleCatalog] = useState<any[]>([]);
@@ -108,7 +114,6 @@ export const AttendancePage = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
-    const [searchTerm, setSearchTerm] = useState('');
     const [showOnlyNoSchedule, setShowOnlyNoSchedule] = useState(false);
     const [showOnlyIncomplete, setShowOnlyIncomplete] = useState(false);
 
@@ -129,8 +134,8 @@ export const AttendancePage = () => {
     const filteredEmployees = useMemo(() => {
         let filtered = employees;
 
-        if (searchTerm) {
-            const searchWords = searchTerm.toLowerCase().split(' ').filter(word => word);
+        if (filters.search) {
+            const searchWords = filters.search.toLowerCase().split(' ').filter((word: string) => word);
             filtered = filtered.filter(emp => {
                 const targetText = (emp.NombreCompleto + ' ' + emp.EmpleadoId + ' ' + emp.CodRef).toLowerCase();
                 return searchWords.every(word => targetText.includes(word));
@@ -173,7 +178,7 @@ export const AttendancePage = () => {
         }
 
         return filtered;
-    }, [employees, searchTerm, showOnlyNoSchedule, showOnlyIncomplete, dateRange]);
+    }, [employees, filters.search, showOnlyNoSchedule, showOnlyIncomplete, dateRange]);
 
     const tableContainerRef = useRef<HTMLDivElement>(null);
 
@@ -262,7 +267,7 @@ export const AttendancePage = () => {
     }, []);
 
     // --- LÓGICA DE ACTUALIZACIÓN (OPTIMISTA Y API) CORREGIDA ---
-const handleBulkStatusChange = useCallback(async (updates: { empleadoId: number, fecha: Date, estatus: string | null, comentarios?: string }[]) => {
+    const handleBulkStatusChange = useCallback(async (updates: { empleadoId: number, fecha: Date, estatus: string | null, comentarios?: string }[]) => {
         const token = getToken();
         if (!token || updates.length === 0) return;
         const originalEmployees = employees;
@@ -344,7 +349,7 @@ const handleBulkStatusChange = useCallback(async (updates: { empleadoId: number,
             results.forEach((res: any) => {
                 if (res.data) {
                     const newItem = res.data;
-                    
+
                     // --- CORRECCIÓN CRÍTICA ---
                     // Usamos una lógica que respete el valor NULL explícito
                     let newIncidenciaId = newItem.IncidenciaActivaId;
@@ -357,24 +362,24 @@ const handleBulkStatusChange = useCallback(async (updates: { empleadoId: number,
                     // (Soportamos mayúsculas/minúsculas en el ID también por seguridad)
                     const empId = newItem.EmpleadoId || newItem.empleadoId;
                     const originalEmp = originalEmployees.find(e => e.EmpleadoId === empId);
-                    
+
                     if (originalEmp) {
                         const dateToCheck = (newItem.Fecha || newItem.fecha).substring(0, 10);
-                        const originalFicha = originalEmp.FichasSemana.find((f: any) => 
+                        const originalFicha = originalEmp.FichasSemana.find((f: any) =>
                             f.Fecha.substring(0, 10) === dateToCheck
                         );
 
                         if (originalFicha) {
                             // ¿Tenía incidencia antes? (Si tiene un ID numérico es true)
                             const hadIncidencia = !!originalFicha.IncidenciaActivaId;
-                            
+
                             // ¿Tiene incidencia ahora? (Si es número es true, si es null es false)
                             const hasIncidenciaNow = typeof newIncidenciaId === 'number';
 
                             // CASO 1: SE CREÓ (Antes No -> Ahora Sí)
                             if (!hadIncidencia && hasIncidenciaNow) {
                                 incidenciasCreadas++;
-                            } 
+                            }
                             // CASO 2: SE RESOLVIÓ (Antes Sí -> Ahora Null explícito)
                             else if (hadIncidencia && newIncidenciaId === null) {
                                 incidenciasResueltas++;
@@ -385,7 +390,7 @@ const handleBulkStatusChange = useCallback(async (updates: { empleadoId: number,
             });
 
             if (incidenciasCreadas > 0) addNotification('Atención', `Se detectaron ${incidenciasCreadas} nueva(s) incidencia(s).`, 'warning');
-            
+
             // Ahora sí debería entrar aquí
             if (incidenciasResueltas > 0) addNotification('Resolución', `Se resolvieron ${incidenciasResueltas} incidencia(s) automáticamente.`, 'success');
 
@@ -402,13 +407,13 @@ const handleBulkStatusChange = useCallback(async (updates: { empleadoId: number,
 
                         const empId = newItem.EmpleadoId || newItem.empleadoId;
                         const fechaStr = (newItem.Fecha || newItem.fecha).substring(0, 10);
-                        
+
                         const empIndex = updatedEmployees.findIndex(e => e.EmpleadoId === empId);
                         if (empIndex > -1) {
                             const emp = { ...updatedEmployees[empIndex] };
                             const fichas = [...emp.FichasSemana];
                             const fichaIndex = fichas.findIndex(f => f.Fecha.substring(0, 10) === fechaStr);
-                            
+
                             if (fichaIndex > -1) {
                                 fichas[fichaIndex] = {
                                     ...fichas[fichaIndex],
@@ -548,7 +553,7 @@ const handleBulkStatusChange = useCallback(async (updates: { empleadoId: number,
             .map((f: any) => ({
                 empleadoId: employee.EmpleadoId,
                 fecha: safeDate(f.Fecha),
-                estatus: null, 
+                estatus: null,
                 comentarios: null
             }));
 
@@ -643,12 +648,6 @@ const handleBulkStatusChange = useCallback(async (updates: { empleadoId: number,
         setDraggedCells(newDraggedCells);
     }, [dragInfo, filteredEmployees]);
 
-    const filterConfigurations: FilterConfig[] = useMemo(() => [
-        { id: 'departamentos', title: 'Departamentos', icon: <Building />, options: user?.Departamentos?.map(d => ({ value: d.DepartamentoId, label: d.Nombre })) || [], selectedValues: filters.depts, onChange: (v) => setFilters(f => ({ ...f, depts: v as number[] })), isActive: user?.activeFilters?.departamentos ?? false },
-        { id: 'gruposNomina', title: 'Grupos Nómina', icon: <Briefcase />, options: user?.GruposNomina?.map(g => ({ value: g.GrupoNominaId, label: g.Nombre })) || [], selectedValues: filters.groups, onChange: (v) => setFilters(f => ({ ...f, groups: v as number[] })), isActive: user?.activeFilters?.gruposNomina ?? false },
-        { id: 'puestos', title: 'Puestos', icon: <Tag />, options: user?.Puestos?.map(p => ({ value: p.PuestoId, label: p.Nombre })) || [], selectedValues: filters.puestos, onChange: (v) => setFilters(f => ({ ...f, puestos: v as number[] })), isActive: user?.activeFilters?.puestos ?? false },
-        { id: 'establecimientos', title: 'Establecimientos', icon: <MapPin />, options: user?.Establecimientos?.map(e => ({ value: e.EstablecimientoId, label: e.Nombre })) || [], selectedValues: filters.estabs, onChange: (v) => setFilters(f => ({ ...f, estabs: v as number[] })), isActive: user?.activeFilters?.establecimientos ?? false }
-    ].filter(f => f.isActive && f.options.length > 0), [user, filters]);
 
     const renderContent = () => {
         if (isLoading) return <TableSkeleton employeeColumnWidth={employeeColumnWidth} dateRange={dateRange} viewMode={viewMode} pageType="attendance" />;
@@ -741,17 +740,17 @@ const handleBulkStatusChange = useCallback(async (updates: { empleadoId: number,
                                     const isDisabled = !hasDrafts && !hasProcessed;
 
                                     // --- LOGS DE DEPURACIÓN (Solo el primer empleado visible para no saturar) ---
-                                    if (virtualRow.index === 0) {
-                                        console.groupCollapsed(`🔍 DEBUG: ${emp.NombreCompleto}`);
-                                        // console.log('📅 Hoy (Sistema):', format(today, 'yyyy-MM-dd'));
-                                        console.log('RANGE:', dateRange.map(d => format(d, 'yyyy-MM-dd')));
-                                        // console.log('✅ Días que el sistema espera validar (Validatable):', validatableDays.map(d => format(d, 'yyyy-MM-dd')));
-                                        // console.log('📊 Conteo:', { Esperados: totalValidatable, Listos: completedCount });
-                                        console.log('📈 Progreso:', progress, '%');
-                                        //console.log('🔘 Estado Botón:', isComplete ? 'RESTAURAR (Naranja)' : 'APROBAR (Verde)');
-                                        console.log('🗂️ Fichas Brutas:', generatedFichas);
-                                        console.groupEnd();
-                                    }
+                                    // if (virtualRow.index === 0) {
+                                    //     console.groupCollapsed(`🔍 DEBUG: ${emp.NombreCompleto}`);
+                                    //     // console.log('📅 Hoy (Sistema):', format(today, 'yyyy-MM-dd'));
+                                    //     console.log('RANGE:', dateRange.map(d => format(d, 'yyyy-MM-dd')));
+                                    //     // console.log('✅ Días que el sistema espera validar (Validatable):', validatableDays.map(d => format(d, 'yyyy-MM-dd')));
+                                    //     // console.log('📊 Conteo:', { Esperados: totalValidatable, Listos: completedCount });
+                                    //     console.log('📈 Progreso:', progress, '%');
+                                    //     //console.log('🔘 Estado Botón:', isComplete ? 'RESTAURAR (Naranja)' : 'APROBAR (Verde)');
+                                    //     console.log('🗂️ Fichas Brutas:', generatedFichas);
+                                    //     console.groupEnd();
+                                    // }
                                     let birthdayTooltip = "Cumpleaños en este periodo";
                                     if (emp.FechaNacimiento) { try { const parts = emp.FechaNacimiento.substring(0, 10).split('-'); const birthDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])); const formattedBirthDate = format(birthDate, "d 'de' MMMM", { locale: es }); birthdayTooltip = `Cumpleaños: ${formattedBirthDate}`; } catch (e) { } }
 
@@ -777,9 +776,9 @@ const handleBulkStatusChange = useCallback(async (updates: { empleadoId: number,
                                                                 <Tooltip text={emp.departamento_nombre || 'No asignado'}><p className="col-span-1 flex items-center gap-1.5 truncate "><Building size={12} className="text-slate-400" /> {emp.departamento_nombre || 'No asignado'}</p></Tooltip>
                                                             </div>
                                                         </div>
-                                                       
-                                                            {canAssign && (
-                                                                <Tooltip text={isDisabled ? "Nada que aprobar o restaurar" : (showRevertIcon ? "Restaurar semana (Desaprobar todo)" : "Aprobar sugerencias")}>
+
+                                                        {canAssign && (
+                                                            <Tooltip text={isDisabled ? "Nada que aprobar o restaurar" : (showRevertIcon ? "Restaurar semana (Desaprobar todo)" : "Aprobar sugerencias")}>
                                                                 <button
                                                                     onClick={() => handleWeekAction(emp, showRevertIcon)}
                                                                     disabled={isDisabled}
@@ -797,8 +796,8 @@ const handleBulkStatusChange = useCallback(async (updates: { empleadoId: number,
                                                                     {showRevertIcon ? <RotateCcw size={20} /> : <ClipboardCheck size={20} />}
                                                                 </button>
                                                             </Tooltip>
-                                                            )}
-                                                        
+                                                        )}
+
                                                     </div>
                                                     <div className="w-full bg-slate-200 rounded-full h-1.5 mt-2"><div className={`h-1.5 rounded-full transition-all duration-200 ${progress === 100 ? 'bg-emerald-500' : 'bg-sky-500'}`} style={{ width: `${progress}%` }}></div></div>
                                                 </div>
@@ -836,7 +835,7 @@ const handleBulkStatusChange = useCallback(async (updates: { empleadoId: number,
         <div className="space-y-6 h-full flex flex-col">
             <header className="flex items-center gap-2"><h1 className="text-3xl font-bold text-slate-800">Registro de Asistencia </h1><Tooltip text="Gestión de asistencia"><InfoIcon /></Tooltip></header>
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 flex-1 flex flex-col overflow-hidden">
-                <AttendanceToolbar searchTerm={searchTerm} setSearchTerm={setSearchTerm} filterConfigurations={filterConfigurations} viewMode={viewMode} setViewMode={setViewMode} rangeLabel={rangeLabel} handleDatePrev={handleDatePrev} handleDateNext={handleDateNext} currentDate={currentDate} onDateChange={setCurrentDate} />
+                <AttendanceToolbar />
                 {renderContent()}
             </div>
             <ConfirmationModal confirmation={confirmation} setConfirmation={setConfirmation} />

@@ -1,4 +1,4 @@
-//SRC/features/reports/pages/PrenominaReportPage.tsx
+//src/features/reports/pages/PrenominaReportPage.tsx
 import React, { useState, useMemo, useEffect } from 'react';
 import {
     FileSpreadsheet, Loader2, Play, DollarSign,
@@ -14,11 +14,11 @@ import { es } from 'date-fns/locale';
 
 // --- IMPORTACIONES CLAVE ---
 import { AttendanceToolbar, FilterConfig } from '../../attendance/AttendanceToolbar';
-import { useSharedAttendance } from '../../../hooks/useSharedAttendance';
+import { AttendanceToolbarProvider, useAttendanceToolbarContext } from '../../attendance/AttendanceToolbarContext';
 import { exportToExcel } from '../../../utils/reportExporter';
 import { PayrollGuardModal } from '../components/PayrollGuardModal';
 import { EmployeeProfileModal } from '../../attendance/EmployeeProfileModal';
-import { ConfirmationModal } from '../../../components/ui/ConfirmationModal'; // <--- IMPORTADO
+import { ConfirmationModal } from '../../../components/ui/ConfirmationModal';
 
 // --- HELPER: Parseo Seguro de Fechas ---
 const safeDate = (dateString: string | null | undefined) => {
@@ -58,14 +58,20 @@ type SortKey = 'NombreCompleto' | 'Departamento' | 'Puesto' | 'CodigoEmpleado';
 type SortDirection = 'asc' | 'desc';
 
 export const PrenominaReportPage = () => {
+    return (
+        <AttendanceToolbarProvider>
+            <PrenominaReportPageContent />
+        </AttendanceToolbarProvider>
+    );
+};
+
+const PrenominaReportPageContent = () => {
     const { getToken, user, can } = useAuth();
 
     const {
-        filters, setFilters, viewMode, setViewMode, currentDate, setCurrentDate,
-        dateRange, rangeLabel, handleDatePrev, handleDateNext
-    } = useSharedAttendance(user);
+        filters, setFilters, dateRange
+    } = useAttendanceToolbarContext();
 
-    const [searchTerm, setSearchTerm] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isInitialLoading, setIsInitialLoading] = useState(false);
     const [data, setData] = useState<PrenominaRow[]>([]);
@@ -82,7 +88,7 @@ export const PrenominaReportPage = () => {
 
     // Modales
     const [isGuardModalOpen, setIsGuardModalOpen] = useState(false);
-    const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false); // <--- MODAL REGENERAR
+    const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
     const [validationResult, setValidationResult] = useState<any>(null);
 
     const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({
@@ -92,16 +98,18 @@ export const PrenominaReportPage = () => {
 
     // --- DEFINICIÓN DE FILTROS ---
     const filterConfigurations: FilterConfig[] = useMemo(() => [
-        { id: 'depts', title: 'Departamentos', icon: <Building />, options: user?.Departamentos?.map(d => ({ value: d.DepartamentoId, label: d.Nombre })) || [], selectedValues: filters.depts, onChange: v => setFilters(f => ({ ...f, depts: v as number[] })), isActive: user?.activeFilters?.departamentos ?? false },
-        { id: 'groups', title: 'Grupos Nómina', icon: <Briefcase />, options: user?.GruposNomina?.map(g => ({ value: g.GrupoNominaId, label: g.Nombre })) || [], selectedValues: filters.groups, selectionMode: 'single', onChange: v => setFilters(f => ({ ...f, groups: v as number[] })), isActive: user?.activeFilters?.gruposNomina ?? false },
-        { id: 'puestos', title: 'Puestos', icon: <Tag />, options: user?.Puestos?.map(p => ({ value: p.PuestoId, label: p.Nombre })) || [], selectedValues: filters.puestos, onChange: v => setFilters(f => ({ ...f, puestos: v as number[] })), isActive: user?.activeFilters?.puestos ?? false },
-        { id: 'estabs', title: 'Establecimientos', icon: <MapPin />, options: user?.Establecimientos?.map(e => ({ value: e.EstablecimientoId, label: e.Nombre })) || [], selectedValues: filters.estabs, onChange: v => setFilters(f => ({ ...f, estabs: v as number[] })), isActive: user?.activeFilters?.establecimientos ?? false },
+        { 
+            id: 'gruposNomina', 
+            title: 'Grupos Nómina', 
+            icon: <Briefcase />, 
+            options: user?.GruposNomina?.map(g => ({ value: g.GrupoNominaId, label: g.Nombre })) || [], 
+            selectedValues: filters.groups, 
+            selectionMode: 'single', 
+            onChange: v => setFilters((f: any) => ({ ...f, groups: v as number[] })), 
+            isActive: true // Siempre activo en esta página
+        },
+    ], [user, filters, setFilters]);
 
-    ].filter(c => c.isActive), [user, filters]);
-
-    // ========================================================================
-    // 1. AUTO-CARGA: Verifica si existe y carga sin preguntar
-    // ========================================================================
     useEffect(() => {
         const loadContext = async () => {
             if (!dateRange || !filters.groups || filters.groups.length === 0) {
@@ -112,7 +120,6 @@ export const PrenominaReportPage = () => {
 
             setIsInitialLoading(true);
             const token = getToken();
-
             const payload = {
                 startDate: format(dateRange[0], 'yyyy-MM-dd'),
                 endDate: format(dateRange[dateRange.length! - 1], 'yyyy-MM-dd'),
@@ -120,7 +127,6 @@ export const PrenominaReportPage = () => {
             };
 
             try {
-                // Validación silenciosa
                 const valRes = await fetch(`${API_BASE_URL}/reports/validate-prenomina`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
@@ -135,7 +141,6 @@ export const PrenominaReportPage = () => {
                         lastGenerated: valData.LastGenerated
                     });
 
-                    // Si existe, lo cargamos directo
                     if (valData.ReportExists) {
                         const dataRes = await fetch(`${API_BASE_URL}/reports/prenomina`, {
                             method: 'POST',
@@ -158,10 +163,6 @@ export const PrenominaReportPage = () => {
         setExpandedRows([]);
     }, [dateRange, filters.groups, getToken]);
 
-
-    // ========================================================================
-    // 2. ACCIÓN DEL BOTÓN
-    // ========================================================================
     const handleActionClick = async () => {
         if (!dateRange || !filters.groups?.length) return;
 
@@ -173,7 +174,6 @@ export const PrenominaReportPage = () => {
             grupoNominaId: filters.groups[0],
         };
 
-        // Siempre validamos primero para obtener el semáforo actualizado
         try {
             const res = await fetch(`${API_BASE_URL}/reports/validate-prenomina`, {
                 method: 'POST',
@@ -184,9 +184,9 @@ export const PrenominaReportPage = () => {
             setValidationResult(result);
 
             if (reportStatus.exists) {
-                setIsConfirmModalOpen(true); // Si existe, preguntamos "¿Seguro?"
+                setIsConfirmModalOpen(true);
             } else {
-                setIsGuardModalOpen(true); // Si es nuevo, vamos directo al semáforo
+                setIsGuardModalOpen(true);
             }
         } catch (e) {
             console.error(e);
@@ -248,8 +248,8 @@ export const PrenominaReportPage = () => {
 
     const processedData = useMemo(() => {
         let result = data;
-        if (searchTerm) {
-            const term = searchTerm.toLowerCase();
+        if (filters.search) {
+            const term = filters.search.toLowerCase();
             result = result.filter(emp =>
                 emp.NombreCompleto.toLowerCase().includes(term) ||
                 emp.CodigoEmpleado.toLowerCase().includes(term)
@@ -262,8 +262,9 @@ export const PrenominaReportPage = () => {
                 ? String(aVal).localeCompare(String(bVal))
                 : String(bVal).localeCompare(String(aVal));
         });
-    }, [data, searchTerm, sortConfig]);
+    }, [data, filters.search, sortConfig]);
 
+    // --- ¡AQUÍ ESTÁ LA FUNCIÓN QUE FALTABA! ---
     const handleExportExcel = () => {
         if (processedData.length === 0) return;
         const flatData = processedData.map(row => {
@@ -348,12 +349,15 @@ export const PrenominaReportPage = () => {
             </div>
 
             <div className="bg-white rounded-lg shadow-sm border border-slate-200">
-                <AttendanceToolbar searchTerm={searchTerm} setSearchTerm={setSearchTerm} filterConfigurations={filterConfigurations} viewMode={viewMode} setViewMode={setViewMode} rangeLabel={rangeLabel} handleDatePrev={handleDatePrev} handleDateNext={handleDateNext} currentDate={currentDate} onDateChange={setCurrentDate} showSearch={true} />
+                <AttendanceToolbar 
+                    filterConfigurations={filterConfigurations}
+                    showSearch={true} 
+                    enablePayrollSync={true} 
+                />
             </div>
 
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 min-h-[400px] flex flex-col overflow-hidden flex-1 relative">
 
-                {/* LÓGICA ANTI-PARPADEO */}
                 {!isInitialLoading && processedData.length > 0 ? (
                     <>
                         <div className="px-4 py-3 border-b border-slate-200 flex justify-between items-center bg-slate-50">
@@ -406,17 +410,10 @@ export const PrenominaReportPage = () => {
                                                         <td colSpan={5 + dynamicColumns.length} className="p-0">
                                                             <div className="p-4 pl-12 animate-slide-down">
                                                                 <div className="rounded-lg border border-slate-200 overflow-hidden bg-white max-w-3xl">
-                                                                    <div className="bg-slate-50 px-4 py-2 border-b border-slate-200 flex items-center gap-2">
-                                                                        <Calendar size={14} className="text-blue-500" />
-                                                                        <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">Desglose Diario</span>
-                                                                    </div>
+                                                                    <div className="bg-slate-50 px-4 py-2 border-b flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-wide"><Calendar size={14} className="text-blue-500"/> Desglose Diario</div>
                                                                     <table className="w-full text-xs">
                                                                         <thead className="bg-slate-100 text-slate-500 font-semibold border-b">
-                                                                            <tr>
-                                                                                <th className="p-2 pl-4 text-left">Fecha</th>
-                                                                                <th className="p-2 text-left">Concepto</th>
-                                                                                <th className="p-2 text-right pr-4">Valor</th>
-                                                                            </tr>
+                                                                            <tr><th className="p-2 pl-4 text-left">Fecha</th><th className="p-2 text-left">Concepto</th><th className="p-2 text-right pr-4">Valor</th></tr>
                                                                         </thead>
                                                                         <tbody className="divide-y divide-slate-100">
                                                                             {row.DetalleNomina?.map((det, idx) => (
@@ -462,8 +459,6 @@ export const PrenominaReportPage = () => {
                 )}
             </div>
 
-            {/* MODALES CORRECTAMENTE IMPLEMENTADOS */}
-
             <PayrollGuardModal
                 isOpen={isGuardModalOpen}
                 onClose={() => setIsGuardModalOpen(false)}
@@ -476,7 +471,6 @@ export const PrenominaReportPage = () => {
             <ConfirmationModal
                 isOpen={isConfirmModalOpen}
                 onClose={() => setIsConfirmModalOpen(false)}
-                // Al confirmar, cerramos este y abrimos el Guardián (Semáforo)
                 onConfirm={() => {
                     setIsConfirmModalOpen(false);
                     setIsGuardModalOpen(true);

@@ -1,17 +1,17 @@
-// src/features/payroll/PayrollClosingPage.tsx
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../../features/auth/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { API_BASE_URL } from '../../config/api';
+// IMPORTACIÓN DEL TOOLBAR MEJORADO
 import { AttendanceToolbar, FilterConfig } from '../attendance/AttendanceToolbar';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
 import { Tooltip } from '../../components/ui/Tooltip';
 import { EmployeeProfileModal } from '../attendance/EmployeeProfileModal';
 import { 
-  Lock, Unlock, AlertTriangle, CheckCircle, FileText, Briefcase, Building, Tag, MapPin, 
-  UserCheck, AlertCircle, Clock, PieChart, Contact, GripVertical, ArrowUpDown, ArrowUp, ArrowDown
+    Lock, Unlock, AlertTriangle, CheckCircle, FileText, Briefcase, Building, Tag, MapPin, 
+    UserCheck, AlertCircle, Clock, PieChart, Contact, GripVertical, ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
-import { useSharedAttendance } from '../../hooks/useSharedAttendance';
+import { AttendanceToolbarProvider, useAttendanceToolbarContext } from '../attendance/AttendanceToolbarContext';
 
 // --- TIPOS DE DATOS ---
 interface PeriodSummary {
@@ -49,24 +49,21 @@ const DEFAULT_COLUMN_WIDTH = 380;
 type SortKey = 'NombreCompleto' | 'Progreso' | 'Estado';
 type SortDirection = 'asc' | 'desc';
 
-const PayrollClosingPage: React.FC = () => {
+const PayrollClosingPage = () => {
+    return (
+        <AttendanceToolbarProvider>
+            <PayrollClosingPageContent />
+        </AttendanceToolbarProvider>
+    );
+};
+
+const PayrollClosingPageContent = () => {
     const { getToken, user } = useAuth();
     const notificationContext = useNotification();
 
     const {
-        filters, setFilters,
-        viewMode, setViewMode,
-        currentDate, setCurrentDate,
-        dateRange, rangeLabel,
-        handleDatePrev, handleDateNext
-    } = useSharedAttendance(user);
-
-    // Asegurar que solo haya un grupo de nómina seleccionado en esta pantalla (modo single)
-    useEffect(() => {
-        if (filters.groups.length > 1) {
-            setFilters(prev => ({ ...prev, groups: [prev.groups[0]] }));
-        }
-    }, [filters.groups, setFilters]);
+        filters, setFilters, dateRange
+    } = useAttendanceToolbarContext();
 
     const notify = useCallback((msg: string, type: 'success' | 'error' | 'warning') => {
         const fn = typeof notificationContext === 'function' ? notificationContext :
@@ -75,7 +72,6 @@ const PayrollClosingPage: React.FC = () => {
         if (fn) fn(msg, type);
     }, [notificationContext]);
 
-    const [searchTerm, setSearchTerm] = useState('');
     const [loading, setLoading] = useState(false);
     const [summary, setSummary] = useState<PeriodSummary | null>(null);
     const [employeeDetails, setEmployeeDetails] = useState<EmployeePayrollSummary[]>([]);
@@ -236,53 +232,26 @@ const PayrollClosingPage: React.FC = () => {
         }
     };
 
-    const filterConfigs: FilterConfig[] = useMemo(() => {
-        const configs: FilterConfig[] = [
-            {
-                id: 'departamentos',
-                title: 'Departamentos',
-                icon: <Building size={16} />,
-                options: user?.Departamentos?.map(d => ({ value: d.DepartamentoId, label: d.Nombre })) || [],
-                selectedValues: filters.depts,
-                onChange: (vals) => setFilters(f => ({ ...f, depts: vals as number[] })),
-                isActive: user?.activeFilters?.departamentos ?? true
-            },
-            {
-                id: 'gruposNomina',
-                title: 'Grupos Nómina',
-                icon: <Briefcase size={16} />,
-                options: user?.GruposNomina?.map(g => ({ value: g.GrupoNominaId, label: g.Nombre })) || [],
-                selectedValues: filters.groups,
-                selectionMode: 'single',
-                onChange: (vals) => setFilters(f => ({ ...f, groups: vals as number[] })),
-                isActive: user?.activeFilters?.gruposNomina ?? true
-            },
-            {
-                id: 'puestos',
-                title: 'Puestos',
-                icon: <Tag size={16} />,
-                options: user?.Puestos?.map(p => ({ value: p.PuestoId, label: p.Nombre })) || [],
-                selectedValues: filters.puestos,
-                onChange: (vals) => setFilters(f => ({ ...f, puestos: vals as number[] })),
-                isActive: user?.activeFilters?.puestos ?? true
-            },
-            {
-                id: 'establecimientos',
-                title: 'Establecimientos',
-                icon: <MapPin size={16} />,
-                options: user?.Establecimientos?.map(e => ({ value: e.EstablecimientoId, label: e.Nombre })) || [],
-                selectedValues: filters.estabs,
-                onChange: (vals) => setFilters(f => ({ ...f, estabs: vals as number[] })),
-                isActive: user?.activeFilters?.establecimientos ?? true
-            }
-        ];
-        return configs.filter(c => c.isActive && c.options.length > 0);
-    }, [user, filters, setFilters]);
+    // const filterConfigurations: FilterConfig[] = useMemo(() => {
+    //     const configs: FilterConfig[] = [
+    //         {
+    //             id: 'gruposNomina',
+    //             title: 'Grupos Nómina',
+    //             icon: <Briefcase size={16} />,
+    //             options: user?.GruposNomina?.map(g => ({ value: g.GrupoNominaId, label: g.Nombre })) || [],
+    //             selectedValues: filters.groups,
+    //             selectionMode: 'single', // Importante para la lógica de sync
+    //             onChange: (vals) => setFilters((f: any) => ({ ...f, groups: vals as number[] })),
+    //             isActive: user?.activeFilters?.gruposNomina ?? true
+    //         }
+    //     ];
+    //     return configs.filter(c => c.isActive && c.options.length > 0);
+    // }, [user, filters, setFilters]);
 
     const filteredEmployees = useMemo(() => {
         let data = [...employeeDetails];
-        if (searchTerm) {
-            const lowerSearch = searchTerm.toLowerCase();
+        if (filters.search) {
+            const lowerSearch = filters.search.toLowerCase();
             data = data.filter(emp =>
                 emp.NombreCompleto.toLowerCase().includes(lowerSearch) ||
                 emp.CodRef.toLowerCase().includes(lowerSearch)
@@ -313,7 +282,7 @@ const PayrollClosingPage: React.FC = () => {
             if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
             return 0;
         });
-    }, [employeeDetails, searchTerm, sortConfig]);
+    }, [employeeDetails, filters.search, sortConfig]);
 
     const handleSort = (key: SortKey) => {
         setSortConfig(current => ({
@@ -339,19 +308,11 @@ const PayrollClosingPage: React.FC = () => {
                     <h2 className="text-2xl font-bold text-slate-800">Cierre de Periodo</h2>
                     <p className="text-slate-500 text-sm">Resumen por empleado para validación de nómina.</p>
                 </div>
-               
+                
                 <div className="bg-white rounded-lg shadow-sm border border-slate-200 shrink-0">
                     <AttendanceToolbar
-                        searchTerm={searchTerm}
-                        setSearchTerm={setSearchTerm}
-                        filterConfigurations={filterConfigs}
-                        viewMode={viewMode}
-                        setViewMode={setViewMode}
-                        rangeLabel={rangeLabel}
-                        handleDatePrev={handleDatePrev}
-                        handleDateNext={handleDateNext}
-                        currentDate={currentDate}
-                        onDateChange={setCurrentDate}
+                       // filterConfigurations={filterConfigurations}
+                        enablePayrollSync={true} 
                     />
                 </div>
             </div>

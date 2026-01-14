@@ -36,7 +36,7 @@ export interface User {
     EstaActivo: boolean;
     Roles: Role[];
     Departamentos?: { DepartamentoId: string, Nombre: string }[];
-    GruposNomina?: { GrupoNominaId: string, Nombre: string }[];
+    GruposNomina?: { GrupoNominaId: string, Nombre: string, Periodo?: string }[];
     Puestos?: { PuestoId: number, Nombre: string }[];
     Establecimientos?: { EstablecimientoId: number, Nombre: string }[];
     permissions?: { [key: string]: string[] };

@@ -21,11 +21,10 @@ import {
     AttendanceCompactReport
 } from '../definitions/AttendanceListVariants';
 import { PDFPreviewModal } from '../../../components/ui/PDFPreviewModal';
-import { AttendanceToolbar, FilterConfig } from '../../attendance/AttendanceToolbar';
+import { AttendanceToolbar } from '../../attendance/AttendanceToolbar';
 import { ReportValidators } from '../definitions/ReportRules';
 import { EmployeeProfileModal } from '../../attendance/EmployeeProfileModal';
-// IMPORTACIÓN DEL HOOK COMPARTIDO
-import { useSharedAttendance } from '../../../hooks/useSharedAttendance';
+import { AttendanceToolbarProvider, useAttendanceToolbarContext } from '../../attendance/AttendanceToolbarContext';
 
 // --- TIPOS ---
 interface FichaData {
@@ -60,18 +59,20 @@ const safeDate = (dateString: string) => {
 };
 
 export const AttendanceListReportPage = () => {
+    return (
+        <AttendanceToolbarProvider>
+            <AttendanceListReportPageContent />
+        </AttendanceToolbarProvider>
+    );
+};
+
+const AttendanceListReportPageContent = () => {
     const { getToken, user, can } = useAuth();
 
-    // --- USO DEL HOOK COMPARTIDO ---
     const { 
-        filters, setFilters, 
-        viewMode, setViewMode, 
-        currentDate, setCurrentDate, 
-        dateRange, rangeLabel, 
-        handleDatePrev, handleDateNext 
-    } = useSharedAttendance(user);
+        filters, dateRange
+    } = useAttendanceToolbarContext();
 
-    const [searchTerm, setSearchTerm] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isInitialLoading, setIsInitialLoading] = useState(false); // <--- ESTADO ANTI-PARPADEO
     const [reportData, setReportData] = useState<EmpleadoReporte[]>([]);
@@ -168,8 +169,8 @@ export const AttendanceListReportPage = () => {
     // --- PROCESAMIENTO ---
     const processedData = useMemo(() => {
         let data = reportData;
-        if (searchTerm) {
-            const term = searchTerm.toLowerCase();
+        if (filters.search) {
+            const term = filters.search.toLowerCase();
             data = data.filter(e => e.nombre.toLowerCase().includes(term) || e.codRef.toLowerCase().includes(term));
         }
         return [...data].sort((a, b) => {
@@ -179,7 +180,7 @@ export const AttendanceListReportPage = () => {
             if (valA > valB) return sortConfig.direction === 'asc' ? 1 : -1;
             return 0;
         });
-    }, [reportData, searchTerm, sortConfig]);
+    }, [reportData, filters.search, sortConfig]);
 
     // --- EXPORT ---
     const handleExportExcel = () => {
@@ -239,13 +240,6 @@ export const AttendanceListReportPage = () => {
         return <span className={`px-2 py-0.5 rounded text-xs font-bold border ${style}`}>{estatus}</span>;
     };
 
-    const filterConfigurations: FilterConfig[] = useMemo(() => [
-        { id: 'depts', title: 'Departamentos', icon: <Building />, options: user?.Departamentos?.map(d => ({ value: d.DepartamentoId, label: d.Nombre })) || [], selectedValues: filters.depts, onChange: v => setFilters(f => ({ ...f, depts: v as number[] })), isActive: user?.activeFilters?.departamentos ?? false },
-        { id: 'groups', title: 'Grupos Nómina', icon: <Briefcase />, options: user?.GruposNomina?.map(g => ({ value: g.GrupoNominaId, label: g.Nombre })) || [], selectedValues: filters.groups, onChange: v => setFilters(f => ({ ...f, groups: v as number[] })), isActive: user?.activeFilters?.gruposNomina ?? false },
-        { id: 'puestos', title: 'Puestos', icon: <Tag />, options: user?.Puestos?.map(p => ({ value: p.PuestoId, label: p.Nombre })) || [], selectedValues: filters.puestos, onChange: v => setFilters(f => ({ ...f, puestos: v as number[] })), isActive: user?.activeFilters?.puestos ?? false },
-        { id: 'estabs', title: 'Estabs', icon: <MapPin />, options: user?.Establecimientos?.map(e => ({ value: e.EstablecimientoId, label: e.Nombre })) || [], selectedValues: filters.estabs, onChange: v => setFilters(f => ({ ...f, estabs: v as number[] })), isActive: user?.activeFilters?.establecimientos ?? false },
-    ].filter(c => c.isActive), [user, filters]);
-
     return (
         <div className="space-y-6 animate-fade-in pb-10 h-full flex flex-col">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -257,10 +251,6 @@ export const AttendanceListReportPage = () => {
 
             <div className="bg-white rounded-lg shadow-sm border border-slate-200">
                 <AttendanceToolbar
-                    searchTerm={searchTerm} setSearchTerm={setSearchTerm}
-                    filterConfigurations={filterConfigurations} viewMode={viewMode} setViewMode={setViewMode}
-                    rangeLabel={rangeLabel} handleDatePrev={handleDatePrev} handleDateNext={handleDateNext}
-                    currentDate={currentDate} onDateChange={setCurrentDate}
                 />
             </div>
 

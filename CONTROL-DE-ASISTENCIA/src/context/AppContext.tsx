@@ -20,8 +20,10 @@ export const useAppContext = () => useContext(AppContext);
 export const AppProvider = ({ children, initialAnimationState }: { children: ReactNode, initialAnimationState: boolean }) => {
     const [animationsEnabled, setAnimationsEnabled] = useState(initialAnimationState);
     const [weekStartDay, setWeekStartDay] = useState<0 | 1 | 2 | 3 | 4 | 5 | 6>(1);
-    const { getToken } = useAuth(); // Asumiendo que AuthContext provee esto
-
+    const { getToken, user } = useAuth(); // Agregamos 'user' para detectar el cambio de sesión
+   
+     console.log("logging weekStartDay:", weekStartDay);
+   
     useEffect(() => {
         const fetchConfig = async () => {
             const token = getToken();
@@ -43,7 +45,6 @@ export const AppProvider = ({ children, initialAnimationState }: { children: Rea
                         
                         // Conversión: Si SQL 7 (Domingo) -> date-fns 0. Si SQL 1 (Lunes) -> date-fns 1.
                         const dateFnsDay = day === 7 ? 0 : day; 
-                        
                         setWeekStartDay(dateFnsDay as any);
                     }
                 }
@@ -53,7 +54,7 @@ export const AppProvider = ({ children, initialAnimationState }: { children: Rea
         };
 
         fetchConfig();
-    }, [getToken]);
+    }, [getToken, user]); // Dependencia clave: al cambiar 'user' (login), se dispara el fetch
 
     return (
         <AppContext.Provider value={{ animationsEnabled, setAnimationsEnabled, weekStartDay }}>

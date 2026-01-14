@@ -25,9 +25,9 @@ import { PDFPreviewModal } from '../../../components/ui/PDFPreviewModal';
 
 // --- IMPORTACIONES DE REGLAS Y COMPONENTES ---
 import { ReportValidators } from '../definitions/ReportRules';
-import { AttendanceToolbar, FilterConfig } from '../../attendance/AttendanceToolbar';
+import { AttendanceToolbar } from '../../attendance/AttendanceToolbar';
 import { EmployeeProfileModal } from '../../attendance/EmployeeProfileModal';
-import { useSharedAttendance } from '../../../hooks/useSharedAttendance';
+import { AttendanceToolbarProvider, useAttendanceToolbarContext } from '../../attendance/AttendanceToolbarContext';
 
 // --- INTERFACES ---
 interface FichaData {
@@ -60,17 +60,20 @@ const safeDate = (dateString: string) => {
 };
 
 export const KardexReportPage = () => {
+    return (
+        <AttendanceToolbarProvider>
+            <KardexReportPageContent />
+        </AttendanceToolbarProvider>
+    );
+};
+
+const KardexReportPageContent = () => {
     const { getToken, user, can } = useAuth();
 
     const {
-        filters, setFilters,
-        viewMode, setViewMode,
-        currentDate, setCurrentDate,
-        dateRange, rangeLabel,
-        handleDatePrev, handleDateNext
-    } = useSharedAttendance(user);
+        filters, dateRange
+    } = useAttendanceToolbarContext();
 
-    const [searchTerm, setSearchTerm] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [isInitialLoading, setIsInitialLoading] = useState(false); // <--- NUEVO: Anti-parpadeo
     const [reportData, setReportData] = useState<EmpleadoKardex[]>([]);
@@ -177,8 +180,8 @@ export const KardexReportPage = () => {
 
     const processedReportData = useMemo(() => {
         let data = reportData;
-        if (searchTerm) {
-            const term = searchTerm.toLowerCase();
+        if (filters.search) {
+            const term = filters.search.toLowerCase();
             data = data.filter(emp =>
                 emp.nombre.toLowerCase().includes(term) ||
                 emp.codRef.toLowerCase().includes(term)
@@ -194,7 +197,7 @@ export const KardexReportPage = () => {
             if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
             return 0;
         });
-    }, [reportData, searchTerm, sortConfig]);
+    }, [reportData, filters.search, sortConfig]);
 
     const handleExportExcel = () => {
         if (processedReportData.length === 0) return;
@@ -279,13 +282,6 @@ export const KardexReportPage = () => {
         </th>
     );
 
-    const filterConfigurations: FilterConfig[] = useMemo(() => [
-        { id: 'depts', title: 'Departamentos', icon: <Building />, options: user?.Departamentos?.map(d => ({ value: d.DepartamentoId, label: d.Nombre })) || [], selectedValues: filters.depts, onChange: v => setFilters(f => ({ ...f, depts: v as number[] })), isActive: user?.activeFilters?.departamentos ?? false },
-        { id: 'groups', title: 'Grupos Nómina', icon: <Briefcase />, options: user?.GruposNomina?.map(g => ({ value: g.GrupoNominaId, label: g.Nombre })) || [], selectedValues: filters.groups, onChange: v => setFilters(f => ({ ...f, groups: v as number[] })), isActive: user?.activeFilters?.gruposNomina ?? false },
-        { id: 'puestos', title: 'Puestos', icon: <Tag />, options: user?.Puestos?.map(p => ({ value: p.PuestoId, label: p.Nombre })) || [], selectedValues: filters.puestos, onChange: v => setFilters(f => ({ ...f, puestos: v as number[] })), isActive: user?.activeFilters?.puestos ?? false },
-        { id: 'estabs', title: 'Establecimientos', icon: <MapPin />, options: user?.Establecimientos?.map(e => ({ value: e.EstablecimientoId, label: e.Nombre })) || [], selectedValues: filters.estabs, onChange: v => setFilters(f => ({ ...f, estabs: v as number[] })), isActive: user?.activeFilters?.establecimientos ?? false },
-    ].filter(c => c.isActive), [user, filters]);
-
     return (
         <div className="space-y-6 animate-fade-in pb-10 h-full flex flex-col">
 
@@ -298,10 +294,6 @@ export const KardexReportPage = () => {
 
             <div className="bg-white rounded-lg shadow-sm border border-slate-200">
                 <AttendanceToolbar
-                    searchTerm={searchTerm} setSearchTerm={setSearchTerm} filterConfigurations={filterConfigurations}
-                    viewMode={viewMode} setViewMode={setViewMode} rangeLabel={rangeLabel}
-                    handleDatePrev={handleDatePrev} handleDateNext={handleDateNext}
-                    currentDate={currentDate} onDateChange={setCurrentDate}
                     showSearch={true}
                 />
             </div>

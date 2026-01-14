@@ -13,14 +13,14 @@ import {
     Loader2, Briefcase, Building, Cake, GripVertical, Contact, InfoIcon as Info,
     CalendarCheck, Tag, MapPin, AlertTriangle, CalendarOff, ListTodo
 } from 'lucide-react';
-import { AttendanceToolbar, FilterConfig } from './AttendanceToolbar';
+import { AttendanceToolbar } from './AttendanceToolbar';
 import { ScheduleCell } from './ScheduleCell';
 import { EmployeeProfileModal } from './EmployeeProfileModal';
 import { AssignFixedScheduleModal, AssignScope } from './AssignFixedScheduleModal'; // <--- Importamos AssignScope
 import { Tooltip, InfoIcon } from '../../components/ui/Tooltip';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { TableSkeleton } from '../../components/ui/TableSkeleton';
-import { useSharedAttendance } from '../../hooks/useSharedAttendance';
+import { AttendanceToolbarProvider, useAttendanceToolbarContext } from './AttendanceToolbarContext';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
 
 // --- Helpers ---
@@ -60,25 +60,27 @@ const DEFAULT_COLUMN_WIDTH = 384;
 const ROW_HEIGHT_ESTIMATE = 77;
 
 export const SchedulePage = () => {
+    return (
+        <AttendanceToolbarProvider>
+            <SchedulePageContent />
+        </AttendanceToolbarProvider>
+    );
+};
+
+const SchedulePageContent = () => {
     const { getToken, user, can } = useAuth();
     const { addNotification } = useNotification();
     const { weekStartDay } = useAppContext();
 
-    // --- USO DEL HOOK COMPARTIDO ---
     const {
-        filters, setFilters,
-        viewMode, setViewMode,
-        currentDate, setCurrentDate,
-        dateRange, rangeLabel,
-        handleDatePrev, handleDateNext
-    } = useSharedAttendance(user);
+        filters, viewMode, dateRange
+    } = useAttendanceToolbarContext();
 
     // Estados Locales
     const [employees, setEmployees] = useState<any[]>([]);
     const [scheduleCatalog, setScheduleCatalog] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [searchTerm, setSearchTerm] = useState('');
     const [assignFixedModalInfo, setAssignFixedModalInfo] = useState<{ employeeId: number, employeeName: string } | null>(null);
     const [openCellId, setOpenCellId] = useState<string | null>(null);
     const [showOnlyPending, setShowOnlyPending] = useState(false);
@@ -473,15 +475,17 @@ export const SchedulePage = () => {
     const handleAssignSchedule = (
         horarioId: number | null, 
         scope: AssignScope, 
-        targetWeekStart: Date
+        targetWeekStart: Date,
+        weekStartDayOverride?: number
     ) => {
         if (!assignFixedModalInfo) return;
         const { employeeId } = assignFixedModalInfo;
+        const effectiveWeekStartDay = weekStartDayOverride !== undefined ? weekStartDayOverride : weekStartDay;
 
         let daysToUpdate: Date[] = [];
 
         if (scope === 'week') {
-            const start = startOfWeek(targetWeekStart, { weekStartsOn: weekStartDay });
+            const start = startOfWeek(targetWeekStart, { weekStartsOn: effectiveWeekStartDay as any });
             daysToUpdate = Array.from({ length: 7 }).map((_, i) => addDays(start, i));
         } else {
             daysToUpdate = [...dateRange];
@@ -534,7 +538,7 @@ export const SchedulePage = () => {
     }, [employees, dateRange, rotatvivoCache]);
 
     const filteredEmployees = useMemo(() => {
-        const searchWords = searchTerm.toLowerCase().split(' ').filter(word => word);
+        const searchWords = (filters.search || '').toLowerCase().split(' ').filter((word: string) => word);
         return employees.filter(emp => {
             if (searchWords.length > 0) {
                 const targetText = ((emp?.NombreCompleto || '') + ' ' + (emp?.CodRef || '')).toLowerCase();
@@ -543,7 +547,7 @@ export const SchedulePage = () => {
             if (showOnlyPending) return pendingEmployeeIds.has(emp.EmpleadoId);
             return true;
         });
-    }, [employees, searchTerm, showOnlyPending, pendingEmployeeIds]);
+    }, [employees, filters.search, showOnlyPending, pendingEmployeeIds]);
 
     const handleResizeMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
         e.preventDefault();
@@ -583,16 +587,6 @@ export const SchedulePage = () => {
     const virtualRows = rowVirtualizer.getVirtualItems();
     const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
     const paddingBottom = virtualRows.length > 0 ? rowVirtualizer.getTotalSize() - virtualRows[virtualRows.length - 1].end : 0;
-
-    const filterConfigurations: FilterConfig[] = useMemo(() => {
-        const filtersConfig: FilterConfig[] = [
-            { id: 'departamentos', title: 'Departamentos', icon: <Building />, options: user?.Departamentos?.map(d => ({ value: d.DepartamentoId, label: d.Nombre })) || [], selectedValues: filters.depts, onChange: (depts) => setFilters(f => ({ ...f, depts: depts as number[] })), isActive: user?.activeFilters?.departamentos ?? false },
-            { id: 'gruposNomina', title: 'Grupos Nómina', icon: <Briefcase />, options: user?.GruposNomina?.map(g => ({ value: g.GrupoNominaId, label: g.Nombre })) || [], selectedValues: filters.groups, onChange: (groups) => setFilters(f => ({ ...f, groups: groups as number[] })), isActive: user?.activeFilters?.gruposNomina ?? false },
-            { id: 'puestos', title: 'Puestos', icon: <Tag />, options: user?.Puestos?.map(p => ({ value: p.PuestoId, label: p.Nombre })) || [], selectedValues: filters.puestos, onChange: (puestos) => setFilters(f => ({ ...f, puestos: puestos as number[] })), isActive: user?.activeFilters?.puestos ?? false },
-            { id: 'establecimientos', title: 'Establecimientos', icon: <MapPin />, options: user?.Establecimientos?.map(e => ({ value: e.EstablecimientoId, label: e.Nombre })) || [], selectedValues: filters.estabs, onChange: (estabs) => setFilters(f => ({ ...f, estabs: estabs as number[] })), isActive: user?.activeFilters?.establecimientos ?? false }
-        ];
-        return filtersConfig.filter(f => f.isActive && f.options.length > 0);
-    }, [user, filters]);
 
     const fixedSchedules = useMemo(() => scheduleCatalog.filter(h => !h.EsRotativo), [scheduleCatalog]);
 
@@ -738,14 +732,7 @@ export const SchedulePage = () => {
                 </Tooltip>
             </header>
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 flex-1 flex flex-col overflow-hidden">
-                <AttendanceToolbar
-                    searchTerm={searchTerm} setSearchTerm={setSearchTerm}
-                    filterConfigurations={filterConfigurations}
-                    viewMode={viewMode} setViewMode={setViewMode}
-                    rangeLabel={rangeLabel} handleDatePrev={handleDatePrev}
-                    handleDateNext={handleDateNext} currentDate={currentDate}
-                    onDateChange={setCurrentDate}
-                />
+                <AttendanceToolbar />
                 {renderContent()}
             </div>
             {viewingEmployeeId && <EmployeeProfileModal employeeId={viewingEmployeeId as any} onClose={() => setViewingEmployeeId(null)} getToken={getToken} user={user} />}

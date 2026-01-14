@@ -11,8 +11,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { IncidentDetailModal } from '../components/IncidentDetailModal';
 import { AttendanceToolbar, FilterConfig } from '../../attendance/AttendanceToolbar';
-// IMPORTACIÓN DEL HOOK COMPARTIDO
-import { useSharedAttendance } from '../../../hooks/useSharedAttendance';
+import { AttendanceToolbarProvider, useAttendanceToolbarContext } from '../../attendance/AttendanceToolbarContext';
 
 // --- Componente interno para badges (sin cambios) ---
 const SeverityBadge = ({ severity }: { severity: string }) => {
@@ -31,21 +30,22 @@ const SeverityBadge = ({ severity }: { severity: string }) => {
 };
 
 export const IncidentsControlPage = () => {
+    return (
+        <AttendanceToolbarProvider>
+            <IncidentsControlPageContent />
+        </AttendanceToolbarProvider>
+    );
+};
+
+const IncidentsControlPageContent = () => {
     const { getToken, user } = useAuth(); // Necesitamos 'user' para los catálogos de filtros
     const { addNotification } = useNotification();
     
-    // --- USO DEL HOOK COMPARTIDO ---
-    // Reemplaza los estados locales de filtros, fechas y modo de vista
     const { 
-        filters, setFilters, 
-        viewMode, setViewMode, 
-        currentDate, setCurrentDate, 
-        dateRange, rangeLabel, 
-        handleDatePrev, handleDateNext 
-    } = useSharedAttendance(user);
+        filters, setFilters, dateRange
+    } = useAttendanceToolbarContext();
 
     // Estados locales (específicos de esta página)
-    const [searchTerm, setSearchTerm] = useState('');
     const [incidents, setIncidents] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -62,7 +62,7 @@ export const IncidentsControlPage = () => {
                 icon: <Building />,
                 options: user?.Departamentos?.map(d => ({ value: d.DepartamentoId, label: d.Nombre })) || [],
                 selectedValues: filters.depts,
-                onChange: (vals) => setFilters(f => ({ ...f, depts: vals as number[] })),
+                onChange: (vals) => setFilters((f: any) => ({ ...f, depts: vals as number[] })),
                 isActive: user?.activeFilters?.departamentos ?? false,
             },
             {
@@ -71,7 +71,7 @@ export const IncidentsControlPage = () => {
                 icon: <Briefcase />,
                 options: user?.GruposNomina?.map(g => ({ value: g.GrupoNominaId, label: g.Nombre })) || [],
                 selectedValues: filters.groups,
-                onChange: (vals) => setFilters(f => ({ ...f, groups: vals as number[] })),
+                onChange: (vals) => setFilters((f: any) => ({ ...f, groups: vals as number[] })),
                 isActive: user?.activeFilters?.gruposNomina ?? false,
             },
             {
@@ -80,7 +80,7 @@ export const IncidentsControlPage = () => {
                 icon: <Tag />,
                 options: user?.Puestos?.map(p => ({ value: p.PuestoId, label: p.Nombre })) || [],
                 selectedValues: filters.puestos,
-                onChange: (vals) => setFilters(f => ({ ...f, puestos: vals as number[] })),
+                onChange: (vals) => setFilters((f: any) => ({ ...f, puestos: vals as number[] })),
                 isActive: user?.activeFilters?.puestos ?? false,
             },
             {
@@ -89,7 +89,7 @@ export const IncidentsControlPage = () => {
                 icon: <MapPin />,
                 options: user?.Establecimientos?.map(e => ({ value: e.EstablecimientoId, label: e.Nombre })) || [],
                 selectedValues: filters.estabs,
-                onChange: (vals) => setFilters(f => ({ ...f, estabs: vals as number[] })),
+                onChange: (vals) => setFilters((f: any) => ({ ...f, estabs: vals as number[] })),
                 isActive: user?.activeFilters?.establecimientos ?? false,
             }
         ];
@@ -135,8 +135,8 @@ export const IncidentsControlPage = () => {
     const filteredIncidents = useMemo(() => {
         return incidents.filter(inc => {
             // 1. Búsqueda por texto (Nombre o ID)
-            if (searchTerm) {
-                const term = searchTerm.toLowerCase();
+            if (filters.search) {
+                const term = filters.search.toLowerCase();
                 const textMatch = 
                     inc.EmpleadoNombre?.toLowerCase().includes(term) ||
                     inc.EmpleadoCodRef?.toLowerCase().includes(term) ||
@@ -149,7 +149,7 @@ export const IncidentsControlPage = () => {
             
             return true;
         });
-    }, [incidents, searchTerm]);
+    }, [incidents, filters.search]);
 
     const runAnalysis = async () => {
         if (!dateRange || dateRange.length === 0) return;
@@ -212,16 +212,7 @@ export const IncidentsControlPage = () => {
             {/* BARRA DE HERRAMIENTAS UNIFICADA */}
             <div className="bg-white rounded-lg shadow-sm border border-slate-200">
                 <AttendanceToolbar
-                    searchTerm={searchTerm}
-                    setSearchTerm={setSearchTerm}
                     filterConfigurations={filterConfigurations}
-                    viewMode={viewMode}
-                    setViewMode={setViewMode}
-                    rangeLabel={rangeLabel}
-                    handleDatePrev={handleDatePrev}
-                    handleDateNext={handleDateNext}
-                    currentDate={currentDate}
-                    onDateChange={setCurrentDate}
                 />
             </div>
 
