@@ -36,12 +36,12 @@ export const AppProvider = ({ children, initialAnimationState }: { children: Rea
                 });
                 if (res.ok) {
                     const data = await res.json();
-                    if (data.DIA_INICIO_SEMANA) {
+                    if (data.DIA_CORTE_SEMANA) {
                         // SQL usa 1-7, date-fns usa 0-6. Ajustamos si es necesario.
                         // Asumiendo que en SQL guardaste 1=Lunes... 7=Domingo.
                         // En date-fns: 0=Domingo, 1=Lunes... 6=Sábado.
                         
-                        let day = parseInt(data.DIA_INICIO_SEMANA, 10);
+                        let day = parseInt(data.DIA_CORTE_SEMANA, 10);
                         
                         // Conversión: Si SQL 7 (Domingo) -> date-fns 0. Si SQL 1 (Lunes) -> date-fns 1.
                         const dateFnsDay = day === 7 ? 0 : day; 

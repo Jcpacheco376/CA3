@@ -101,6 +101,8 @@ interface AssignFixedScheduleModalProps {
     
     // --- NUEVA PROP: Para sincronizar con el padre ---
     onWeekChange?: (newWeekStart: Date) => void;
+    weekMode?: 'base' | 'natural';
+    onWeekModeChange?: (mode: 'base' | 'natural') => void;
 }
 
 export const AssignFixedScheduleModal = ({
@@ -113,13 +115,15 @@ export const AssignFixedScheduleModal = ({
     periodStart,
     periodEnd,
     onAssign,
-    onWeekChange // <--- Recibimos la función
+    onWeekChange,
+    weekMode = 'base',
+    onWeekModeChange
 }: AssignFixedScheduleModalProps) => {
     const { weekStartDay } = useAppContext();
     const [scope, setScope] = useState<AssignScope>('week');
     const [selectedWeekStart, setSelectedWeekStart] = useState<Date>(new Date());
     
-    const [useNaturalWeek, setUseNaturalWeek] = useState(false);
+    const useNaturalWeek = weekMode === 'natural';
     const currentWeekStartDay = useNaturalWeek ? 1 : weekStartDay; // 1 = Lunes
     const isConfigMonday = weekStartDay === 1;
 
@@ -195,13 +199,13 @@ export const AssignFixedScheduleModal = ({
                 <div className="p-3 bg-slate-50 border-b border-slate-100 space-y-3">
                     <div className="flex bg-slate-200/60 p-1 rounded-lg">
                         <div className="flex-1">
-                            <Tooltip text={`Usar inicio de semana configurado (${configStartDayName} - ${configEndDayName})`}>
+                            <Tooltip text={`Usar semana según corte de nómina (${configStartDayName} - ${configEndDayName})`}>
                                 <button 
-                                    onClick={() => { setScope('week'); setUseNaturalWeek(false); }} 
+                                    onClick={() => { setScope('week'); onWeekModeChange?.('base'); }} 
                                     className={`w-full flex items-center justify-center gap-2 text-sm font-medium py-1.5 rounded-md transition-all ${scope === 'week' && !useNaturalWeek ? 'bg-white text-[--theme-600] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                 >
                                     <CalendarDays size={16} />
-                                    <span>Base {isConfigMonday ? '' : `(${DAY_LABELS[weekStartDay]})`}</span>
+                                    <span>Corte {isConfigMonday ? '' : `(${DAY_LABELS[weekStartDay]})`}</span>
                                 </button>
                             </Tooltip>
                         </div>
@@ -210,7 +214,7 @@ export const AssignFixedScheduleModal = ({
                             <div className="flex-1">
                                 <Tooltip text="Usar semana natural (Lunes - Domingo)">
                                     <button 
-                                        onClick={() => { setScope('week'); setUseNaturalWeek(true); }} 
+                                        onClick={() => { setScope('week'); onWeekModeChange?.('natural'); }} 
                                         className={`w-full flex items-center justify-center gap-2 text-sm font-medium py-1.5 rounded-md transition-all ${scope === 'week' && useNaturalWeek ? 'bg-white text-[--theme-600] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                     >
                                         <CalendarDays size={16} />

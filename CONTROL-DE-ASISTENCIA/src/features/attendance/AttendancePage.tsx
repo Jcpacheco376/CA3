@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useAuth } from '../auth/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { API_BASE_URL } from '../../config/api';
+import { useAppContext } from '../../context/AppContext';
 import {
     format, isToday as isTodayDateFns, getDay as getDayOfWeek, isSameDay, isWithinInterval,
     startOfWeek, endOfWeek, addDays, subMonths, subWeeks, addMonths, addWeeks, startOfMonth, endOfMonth,
@@ -101,11 +102,12 @@ export const AttendancePage = () => {
 const AttendancePageContent = () => {
     const { getToken, user, can } = useAuth();
     const { addNotification } = useNotification();
+    const { weekStartDay } = useAppContext();
 
     const {
         filters, // Ya no necesitamos setFilters aquí, solo leer
         viewMode,
-        dateRange, rangeLabel
+        dateRange, rangeLabel, weekMode
     } = useAttendanceToolbarContext();
 
     const [employees, setEmployees] = useState<any[]>([]);
@@ -650,7 +652,7 @@ const AttendancePageContent = () => {
 
 
     const renderContent = () => {
-        if (isLoading) return <TableSkeleton employeeColumnWidth={employeeColumnWidth} dateRange={dateRange} viewMode={viewMode} pageType="attendance" />;
+        if (isLoading) return <TableSkeleton employeeColumnWidth={employeeColumnWidth} dateRange={dateRange} viewMode={viewMode} weekStartDay={weekStartDay} weekMode={weekMode} pageType="attendance" />;
         if (error) return <div className="p-16 text-center text-red-600"><p>Error al cargar: {error}</p></div>;
         const canAssign = can('reportesAsistencia.assign');
         //const canApprove = can('reportesAsistencia.approve');
@@ -835,7 +837,7 @@ const AttendancePageContent = () => {
         <div className="space-y-6 h-full flex flex-col">
             <header className="flex items-center gap-2"><h1 className="text-3xl font-bold text-slate-800">Registro de Asistencia </h1><Tooltip text="Gestión de asistencia"><InfoIcon /></Tooltip></header>
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 flex-1 flex flex-col overflow-hidden">
-                <AttendanceToolbar />
+                <AttendanceToolbar allowNaturalWeek={true} />
                 {renderContent()}
             </div>
             <ConfirmationModal confirmation={confirmation} setConfirmation={setConfirmation} />

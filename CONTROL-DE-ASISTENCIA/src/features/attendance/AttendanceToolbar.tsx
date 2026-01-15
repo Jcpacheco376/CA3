@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useContext } from 'react';
+import React, { useState, useEffect, useMemo, useContext } from 'react';
 import { ChevronLeft, ChevronRight, Search as SearchIcon, Lock, Briefcase, Building, Tag, MapPin } from 'lucide-react';
 import { addWeeks, subWeeks, addMonths, subMonths } from 'date-fns';
 import { Tooltip } from '../../components/ui/Tooltip';
@@ -42,6 +42,9 @@ interface AttendanceToolbarProps {
     onDateChange?: (date: Date) => void;
     showSearch?: boolean;
     enablePayrollSync?: boolean; 
+    weekMode?: 'base' | 'natural';
+    setWeekMode?: (mode: 'base' | 'natural') => void;
+    allowNaturalWeek?: boolean;
 }
 
 export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
@@ -56,9 +59,19 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
     currentDate: propCurrentDate,
     onDateChange: propOnDateChange,
     showSearch = true,
-    enablePayrollSync = false 
+    enablePayrollSync = false,
+    weekMode: propWeekMode,
+    setWeekMode: propSetWeekMode,
+    allowNaturalWeek = false
 }) => {
     const { user } = useAuth();
+    const [isWeekModeHovered, setIsWeekModeHovered] = useState(false);
+    const [isPeriodHovered, setIsPeriodHovered] = useState(false);
+    
+    // --- CONFIGURACIÓN DE UI ---
+    // true = Modo retráctil (ahorra espacio), false = Modo fijo (siempre visible)
+    const IS_WEEK_MODE_RETRACTABLE = true;
+    const IS_PERIOD_MODE_RETRACTABLE = false;
     
     // --- 0. CONTEXTO HÍBRIDO ---
     // Intentamos obtener datos del contexto de forma segura
@@ -74,6 +87,8 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
     const currentDate = propCurrentDate || context?.currentDate || new Date();
     // Mapeamos setCurrentDate del contexto a onDateChange
     const onDateChange = propOnDateChange || context?.setCurrentDate;
+    const weekMode = propWeekMode || context?.weekMode || 'base';
+    const setWeekMode = propSetWeekMode || context?.setWeekMode;
 
     // --- 1. MANEJO DE BÚSQUEDA UNIFICADO ---
     const effectiveSearchTerm = searchTerm ?? filters?.search ?? '';
@@ -268,35 +283,74 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
 
                 {/* DERECHA: Fechas */}
                 <div className="flex items-center gap-2 shrink-0 w-full lg:w-auto justify-between lg:justify-end bg-slate-50 p-1 rounded-xl border border-slate-100 shadow-sm relative">
-                     <div className="flex items-center relative">
-                        {isPeriodLocked && (
-                            <div className="absolute inset-0 z-10 cursor-not-allowed">
-                                <Tooltip text="Periodo definido por la nómina seleccionada.">
-                                    <div className="w-full h-full"></div>
-                                </Tooltip>
+                     <div className="flex items-center relative gap-2">
+                        {setWeekMode && !isPeriodLocked && allowNaturalWeek && (
+                            <div 
+                                className="flex items-center bg-slate-200/50 rounded-lg p-0.5 gap-1"
+                                onMouseEnter={() => setIsWeekModeHovered(true)}
+                                onMouseLeave={() => setIsWeekModeHovered(false)}
+                            >
+                                <div className={`transition-all duration-300 ease-in-out overflow-hidden ${(!IS_WEEK_MODE_RETRACTABLE || weekMode === 'base' || isWeekModeHovered) ? 'max-w-[50px] opacity-100' : 'max-w-0 opacity-0'}`}>
+                                    <Tooltip text="Semana según corte de Nómina">
+                                        <button 
+                                            onClick={() => setWeekMode('base')}
+                                            className={`w-full px-2 py-1 rounded-md text-[10px] font-bold transition-all whitespace-nowrap ${weekMode === 'base' ? 'bg-white text-[--theme-600] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                        >
+                                            CORTE
+                                        </button>
+                                    </Tooltip>
+                                </div>
+                                <div className={`transition-all duration-300 ease-in-out overflow-hidden ${(!IS_WEEK_MODE_RETRACTABLE || weekMode === 'natural' || isWeekModeHovered) ? 'max-w-[50px] opacity-100' : 'max-w-0 opacity-0'}`}>
+                                    <Tooltip text="Semana Natural (Lunes-Domingo)">
+                                        <button 
+                                            onClick={() => setWeekMode('natural')}
+                                            className={`w-full px-2 py-1 rounded-md text-[10px] font-bold transition-all whitespace-nowrap ${weekMode === 'natural' ? 'bg-white text-[--theme-600] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                                        >
+                                            NAT
+                                        </button>
+                                    </Tooltip>
+                                </div>
                             </div>
                         )}
-                        {['week', 'fortnight', 'month'].map((mode) => {
-                            const isActive = viewMode === mode;
-                            return (
-                                <button 
-                                    key={mode} 
-                                    onClick={() => !isPeriodLocked && setViewMode && setViewMode(mode as any)}
-                                    disabled={isPeriodLocked}
-                                    className={`
-                                        px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center gap-1
-                                        ${isActive 
-                                            ? 'bg-white text-[--theme-600] shadow-sm ring-1 ring-black/5' 
-                                            : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
-                                        }
-                                        ${isPeriodLocked && !isActive ? 'opacity-40 grayscale' : ''}
-                                    `}
-                                >
-                                    {isPeriodLocked && isActive && <Lock size={10} className="opacity-70" />}
-                                    {mode === 'week' ? 'Semana' : mode === 'fortnight' ? 'Quincena' : 'Mes'}
-                                </button>
-                            );
-                        })}
+                         <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block"></div>
+                        <div 
+                            className="flex items-center relative bg-slate-200/50 rounded-lg p-0.5 gap-1"
+                            onMouseEnter={() => !isPeriodLocked && setIsPeriodHovered(true)}
+                            onMouseLeave={() => setIsPeriodHovered(false)}
+                        >
+                            {isPeriodLocked && (
+                                <div className="absolute inset-0 z-10 ">
+                                    <Tooltip text="Periodo definido por la nómina seleccionada.">
+                                        <div className="w-full h-full"></div>
+                                    </Tooltip>
+                                </div>
+                            )}
+                            {['week', 'fortnight', 'month'].map((mode) => {
+                                const isActive = viewMode === mode;
+                                const isVisible = !IS_PERIOD_MODE_RETRACTABLE || isActive || isPeriodHovered;
+                                const label = mode === 'week' ? 'Semana' : mode === 'fortnight' ? 'Quincena' : 'Mes';
+
+                                return (
+                                    <div key={mode} className={`transition-all duration-300 ease-in-out overflow-hidden ${isVisible ? 'max-w-[100px] opacity-100' : 'max-w-0 opacity-0'}`}>
+                                        <button 
+                                            onClick={() => !isPeriodLocked && setViewMode && setViewMode(mode as any)}
+                                            disabled={isPeriodLocked}
+                                            className={`
+                                                w-full px-3 py-1 rounded-md text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-1 whitespace-nowrap
+                                                ${isActive 
+                                                    ? 'bg-white text-[--theme-600] shadow-sm ring-1 ring-black/5' 
+                                                    : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
+                                                }
+                                                ${isPeriodLocked && !isActive ? 'opacity-40 grayscale' : ''}
+                                            `}
+                                        >
+                                            {isPeriodLocked && isActive && <Lock size={10} className="opacity-70" />}
+                                            {label}
+                                        </button>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
                     <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block"></div>
                     <div className="flex items-center gap-1">

@@ -22,15 +22,19 @@ export const TableSkeleton = ({
     employeeColumnWidth, 
     dateRange, 
     viewMode,
-    weekStartDay = 1 // Default to Monday if not provided
+    weekStartDay = 1, // Default to Monday if not provided
+    weekMode = 'base'
 }: { 
     employeeColumnWidth: number, 
     dateRange: Date[], 
     viewMode: string,
-    weekStartDay?: number 
+    weekStartDay?: number,
+    weekMode?: 'base' | 'natural'
 }) => {
     
     const skeletonRows = Array(15).fill(0);
+    // Si es modo natural forzamos Lunes (1), si no usamos la configuración
+    const effectiveWeekStartDay = weekMode === 'natural' ? 1 : weekStartDay;
 
     return (
         <div className="overflow-auto relative flex-1">
@@ -57,7 +61,7 @@ export const TableSkeleton = ({
                         </th>
                         
                         {dateRange.map((day, dayIndex) => {
-                             const isWeekStart = getDay(day) === weekStartDay;
+                             const isWeekStart = getDay(day) === effectiveWeekStartDay;
                              let thClasses = `px-1 py-2 font-semibold text-slate-600 ${getHeaderWidthClass(viewMode)} ${isTodayDateFns(day) ? 'bg-sky-100' : 'bg-slate-50'}`;
                              if (isWeekStart && dayIndex > 0) {
                                  thClasses += ' border-l-2 border-slate-300';
@@ -103,7 +107,7 @@ export const TableSkeleton = ({
                                     key={dayIndex} 
                                     viewMode={viewMode}
                                     isToday={isTodayDateFns(day)}
-                                    isWeekStart={getDay(day) === weekStartDay}
+                                    isWeekStart={getDay(day) === effectiveWeekStartDay}
                                     isFirstDay={dayIndex === 0}
                                 />
                             ))}

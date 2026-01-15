@@ -6,7 +6,6 @@ import {
     addWeeks, subWeeks, addMonths, subMonths
 } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { useAppContext } from '../context/AppContext'; // <--- 1. IMPORTAR CONTEXTO
 
 const SHARED_CONFIG_KEY = 'app_shared_attendance_config';
 
@@ -27,23 +26,21 @@ const getInitialState = (user: any) => {
             return {
                 filters: { ...defaultFilters, ...(parsed.filters || {}) }, // Merge seguro
                 viewMode: parsed.viewMode || 'week',
-                currentDate: parsed.currentDate ? new Date(parsed.currentDate) : new Date()
+                currentDate: parsed.currentDate ? new Date(parsed.currentDate) : new Date(),
+                weekMode: parsed.weekMode || 'base'
             };
         }
     } catch (e) { console.error("Error cargando config compartida", e); }
 
-    return { filters: defaultFilters, viewMode: 'week', currentDate: new Date() };
+    return { filters: defaultFilters, viewMode: 'week', currentDate: new Date(), weekMode: 'base' };
 };
 
-export const useSharedAttendance = (user: any) => {
+export const useSharedAttendance = (user: any, weekStartDay: number = 1) => {
     // 1. Estado Unificado con Lazy Initialization
     const [sharedState, setSharedState] = useState(() => getInitialState(user));
     
     // Desestructuramos para mantener la API del hook intacta
-    const { viewMode, currentDate, filters } = sharedState;
-
-    // <--- 2. OBTENER CONFIGURACIÓN DE LA APP (día de inicio de semana configurable)
-    const { weekStartDay } = useAppContext();
+    const { viewMode, currentDate, filters, weekMode } = sharedState;
 
     // 2. Persistencia Automática
     useEffect(() => {
@@ -70,6 +67,10 @@ export const useSharedAttendance = (user: any) => {
         setSharedState(prev => ({ ...prev, currentDate: typeof updater === 'function' ? updater(prev.currentDate) : updater }));
     };
     
+    const setWeekMode = (mode: 'base' | 'natural') => {
+        setSharedState(prev => ({ ...prev, weekMode: mode }));
+    };
+
     // 4. Lógica de Cálculo de Rangos (con soporte para weekStartDay configurable)
     const { dateRange, rangeLabel } = useMemo(() => {
         let start: Date = new Date();
@@ -96,7 +97,8 @@ export const useSharedAttendance = (user: any) => {
                 break;
             case 'week':
             default:
-                const weekStartsOn = weekStartDay ?? 1; // Fallback a lunes si no está definido
+                // Si es 'natural' forzamos Lunes (1), si es 'base' usamos la config global
+                const weekStartsOn = weekMode === 'natural' ? 1 : (weekStartDay ?? 1);
                 start = startOfWeek(now, { weekStartsOn });
                 end = endOfWeek(now, { weekStartsOn });
                 label = `${format(start, 'd')} - ${format(end, 'd \'de\' MMMM, yyyy', { locale: es })}`;
@@ -105,9 +107,9 @@ export const useSharedAttendance = (user: any) => {
         
         const range = eachDayOfInterval({ start, end });
 
-        return { dateRange: range, rangeLabel: label }; 
+        return { dateRange: range, rangeLabel: label };
 
-    }, [currentDate, viewMode, weekStartDay]); // <--- weekStartDay añadido a dependencias
+    }, [currentDate, viewMode, weekStartDay, weekMode]); // <--- weekMode añadido a dependencias
 
     // 5. Handlers de Navegación (se mantienen como estaban, ya que subWeeks/addWeeks funcionan correctamente con el nuevo cálculo de semana)
     const handleDatePrev = () => {
@@ -145,6 +147,7 @@ export const useSharedAttendance = (user: any) => {
         filters, setFilters,
         viewMode, setViewMode,
         currentDate, setCurrentDate,
+        weekMode, setWeekMode,
         dateRange, rangeLabel,
         handleDatePrev, handleDateNext
     };

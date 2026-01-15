@@ -73,7 +73,7 @@ const SchedulePageContent = () => {
     const { weekStartDay } = useAppContext();
 
     const {
-        filters, viewMode, dateRange
+        filters, viewMode, dateRange, weekMode, setWeekMode
     } = useAttendanceToolbarContext();
 
     // Estados Locales
@@ -101,6 +101,12 @@ const SchedulePageContent = () => {
         } catch { return DEFAULT_COLUMN_WIDTH; }
     });
 
+    // --- CÁLCULO DE DÍA DE INICIO EFECTIVO ---
+    // Si el modo es 'natural', forzamos Lunes (1). Si es 'base', usamos la config global.
+    const effectiveWeekStartDay = useMemo(() => {
+        return weekMode === 'natural' ? 1 : weekStartDay;
+    }, [weekMode, weekStartDay]);
+
     const [activeWeekStartDate, setActiveWeekStartDate] = useState<Date | null>(null);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const scrollTimerRef = useRef<number | null>(null);
@@ -122,7 +128,7 @@ const SchedulePageContent = () => {
                 behavior: 'smooth'
             });
 
-            const newActiveWeek = startOfWeek(targetDate, { weekStartsOn: weekStartDay });
+            const newActiveWeek = startOfWeek(targetDate, { weekStartsOn: effectiveWeekStartDay as any });
             setActiveWeekStartDate(newActiveWeek);
         }
     };
@@ -131,7 +137,7 @@ const SchedulePageContent = () => {
 
         const handleHeaderClick = (day: Date) => {
 
-            const weekStart = startOfWeek(day, { weekStartsOn: weekStartDay });
+            const weekStart = startOfWeek(day, { weekStartsOn: effectiveWeekStartDay as any });
 
             scrollToDate(weekStart);
 
@@ -165,11 +171,11 @@ const SchedulePageContent = () => {
 
             if (scrollLeft <= 0) {
 
-                startOfActiveWeek = startOfWeek(dateRange[0], { weekStartsOn: weekStartDay });
+                startOfActiveWeek = startOfWeek(dateRange[0], { weekStartsOn: effectiveWeekStartDay as any });
 
             } else if (scrollLeft + clientWidth >= scrollWidth - scrollEndTolerance) {
 
-                startOfActiveWeek = startOfWeek(dateRange[dateRange.length - 1], { weekStartsOn: weekStartDay });
+                startOfActiveWeek = startOfWeek(dateRange[dateRange.length - 1], { weekStartsOn: effectiveWeekStartDay as any });
 
             } else {
 
@@ -185,7 +191,7 @@ const SchedulePageContent = () => {
 
                 if (activeDay) {
 
-                    startOfActiveWeek = startOfWeek(activeDay, { weekStartsOn: weekStartDay });
+                    startOfActiveWeek = startOfWeek(activeDay, { weekStartsOn: effectiveWeekStartDay as any });
 
                 }
 
@@ -211,7 +217,7 @@ const SchedulePageContent = () => {
 
             }
 
-        }, [dateRange, viewMode, weekStartDay]);
+        }, [dateRange, viewMode, effectiveWeekStartDay]);
 
     
 
@@ -269,13 +275,13 @@ const SchedulePageContent = () => {
 
             if (dateRange.length > 0) {
 
-                const firstWeekStart = startOfWeek(dateRange[0], { weekStartsOn: weekStartDay });
+                const firstWeekStart = startOfWeek(dateRange[0], { weekStartsOn: effectiveWeekStartDay as any });
 
                 setActiveWeekStartDate(firstWeekStart);
 
             }
 
-        }, [dateRange, weekStartDay]);
+        }, [dateRange, effectiveWeekStartDay]);
 
     // Carga de Datos
     const fetchData = useCallback(async () => {
@@ -509,7 +515,7 @@ const SchedulePageContent = () => {
 
     const getActiveWeekLabel = () => {
         if (!activeWeekStartDate) return "Cargando semana...";
-        const endDate = endOfWeek(activeWeekStartDate, { weekStartsOn: weekStartDay });
+        const endDate = endOfWeek(activeWeekStartDate, { weekStartsOn: effectiveWeekStartDay as any });
         return `Semana del ${format(activeWeekStartDate, 'd MMM')} al ${format(endDate, 'd MMM, yyyy', { locale: es })}`;
     };
 
@@ -591,7 +597,7 @@ const SchedulePageContent = () => {
     const fixedSchedules = useMemo(() => scheduleCatalog.filter(h => !h.EsRotativo), [scheduleCatalog]);
 
     const renderContent = () => {
-        if (isLoading) return <TableSkeleton employeeColumnWidth={employeeColumnWidth} dateRange={dateRange} viewMode={viewMode} weekStartDay={weekStartDay} />;
+        if (isLoading) return <TableSkeleton employeeColumnWidth={employeeColumnWidth} dateRange={dateRange} viewMode={viewMode} weekStartDay={weekStartDay} weekMode={weekMode} />;
         if (error) return <div className="p-16 text-center"> <p className="font-semibold text-red-600">Error al Cargar</p> <p className="text-slate-500 text-sm mt-1">{error}</p> </div>;
 
         return (
@@ -613,10 +619,10 @@ const SchedulePageContent = () => {
                                 <div onMouseDown={handleResizeMouseDown} className="absolute right-0 top-0 h-full w-2.5 cursor-col-resize group flex items-center justify-center"><GripVertical className="h-5 text-slate-300 group-hover:text-[--theme-500] transition-colors" /></div>
                             </th>
                             {dateRange.map((day, dayIndex) => {
-                                const startOfWeekForDay = startOfWeek(day, { weekStartsOn: weekStartDay });
+                                const startOfWeekForDay = startOfWeek(day, { weekStartsOn: effectiveWeekStartDay as any });
                                 const isActiveWeek = activeWeekStartDate && isSameDay(startOfWeekForDay, activeWeekStartDate);
                                 const isFirstDay = dayIndex === 0;
-                                const isWeekStart = getDayOfWeek(day) === weekStartDay;
+                                const isWeekStart = getDayOfWeek(day) === effectiveWeekStartDay;
 
                                 let thClasses = `px-1 py-2 font-semibold text-slate-600 min-w-[6rem] transition-colors duration-150 relative cursor-pointer hover:bg-slate-200 `;
                                 if (isTodayDateFns(day)) thClasses += 'bg-sky-100 hover:bg-sky-200';
@@ -686,7 +692,7 @@ const SchedulePageContent = () => {
                                         const fichaExistente = emp?.FichasExistentes?.find((f: any) => f.Fecha === format(day, 'yyyy-MM-dd'));
                                         const fichaStatus = fichaExistente?.Estado;
 
-                                        const isWeekStart = getDayOfWeek(day) === weekStartDay;
+                                        const isWeekStart = getDayOfWeek(day) === effectiveWeekStartDay;
                                         const isFirstDay = dayIndex === 0;
                                         let tdClasses = "align-top border-b border-slate-100";
                                         if (isWeekStart && !isFirstDay) tdClasses += ' border-l-2 border-slate-300';
@@ -732,7 +738,7 @@ const SchedulePageContent = () => {
                 </Tooltip>
             </header>
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 flex-1 flex flex-col overflow-hidden">
-                <AttendanceToolbar />
+                <AttendanceToolbar allowNaturalWeek={true} />
                 {renderContent()}
             </div>
             {viewingEmployeeId && <EmployeeProfileModal employeeId={viewingEmployeeId as any} onClose={() => setViewingEmployeeId(null)} getToken={getToken} user={user} />}
@@ -747,6 +753,8 @@ const SchedulePageContent = () => {
                 periodEnd={dateRange[dateRange.length - 1]}
                 onAssign={handleAssignSchedule}
                 onWeekChange={handleModalWeekChange} // <--- Nueva prop para sincronizar scroll desde el modal
+                weekMode={weekMode}
+                onWeekModeChange={setWeekMode}
             />
 
             <ConfirmationModal
