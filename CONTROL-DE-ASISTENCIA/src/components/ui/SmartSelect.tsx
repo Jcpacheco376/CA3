@@ -100,7 +100,7 @@ export const SmartSelect: React.FC<SmartSelectProps> = ({
                                 <ButtonIcon size={16} className={`${colors.buttonIcon} shrink-0`} />
                             )}
                             <span className="font-semibold text-slate-800 shrink-0">
-                                {String(selectedOption.value)}
+                                {selectedOption.title}
                             </span>
                             {selectedOption.subtitle && (
                                 <span className="text-slate-500 text-xs truncate ml-2">
@@ -133,7 +133,7 @@ export const SmartSelect: React.FC<SmartSelectProps> = ({
                                     >
                                         <div className="flex items-center gap-x-2 min-w-0">
                                             <span className={`block shrink-0 ${isSelected ? colors.titleSelected : 'font-medium text-slate-800'}`}>
-                                                {String(option.value)}
+                                                {option.title}
                                             </span>
                                             {option.subtitle && (
                                                 <span className={`truncate text-xs ${isSelected ? colors.subtitleSelected : 'text-slate-400'}`}>

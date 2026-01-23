@@ -241,7 +241,7 @@ const AttendanceListReportPageContent = () => {
     };
 
     return (
-        <div className="space-y-6 animate-fade-in pb-10 h-full flex flex-col">
+        <div className="space-y-3 h-full flex flex-col">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div><h2 className="text-2xl font-bold text-slate-800">Lista de Asistencia</h2><p className="text-slate-500 text-sm">Reporte operativo de entradas y salidas (Vista Checador).</p></div>
                 <button onClick={handleGenerateClick} disabled={isLoading} className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold shadow-sm transition-all bg-indigo-600 text-white hover:bg-indigo-700 hover:shadow-md ${isLoading ? 'opacity-70' : ''}`}>
@@ -254,8 +254,7 @@ const AttendanceListReportPageContent = () => {
                 />
             </div>
 
-            <div className="bg-white rounded-lg shadow-sm border border-slate-200 min-h-[400px] flex flex-col overflow-hidden flex-1 relative"> {/* relative para el overlay */}
-                
+            <div className="bg-white rounded-lg shadow-sm border border-slate-200 flex-1 flex flex-col overflow-hidden relative">
                 {/* LÓGICA ANTI-PARPADEO */}
                 {!isInitialLoading && processedData.length > 0 ? (
                     <>

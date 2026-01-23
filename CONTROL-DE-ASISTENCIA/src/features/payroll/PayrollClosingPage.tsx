@@ -301,35 +301,28 @@ const PayrollClosingPageContent = () => {
     };
 
     return (
-        <div className="flex flex-col h-full bg-slate-50">
-            {/* Header y Toolbar */}
-            <div className="flex-none p-6 pb-0 space-y-4">
-                <div>
-                    <h2 className="text-2xl font-bold text-slate-800">Cierre de Periodo</h2>
-                    <p className="text-slate-500 text-sm">Resumen por empleado para validación de nómina.</p>
-                </div>
-                
-                <div className="bg-white rounded-lg shadow-sm border border-slate-200 shrink-0">
-                    <AttendanceToolbar
-                       // filterConfigurations={filterConfigurations}
-                        enablePayrollSync={true} 
-                    />
-                </div>
+        <div className="space-y-3 h-full flex flex-col">
+            <div>
+                <h2 className="text-2xl font-bold text-slate-800">Cierre de Periodo</h2>
+                <p className="text-slate-500 text-sm">Resumen por empleado para validación de nómina.</p>
             </div>
 
-            {/* Contenido Principal */}
-            <div className="flex-1 p-6 overflow-hidden flex flex-col">
+            <div className="bg-white rounded-lg shadow-sm border border-slate-200 flex-1 flex flex-col overflow-hidden -mb-5">
+                <AttendanceToolbar
+                    enablePayrollSync={true} 
+                />
+                <div className="flex-1 overflow-hidden flex flex-col relative">
                 {(filters.groups.length === 0 && filters.depts.length === 0 && filters.puestos.length === 0 && filters.estabs.length === 0) ? (
-                    <div className="flex flex-col items-center justify-center h-full text-slate-400 bg-white rounded-lg border border-dashed border-slate-300">
+                    <div className="flex flex-col items-center justify-center h-full text-slate-400">
                         <Briefcase size={48} className="mb-4 opacity-50 text-slate-300" />
                         <p className="font-medium text-slate-600">Selecciona filtros para comenzar</p>
                         <p className="text-sm mt-1">Usa los filtros en la barra superior para visualizar el periodo.</p>
                     </div>
                 ) : loading && !summary ? (
-                    <div className="flex flex-col h-full gap-6 animate-pulse">
+                    <div className="flex flex-col h-full gap-6 animate-pulse p-6">
                         <div className="flex-none grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                             {[1, 2, 3, 4, 5].map(i => (
-                                <div key={i} className="h-32 bg-white rounded-2xl border border-slate-200 shadow-sm p-5">
+                                <div key={i} className="h-32 bg-slate-50 rounded-2xl border border-slate-200 shadow-sm p-5">
                                     <div className="space-y-3">
                                         <div className="h-3 bg-slate-200 rounded w-32"></div>
                                         <div className="h-8 bg-slate-300 rounded w-20"></div>
@@ -338,7 +331,7 @@ const PayrollClosingPageContent = () => {
                                 </div>
                             ))}
                         </div>
-                        <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+                        <div className="flex-1 bg-slate-50 rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
                             <div className="h-10 bg-slate-50 border-b border-slate-100"></div>
                             <div className="flex-1 p-0">
                                 {[1, 2, 3, 4, 5, 6, 7].map(i => (
@@ -348,7 +341,7 @@ const PayrollClosingPageContent = () => {
                         </div>
                     </div>
                 ) : summary ? (
-                    <div className="flex flex-col h-full gap-6">
+                    <div className="flex flex-col h-full gap-6 p-6">
                         {/* KPIs */}
                         <div className="flex-none grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                             <KpiCard
@@ -443,7 +436,7 @@ const PayrollClosingPageContent = () => {
                         )}
 
                         {/* TABLA DE EMPLEADOS */}
-                        <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+                        <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col ring-1 ring-slate-200">
                             <div className="flex-1 overflow-y-auto">
                                 <table className="w-full text-sm text-left table-fixed">
                                     <thead className="text-xs text-slate-500 uppercase bg-slate-50 sticky top-0 z-10 shadow-sm">
@@ -582,6 +575,7 @@ const PayrollClosingPageContent = () => {
                         </div>
                     </div>
                 ) : null}
+                </div>
             </div>
 
             {/* Modal de Confirmación */}

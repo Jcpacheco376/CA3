@@ -12,12 +12,12 @@ import {
 import { es } from 'date-fns/locale';
 import {
     Loader2, ClipboardCheck, Briefcase, Building, Cake, GripVertical,
-    Contact, CalendarOff, ListTodo, Tag, MapPin, AlertTriangle, RotateCcw
+    Contact, CalendarOff, ListTodo, Tag, MapPin, AlertTriangle, RotateCcw, Unlock, Lock
 } from 'lucide-react';
 import { AttendanceCell } from './AttendanceCell';
 import { Button, Modal } from '../../components/ui/Modal';
 import { AttendanceStatus, AttendanceStatusCode } from '../../types';
-import { Tooltip, InfoIcon } from '../../components/ui/Tooltip';
+import { Tooltip } from '../../components/ui/Tooltip';
 import { EmployeeProfileModal } from './EmployeeProfileModal';
 import { AttendanceToolbar, FilterConfig } from './AttendanceToolbar';
 import { useVirtualizer } from '@tanstack/react-virtual';
@@ -118,6 +118,7 @@ const AttendancePageContent = () => {
 
     const [showOnlyNoSchedule, setShowOnlyNoSchedule] = useState(false);
     const [showOnlyIncomplete, setShowOnlyIncomplete] = useState(false);
+    const [showOnlyUnlocked, setShowOnlyUnlocked] = useState(false);
 
     const [dragInfo, setDragInfo] = useState<{ EmpleadoId: number, dayIndex: number, status: AttendanceStatusCode } | null>(null);
     const [draggedCells, setDraggedCells] = useState<string[]>([]);
@@ -179,8 +180,18 @@ const AttendancePageContent = () => {
             });
         }
 
+        if (showOnlyUnlocked) {
+            filtered = filtered.filter(emp => {
+                return dateRange.some(day => {
+                    const dateStr = format(day, 'yyyy-MM-dd');
+                    const ficha = emp.FichasSemana.find((f: any) => f.Fecha.substring(0, 10) === dateStr);
+                    return !ficha || ficha.Estado !== 'BLOQUEADO';
+                });
+            });
+        }
+
         return filtered;
-    }, [employees, filters.search, showOnlyNoSchedule, showOnlyIncomplete, dateRange]);
+    }, [employees, filters.search, showOnlyNoSchedule, showOnlyIncomplete, showOnlyUnlocked, dateRange]);
 
     const tableContainerRef = useRef<HTMLDivElement>(null);
 
@@ -665,12 +676,15 @@ const AttendancePageContent = () => {
                             <th className="p-2 text-left font-semibold text-slate-600 sticky left-0 bg-slate-50 z-30 shadow-sm group relative" style={{ width: `${employeeColumnWidth}px` }}>
                                 <div className="flex items-center gap-3 flex-1 min-w-0 pr-8 h-full">
                                     <span>Empleado</span>
-                                    <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 focus-within:opacity-100" style={{ opacity: (showOnlyNoSchedule || showOnlyIncomplete) ? 1 : undefined }}>
+                                    <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 focus-within:opacity-100" style={{ opacity: (showOnlyNoSchedule || showOnlyIncomplete || showOnlyUnlocked) ? 1 : undefined }}>
                                         <Tooltip text={showOnlyNoSchedule ? "Mostrando sin horario • Click para ver todos" : "Filtrar empleados sin horario asignado"}>
                                             <button onClick={() => setShowOnlyNoSchedule(!showOnlyNoSchedule)} className={`p-1.5 rounded-md transition-colors flex-shrink-0 ${showOnlyNoSchedule ? 'text-amber-600 bg-amber-50 ring-1 ring-amber-200' : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'}`}><CalendarOff size={16} /></button>
                                         </Tooltip>
                                         <Tooltip text={showOnlyIncomplete ? "Mostrando incompletos • Click para ver todos" : "Filtrar asignaciones pendientes"}>
                                             <button onClick={() => setShowOnlyIncomplete(!showOnlyIncomplete)} className={`p-1.5 rounded-md transition-colors flex-shrink-0 ${showOnlyIncomplete ? 'text-sky-600 bg-sky-50 ring-1 ring-sky-200' : 'text-slate-400 hover:text-sky-600 hover:bg-sky-50'}`}><ListTodo size={16} /></button>
+                                        </Tooltip>
+                                        <Tooltip text={showOnlyUnlocked ? "Mostrando desbloqueados • Click para ver todos" : "Filtrar bloqueados"}>
+                                            <button onClick={() => setShowOnlyUnlocked(!showOnlyUnlocked)} className={`p-1.5 rounded-md transition-colors flex-shrink-0 ${showOnlyUnlocked ? 'text-emerald-600 bg-emerald-50 ring-1 ring-emerald-200' : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'}`}><Unlock size={16} /></button>
                                         </Tooltip>
                                     </div>
                                     <div onMouseDown={handleResizeMouseDown} className="absolute right-0 top-0 h-full w-2.5 cursor-col-resize group flex items-center justify-center"><GripVertical className="h-5 text-slate-300 group-hover:text-[--theme-500] transition-colors" /></div>
@@ -735,6 +749,13 @@ const AttendancePageContent = () => {
                                     const hasDrafts = draftCount > 0;
                                     const hasProcessed = processedCount > 0;
 
+                                    // --- Lógica para indicador de BLOQUEO TOTAL ---
+                                    const isEmployeeWeekBlocked = dateRange.length > 0 && dateRange.every(day => {
+                                        const dateStr = format(day, 'yyyy-MM-dd');
+                                        const ficha = generatedFichas.find((f: any) => f.Fecha.substring(0, 10) === dateStr);
+                                        return ficha?.Estado === 'BLOQUEADO';
+                                    });
+
                                     // 3. Determinar el estado y apariencia del botón.
                                     // Icono de "Restaurar" se muestra si no hay borradores pero sí hay algo procesado.
                                     const showRevertIcon = !hasDrafts && hasProcessed;
@@ -764,6 +785,11 @@ const AttendancePageContent = () => {
                                                         <div className="flex-1 min-w-0">
                                                             <div className="flex items-center justify-between">
                                                                 <div className="flex items-center gap-2">
+                                                                    {isEmployeeWeekBlocked && (
+                                                                        <Tooltip text="Periodo cerrado para este empleado">
+                                                                            <Lock size={14} className="text-red-400 shrink-0" />
+                                                                        </Tooltip>
+                                                                    )}
                                                                     <Tooltip text={emp.NombreCompleto}><p className="font-semibold text-slate-800 truncate ">{emp.NombreCompleto}</p></Tooltip>
                                                                     {defaultSchedule && <Tooltip text={getHorarioTooltip(defaultSchedule)}><span className="text-xs font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{defaultSchedule.Abreviatura || defaultSchedule.HorarioId}</span></Tooltip>}
                                                                     {isBirthdayInPeriod(emp.FechaNacimiento, dateRange) && <Tooltip text={birthdayTooltip}><Cake size={18} className="text-pink-400 shrink-0" /></Tooltip>}
@@ -834,8 +860,11 @@ const AttendancePageContent = () => {
     };
 
     return (
-        <div className="space-y-6 h-full flex flex-col">
-            <header className="flex items-center gap-2"><h1 className="text-3xl font-bold text-slate-800">Registro de Asistencia </h1><Tooltip text="Gestión de asistencia"><InfoIcon /></Tooltip></header>
+        <div className="space-y-3 h-full flex flex-col">
+            <div>
+                <h2 className="text-2xl font-bold text-slate-800">Registro de Asistencia</h2>
+                <p className="text-slate-500 text-sm">Gestión y validación de asistencia diaria.</p>
+            </div>
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 flex-1 flex flex-col overflow-hidden">
                 <AttendanceToolbar allowNaturalWeek={true} />
                 {renderContent()}

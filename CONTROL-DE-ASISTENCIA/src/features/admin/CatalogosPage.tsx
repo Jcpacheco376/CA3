@@ -23,13 +23,13 @@ export const CatalogosPage = ({ setActiveView }: any) => {
     const { can } = useAuth();
 
     return (
-        <div>
-            <header className="mb-8">
-                <h1 className="text-3xl font-bold text-slate-900">Gestión de Catálogos</h1>
-                <p className="mt-2 text-slate-500">Administra los datos maestros que alimentan el sistema de asistencia.</p>
+        <div className="space-y-6">
+            <header>
+                <h1 className="text-2xl font-bold text-slate-800">Gestión de Catálogos</h1>
+                <p className="text-sm text-slate-500">Administra los datos maestros que alimentan el sistema de asistencia.</p>
             </header>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 <CatalogCard
                     title="Departamentos"
                     description="Ver y gestionar los departamentos de la empresa."

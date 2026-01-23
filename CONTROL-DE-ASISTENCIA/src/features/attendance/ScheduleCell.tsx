@@ -15,6 +15,11 @@ const getTurnoIcon = (turno: 'M' | 'V' | 'N' | string | null | undefined, size =
     }
 };
 
+// --- OPTIMIZACIÓN: Estilo estático fuera del componente ---
+const BLOCKED_PATTERN_STYLE = { 
+    backgroundImage: 'repeating-linear-gradient(135deg, transparent, transparent 10px, rgba(255, 255, 255, 0.2) 10px, rgba(255, 255, 255, 0.2) 20px)' 
+};
+
 const determineTurnoFromTime = (horaEntrada: string): 'M' | 'V' | 'N' | null => {
     if (!horaEntrada || horaEntrada === '00:00') return null;
     try {
@@ -110,7 +115,7 @@ const ScheduleTooltipContent = memo(({ details, horario, tipo, scheduleData, isP
     );
 });
 
-const SchedulePreviewCard = memo(({ details, horario, tipo, isPending, fichaStatus }: { details: any, horario: any, tipo: 'fijo' | 'rotativo' | 'descanso' | 'default', isPending?: boolean, fichaStatus?: string }) => {
+const SchedulePreviewCard = memo(({ details, horario, tipo, isPending, fichaStatus, isAssigned }: { details: any, horario: any, tipo: 'fijo' | 'rotativo' | 'descanso' | 'default', isPending?: boolean, fichaStatus?: string, isAssigned?: boolean }) => {
     const colorKey = horario?.ColorUI || 'slate';
     const theme = statusColorPalette[colorKey as keyof typeof statusColorPalette] || statusColorPalette.slate;
     const { bgText, border, pastel, lightBorder } = theme as any;
@@ -149,14 +154,22 @@ const SchedulePreviewCard = memo(({ details, horario, tipo, isPending, fichaStat
     }
     
     // Tus estilos originales + manejo de bloqueo
-    let borderClass = `border-b-4 ${border}`;
-    if (isPending) borderClass = `border-2 border-dashed ${lightBorder}`;
+    // --- LÓGICA DE CONTORNOS ---
+    // Base: Borde inferior suave (Rellena el espacio para igualar tamaño visual con el asignado)
+    let borderClass = `border-b-4 ${lightBorder}`;
+
+    if (isPending) {
+        borderClass = `border-2 border-dashed ${lightBorder}`;
+    } else if (isAssigned) {
+        // Asignado Manualmente: Mantiene el borde inferior (Efecto relieve/sombra)
+        borderClass = `border-b-4 ${border}`;
+    }
 
     let bgClass = isPending ? pastel : bgText;
-    let opacityClass = isPending ? 'bg-opacity-60' : 'bg-opacity-90';
+    let opacityClass = isBlocked ? 'bg-opacity-100' : (isPending ? 'bg-opacity-60' : 'bg-opacity-90');
 
     return (
-        <div className={`relative w-24 h-16 mx-auto rounded-md font-bold flex items-center justify-center transition-all duration-200 ${borderClass}`}>
+        <div className={`relative w-24 h-16 mx-auto rounded-md font-bold flex items-center justify-center transition-all duration-200 ${borderClass} ${isBlocked }`}>
             
             {/* Icono Rotativo */}
             {esRotativo && tipo !== 'rotativo' && !isPending && !isBlocked && (
@@ -165,22 +178,30 @@ const SchedulePreviewCard = memo(({ details, horario, tipo, isPending, fichaStat
                 </div>
             )}
 
-            {/* Icono BLOQUEADO */}
-            {isBlocked && (
-                <div className="absolute -top-2 -right-2 bg-red-100 text-red-600 rounded-full p-1 border border-red-200 shadow-sm z-20">
-                    <Lock size={12} />
-                </div>
-            )}
+            <div className={`w-full h-full rounded-md ${bgClass} ${opacityClass} flex items-center justify-center shadow-inner-sm overflow-hidden relative`}>
+                {/* Diseño para Bloqueado: Patrón de rayas y marca de agua */}
+                {isBlocked && (
+                    <>
+                        <div className="absolute inset-0 pointer-events-none z-0" 
+                             style={BLOCKED_PATTERN_STYLE} 
+                        />
+                        <div className="absolute bottom-1 right-1 text-slate-900/20 pointer-events-none z-0">
+                            <Lock size={24} strokeWidth={2} />
+                        </div>
+                    </>
+                )}
+                
+                {/* Diseño para Validado: Etiqueta de Esquina Sólida (Corner Tag) */}
+                {isValidated && !isBlocked && (
+                    <div className="absolute top-0 right-0 z-10 pointer-events-none">
+                        <div className="w-6 h-6 bg-blue-600 shadow-sm" style={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%)' }} />
+                        <CheckCheck size={12} strokeWidth={3} className="absolute top-0.5 right-0.5 text-white" />
+                    </div>
+                )}
 
-            {/* Icono VALIDADO */}
-            {isValidated && !isBlocked && (
-                <div className="absolute -top-2 -right-2 bg-blue-100 text-blue-600 rounded-full p-1 border border-blue-200 shadow-sm z-20">
-                    <CheckCheck size={12} />
+                <div className="relative z-10 w-full h-full flex items-center justify-center">
+                    {content}
                 </div>
-            )}
-
-            <div className={`w-full h-full rounded-md ${bgClass} ${opacityClass} flex items-center justify-center shadow-inner-sm overflow-hidden`}>
-                {content}
             </div>
         </div>
     );
@@ -413,6 +434,7 @@ export const ScheduleCell = memo(({
     // --- BLOQUEO EFECTIVO ---
     const isBlocked = existingFichaStatus === 'BLOQUEADO';
     const isConflict = !!scheduleData?.EstatusConflictivo;
+    const isAssigned = !!scheduleData?.TipoAsignacion;
 
     const handleToggle = () => {
         // Bloqueo total si está cerrado
@@ -453,6 +475,7 @@ export const ScheduleCell = memo(({
                     tipo={displayType}
                     isPending={isPendingRotativoAssignment}
                     fichaStatus={existingFichaStatus}
+                    isAssigned={isAssigned}
                 />
             </div>
         </button>

@@ -8,6 +8,7 @@ import { Tooltip, InfoIcon } from '../../components/ui/Tooltip.tsx';
 import { useAuth } from '../auth/AuthContext.tsx';
 import { useNotification } from '../../context/NotificationContext.tsx';
 import { API_BASE_URL } from '../../config/api.ts';
+import { Search, X, ArrowUpDown, ArrowUp, ArrowDown, Loader2 } from 'lucide-react';
 
 export const UsersPage = () => {
     const { getToken, user, can } = useAuth();
@@ -18,6 +19,11 @@ export const UsersPage = () => {
     const [error, setError] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingUser, setEditingUser] = useState<User | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({
+        key: 'NombreCompleto',
+        direction: 'asc'
+    });
 
     const canCreate = can('usuarios.create');
     const canManage = can('usuarios.update');
@@ -25,6 +31,13 @@ export const UsersPage = () => {
 
     // --- MODIFICACIÓN: Límite de píldoras a mostrar ---
     const CATALOG_DISPLAY_LIMIT = 5;
+
+    const showDepartamentos = user?.activeFilters?.departamentos ?? true;
+    const showGruposNomina = user?.activeFilters?.gruposNomina ?? true;
+    const showPuestos = user?.activeFilters?.puestos ?? true;
+    const showEstablecimientos = user?.activeFilters?.establecimientos ?? true;
+
+    const SCROLL_THRESHOLD = 100;
 
     const fetchData = async () => {
         // ... (fetchData sin cambios)
@@ -147,18 +160,63 @@ export const UsersPage = () => {
         }
     };
 
+    const filteredUsers = React.useMemo(() => {
+        let result = [...users];
+        if (searchTerm.trim()) {
+            const lower = searchTerm.toLowerCase();
+            result = result.filter(u => 
+                u.NombreCompleto.toLowerCase().includes(lower) || 
+                u.NombreUsuario.toLowerCase().includes(lower) ||
+                u.Email.toLowerCase().includes(lower)
+            );
+        }
+        return result.sort((a, b) => {
+            const aValue = (a as any)[sortConfig.key];
+            const bValue = (b as any)[sortConfig.key];
+            if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }, [users, searchTerm, sortConfig]);
+
+    const handleSort = (key: string) => {
+        setSortConfig(current => ({ key, direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc' }));
+    };
+
+    const getSortIcon = (key: string) => {
+        if (sortConfig.key !== key) return <ArrowUpDown size={14} className="text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />;
+        return sortConfig.direction === 'asc' ? <ArrowUp size={14} className="text-indigo-600" /> : <ArrowDown size={14} className="text-indigo-600" />;
+    };
+
+    const useFixedLayout = filteredUsers.length > SCROLL_THRESHOLD;
+
     if (error) return <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md">{error}</div>;
-    if (isLoading) return <div className="text-center p-8">Cargando usuarios...</div>;
+    if (isLoading) return <div className="text-center p-8 flex justify-center items-center h-full"><Loader2 className="animate-spin mr-2"/>Cargando usuarios...</div>;
 
     return (
-        <div className="space-y-6">
-            <header className="flex justify-between items-center">
-                {/* ... (header sin cambios) ... */}
-                <div className="flex items-center space-x-3">
-                    <h1 className="text-3xl font-bold text-slate-800">Gestión de Usuarios</h1>
-                    <Tooltip text="Crea, edita y gestiona los usuarios del sistema, sus roles y accesos.">
-                        <span><InfoIcon /></span>
-                    </Tooltip>
+        <div className={`space-y-4 ${useFixedLayout ? 'h-full flex flex-col overflow-hidden' : ''}`}>
+            <div>
+                <h2 className="text-2xl font-bold text-slate-800">Usuarios</h2>
+                <p className="text-slate-500 text-sm">Gestiona el acceso y roles de los usuarios del sistema.</p>
+            </div>
+
+            <div className="flex justify-between items-center">
+                <div className="relative group w-64">
+                    <Search className="absolute left-3 top-2.5 text-slate-400 group-focus-within:text-[--theme-500] transition-colors" size={16} />
+                    <input
+                        type="text"
+                        className="w-full pl-9 pr-8 py-2.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 placeholder-slate-400 
+                                focus:outline-none focus:ring-2 focus:ring-[--theme-500] focus:border-transparent 
+                                transition-all shadow-sm"
+                        placeholder="Buscar usuario..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                    {searchTerm && (
+                        <button onClick={() => setSearchTerm('')} className="absolute right-2 top-2.5 text-slate-400 hover:text-slate-600 transition-colors">
+                            <X size={16} />
+                        </button>
+                    )}
                 </div>
                 {canCreate && (
                     <Button onClick={() => handleOpenModal()}>
@@ -166,23 +224,31 @@ export const UsersPage = () => {
                         Crear Usuario
                     </Button>
                 )}
-            </header>
+            </div>
 
-            <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
-                <div className="overflow-x-auto">
+            <div className={`bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden ${useFixedLayout ? 'flex-1 flex flex-col min-h-0' : ''}`}>
+                <div className={useFixedLayout ? 'overflow-auto flex-1' : 'overflow-x-auto'}>
                     <table className="w-full text-sm">
-                        <thead className="bg-slate-50">
+                        <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
                             <tr>
                                 {/* ... (thead sin cambios) ... */}
-                                <th className="p-3 text-left font-semibold text-slate-600">ID Usuario</th>
-                                <th className="p-3 text-left font-semibold text-slate-600">Nombre Completo</th>
-                                <th className="p-3 text-left font-semibold text-slate-600">Usuario</th>
+                                <th className="p-3 text-left font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors w-24" onClick={() => handleSort('UsuarioId')}>
+                                    <div className="flex items-center gap-2">ID {getSortIcon('UsuarioId')}</div>
+                                </th>
+                                <th className="p-3 text-left font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors whitespace-nowrap min-w-[180px]" onClick={() => handleSort('NombreCompleto')}>
+                                    <div className="flex items-center gap-2">Nombre Completo {getSortIcon('NombreCompleto')}</div>
+                                </th>
+                                <th className="p-3 text-left font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('NombreUsuario')}>
+                                    <div className="flex items-center gap-2">Usuario {getSortIcon('NombreUsuario')}</div>
+                                </th>
                                 <th className="p-3 text-left font-semibold text-slate-600">Roles</th>
-                                <th className="p-3 text-left font-semibold text-slate-600">Departamentos</th>
-                                <th className="p-3 text-left font-semibold text-slate-600">Grupos de Nómina</th>
-                                <th className="p-3 text-left font-semibold text-slate-600">Puestos</th>
-                                <th className="p-3 text-left font-semibold text-slate-600">Establecimientos</th>
-                                <th className="p-3 text-center font-semibold text-slate-600">Estado</th>
+                                {showDepartamentos && <th className="p-3 text-left font-semibold text-slate-600">Departamentos</th>}
+                                {showGruposNomina && <th className="p-3 text-left font-semibold text-slate-600">Grupos de Nómina</th>}
+                                {showPuestos && <th className="p-3 text-left font-semibold text-slate-600">Puestos</th>}
+                                {showEstablecimientos && <th className="p-3 text-left font-semibold text-slate-600">Establecimientos</th>}
+                                <th className="p-3 text-center font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors w-32" onClick={() => handleSort('EstaActivo')}>
+                                    <div className="flex items-center justify-center gap-2">Estado {getSortIcon('EstaActivo')}</div>
+                                </th>
                                 {canManage && <th className="p-3 text-center font-semibold text-slate-600">Acciones</th>}
                                 {!canManage && <th className="p-3 text-center font-semibold text-slate-600"></th>}
 
@@ -190,7 +256,7 @@ export const UsersPage = () => {
                         </thead>
                         {/* --- MODIFICACIÓN: tbody con lógica de truncado --- */}
                         <tbody>
-                            {users.map(u => (
+                            {filteredUsers.map(u => (
                                 <tr key={u.UsuarioId} className="border-t border-slate-200 hover:bg-slate-50">
                                     <td className="p-3 font-mono text-slate-500">{u.UsuarioId}</td>
                                     <td className="p-3 font-medium text-slate-800">{u.NombreCompleto}</td>
@@ -230,6 +296,7 @@ export const UsersPage = () => {
                                             </div>
                                         </Tooltip>
                                     </td>
+                                    {showDepartamentos && (
                                     <td className="p-3">
                                         <Tooltip
                                             text={u.Departamentos?.map(d => d.Nombre).join(', ') || 'N/A'}
@@ -248,6 +315,8 @@ export const UsersPage = () => {
                                             </div>
                                         </Tooltip>
                                     </td>
+                                    )}
+                                    {showGruposNomina && (
                                     <td className="p-3">
                                         <Tooltip
                                             text={u.GruposNomina?.map(g => g.Nombre).join(', ') || 'N/A'}
@@ -266,6 +335,8 @@ export const UsersPage = () => {
                                             </div>
                                         </Tooltip>
                                     </td>
+                                    )}
+                                    {showPuestos && (
                                     <td className="p-3">
                                         <Tooltip
                                             text={u.Puestos?.map(p => p.Nombre).join(', ') || 'N/A'}
@@ -284,6 +355,8 @@ export const UsersPage = () => {
                                             </div>
                                         </Tooltip>
                                     </td>
+                                    )}
+                                    {showEstablecimientos && (
                                     <td className="p-3">
                                         <Tooltip
                                             text={u.Establecimientos?.map(e => e.Nombre).join(', ') || 'N/A'}
@@ -302,6 +375,7 @@ export const UsersPage = () => {
                                             </div>
                                         </Tooltip>
                                     </td>
+                                    )}
                                     <td className="p-3 text-center">
                                         {/* ... (celda de estado sin cambios) ... */}
                                         <span className={`px-2 py-1 text-xs font-semibold rounded-full ${u.EstaActivo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>

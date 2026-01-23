@@ -11,13 +11,13 @@ import {
 import { es } from 'date-fns/locale';
 import {
     Loader2, Briefcase, Building, Cake, GripVertical, Contact, InfoIcon as Info,
-    CalendarCheck, Tag, MapPin, AlertTriangle, CalendarOff, ListTodo
+    CalendarCheck, Tag, MapPin, AlertTriangle, CalendarOff, ListTodo, Lock, Unlock
 } from 'lucide-react';
 import { AttendanceToolbar } from './AttendanceToolbar';
 import { ScheduleCell } from './ScheduleCell';
 import { EmployeeProfileModal } from './EmployeeProfileModal';
 import { AssignFixedScheduleModal, AssignScope } from './AssignFixedScheduleModal'; // <--- Importamos AssignScope
-import { Tooltip, InfoIcon } from '../../components/ui/Tooltip';
+import { Tooltip } from '../../components/ui/Tooltip';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { TableSkeleton } from '../../components/ui/TableSkeleton';
 import { AttendanceToolbarProvider, useAttendanceToolbarContext } from './AttendanceToolbarContext';
@@ -84,6 +84,7 @@ const SchedulePageContent = () => {
     const [assignFixedModalInfo, setAssignFixedModalInfo] = useState<{ employeeId: number, employeeName: string } | null>(null);
     const [openCellId, setOpenCellId] = useState<string | null>(null);
     const [showOnlyPending, setShowOnlyPending] = useState(false);
+    const [showOnlyUnlocked, setShowOnlyUnlocked] = useState(false);
     const [viewingEmployeeId, setViewingEmployeeId] = useState<number | null>(null);
 
     // --- ESTADOS PARA EL MODAL ---
@@ -545,15 +546,31 @@ const SchedulePageContent = () => {
 
     const filteredEmployees = useMemo(() => {
         const searchWords = (filters.search || '').toLowerCase().split(' ').filter((word: string) => word);
-        return employees.filter(emp => {
-            if (searchWords.length > 0) {
+        let result = employees;
+
+        if (searchWords.length > 0) {
+            result = result.filter(emp => {
                 const targetText = ((emp?.NombreCompleto || '') + ' ' + (emp?.CodRef || '')).toLowerCase();
-                if (!searchWords.every(word => targetText.includes(word))) return false;
-            }
-            if (showOnlyPending) return pendingEmployeeIds.has(emp.EmpleadoId);
-            return true;
-        });
-    }, [employees, filters.search, showOnlyPending, pendingEmployeeIds]);
+                return searchWords.every(word => targetText.includes(word));
+            });
+        }
+
+        if (showOnlyPending) {
+            result = result.filter(emp => pendingEmployeeIds.has(emp.EmpleadoId));
+        }
+
+        if (showOnlyUnlocked) {
+            result = result.filter(emp => {
+                return dateRange.some(day => {
+                    const dateStr = format(day, 'yyyy-MM-dd');
+                    const ficha = emp.FichasExistentes?.find((f: any) => f.Fecha === dateStr || f.Fecha.substring(0, 10) === dateStr);
+                    return !ficha || ficha.Estado !== 'BLOQUEADO';
+                });
+            });
+        }
+
+        return result;
+    }, [employees, filters.search, showOnlyPending, pendingEmployeeIds, showOnlyUnlocked, dateRange]);
 
     const handleResizeMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
         e.preventDefault();
@@ -608,11 +625,14 @@ const SchedulePageContent = () => {
                             <th className="p-2 text-left font-semibold text-slate-600 sticky left-0 bg-slate-50 z-30 shadow-sm group relative" style={{ width: `${employeeColumnWidth}px` }}>
                                 <div className="flex items-center gap-3 flex-1 min-w-0 pr-8">
                                     <span>Empleado</span>
-                                    <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 focus-within:opacity-100" style={{ opacity: showOnlyPending ? 1 : undefined }}>
+                                    <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 focus-within:opacity-100" style={{ opacity: (showOnlyPending || showOnlyUnlocked) ? 1 : undefined }}>
                                         <Tooltip text={showOnlyPending ? "Mostrando solo pendientes • Click para ver todos" : "Ver solo asignaciones pendientes"}>
                                             <button onClick={() => setShowOnlyPending(!showOnlyPending)} className={`p-1.5 rounded-md transition-colors flex-shrink-0 ${showOnlyPending ? 'text-amber-600 bg-amber-50 ring-1 ring-amber-200' : 'text-slate-400 hover:text-amber-600 hover:bg-amber-50'}`}>
                                                 <AlertTriangle size={18} />
                                             </button>
+                                        </Tooltip>
+                                        <Tooltip text={showOnlyUnlocked ? "Mostrando desbloqueados • Click para ver todos" : "Ocultar bloqueados"}>
+                                            <button onClick={() => setShowOnlyUnlocked(!showOnlyUnlocked)} className={`p-1.5 rounded-md transition-colors flex-shrink-0 ${showOnlyUnlocked ? 'text-emerald-600 bg-emerald-50 ring-1 ring-emerald-200' : 'text-slate-400 hover:text-emerald-600 hover:bg-emerald-50'}`}><Unlock size={18} /></button>
                                         </Tooltip>
                                     </div>
                                 </div>
@@ -652,6 +672,13 @@ const SchedulePageContent = () => {
                             const emp = filteredEmployees[virtualRow.index];
                             const defaultSchedule = scheduleCatalog.find(h => h.HorarioId === emp.HorarioDefaultId);
                             const horarioTooltipText = getHorarioTooltip(defaultSchedule);
+
+                            const isEmployeeWeekBlocked = dateRange.length > 0 && dateRange.every(day => {
+                                const dateStr = format(day, 'yyyy-MM-dd');
+                                const ficha = emp.FichasExistentes?.find((f: any) => f.Fecha === dateStr || f.Fecha.substring(0, 10) === dateStr);
+                                return ficha?.Estado === 'BLOQUEADO';
+                            });
+
                             let birthdayTooltip = "Cumpleaños en este periodo";
                             if (emp.FechaNacimiento) {
                                 try {
@@ -667,6 +694,11 @@ const SchedulePageContent = () => {
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center justify-between">
                                                     <div className="flex items-center gap-2">
+                                                        {isEmployeeWeekBlocked && (
+                                                            <Tooltip text="Periodo cerrado para este empleado">
+                                                                <Lock size={14} className="text-red-400 shrink-0" />
+                                                            </Tooltip>
+                                                        )}
                                                         <Tooltip text={emp?.NombreCompleto}><p className="font-semibold text-slate-800 truncate ">{emp?.NombreCompleto}</p></Tooltip>
                                                         {defaultSchedule && <Tooltip text={horarioTooltipText}><span className="text-xs font-medium text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">{defaultSchedule.Abreviatura || defaultSchedule.HorarioId}</span></Tooltip>}
                                                         {isBirthdayInPeriod(emp.FechaNacimiento, dateRange) && <Tooltip text={birthdayTooltip}><Cake size={18} className="text-pink-400 shrink-0" /></Tooltip>}
@@ -730,13 +762,11 @@ const SchedulePageContent = () => {
     };
 
     return (
-        <div className="space-y-6 h-full flex flex-col">
-            <header className="flex items-center gap-2">
-                <h1 className="text-3xl font-bold text-slate-800">Programador de Horarios</h1>
-                <Tooltip text="Asigna horarios temporales a los empleados para días específicos o semanas completas.">
-                    <InfoIcon />
-                </Tooltip>
-            </header>
+        <div className="space-y-3 h-full flex flex-col">
+            <div>
+                <h2 className="text-2xl font-bold text-slate-800">Programador de Horarios</h2>
+                <p className="text-slate-500 text-sm">Asignación de horarios y turnos a empleados.</p>
+            </div>
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 flex-1 flex flex-col overflow-hidden">
                 <AttendanceToolbar allowNaturalWeek={true} />
                 {renderContent()}

@@ -41,7 +41,7 @@ export const EstatusAsistenciaModal = ({ isOpen, onClose, onSave, status }: { is
     
     // Estados para Catálogos
     const [calculationTypes, setCalculationTypes] = useState<{ TipoCalculoId: string, Descripcion: string }[]>([]);
-    const [payrollConcepts, setPayrollConcepts] = useState<{ ConceptoId: number, Nombre: string, CodRef: string }[]>([]);
+    const [payrollConcepts, setPayrollConcepts] = useState<{ ConceptoId: number, Nombre: string, CodRef: string, Abreviatura: string }[]>([]);
     const [isLoadingCatalogs, setIsLoadingCatalogs] = useState(false);
 
     const isNew = !status?.EstatusId;
@@ -169,7 +169,7 @@ export const EstatusAsistenciaModal = ({ isOpen, onClose, onSave, status }: { is
                                 label={
                                     <Tooltip text="Define cómo el sistema interpreta este estatus para cálculos.">
                                         <label className="block text-sm font-medium text-slate-700">
-                                            Cálculo Automático <span className="text-red-500">*</span>
+                                            Cálculo Automático <span className="text-red-500"></span>
                                         </label>
                                     </Tooltip>
                                 }
@@ -202,7 +202,7 @@ export const EstatusAsistenciaModal = ({ isOpen, onClose, onSave, status }: { is
                                 value={formData.ConceptoNominaId}
                                 options={payrollConcepts.map(c => ({
                                     value: c.ConceptoId,
-                                    title: c.CodRef,
+                                    title: c.Abreviatura,
                                     subtitle: c.Nombre,
                                 }))}
                                 onChange={(val) => setFormData(prev => ({ ...prev, ConceptoNominaId: val as number | undefined }))}

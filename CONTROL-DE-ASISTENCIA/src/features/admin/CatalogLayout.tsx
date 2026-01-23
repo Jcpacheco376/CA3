@@ -23,9 +23,9 @@ const TabButton = ({
         <button
             onClick={onClick}
             className={`
-                flex items-center gap-2 px-4 py-3 border-b-2 font-semibold
+                flex items-center gap-2 px-4 py-2 border-b-2 font-medium transition-all text-sm
                 ${isActive
-                    ? 'border-[--theme-500] text-[--theme-600]'
+                    ? 'border-indigo-600 text-indigo-600'
                     : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
                 }
             `}
@@ -87,47 +87,40 @@ export const CatalogLayout = ({ activeView, setActiveView }: { activeView: View,
     ];
 
     const activeTab = catalogTabs.find(tab => tab.id === activeView);
-    const pageTitle = activeTab?.label || 'Catálogos';
-
-    // Función para renderizar el contenido de la pestaña activa
-    const renderPageContent = () => {
-        return activeTab?.component || <div className="p-4">Seleccione un catálogo.</div>;
-    };
 
     return (
-        <div className="space-y-6">
-            <header className="flex justify-between items-center">
-                {/* Título y Botón de Volver */}
-                <div className="flex items-center gap-3">
+        <div className="h-full flex flex-col space-y-4">
+            <div className="flex-none pt-1">
+                <div className="flex items-center border-b border-slate-200 px-1">
                     <Tooltip text="Volver al menú de catálogos">
                         <button 
                             onClick={() => setActiveView('admin_catalogs')} 
-                            className="p-2 rounded-full text-slate-500 hover:bg-slate-100"
+                            className="p-2 mr-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors"
                         >
                             <ArrowLeft size={20} />
                         </button>
                     </Tooltip>
-                    <h1 className="text-3xl font-bold text-slate-900">{pageTitle}</h1>
-                </div>
-            </header>
+                    
+                    <div className="h-5 w-px bg-slate-200 mx-2 hidden sm:block"></div>
 
-            {/* Navegación de Pestañas */}
-            <nav className="flex items-center border-b border-slate-200 -mt-2">
-                {catalogTabs.map(tab => (
-                    <TabButton
-                        key={tab.id}
-                        label={tab.label}
-                        icon={tab.icon}
-                        isActive={activeView === tab.id}
-                        onClick={() => setActiveView(tab.id as View)}
-                        canAccess={tab.canAccess}
-                    />
-                ))}
-            </nav>
+                    <nav className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+                        {catalogTabs.map(tab => (
+                            <TabButton
+                                key={tab.id}
+                                label={tab.label}
+                                icon={tab.icon}
+                                isActive={activeView === tab.id}
+                                onClick={() => setActiveView(tab.id as View)}
+                                canAccess={tab.canAccess}
+                            />
+                        ))}
+                    </nav>
+                </div>
+            </div>
 
             {/* Contenido de la Página */}
-            <div className="mt-6">
-                {renderPageContent()}
+            <div className="flex-1 overflow-y-auto overflow-x-hidden px-6 pb-6">
+                {activeTab?.component || <div className="p-8 text-center text-slate-500">Seleccione un catálogo.</div>}
             </div>
         </div>
     );

@@ -8,7 +8,7 @@ import { Button } from '../../components/ui/Modal.tsx';
 import { PlusCircleIcon, PencilIcon } from '../../components/ui/Icons.tsx';
 import { AttendanceStatus } from '../../types/index.ts';
 import { EstatusAsistenciaModal } from './EstatusAsistenciaModal.tsx';
-import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2, Search, X, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { statusColorPalette } from '../../config/theme.ts';
 
 export const EstatusAsistenciaPage = () => {
@@ -19,9 +19,16 @@ export const EstatusAsistenciaPage = () => {
     const [error, setError] = useState<string | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingStatus, setEditingStatus] = useState<AttendanceStatus | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({
+        key: 'Abreviatura',
+        direction: 'asc'
+    });
 
     const canManage = can('catalogo.estatusAsistencia.manage');
     const canRead = can('catalogo.estatusAsistencia.read');
+
+    const SCROLL_THRESHOLD = 100;
 
     const fetchData = useCallback(async () => {
            if (!canRead) {
@@ -73,13 +80,63 @@ export const EstatusAsistenciaPage = () => {
         }
     };
 
-    if (isLoading) return <div className="text-center p-8"><Loader2 className="animate-spin inline-block mr-2" />Cargando catálogo...</div>;
+    const filteredStatuses = React.useMemo(() => {
+        let result = [...statuses];
+        if (searchTerm.trim()) {
+            const lower = searchTerm.toLowerCase();
+            result = result.filter(s => 
+                s.Abreviatura.toLowerCase().includes(lower) || 
+                s.Descripcion.toLowerCase().includes(lower)
+            );
+        }
+        return result.sort((a, b) => {
+            const aValue = (a as any)[sortConfig.key];
+            const bValue = (b as any)[sortConfig.key];
+            if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }, [statuses, searchTerm, sortConfig]);
+
+    const handleSort = (key: string) => {
+        setSortConfig(current => ({ key, direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc' }));
+    };
+
+    const getSortIcon = (key: string) => {
+        if (sortConfig.key !== key) return <ArrowUpDown size={14} className="text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />;
+        return sortConfig.direction === 'asc' ? <ArrowUp size={14} className="text-indigo-600" /> : <ArrowDown size={14} className="text-indigo-600" />;
+    };
+
+    const useFixedLayout = filteredStatuses.length > SCROLL_THRESHOLD;
+
+    if (isLoading) return <div className="text-center p-8 h-full flex items-center justify-center"><Loader2 className="animate-spin inline-block mr-2" />Cargando catálogo...</div>;
     if (error) return <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md">{error}</div>;
 
     return (
-        <div className="space-y-4">
+        <div className={`space-y-4 ${useFixedLayout ? 'h-full flex flex-col overflow-hidden' : ''}`}>
+            <div>
+                <h2 className="text-2xl font-bold text-slate-800">Estatus de Asistencia</h2>
+                <p className="text-slate-500 text-sm">Define los códigos y reglas para incidencias y asistencia.</p>
+            </div>
             
-            <div className="flex justify-end">
+            <div className="flex justify-between items-center">
+                <div className="relative group w-64">
+                    <Search className="absolute left-3 top-2.5 text-slate-400 group-focus-within:text-[--theme-500] transition-colors" size={16} />
+                    <input
+                        type="text"
+                        className="w-full pl-9 pr-8 py-2.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 placeholder-slate-400 
+                                focus:outline-none focus:ring-2 focus:ring-[--theme-500] focus:border-transparent 
+                                transition-all shadow-sm"
+                        placeholder="Buscar empleado..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                    />
+                    {searchTerm && (
+                        <button onClick={() => setSearchTerm('')} className="absolute right-2 top-2.5 text-slate-400 hover:text-slate-600 transition-colors">
+                            <X size={16} />
+                        </button>
+                    )}
+                </div>
                 {canManage && (
                     <Button onClick={() => handleOpenModal()}>
                         <PlusCircleIcon />
@@ -87,22 +144,37 @@ export const EstatusAsistenciaPage = () => {
                     </Button>
                 )}
             </div>
-            <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+            <div className={`bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden ${useFixedLayout ? 'flex-1 flex flex-col min-h-0' : ''}`}>
+                <div className={useFixedLayout ? 'overflow-auto flex-1' : 'overflow-x-auto'}>
                 <table className="w-full text-sm">
-                    <thead className="bg-slate-50">
+                    <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
                         <tr>
-                            <th className="p-3 text-left font-semibold text-slate-600">ID</th>
-                            <th className="p-3 text-left font-semibold text-slate-600">Abreviatura</th>
-                            <th className="p-3 text-left font-semibold text-slate-600">Descripción</th>
-                            <th className="p-3 text-center font-semibold text-slate-600">Valor Nómina</th>
-                            <th className="p-3 text-center font-semibold text-slate-600">Días Futuros</th>
-                            <th className="p-3 text-center font-semibold text-slate-600">Asignable</th>
-                            <th className="p-3 text-center font-semibold text-slate-600">Activo</th>
+                            <th className="p-3 text-left font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('EstatusId')}>
+                                <div className="flex items-center gap-2">ID {getSortIcon('EstatusId')}</div>
+                            </th>
+                            <th className="p-3 text-left font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('Abreviatura')}>
+                                <div className="flex items-center gap-2">Abreviatura {getSortIcon('Abreviatura')}</div>
+                            </th>
+                            <th className="p-3 text-left font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('Descripcion')}>
+                                <div className="flex items-center gap-2">Descripción {getSortIcon('Descripcion')}</div>
+                            </th>
+                            <th className="p-3 text-center font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('ValorNomina')}>
+                                <div className="flex items-center justify-center gap-2">Valor Nómina {getSortIcon('ValorNomina')}</div>
+                            </th>
+                            <th className="p-3 text-center font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('DiasRegistroFuturo')}>
+                                <div className="flex items-center justify-center gap-2">Días Futuros {getSortIcon('DiasRegistroFuturo')}</div>
+                            </th>
+                            <th className="p-3 text-center font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('VisibleSupervisor')}>
+                                <div className="flex items-center justify-center gap-2">Asignable {getSortIcon('VisibleSupervisor')}</div>
+                            </th>
+                            <th className="p-3 text-center font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('Activo')}>
+                                <div className="flex items-center justify-center gap-2">Activo {getSortIcon('Activo')}</div>
+                            </th>
                             {canManage && <th className="p-3 text-center font-semibold text-slate-600">Acciones</th>}
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {statuses.map(status => {
+                        {filteredStatuses.map(status => {
                             // --- MODIFICACIÓN CRÍTICA: Obtener clases del mapa ---
                             // Usamos el mapa statusColorPalette que ya tiene las clases completas
                             const colorTheme = statusColorPalette[status.ColorUI] || statusColorPalette.slate;
@@ -143,6 +215,7 @@ export const EstatusAsistenciaPage = () => {
                         })}
                     </tbody>
                 </table>
+                </div>
             </div>
              {canManage && isModalOpen && (
                  <EstatusAsistenciaModal 

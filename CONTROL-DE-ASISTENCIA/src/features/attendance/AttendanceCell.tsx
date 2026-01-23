@@ -18,6 +18,11 @@ const getColorClasses = (colorName: string = 'slate') => {
     };
 };
 
+// --- OPTIMIZACIÓN: Estilo estático fuera del componente ---
+const BLOCKED_PATTERN_STYLE = { 
+    backgroundImage: 'repeating-linear-gradient(135deg, transparent, transparent 10px, rgba(255, 255, 255, 0.15) 10px, rgba(255, 255, 255, 0.15) 20px)' 
+};
+
 const FichaTooltip = memo(({ ficha, isRestDay, statusCatalog }: { ficha: any, isRestDay: boolean, statusCatalog: AttendanceStatus[] }) => {
     if (isRestDay) return <span>Día de descanso.</span>;
     
@@ -142,18 +147,32 @@ export const AttendanceCell = memo(({
     if (isNoSchedule) borderClass = `border-2 border-dashed border-amber-300`;
 
     const cellContent = (
-        <div className={`relative w-24 h-16 mx-auto rounded-md font-bold text-lg flex items-center justify-center transition-all duration-200 group ${isBeingDragged || isOpen ? 'ring-4 ring-blue-500/50' : ''} ${isBlocked ? 'opacity-90 cursor-not-allowed' : ''} ${isInteractive ? 'hover:-translate-y-0.5 shadow-sm' : ''} ${isJustUpdated ? 'animate-drop-in' : ''} ${borderClass}`}>
-            <div className={`w-full h-full rounded-md ${bgClass} ${!isInteractive ? 'bg-opacity-70' : 'bg-opacity-90'} flex items-center justify-center shadow-inner-sm`}>
-                {isNoSchedule ? (
-                    <div className="flex flex-col items-center justify-center gap-0.5">
-                        <AlertTriangle size={22} className="text-amber-500 opacity-90" />
-                        <span className="text-[10px] text-amber-700 font-bold uppercase tracking-wide">Sin Horario</span>
-                    </div>
-                ) : (
-                    finalStatus
+        <div className={`relative w-24 h-16 mx-auto rounded-md font-bold text-lg flex items-center justify-center transition-all duration-200 group ${isBeingDragged || isOpen ? 'ring-4 ring-blue-500/50' : ''} ${isBlocked ? 'cursor-not-allowed' : ''} ${isInteractive ? 'hover:-translate-y-0.5 shadow-sm' : ''} ${isJustUpdated ? 'animate-drop-in' : ''} ${borderClass}`}>
+            <div className={`w-full h-full rounded-md ${bgClass} ${isBlocked ? 'bg-opacity-100' : (!isInteractive ? 'bg-opacity-70' : 'bg-opacity-90')} flex items-center justify-center shadow-inner-sm relative overflow-hidden`}>
+                
+                {/* Diseño para Bloqueado: Patrón de rayas más gruesas y candado más visible */}
+                {isBlocked && (
+                    <>
+                        <div className="absolute inset-0 pointer-events-none z-0" 
+                             style={BLOCKED_PATTERN_STYLE} 
+                        />
+                        <div className="absolute bottom-1 right-1 text-slate-900/20 pointer-events-none z-0">
+                            <Lock size={24} strokeWidth={2} />
+                        </div>
+                    </>
                 )}
+
+                <div className="relative z-10">
+                    {isNoSchedule ? (
+                        <div className="flex flex-col items-center justify-center gap-0.5">
+                            <AlertTriangle size={22} className="text-amber-500 opacity-90" />
+                            <span className="text-[10px] text-amber-700 font-bold uppercase tracking-wide">Sin Horario</span>
+                        </div>
+                    ) : (
+                        finalStatus
+                    )}
+                </div>
             </div>
-            {isBlocked && <div className="absolute -top-2 -right-2 bg-red-100 text-red-600 rounded-full p-1 border border-red-200 shadow-sm z-10"><Lock size={12} /></div>}
             {hasActiveIncident && <div className="absolute -top-2 -left-2 bg-purple-100 text-purple-600 rounded-full p-1 border border-purple-200 shadow-sm z-10"><AlertTriangle size={12} /></div>}
             {isProcessing && <Tooltip text="Turno en progreso..."><Clock size={16} className="absolute bottom-1 right-1 text-amber-600 animate-pulse" /></Tooltip>}
             {ficha?.Comentarios && <MessageSquare size={14} className="absolute bottom-1 left-1 text-black/40" />}

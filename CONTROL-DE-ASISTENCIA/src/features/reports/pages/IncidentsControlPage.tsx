@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { 
     Play, RefreshCw, AlertTriangle, BadgeAlert, User, Shield, Hash, Info, 
-    Building, Briefcase, Tag, MapPin 
+    Building, Briefcase, Tag, MapPin, Contact, GripVertical, ArrowUpDown, ArrowUp, ArrowDown
 } from 'lucide-react';
 import { useAuth } from '../../auth/AuthContext';
 import { API_BASE_URL } from '../../../config/api';
@@ -12,6 +12,8 @@ import { es } from 'date-fns/locale';
 import { IncidentDetailModal } from '../components/IncidentDetailModal';
 import { AttendanceToolbar, FilterConfig } from '../../attendance/AttendanceToolbar';
 import { AttendanceToolbarProvider, useAttendanceToolbarContext } from '../../attendance/AttendanceToolbarContext';
+import { Tooltip } from '../../../components/ui/Tooltip';
+import { EmployeeProfileModal } from '../../attendance/EmployeeProfileModal';
 
 // --- Componente interno para badges (sin cambios) ---
 const SeverityBadge = ({ severity }: { severity: string }) => {
@@ -52,6 +54,20 @@ const IncidentsControlPageContent = () => {
 
     const [selectedIncidentId, setSelectedIncidentId] = useState<number | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [viewingEmployeeId, setViewingEmployeeId] = useState<number | null>(null);
+
+    // --- ESTADO PARA ORDENAMIENTO Y REDIMENSIONADO ---
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({
+        key: 'Fecha',
+        direction: 'desc'
+    });
+
+    const [employeeColumnWidth, setEmployeeColumnWidth] = useState(() => {
+        try {
+            const saved = localStorage.getItem('incidents_col_width');
+            return saved ? Math.max(250, Math.min(parseInt(saved), 600)) : 350;
+        } catch { return 350; }
+    });
 
     // --- CONFIGURACIÓN DE FILTROS DESPLEGABLES ---
     const filterConfigurations: FilterConfig[] = useMemo(() => {
@@ -131,9 +147,9 @@ const IncidentsControlPageContent = () => {
         loadIncidents();
     }, [loadIncidents]);
 
-    // --- FILTRADO EN CLIENTE (Búsqueda + Filtros Catálogos) ---
-    const filteredIncidents = useMemo(() => {
-        return incidents.filter(inc => {
+    // --- FILTRADO Y ORDENAMIENTO ---
+    const processedIncidents = useMemo(() => {
+        let data = incidents.filter(inc => {
             // 1. Búsqueda por texto (Nombre o ID)
             if (filters.search) {
                 const term = filters.search.toLowerCase();
@@ -149,7 +165,55 @@ const IncidentsControlPageContent = () => {
             
             return true;
         });
-    }, [incidents, filters.search]);
+
+        // 2. Ordenamiento
+        return data.sort((a, b) => {
+            let aValue = a[sortConfig.key];
+            let bValue = b[sortConfig.key];
+
+            // Manejo especial para campos específicos si es necesario
+            if (sortConfig.key === 'EmpleadoNombre') {
+                aValue = a.EmpleadoNombre || '';
+                bValue = b.EmpleadoNombre || '';
+            }
+
+            if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }, [incidents, filters.search, sortConfig]);
+
+    const handleSort = (key: string) => {
+        setSortConfig(current => ({
+            key,
+            direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc'
+        }));
+    };
+
+    const handleResizeMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        document.body.classList.add('select-none', 'cursor-col-resize');
+        const startX = e.clientX;
+        const startWidth = employeeColumnWidth;
+        const handleMouseMove = (moveEvent: MouseEvent) => {
+            const newWidth = startWidth + (moveEvent.clientX - startX);
+            setEmployeeColumnWidth(Math.max(250, Math.min(newWidth, 600)));
+        };
+        const handleMouseUp = (upEvent: MouseEvent) => {
+            document.body.classList.remove('select-none', 'cursor-col-resize');
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+            const finalWidth = startWidth + (upEvent.clientX - startX);
+            localStorage.setItem('incidents_col_width', Math.max(250, Math.min(finalWidth, 600)).toString());
+        };
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp, { once: true });
+    };
+
+    const getSortIcon = (key: string) => {
+        if (sortConfig.key !== key) return <ArrowUpDown size={14} className="text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />;
+        return sortConfig.direction === 'asc' ? <ArrowUp size={14} className="text-indigo-600" /> : <ArrowDown size={14} className="text-indigo-600" />;
+    };
 
     const runAnalysis = async () => {
         if (!dateRange || dateRange.length === 0) return;
@@ -192,7 +256,7 @@ const IncidentsControlPageContent = () => {
     };
 
     return (
-        <div className="space-y-6 animate-fade-in h-full flex flex-col">
+        <div className="space-y-3 animate-fade-in h-full flex flex-col">
             {/* CABECERA Y BOTÓN DE ANÁLISIS */}
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
@@ -222,23 +286,114 @@ const IncidentsControlPageContent = () => {
                     <table className="w-full text-sm text-left table-fixed">
                         <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-xs border-b tracking-wider sticky top-0 z-10">
                             <tr>
-                                <th className="p-4 w-16 text-center">ID</th>
-                                <th className="p-4 w-32">Estado</th>
-                                <th className="p-4 w-32">Severidad</th>
-                                <th className="p-4 w-28">Fecha</th>
-                                <th className="p-4">Empleado</th>
-                                <th className="p-4">Asignado A</th>
-                                <th className="p-4 w-32 text-center">Acción</th>
+                                {/* 1. ID (PRIORIDAD INCIDENCIA) */}
+                                <th className="p-4 w-24 text-center cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSort('IncidenciaId')}>
+                                    <div className="flex items-center justify-center gap-2">
+                                        ID {getSortIcon('IncidenciaId')}
+                                    </div>
+                                </th>
+
+                                {/* 2. FECHA */}
+                                <th className="p-4 w-32 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSort('Fecha')}>
+                                    <div className="flex items-center gap-2">
+                                        Fecha {getSortIcon('Fecha')}
+                                    </div>
+                                </th>
+
+                                {/* 3. EMPLEADO (RESIZABLE) */}
+                                <th 
+                                    className="p-4 font-semibold relative group cursor-pointer select-none hover:bg-slate-100 transition-colors"
+                                    style={{ width: `${employeeColumnWidth}px` }}
+                                    onClick={() => handleSort('EmpleadoNombre')}
+                                >
+                                    <div className="flex items-center gap-2">
+                                        Empleado
+                                        {getSortIcon('EmpleadoNombre')}
+                                    </div>
+                                    <div
+                                        onMouseDown={handleResizeMouseDown}
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="absolute right-0 top-0 h-full w-4 cursor-col-resize flex items-center justify-center hover:bg-slate-200/50 transition-colors z-20"
+                                    >
+                                        <GripVertical size={14} className="text-slate-300 opacity-0 group-hover:opacity-100" />
+                                    </div>
+                                </th>
+
+                                {/* 4. SEVERIDAD */}
+                                <th className="p-4 w-32 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSort('Severidad')}>
+                                    <div className="flex items-center gap-2">
+                                        Severidad {getSortIcon('Severidad')}
+                                    </div>
+                                </th>
+
+                                {/* 5. ESTADO */}
+                                <th className="p-4 w-32 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSort('Estado')}>
+                                    <div className="flex items-center gap-2">
+                                        Estado {getSortIcon('Estado')}
+                                    </div>
+                                </th>
+
+                                {/* 6. ASIGNADO A */}
+                                <th className="p-4 cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => handleSort('AsignadoA')}>
+                                    <div className="flex items-center gap-2">
+                                        Asignado A {getSortIcon('AsignadoA')}
+                                    </div>
+                                </th>
+
+                                {/* 7. ACCIÓN */}
+                                <th className="p-4 w-24 text-center">Acción</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-100">
-                            {filteredIncidents.length > 0 && filteredIncidents.map((inc) => (
+                            {processedIncidents.length > 0 && processedIncidents.map((inc) => (
                                 <tr key={inc.IncidenciaId} className="hover:bg-slate-50 transition-colors group">
                                     <td className="p-4 text-center font-mono text-slate-400 group-hover:text-indigo-500 transition-colors">
                                         <div className="flex items-center justify-center gap-1">
                                             <Hash size={12} />{inc.IncidenciaId}
                                         </div>
                                     </td>
+                                    <td className="p-4 font-medium text-slate-700">
+                                        {formatDateSafe(inc.Fecha)}
+                                    </td>
+                                    <td className="p-4">
+                                        <div className="flex items-center justify-between group">
+                                            <div className="flex-1 min-w-0">
+                                                <div className="flex items-center gap-2">
+                                                    <Tooltip text={inc.EmpleadoNombre}>
+                                                        <span className="font-medium text-slate-900 truncate">{inc.EmpleadoNombre}</span>
+                                                    </Tooltip>
+                                                </div>
+                                                <div className="grid grid-cols-3 gap-x-3 text-xs text-slate-500 mt-1 w-full">
+                                                    <Tooltip text={`ID: ${inc.EmpleadoCodRef}`}>
+                                                        <p className="font-mono col-span-1 truncate">ID: {inc.EmpleadoCodRef}</p>
+                                                    </Tooltip>
+                                                    <Tooltip text={inc.Puesto || 'No asignado'}>
+                                                        <p className="col-span-1 flex items-center gap-1.5 truncate">
+                                                            <Briefcase size={12} className="text-slate-400 shrink-0" />
+                                                            <span className="truncate">{inc.Puesto || 'No asignado'}</span>
+                                                        </p>
+                                                    </Tooltip>
+                                                    <Tooltip text={inc.Departamento || 'No asignado'}>
+                                                        <p className="col-span-1 flex items-center gap-1.5 truncate">
+                                                            <Building size={12} className="text-slate-400 shrink-0" />
+                                                            <span className="truncate">{inc.Departamento || 'No asignado'}</span>
+                                                        </p>
+                                                    </Tooltip>
+                                                </div>
+                                            </div>
+                                            <div className="opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                                                <Tooltip text="Ver Ficha de Empleado">
+                                                    <button
+                                                        onClick={() => setViewingEmployeeId(inc.EmpleadoId)}
+                                                        className="p-1 rounded-md text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                                                    >
+                                                        <Contact size={18} />
+                                                    </button>
+                                                </Tooltip>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td className="p-4"><SeverityBadge severity={inc.Severidad} /></td>
                                     <td className="p-4">
                                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-md text-xs font-medium border
                                             ${inc.Estado === 'Nueva' ? 'bg-blue-50 text-blue-700 border-blue-100' : ''}
@@ -249,16 +404,6 @@ const IncidentsControlPageContent = () => {
                                         `}>
                                             {inc.Estado}
                                         </span>
-                                    </td>
-                                    <td className="p-4"><SeverityBadge severity={inc.Severidad} /></td>
-                                    <td className="p-4 font-medium text-slate-700">
-                                        {formatDateSafe(inc.Fecha)}
-                                    </td>
-                                    <td className="p-4">
-                                        <div className="flex flex-col">
-                                            <span className="font-semibold text-slate-800">{inc.EmpleadoNombre}</span>
-                                            <span className="text-[10px] text-slate-400 uppercase tracking-wide">{inc.Departamento}</span>
-                                        </div>
                                     </td>
                                     <td className="p-4">
                                         {inc.AsignadoA ? (
@@ -290,7 +435,7 @@ const IncidentsControlPageContent = () => {
                                 </tr>
                             ))}
                             
-                            {filteredIncidents.length === 0 && !isLoading && (
+                            {processedIncidents.length === 0 && !isLoading && (
                                 <tr className="border-none">
                                     <td colSpan={7}>
                                         <div className="flex flex-col items-center justify-center p-12 text-slate-400 text-center">
@@ -311,6 +456,15 @@ const IncidentsControlPageContent = () => {
                 incidentId={selectedIncidentId}
                 onRefresh={loadIncidents}
             />
+
+            {viewingEmployeeId && (
+                <EmployeeProfileModal
+                    employeeId={viewingEmployeeId as any}
+                    onClose={() => setViewingEmployeeId(null)}
+                    getToken={getToken}
+                    user={user}
+                />
+            )}
         </div>
     );
 };

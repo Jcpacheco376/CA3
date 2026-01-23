@@ -6,7 +6,7 @@ import { useAuth } from '../auth/AuthContext.tsx';
 import { PencilIcon, PlusCircleIcon } from '../../components/ui/Icons.tsx';
 import { Button } from '../../components/ui/Modal.tsx';
 import { GrupoNominaModal } from './GrupoNominaModal.tsx';
-import { CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2, Search, X, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 
 export const GruposNominaPage = () => {
     const { can, getToken, user } = useAuth();
@@ -16,9 +16,15 @@ export const GruposNominaPage = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingItem, setEditingItem] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' }>({
+        key: 'Nombre',
+        direction: 'asc'
+    });
 
     const canManage = can('catalogo.gruposNomina.manage');
     const canRead = can('catalogo.gruposNomina.read');
+
+    const SCROLL_THRESHOLD = 100;
 
     const fetchData = useCallback(async () => {
         if (!canRead) {
@@ -72,24 +78,62 @@ export const GruposNominaPage = () => {
         handleCloseModal();
     };
 
+    const filteredData = useMemo(() => {
+        let result = [...data];
+        if (searchTerm.trim()) {
+            const lowercasedFilter = searchTerm.toLowerCase();
+            result = result.filter(item =>
+                (item.Nombre?.toLowerCase().includes(lowercasedFilter)) ||
+                (item.Abreviatura?.toLowerCase().includes(lowercasedFilter))
+            );
+        }
+        return result.sort((a, b) => {
+            const aValue = a[sortConfig.key];
+            const bValue = b[sortConfig.key];
+            if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }, [data, searchTerm, sortConfig]);
+
+    const handleSort = (key: string) => {
+        setSortConfig(current => ({ key, direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc' }));
+    };
+
+    const getSortIcon = (key: string) => {
+        if (sortConfig.key !== key) return <ArrowUpDown size={14} className="text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />;
+        return sortConfig.direction === 'asc' ? <ArrowUp size={14} className="text-indigo-600" /> : <ArrowDown size={14} className="text-indigo-600" />;
+    };
+
+    const useFixedLayout = filteredData.length > SCROLL_THRESHOLD;
+
     const renderContent = () => {
-        if (isLoading) return <div className="flex justify-center items-center p-8"><Loader2 className="animate-spin mr-2" /> Cargando grupos de nómina...</div>;
+        if (isLoading) return <div className="flex justify-center items-center p-8 h-full"><Loader2 className="animate-spin mr-2" /> Cargando grupos de nómina...</div>;
         if (error) return <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md">{error}</div>;
 
         return (
-            <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+            <div className={`bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden ${useFixedLayout ? 'flex-1 flex flex-col min-h-0' : ''}`}>
+                <div className={useFixedLayout ? 'overflow-auto flex-1' : 'overflow-x-auto'}>
                 <table className="w-full text-sm">
-                    <thead className="bg-slate-50">
+                    <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
                         <tr>
-                            <th className="p-3 text-left font-semibold text-slate-600">ID</th>
-                            <th className="p-3 text-left font-semibold text-slate-600">Nombre</th>
-                            <th className="p-3 text-left font-semibold text-slate-600">Abreviatura</th>
-                            <th className="p-3 text-center font-semibold text-slate-600">Estado</th>
+                            <th className="p-3 text-left font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('GrupoNominaId')}>
+                                <div className="flex items-center gap-2">ID {getSortIcon('GrupoNominaId')}</div>
+                            </th>
+                            <th className="p-3 text-left font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('Nombre')}>
+                                <div className="flex items-center gap-2">Nombre {getSortIcon('Nombre')}</div>
+                            </th>
+                            <th className="p-3 text-left font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('Abreviatura')}>
+                                <div className="flex items-center gap-2">Abreviatura {getSortIcon('Abreviatura')}</div>
+                            </th>
+                            <th className="p-3 text-center font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('Activo')}>
+                                <div className="flex items-center justify-center gap-2">Estado {getSortIcon('Activo')}</div>
+                            </th>
                             {canManage && <th className="p-3 text-center font-semibold text-slate-600">Acciones</th>}
                         </tr>
                     </thead>
                     <tbody>
-                        {data.map(item => (
+                        {filteredData.map(item => (
                             <tr key={item.GrupoNominaId} className="border-t border-slate-200 hover:bg-slate-50">
                                 <td className="p-3 font-mono text-slate-500">{item.GrupoNominaId}</td>
                                 <td className="p-3 font-medium text-slate-800">{item.Nombre}</td>
@@ -113,35 +157,35 @@ export const GruposNominaPage = () => {
                         ))}
                     </tbody>
                 </table>
+                </div>
             </div>
         );
     };
 
     return (
-        <div>
-            {/* <header className="flex justify-between items-center mb-6">
-                <div className="flex items-center space-x-3">
-                    <h1 className="text-3xl font-bold text-slate-900">Catálogo de Grupos de Nómina</h1>
-                    <Tooltip text="Lista de grupos de nómina registrados en el sistema.">
-                        <span><InfoIcon /></span>
-                    </Tooltip>
-                </div>
-                {canManage && (
-                    <Button onClick={() => handleOpenModal()}>
-                        <PlusCircleIcon />
-                        Crear Grupo
-                    </Button>
-                )}
-            </header> */}
-            <div className="flex justify-between items-center mb-4">
-                 <div className="max-w-xs">
-                     <input
+        <div className={`space-y-4 ${useFixedLayout ? 'h-full flex flex-col overflow-hidden' : ''}`}>
+            <div className="mb-4">
+                <h2 className="text-2xl font-bold text-slate-800">Grupos de Nómina</h2>
+                <p className="text-slate-500 text-sm">Configura los grupos para el cálculo y periodicidad de pago.</p>
+            </div>
+
+            <div className="flex justify-between items-center">
+                 <div className="relative group w-64">
+                    <Search className="absolute left-3 top-2.5 text-slate-400 group-focus-within:text-[--theme-500] transition-colors" size={16} />
+                    <input
                         type="text"
-                        placeholder="Buscar por Nombre o ID..."
+                        className="w-full pl-9 pr-8 py-2.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 placeholder-slate-400 
+                                focus:outline-none focus:ring-2 focus:ring-[--theme-500] focus:border-transparent 
+                                transition-all shadow-sm"
+                        placeholder="Buscar empleado..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-4 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[--theme-500]"
                     />
+                    {searchTerm && (
+                        <button onClick={() => setSearchTerm('')} className="absolute right-2 top-2.5 text-slate-400 hover:text-slate-600 transition-colors">
+                            <X size={16} />
+                        </button>
+                    )}
                 </div>
                 {canManage && (
                     <Button onClick={() => handleOpenModal()}>
@@ -163,4 +207,3 @@ export const GruposNominaPage = () => {
         </div>
     );
 };
-

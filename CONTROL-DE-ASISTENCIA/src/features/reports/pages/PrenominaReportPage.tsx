@@ -1,10 +1,10 @@
 //src/features/reports/pages/PrenominaReportPage.tsx
 import React, { useState, useMemo, useEffect } from 'react';
 import {
-    FileSpreadsheet, Loader2, Play, DollarSign,
+    FileSpreadsheet, Loader2, Play,
     Building, Briefcase, Tag, MapPin, AlertCircle, ArrowUpDown, ArrowUp, ArrowDown,
     ChevronDown, ChevronUp, Search, Calendar, Layers, Contact,
-    Lock, AlertTriangle, CheckCircle, RefreshCw
+    Lock, AlertTriangle, CheckCircle, RefreshCw, Database
 } from 'lucide-react';
 import { Tooltip } from '../../../components/ui/Tooltip';
 import { useAuth } from '../../auth/AuthContext';
@@ -12,6 +12,7 @@ import { API_BASE_URL } from '../../../config/api';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
+import { useNotification } from '../../../context/NotificationContext';
 // --- IMPORTACIONES CLAVE ---
 import { AttendanceToolbar, FilterConfig } from '../../attendance/AttendanceToolbar';
 import { AttendanceToolbarProvider, useAttendanceToolbarContext } from '../../attendance/AttendanceToolbarContext';
@@ -37,10 +38,11 @@ const safeDate = (dateString: string | null | undefined) => {
 
 // --- TIPOS ---
 interface DetalleDia {
-    fecha: string;
+    Fecha: string;
     ConceptoCodigo: string;
     ConceptoNombre: string;
     CantidadDias: number;
+    Abreviatura: string;
 }
 
 interface PrenominaRow {
@@ -67,6 +69,7 @@ export const PrenominaReportPage = () => {
 
 const PrenominaReportPageContent = () => {
     const { getToken, user, can } = useAuth();
+    const { addNotification } = useNotification();
 
     const {
         filters, setFilters, dateRange
@@ -90,15 +93,31 @@ const PrenominaReportPageContent = () => {
     const [isGuardModalOpen, setIsGuardModalOpen] = useState(false);
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
     const [validationResult, setValidationResult] = useState<any>(null);
+    const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+    const [isExporting, setIsExporting] = useState(false);
 
     const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({
         key: 'NombreCompleto',
         direction: 'asc'
     });
 
+    // --- LÓGICA DE GRUPO EFECTIVO ---
+    // Si el filtro está deshabilitado por parámetro, usamos 1 por defecto.
+    // Si está habilitado, usamos la selección del usuario.
+    const effectiveGroupId = useMemo(() => {
+        const isGroupActive = user?.activeFilters?.gruposNomina ?? true;
+        if (!isGroupActive) return 1;
+        return (filters.groups && filters.groups.length > 0) ? filters.groups[0] : null;
+    }, [user, filters.groups]);
+
     // --- DEFINICIÓN DE FILTROS ---
-    const filterConfigurations: FilterConfig[] = useMemo(() => [
-        { 
+    const filterConfigurations: FilterConfig[] = useMemo(() => {
+        const isGroupActive = user?.activeFilters?.gruposNomina ?? true;
+        
+        // Si el filtro no debe estar activo, retornamos lista vacía para que el Toolbar no lo muestre.
+        if (!isGroupActive) return [];
+
+        return [{ 
             id: 'gruposNomina', 
             title: 'Grupos Nómina', 
             icon: <Briefcase />, 
@@ -106,13 +125,13 @@ const PrenominaReportPageContent = () => {
             selectedValues: filters.groups, 
             selectionMode: 'single', 
             onChange: v => setFilters((f: any) => ({ ...f, groups: v as number[] })), 
-            isActive: true // Siempre activo en esta página
-        },
-    ], [user, filters, setFilters]);
+            isActive: true 
+        }];
+    }, [user, filters, setFilters]);
 
     useEffect(() => {
         const loadContext = async () => {
-            if (!dateRange || !filters.groups || filters.groups.length === 0) {
+            if (!dateRange || !effectiveGroupId) {
                 setData([]);
                 setReportStatus({ exists: false, isClosed: false });
                 return;
@@ -123,7 +142,7 @@ const PrenominaReportPageContent = () => {
             const payload = {
                 startDate: format(dateRange[0], 'yyyy-MM-dd'),
                 endDate: format(dateRange[dateRange.length! - 1], 'yyyy-MM-dd'),
-                grupoNominaId: filters.groups[0],
+                grupoNominaId: effectiveGroupId,
             };
 
             try {
@@ -161,17 +180,17 @@ const PrenominaReportPageContent = () => {
 
         loadContext();
         setExpandedRows([]);
-    }, [dateRange, filters.groups, getToken]);
+    }, [dateRange, effectiveGroupId, getToken]);
 
     const handleActionClick = async () => {
-        if (!dateRange || !filters.groups?.length) return;
+        if (!dateRange || !effectiveGroupId) return;
 
         setIsLoading(true);
         const token = getToken();
         const payload = {
             startDate: format(dateRange[0], 'yyyy-MM-dd'),
             endDate: format(dateRange[dateRange.length! - 1], 'yyyy-MM-dd'),
-            grupoNominaId: filters.groups[0],
+            grupoNominaId: effectiveGroupId,
         };
 
         try {
@@ -209,8 +228,8 @@ const PrenominaReportPageContent = () => {
                 body: JSON.stringify({
                     startDate: format(dateRange![0], 'yyyy-MM-dd'),
                     endDate: format(dateRange![dateRange!.length - 1], 'yyyy-MM-dd'),
-                    grupoNominaId: filters.groups![0],
-                    regenerate: forceRegenerate
+                    grupoNominaId: effectiveGroupId,
+                    Regenerar: forceRegenerate
                 })
             });
 
@@ -226,6 +245,35 @@ const PrenominaReportPageContent = () => {
         }
     };
 
+    const handleExportCompaq = async () => {
+        if (!dateRange || !effectiveGroupId) return;
+
+        setIsExporting(true);
+        const token = getToken();
+        try {
+            const res = await fetch(`${API_BASE_URL}/reports/export-external`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({
+                    fechaInicio: format(dateRange[0], 'yyyy-MM-dd'),
+                    fechaFin: format(dateRange[dateRange.length - 1], 'yyyy-MM-dd'),
+                    grupoNominaId: effectiveGroupId
+                })
+            });
+
+            const result = await res.json();
+            if (!res.ok) throw new Error(result.message || 'Error al exportar.');
+
+            addNotification('Exportación Exitosa', result.message, 'success');
+            setIsExportModalOpen(false);
+        } catch (err: any) {
+            console.error(err);
+            addNotification('Error', err.message || 'Error al exportar a Compaq.', 'error');
+        } finally {
+            setIsExporting(false);
+        }
+    };
+
     // --- PROCESAMIENTO ---
     const getEmployeeTotal = (row: PrenominaRow, code: string) => {
         if (!row.DetalleNomina) return 0;
@@ -235,11 +283,14 @@ const PrenominaReportPageContent = () => {
     };
 
     const dynamicColumns = useMemo(() => {
-        const conceptsMap = new Map<string, string>();
+        const conceptsMap = new Map<string, { name: string, abbr: string }>();
         data.forEach(row => {
             if (Array.isArray(row.DetalleNomina)) {
                 row.DetalleNomina.forEach(d => {
-                    conceptsMap.set(d.ConceptoCodigo, d.ConceptoNombre);
+                    conceptsMap.set(d.ConceptoCodigo, { 
+                        name: d.ConceptoNombre, 
+                        abbr: d.Abreviatura || d.ConceptoCodigo 
+                    });
                 });
             }
         });
@@ -275,8 +326,8 @@ const PrenominaReportPageContent = () => {
                 'Puesto': row.Puesto,
                 'Grupo': row.GrupoNomina
             };
-            dynamicColumns.forEach(([code]) => {
-                baseObj[code] = getEmployeeTotal(row, code);
+            dynamicColumns.forEach(([code, { abbr }]) => {
+                baseObj[abbr] = getEmployeeTotal(row, code);
             });
             return baseObj;
         });
@@ -302,15 +353,15 @@ const PrenominaReportPageContent = () => {
     );
 
     return (
-        <div className="space-y-6 animate-fade-in pb-10 h-full flex flex-col">
+        <div className="space-y-3 h-full flex flex-col">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                    <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                        <DollarSign className="text-emerald-600" /> Prenómina
-                    </h2>
+                    <h2 className="text-2xl font-bold text-slate-800">Prenómina</h2>
+                    <p className="text-slate-500 text-sm">Cálculo y revisión de prenómina (después de Cierre de Perido).</p>
 
                     <div className="flex items-center gap-3 mt-1 min-h-[24px]">
-                        {!filters.groups || filters.groups.length === 0 ? (
+                        <span className="text-xs font-medium text-slate-400">Estado:</span>
+                        {!effectiveGroupId ? (
                             <span className="text-slate-400 text-sm italic">Seleccione un grupo para ver estado.</span>
                         ) : (
                             <>
@@ -336,7 +387,7 @@ const PrenominaReportPageContent = () => {
 
                 <button
                     onClick={handleActionClick}
-                    disabled={isLoading || !filters.groups?.length}
+                    disabled={isLoading || !effectiveGroupId}
                     className={`flex items-center gap-2 px-4 py-2 rounded-lg font-semibold shadow-sm transition-all text-white 
                         ${reportStatus.exists ? 'bg-orange-600 hover:bg-orange-700' : 'bg-emerald-600 hover:bg-emerald-700'} 
                         disabled:opacity-50`}
@@ -356,13 +407,15 @@ const PrenominaReportPageContent = () => {
                 />
             </div>
 
-            <div className="bg-white rounded-lg shadow-sm border border-slate-200 min-h-[400px] flex flex-col overflow-hidden flex-1 relative">
-
+            <div className="bg-white rounded-lg shadow-sm border border-slate-200 flex-1 flex flex-col overflow-hidden relative">
                 {!isInitialLoading && processedData.length > 0 ? (
                     <>
                         <div className="px-4 py-3 border-b border-slate-200 flex justify-between items-center bg-slate-50">
                             <h3 className="font-semibold text-slate-700">Resultados ({processedData.length})</h3>
-                            <Tooltip text="Exportar"><button onClick={handleExportExcel} disabled={processedData.length === 0} className="p-2 text-green-600 hover:bg-green-50 rounded-md disabled:opacity-50"><FileSpreadsheet size={18} /></button></Tooltip>
+                            <div className="flex gap-2">
+                                <Tooltip text="Exportar Excel"><button onClick={handleExportExcel} disabled={processedData.length === 0} className="p-2 text-green-600 hover:bg-green-50 rounded-md disabled:opacity-50 transition-colors"><FileSpreadsheet size={18} /></button></Tooltip>
+                                <Tooltip text="Exportar a Compaq"><button onClick={() => setIsExportModalOpen(true)} disabled={processedData.length === 0} className="p-2 text-blue-600 hover:bg-blue-50 rounded-md disabled:opacity-50 transition-colors"><Database size={18} /></button></Tooltip>
+                            </div>
                         </div>
                         <div className="flex-grow overflow-auto custom-scrollbar bg-slate-50/30">
                             <table className="w-full text-sm text-left border-collapse">
@@ -373,9 +426,9 @@ const PrenominaReportPageContent = () => {
                                         <SortableHeader label="Empleado" sortKey="NombreCompleto" />
                                         <SortableHeader label="Depto" sortKey="Departamento" className="hidden md:table-cell" />
                                         <SortableHeader label="Puesto" sortKey="Puesto" className="hidden md:table-cell" />
-                                        {dynamicColumns.map(([code, name]) => (
+                                        {dynamicColumns.map(([code, { name, abbr }]) => (
                                             <th key={code} className="p-2 text-center min-w-[80px] bg-white border-l border-slate-200 border-b-2 border-b-emerald-500/50">
-                                                <Tooltip text={name}><span className="text-xs font-bold text-emerald-800 cursor-help">{code}</span></Tooltip>
+                                                <Tooltip text={name}><span className="text-xs font-bold text-emerald-800 ">{abbr}</span></Tooltip>
                                             </th>
                                         ))}
                                     </tr>
@@ -413,13 +466,21 @@ const PrenominaReportPageContent = () => {
                                                                     <div className="bg-slate-50 px-4 py-2 border-b flex items-center gap-2 text-xs font-bold text-slate-700 uppercase tracking-wide"><Calendar size={14} className="text-blue-500"/> Desglose Diario</div>
                                                                     <table className="w-full text-xs">
                                                                         <thead className="bg-slate-100 text-slate-500 font-semibold border-b">
-                                                                            <tr><th className="p-2 pl-4 text-left">Fecha</th><th className="p-2 text-left">Concepto</th><th className="p-2 text-right pr-4">Valor</th></tr>
+                                                                            <tr>
+                                                                                <th className="p-2 pl-4 text-left">Fecha</th>
+                                                                                <th className="p-2 text-left">Código</th>
+                                                                                <th className="p-2 text-left">Abrev.</th>
+                                                                                <th className="p-2 text-left">Concepto</th>
+                                                                                <th className="p-2 text-right pr-4">Valor</th>
+                                                                            </tr>
                                                                         </thead>
                                                                         <tbody className="divide-y divide-slate-100">
                                                                             {row.DetalleNomina?.map((det, idx) => (
                                                                                 <tr key={idx} className="hover:bg-slate-50">
-                                                                                    <td className="p-2 pl-4 font-medium text-slate-700 border-r border-slate-100 w-32">{format(safeDate(det.fecha), 'EEE dd MMM', { locale: es })}</td>
-                                                                                    <td className="p-2 text-slate-600"><span className="font-mono text-[10px] bg-slate-100 px-1 rounded mr-2 text-slate-500">{det.ConceptoCodigo}</span>{det.ConceptoNombre}</td>
+                                                                                    <td className="p-2 pl-4 font-medium text-slate-700 border-r border-slate-100 w-32">{format(safeDate(det.Fecha), 'EEE dd MMM', { locale: es })}</td>
+                                                                                    <td className="p-2 text-slate-500 font-mono text-[10px]">{det.ConceptoCodigo}</td>
+                                                                                    <td className="p-2 text-slate-700 font-semibold">{det.Abreviatura}</td>
+                                                                                    <td className="p-2 text-slate-600">{det.ConceptoNombre}</td>
                                                                                     <td className="p-2 pr-4 text-right font-bold text-emerald-700">{(det.CantidadDias || 0).toFixed(2)}</td>
                                                                                 </tr>
                                                                             ))}
@@ -480,6 +541,18 @@ const PrenominaReportPageContent = () => {
                 confirmText="Sí, Continuar al Semáforo"
             >
                 <p>Ya existe una versión guardada de este reporte. ¿Deseas recalcularla con los datos actuales? Esta acción reemplazará la historia guardada del periodo.</p>
+            </ConfirmationModal>
+
+            <ConfirmationModal
+                isOpen={isExportModalOpen}
+                onClose={() => !isExporting && setIsExportModalOpen(false)}
+                onConfirm={handleExportCompaq}
+                title="Exportar a Compaq Nóminas"
+                variant="info"
+                confirmText={isExporting ? "Exportando..." : "Exportar"}
+            >
+                <p>Se generará un archivo de interfaz para Compaq Nóminas con el periodo actual.</p>
+                <p className="text-sm text-slate-500 mt-2">Asegúrese de que el periodo esté cerrado o validado antes de exportar.</p>
             </ConfirmationModal>
 
             {viewingEmployeeId && <EmployeeProfileModal employeeId={viewingEmployeeId} onClose={() => setViewingEmployeeId(null)} getToken={getToken} user={user} />}

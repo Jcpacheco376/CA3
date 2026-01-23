@@ -5,7 +5,8 @@ import {
     getAttendanceListReport, 
     validatePayrollPeriod,
     getPrenominaReport,
-    validatePrenominaPeriod
+    validatePrenominaPeriod,
+    exportPayrollToExternal
 } from '../controllers/report.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 
@@ -16,4 +17,5 @@ router.post('/attendance-list', authMiddleware, getAttendanceListReport);
 router.post('/validate-period', authMiddleware, validatePayrollPeriod);
 router.post('/prenomina', authMiddleware, getPrenominaReport);
 router.post('/validate-prenomina', authMiddleware, validatePrenominaPeriod);
+router.post('/export-external', authMiddleware, exportPayrollToExternal);
 export default router;

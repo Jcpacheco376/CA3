@@ -38,6 +38,7 @@ const actionLabels: { [key: string]: string } = {
     'unlock': 'Desbloquear Periodos',
     'resolve': 'Resolver',
     // Widgets (con .read)
+    'welcome.read': 'Bienvenida',
     'daily_stats.read': 'Estadísticas Diarias',
     'distribution.read': 'Distribución de Asistencia',
     'weekly_trends.read': 'Tendencia Semanal',

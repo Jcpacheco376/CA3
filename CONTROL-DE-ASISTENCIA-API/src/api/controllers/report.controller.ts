@@ -209,7 +209,7 @@ export const getPrenominaReport = async (req: any, res: Response) => {
         return res.status(403).json({ message: 'Acceso denegado.' });
     }
     
-    const { startDate, endDate, grupoNominaId } = req.body;
+    const { startDate, endDate, grupoNominaId, Regenerar } = req.body;
 
     try {
         const pool = await sql.connect(dbConfig);
@@ -220,6 +220,7 @@ export const getPrenominaReport = async (req: any, res: Response) => {
             .input('FechaInicio', sql.Date, startDate)
             .input('FechaFin', sql.Date, endDate)
             .input('GrupoNominaId', sql.Int, grupoNominaId)
+            .input('Regenerar', sql.Bit, Regenerar || 0)
             .execute('sp_Reporte_Prenomina');
 
         // 3. Procesar Resultados
@@ -271,5 +272,46 @@ export const validatePrenominaPeriod = async (req: any, res: Response) => {
     } catch (err: any) {
         console.error("Error validando prenómina:", err);
         res.status(500).json({ message: 'Error técnico.', error: err.message });
+    }
+};
+
+
+export const exportPayrollToExternal = async (req: Request, res: Response) => {
+    try {
+        const { fechaInicio, fechaFin, grupoNominaId } = req.body;
+
+        if (!fechaInicio || !fechaFin || !grupoNominaId) {
+            return res.status(400).json({ message: 'Faltan parámetros requeridos.' });
+        }
+
+         const pool = await sql.connect(dbConfig);
+        const result = await pool.request()
+            .input('FechaInicio', sql.Date, fechaInicio)
+            .input('FechaFin', sql.Date, fechaFin)
+            .input('GrupoNominaId', sql.Int, grupoNominaId)
+            // Llamamos al SP con nombre genérico
+            .execute('sp_Exportar_NominaExterna'); 
+
+        const count = result.recordset && result.recordset.length > 0 
+                      ? result.recordset[0].RegistrosExportados 
+                      : 0;
+
+        if (count === 0) {
+             return res.status(300).json({ 
+                success: true, 
+                message: 'Proceso completado, pero no hubo conceptos para exportar o los códigos no coincidieron.' 
+            });
+        }
+
+        res.json({ 
+            success: true, 
+            message: `Exportación exitosa: ${count} registros enviados al sistema de nómina.`,
+            count 
+        });
+
+    } catch (error: any) {
+        console.error('Error exportando nómina:', error);
+        const msg = error.originalError?.info?.message || error.message || 'Error desconocido al exportar.';
+        res.status(500).json({ message: msg });
     }
 };

@@ -5,7 +5,7 @@ import { useAuth } from '../auth/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { API_BASE_URL } from '../../config/api';
 // Added Coffee, Sun, Sunset, Moon icons
-import { Loader2, AlertTriangle, CheckCircle, XCircle, Edit, RotateCw, Coffee, Sun, Moon, Sunset } from 'lucide-react';
+import { Loader2, AlertTriangle, CheckCircle, XCircle, Edit, RotateCw, Coffee, Sun, Moon, Sunset, ArrowUpDown, ArrowUp, ArrowDown, Search, X } from 'lucide-react';
 import { HorarioModal } from './HorarioModal';
 import { Tooltip, InfoIcon } from '../../components/ui/Tooltip';
 import { Button, Modal } from '../../components/ui/Modal';
@@ -103,6 +103,9 @@ const JornadaSemanalVisual = ({ detalles, esRotativo }: { detalles: any[], esRot
     );
 };
 
+type SortKey = 'HorarioId' | 'Abreviatura' | 'Nombre' | 'MinutosTolerancia' | 'Activo';
+type SortDirection = 'asc' | 'desc';
+
 
 // --- COMPONENTE PRINCIPAL ---
 
@@ -115,9 +118,15 @@ export const HorariosPage = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [selectedHorario, setSelectedHorario] = useState<any | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
+    const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({
+        key: 'Nombre',
+        direction: 'asc'
+    });
 
     const canManage = can('catalogo.horarios.manage');
     const canRead = can('catalogo.horarios.read');
+
+    const SCROLL_THRESHOLD = 100;
 
     const fetchHorarios = useCallback(async () => {
         // ... (fetchHorarios logic remains the same) ...
@@ -180,40 +189,76 @@ export const HorariosPage = () => {
         fetchHorarios();
     };
 
-    const filteredHorarios = useMemo(() => {
-        // ... (filteredHorarios logic remains the same) ...
-        if (!searchTerm.trim()) return horarios;
-        const lowercasedFilter = searchTerm.toLowerCase();
-        return horarios.filter(h =>
-            (h.Nombre?.toLowerCase().includes(lowercasedFilter)) ||
-            (h.Abreviatura?.toLowerCase().includes(lowercasedFilter))
-        );
-    }, [horarios, searchTerm]);
+    const handleSort = (key: SortKey) => {
+        setSortConfig(current => ({
+            key,
+            direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc'
+        }));
+    };
+
+    const processedHorarios = useMemo(() => {
+        let data = [...horarios];
+
+        if (searchTerm.trim()) {
+            const lowercasedFilter = searchTerm.toLowerCase();
+            data = data.filter(h =>
+                (h.Nombre?.toLowerCase().includes(lowercasedFilter)) ||
+                (h.Abreviatura?.toLowerCase().includes(lowercasedFilter))
+            );
+        }
+
+        return data.sort((a, b) => {
+            const aValue = a[sortConfig.key];
+            const bValue = b[sortConfig.key];
+
+            if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
+            if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }, [horarios, searchTerm, sortConfig]);
+
+    const useFixedLayout = processedHorarios.length > SCROLL_THRESHOLD;
+
+    const getSortIcon = (key: SortKey) => {
+        if (sortConfig.key !== key) return <ArrowUpDown size={14} className="text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />;
+        return sortConfig.direction === 'asc' ? <ArrowUp size={14} className="text-indigo-600" /> : <ArrowDown size={14} className="text-indigo-600" />;
+    };
 
     const renderContent = () => {
         // ... (renderContent logic remains the same) ...
         if (isLoading) {
-            return <div className="flex justify-center items-center p-8"><Loader2 className="animate-spin mr-2" /> Cargando horarios...</div>;
+            return <div className="flex justify-center items-center p-8 h-full"><Loader2 className="animate-spin mr-2" /> Cargando horarios...</div>;
         }
         if (error) {
             return <div className="text-center p-8 text-red-600 bg-red-50 rounded-lg"><AlertTriangle className="mx-auto mb-2" />{error}</div>;
         }
         return (
-            <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
+            <div className={`bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden ${useFixedLayout ? 'flex-1 flex flex-col min-h-0' : ''}`}>
+                <div className={useFixedLayout ? 'overflow-auto flex-1' : ''}>
                 <table className="w-full text-sm">
-                    <thead className="bg-slate-50">
+                    <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
                         <tr>
-                            <th className="p-3 text-left font-semibold text-slate-600">ID</th>
-                            <th className="p-3 text-left font-semibold text-slate-600">Abreviatura</th>
-                            <th className="p-3 text-left font-semibold text-slate-600">Nombre del Horario</th>
+                            <th className="p-3 text-left font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('HorarioId')}>
+                                <div className="flex items-center gap-2">ID {getSortIcon('HorarioId')}</div>
+                            </th>
+                            <th className="p-3 text-left font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('Abreviatura')}>
+                                <div className="flex items-center gap-2">Abreviatura {getSortIcon('Abreviatura')}</div>
+                            </th>
+                            <th className="p-3 text-left font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('Nombre')}>
+                                <div className="flex items-center gap-2">Nombre del Horario {getSortIcon('Nombre')}</div>
+                            </th>
                             <th className="p-3 text-left font-semibold text-slate-600">Jornada Semanal</th>
-                            <th className="p-3 text-center font-semibold text-slate-600">Tolerancia (min)</th>
-                            <th className="p-3 text-center font-semibold text-slate-600">Estado</th>
+                            <th className="p-3 text-center font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('MinutosTolerancia')}>
+                                <div className="flex items-center justify-center gap-2">Tolerancia {getSortIcon('MinutosTolerancia')}</div>
+                            </th>
+                            <th className="p-3 text-center font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('Activo')}>
+                                <div className="flex items-center justify-center gap-2">Estado {getSortIcon('Activo')}</div>
+                            </th>
                             {canManage && <th className="p-3 text-center font-semibold text-slate-600">Acciones</th>}
                         </tr>
                     </thead>
                     <tbody>
-                        {filteredHorarios.map((horario) => {
+                        {processedHorarios.map((horario) => {
                              // ***** LOG: Check the value being passed for each row *****
                              // console.log(`[HorariosPage] Rendering row for HorarioId ${horario.HorarioId}, esRotativo prop value:`, horario.esRotativo, typeof horario.esRotativo);
                              return (
@@ -258,6 +303,7 @@ export const HorariosPage = () => {
                         })}
                     </tbody>
                 </table>
+                </div>
             </div>
         );
     };
@@ -275,46 +321,36 @@ export const HorariosPage = () => {
         );
     }
 
-    // Add keyframes for gradient animation
-    const styles = `
-        @keyframes gradient-x {
-            0%, 100% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-        }
-        .animate-gradient-x {
-            background-size: 200% 200%;
-            animation: gradient-x 3s ease infinite;
-        }
-    `;
-
     return (
-        <div className="space-y-4">
-             <style>{styles}</style> {/* Inject animation styles */}
-             {/* <header className="mb-6">
+        <div className={`space-y-4 ${useFixedLayout ? 'h-full flex flex-col overflow-hidden' : ''}`}>
+            <div>
+                <h2 className="text-2xl font-bold text-slate-800">Horarios</h2>
+                <p className="text-slate-500 text-sm">Configura turnos y jornadas laborales.</p>
+            </div>
 
-                <div className="flex items-center space-x-3">
-                    <h1 className="text-3xl font-bold text-slate-800">Catálogo de Horarios</h1>
-                    <Tooltip text="Define y administra los horarios de trabajo de la empresa.">
-                        <span><InfoIcon /></span>
-                    </Tooltip>
-                </div>
-            </header> */}
+            <div className="flex justify-between items-center">
 
-            <div className="flex justify-between items-center mb-4">
-
-                <div className="max-w-xs">
-                     <input
+                <div className="relative group w-64">
+                    <Search className="absolute left-3 top-2.5 text-slate-400 group-focus-within:text-[--theme-500] transition-colors" size={16} />
+                    <input
                         type="text"
-                        placeholder="Buscar por Nombre o ID..."
+                        className="w-full pl-9 pr-8 py-2.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 placeholder-slate-400 
+                                focus:outline-none focus:ring-2 focus:ring-[--theme-500] focus:border-transparent 
+                                transition-all shadow-sm"
+                        placeholder="Buscar empleado..."
                         value={searchTerm}
-                        onChange={e => setSearchTerm(e.target.value)}
-                        className="w-full pl-4 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[--theme-500]"
+                        onChange={(e) => setSearchTerm(e.target.value)}
                     />
+                    {searchTerm && (
+                        <button onClick={() => setSearchTerm('')} className="absolute right-2 top-2.5 text-slate-400 hover:text-slate-600 transition-colors">
+                            <X size={16} />
+                        </button>
+                    )}
                 </div>
                 {canManage && (
                     <Button onClick={() => handleOpenModal(null)}>
                         <PlusCircleIcon />
-                        Nuevo Horario
+                        Crear Horario
                     </Button>
                 )}
             </div>
@@ -333,4 +369,3 @@ export const HorariosPage = () => {
         </div>
     );
 };
-

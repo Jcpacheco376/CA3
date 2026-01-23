@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useContext } from 'react';
-import { ChevronLeft, ChevronRight, Search as SearchIcon, Lock, Briefcase, Building, Tag, MapPin } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Search as SearchIcon, Lock, Briefcase, Building, Tag, MapPin, X } from 'lucide-react';
 import { addWeeks, subWeeks, addMonths, subMonths } from 'date-fns';
 import { Tooltip } from '../../components/ui/Tooltip';
 import { FilterPopover } from '../../components/ui/FilterPopover'; 
@@ -171,10 +171,16 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
     // --- 4. LÓGICA DE NÓMINA (Sync Periodo) ---
     const activeGroupId = useMemo(() => {
         if (!enablePayrollSync) return null;
+
+        // Si el filtro de grupo de nómina está deshabilitado por configuración (isActive = false),
+        // simulamos internamente que se seleccionó el grupo 1 para permitir la sincronización del periodo.
+        const isGroupFilterActive = user?.activeFilters?.gruposNomina ?? true;
+        if (!isGroupFilterActive) return 1;
+
         // Buscamos 'gruposNomina' O 'groups' para compatibilidad
         const groupFilter = activeConfigs.find(f => f.id === 'gruposNomina' || f.id === 'groups');
         return (groupFilter && groupFilter.selectedValues.length > 0) ? groupFilter.selectedValues[0] : null;
-    }, [enablePayrollSync, activeConfigs]);
+    }, [enablePayrollSync, activeConfigs, user]);
 
     useEffect(() => {
         if (!enablePayrollSync || !activeGroupId || !user?.GruposNomina) return;
@@ -247,17 +253,25 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
                 <div className="flex items-center gap-3 w-full lg:w-auto flex-wrap">
                     {showSearch && (
                         <Tooltip text="Buscar por nombre o ID de empleado">
-                            <div className="relative group w-full lg:w-48 transition-all duration-300 focus-within:lg:w-64">
+                            <div className={`relative group w-full transition-all duration-300 ${effectiveSearchTerm ? 'lg:w-64' : 'lg:w-48 focus-within:lg:w-64'}`}>
                                 <SearchIcon className="absolute left-3 top-2.5 text-slate-400 group-focus-within:text-[--theme-500] transition-colors" size={16} />
                                 <input
                                     type="text"
-                                    className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-100 rounded-lg text-sm text-slate-700 placeholder-slate-400 
+                                    className="w-full pl-9 pr-8 py-2.5 bg-slate-50 border border-slate-100 rounded-lg text-sm text-slate-700 placeholder-slate-400 
                                             focus:outline-none focus:ring-2 focus:ring-[--theme-500] focus:bg-white 
                                             transition-all shadow-inner"
                                     placeholder="Buscar empleado..."
                                     value={effectiveSearchTerm}
                                     onChange={(e) => handleSearchChange(e.target.value)}
                                 />
+                                {effectiveSearchTerm && (
+                                    <button
+                                        onClick={() => handleSearchChange('')}
+                                        className="absolute right-2 top-2.5 text-slate-400 hover:text-slate-600 transition-colors"
+                                    >
+                                        <X size={16} />
+                                    </button>
+                                )}
                             </div>
                         </Tooltip>
                     )}
