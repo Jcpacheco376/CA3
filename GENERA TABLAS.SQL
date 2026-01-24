@@ -1,4 +1,4 @@
-/////////////////////HELPER////////////////////////////////
+-------------------------HELPER------------------------------------
 CREATE OR ALTER PROCEDURE dbo.usp_ScriptCreateTableFull
     @SchemaName sysname,
     @TableName  sysname
@@ -89,7 +89,7 @@ BEGIN
 END
 
 go
-///////////////SEPARADO////////////////////////////////
+------------------------SEPARADO---------------------------------
 -- Habilitar xp_cmdshell si no está habilitado
 EXEC sp_configure 'show advanced options', 1;
 RECONFIGURE;
@@ -128,7 +128,7 @@ END
 CLOSE cur;
 DEALLOCATE cur;
 
-//////////////////TODO JUNTO /////////////////////////////
+---------------------TODO JUNTO ------------------------
 
 
 -- Habilitar xp_cmdshell si no está habilitado
