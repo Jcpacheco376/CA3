@@ -12,7 +12,7 @@ import { ProfessionalSidebar } from './ProfessionalSidebar';
 import { AppHeader } from './AppHeader';
 import { 
     BarChartBig, Users, Settings, Folder, FileText, CalendarClock, 
-    AlertTriangle, Lock, LayoutDashboard 
+    AlertTriangle, Lock, LayoutDashboard ,Monitor
 } from 'lucide-react';
 import { SchedulePage } from '../../features/attendance/SchedulePage';
 import { ReportsHub } from '../../features/reports/ReportsHub';
@@ -20,7 +20,7 @@ import { ReportsLayout } from '../../features/reports/ReportsLayout';
 import { IncidentsControlPage } from '../../features/reports/pages/IncidentsControlPage';
 import PayrollClosingPage from '../../features/payroll/PayrollClosingPage';
 import { DashboardPage } from '../../features/dashboard/DashboardPage';
-
+import { DevicesPage } from '../../features/devices/DevicesPage';
 interface MainLayoutProps {
     user: User;
     onLogout: () => void;
@@ -59,6 +59,7 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
             items: [
                 can('usuarios.read') && { id: 'admin_users', label: 'Usuarios', icon: <Users size={20} /> },
                 can('roles.manage') && { id: 'admin_roles', label: 'Roles', icon: <Settings size={20} /> },
+                can('usuarios.read') && { id: 'devices', label: 'Checadores', icon: <Monitor size={20} /> },
                 (can('catalogo.departamentos.read') || can('catalogo.gruposNomina.read') || can('catalogo.estatusAsistencia.read') || can('catalogo.horarios.read') || can('catalogo.establecimientos.read') || can('catalogo.puestos.read')) && { id: 'admin_catalogs', label: 'Catálogos', icon: <Folder size={20} /> }
             ].filter(Boolean)
         },
@@ -82,6 +83,7 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
             case 'report_incidencias': return <IncidentsControlPage />;
             case 'admin_users': return <UsersPage />;
             case 'admin_roles': return <RolesPage />;
+            case 'devices': return <DevicesPage />;
             case 'admin_catalogs': return <CatalogosPage setActiveView={setActiveView} />;
             case 'admin_departamentos':
             case 'admin_grupos_nomina':

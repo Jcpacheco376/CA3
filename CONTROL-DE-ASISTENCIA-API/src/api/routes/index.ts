@@ -11,6 +11,7 @@ import reportRoutes from './report.routes';
 import incidentsRoutes from './incidents.routes'; 
 import payrollRoutes from './payroll.routes';
 import dashboardRoutes from './dashboard.routes'; 
+import deviceRoutes from './device.routes';
 
 const router = Router();
 
@@ -25,5 +26,6 @@ router.use('/reports', reportRoutes);
 router.use('/incidents', incidentsRoutes); 
 router.use('/payroll', payrollRoutes);
 router.use('/dashboard', dashboardRoutes);
+router.use('/devices', deviceRoutes);
 
 export default router;

@@ -15,7 +15,8 @@ export type View =
     'admin_establecimientos' |
     'admin_estatus_asistencia' |
     'admin_horarios' |
-    'schedule_planner';
+    'schedule_planner'|
+    'devices';
 
 
 export type DayOfWeek = 'Lunes' | 'Martes' | 'Miércoles' | 'Jueves' | 'Viernes' | 'Sábado' | 'Domingo';
@@ -78,7 +79,23 @@ export interface AttendanceStatus {
 export type AttendanceStatusCode = string;
 
 
+export interface Device {
+    DispositivoId: number;
+    Nombre: string;
+    IpAddress: string;
+    Puerto: number;
+    ZonaId: number;
+    ZonaNombre?: string;
+    TipoConexion: 'SDK' | 'ADMS';
+    Estado: 'Conectado' | 'Desconectado' | 'Error';
+    UltimaSincronizacion?: string;
+    PasswordCom?: string;
+}
 
+export interface Zone {
+    ZonaId: number;
+    Nombre: string;
+}
 
 
 

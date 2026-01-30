@@ -16,6 +16,7 @@
     "build:all": "npm run build --workspaces"
   },
   "devDependencies": {
+    "@types/node-cron": "^3.0.11",
     "archiver": "^7.0.1",
     "dotenv-cli": "^10.0.0"
   },
@@ -24,6 +25,7 @@
     "date-fns": "^4.1.0",
     "jspdf": "^3.0.4",
     "jspdf-autotable": "^5.0.2",
+    "node-cron": "^4.2.1",
     "xlsx": "^0.18.5"
   }
 }

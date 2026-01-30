@@ -671,9 +671,9 @@ const AttendancePageContent = () => {
         return (
             <div ref={tableContainerRef} className="overflow-auto relative flex-1 animate-content-fade-in">
                 <table className="text-sm text-center border-collapse table-fixed">
-                    <thead className="sticky top-0 z-20" style={{ willChange: 'transform', transform: 'translate3d(0, 0, 0)' }}>
+                    <thead className="sticky top-0 z-50" style={{ willChange: 'transform', transform: 'translate3d(0, 0, 0)' }}>
                         <tr className="bg-slate-50">
-                            <th className="p-2 text-left font-semibold text-slate-600 sticky left-0 bg-slate-50 z-30 shadow-sm group relative" style={{ width: `${employeeColumnWidth}px` }}>
+                            <th className="p-2 text-left font-semibold text-slate-600 sticky left-0 bg-slate-50 z-50 shadow-sm group relative" style={{ width: `${employeeColumnWidth}px` }}>
                                 <div className="flex items-center gap-3 flex-1 min-w-0 pr-8 h-full">
                                     <span>Empleado</span>
                                     <div className="ml-auto flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200 focus-within:opacity-100" style={{ opacity: (showOnlyNoSchedule || showOnlyIncomplete || showOnlyUnlocked) ? 1 : undefined }}>
@@ -779,7 +779,7 @@ const AttendancePageContent = () => {
 
                                     return (
                                         <tr key={emp.EmpleadoId} ref={virtualRow.measureElement} className="group" style={{ height: `${virtualRow.size}px` }}>
-                                            <td className="p-2 text-left sticky left-0 bg-white group-hover:bg-slate-50 z-10 shadow-sm align-top border-b border-slate-100" style={{ width: `${employeeColumnWidth}px` }}>
+                                            <td className="p-2 text-left sticky left-0 bg-white group-hover:bg-slate-50 z-40 shadow-sm align-top border-b border-slate-100" style={{ width: `${employeeColumnWidth}px` }}>
                                                 <div className="w-full" style={{ minWidth: `${EMPLOYEE_CONTENT_MIN_WIDTH}px`, maxWidth: `${EMPLOYEE_CONTENT_MAX_WIDTH}px` }}>
                                                     <div className="flex items-start justify-between w-full">
                                                         <div className="flex-1 min-w-0">

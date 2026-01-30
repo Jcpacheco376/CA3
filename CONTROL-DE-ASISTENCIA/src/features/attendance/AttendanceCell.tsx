@@ -258,7 +258,7 @@ export const AttendanceCell = memo(({
     return (
         <td
             ref={wrapperRef}
-            className={`p-1 relative align-middle group status-cell-wrapper ${cellWidthClass} ${isToday ? 'bg-sky-50/50' : ''}`} 
+            className={`p-1 relative align-middle group status-cell-wrapper z-0 ${cellWidthClass} ${isToday ? 'bg-sky-50/50' : ''}`} 
             onMouseEnter={onDragEnter}
             onClick={(e) => e.stopPropagation()}
         >

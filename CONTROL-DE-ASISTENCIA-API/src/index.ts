@@ -5,6 +5,7 @@ import path from 'path';
 import fs from 'fs';
 import { PORT, LOCAL_IP, ALLOWED_ORIGINS } from './config';
 import apiRouter from './api/routes';
+import { startSyncScheduler } from './api/services/sync/SyncScheduler'; // <--- IMPORTAR
 
 const app = express();
 
@@ -70,7 +71,19 @@ if (frontendPath) {
     console.log('⚠️ AVISO: No se encontró el frontend. El servidor funciona solo como API.');
     console.log('   (Si estás en desarrollo y usas Vite aparte, ignora esto).');
 }
+
+// Evita que el servidor se caiga si falla la librería zkteco-js
+process.on('uncaughtException', (error) => {
+    console.error('🔥 CRITICO: Error no capturado (El sistema sigue funcionando):', error);
+    // Aquí podrías registrar el error en un archivo de log si quisieras
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('⚠️ ALERTA: Promesa rechazada no manejada:', reason);
+});
 // =================================================================
+startSyncScheduler();
+
 
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Servidor corriendo en http://${LOCAL_IP}:${PORT}`);
