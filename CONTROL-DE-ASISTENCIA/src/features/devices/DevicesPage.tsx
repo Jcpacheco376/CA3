@@ -1,418 +1,475 @@
-// src/features/devices/DevicesPage.tsx
-import React, { useEffect, useState } from 'react';
-import { Device, Zone } from '../../types';
-import { deviceService } from '../../services/deviceService';
-import {
-    Wifi, WifiOff, DownloadCloud, Users,
-    Plus, Edit, Settings, Clock, Plug, Activity, Camera // <--- Importamos Camera
-} from 'lucide-react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { Search, Server, X, Wifi, AlertCircle, Layers, MapPin, Monitor, Lock, Edit2, GripVertical, LayoutList, LayoutGrid } from 'lucide-react';
+import { useAuth } from '../auth/AuthContext';
+import { useNotification } from '../../context/NotificationContext';
+import { API_BASE_URL } from '../../config/api';
+import { DeviceCard, Device } from './DeviceCard';
+import { DeviceModal } from './DeviceModal';
+import { themes } from '../../config/theme';
+import { Button } from '../../components/ui/Modal';
+import { PlusCircleIcon } from '../../components/ui/Icons';
+import { Tooltip } from '../../components/ui/Tooltip';
+import { ZonesManagerModal } from './ZonesManagerModal'; // Importar el nuevo componente
+import { DraggableGrid, useGridColumns, useDynamicLayout } from '../../components/ui/DraggableGrid';
 
-export const DevicesPage: React.FC = () => {
+const DEVICE_STORAGE_KEY = 'device_local_state_v1';
+const GRID_LAYOUT_KEY = 'device_grid_layout_v2'; // Nueva versión para el grid con huecos
+const ROW_HEIGHT = 350; // Altura fija para el sistema de celdas (Tarjeta + Header + Padding)
+
+export const DevicesPage = () => {
+    // --- Contextos y Hooks ---
+    const { getToken, can, user } = useAuth();
+    const { addNotification } = useNotification();
+
+    // --- Estados ---
     const [devices, setDevices] = useState<Device[]>([]);
-    const [zones, setZones] = useState<Zone[]>([]);
     const [loading, setLoading] = useState(true);
+    const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+    const [editingDevice, setEditingDevice] = useState<Device | null>(null);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [isZonesModalOpen, setIsZonesModalOpen] = useState(false); // Nuevo estado
+    const [selectedZoneId, setSelectedZoneId] = useState<number | null>(null); // Para editar zona específica
+    const [zoneViewModes, setZoneViewModes] = useState<Record<string, 'list' | 'grid'>>({});
+    // Estado granular para acciones
+    const [actionState, setActionState] = useState<{ [id: number]: 'sync_logs' | 'sync_users' | 'test' | 'sync_time' | null }>({});
 
-    // Estados de acción
-    const [downloadingId, setDownloadingId] = useState<number | null>(null);
-    const [syncingEmployeesId, setSyncingEmployeesId] = useState<number | null>(null);
-    const [testingId, setTestingId] = useState<number | null>(null);
-    const [diagnosingId, setDiagnosingId] = useState<number | null>(null);
-    
-    // Nuevo estado para la captura
-    const [capturingId, setCapturingId] = useState<number | null>(null);
+    // --- Permisos ---
+    const canRead = can('dispositivos.read');
+    const canCreate = can('dispositivos.create');
 
-    // Configuración Automática
-    const [autoInterval, setAutoInterval] = useState(0);
-    const [showConfig, setShowConfig] = useState(false);
+    // --- Efectos ---
+    useEffect(() => {
+        if (canRead) fetchDevices();
+    }, [canRead]);
 
-    // Modal de Edición
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [editingDevice, setEditingDevice] = useState<Partial<Device>>({});
+    // --- Persistencia ---
+    useEffect(() => {
+        if (devices.length > 0) {
+            const stateToSave: Record<number, { Estado: string, UltimaSincronizacion?: string }> = {};
+            devices.forEach(d => {
+                stateToSave[d.DispositivoId] = {
+                    Estado: d.Estado,
+                    UltimaSincronizacion: d.UltimaSincronizacion
+                };
+            });
+            localStorage.setItem(DEVICE_STORAGE_KEY, JSON.stringify(stateToSave));
+        }
+    }, [devices]);
 
-    const loadData = async () => {
+    const gridColumns = useGridColumns(); // Usamos el hook importado
+
+    // --- Preparar datos para el Hook de Layout ---
+    // 1. Lista de zonas actuales (Estable)
+    const currentZoneNames = useMemo(() => 
+        Array.from(new Set(devices.map(d => d.ZonaNombre || 'Sin Zona Asignada'))), 
+    [devices]);
+
+    // 2. Función para calcular tamaño visual (Estable)
+    const getItemVisualSize = useCallback((zone: string, cols: number) => {
+        // Usamos 'devices' raw para que el layout no salte al filtrar
+        const count = devices.filter(d => (d.ZonaNombre || 'Sin Zona Asignada') === zone).length;
+        const isGridMode = (zoneViewModes[zone] || 'list') === 'grid';
+        const effectiveColSpan = (isGridMode && cols >= 2) ? 2 : 1;
+        const rowSpan = Math.ceil(count / effectiveColSpan);
+        return rowSpan * effectiveColSpan;
+    }, [devices, zoneViewModes]);
+
+    // 3. Hook Mágico: Maneja toda la sincronización y huecos
+    const [gridLayout, setGridLayout] = useDynamicLayout(
+        GRID_LAYOUT_KEY,
+        currentZoneNames,
+        gridColumns,
+        getItemVisualSize
+    );
+
+    // --- Helpers ---
+    const setDeviceAction = (id: number, action: 'sync_logs' | 'sync_users' | 'test' | 'sync_time' | null) => {
+        setActionState(prev => ({ ...prev, [id]: action }));
+    };
+
+    const handleTestConnection = async (id: number, silent: boolean = false) => {
+        const token = getToken();
+        if (!token) return;
+
+        if (!silent) setDeviceAction(id, 'test');
+
         try {
-            const [devs, zns] = await Promise.all([
-                deviceService.getAll(),
-                deviceService.getZones()
-            ]);
-            setDevices(devs);
-            setZones(zns);
-        } catch (error) {
-            console.error("Error cargando datos", error);
+            const response = await fetch(`${API_BASE_URL}/devices/${id}/test-connection`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+            });
+            if (!response.ok) throw new Error('Sin respuesta del dispositivo');
+
+            if (!silent) addNotification('Conexión Exitosa', 'El dispositivo está en línea.', 'success');
+
+            setDevices(prev => prev.map(d =>
+                d.DispositivoId === id
+                    ? { ...d, Estado: 'Conectado', UltimaSincronizacion: new Date().toISOString() }
+                    : d
+            ));
+        } catch (error: any) {
+            if (!silent) addNotification('Error de Conexión', error.message, 'error');
+            setDevices(prev => prev.map(d =>
+                d.DispositivoId === id
+                    ? { ...d, Estado: 'Error' }
+                    : d
+            ));
+        } finally {
+            if (!silent) setDeviceAction(id, null);
+        }
+    };
+
+    // --- Funciones de Datos ---
+    const fetchDevices = async () => {
+        if (!canRead) return;
+        const token = getToken();
+        if (!token) return;
+
+        try {
+            setLoading(true);
+            const response = await fetch(`${API_BASE_URL}/devices`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (!response.ok) throw new Error(`Error ${response.status}`);
+
+            const data = await response.json();
+
+            // Cargar estado local
+            const savedState = localStorage.getItem(DEVICE_STORAGE_KEY);
+            let finalData = data;
+
+            if (savedState) {
+                try {
+                    const localMap = JSON.parse(savedState);
+                    finalData = data.map((d: Device) => {
+                        const local = localMap[d.DispositivoId];
+                        if (local) {
+                            return {
+                                ...d,
+                                Estado: local.Estado || d.Estado,
+                                UltimaSincronizacion: local.UltimaSincronizacion || d.UltimaSincronizacion
+                            };
+                        }
+                        return d;
+                    });
+                } catch (e) { console.error("Error loading local state", e); }
+            }
+            setDevices(finalData);
+
+            // Intentar reconexión silenciosa para dispositivos desconectados
+            finalData.forEach((d: Device) => {
+                if (d.Activo && (d.Estado === 'Error' || d.Estado === 'Desconectado')) {
+                    handleTestConnection(d.DispositivoId, true);
+                }
+            });
+        } catch (error: any) {
+            addNotification('Error', 'No se pudieron cargar los dispositivos.', 'error');
         } finally {
             setLoading(false);
         }
     };
 
-    useEffect(() => {
-        loadData();
-        deviceService.getConfigInterval().then(setAutoInterval);
-    }, []);
-
-    // --- ACCIÓN 1: DESCARGA DE LOGS ---
-    const handleDownloadLogs = async (id: number) => {
-        setDownloadingId(id);
+    // ... (Mantén las funciones handleSyncLogs, handleSyncUsers, handleTestConnection, handleToggleDeleteLogs, handleSyncTime iguales que antes) ...
+    const handleSyncLogs = async (device: Device) => {
+        const token = getToken();
+        if (!token) return;
+        setDeviceAction(device.DispositivoId, 'sync_logs');
         try {
-            await deviceService.downloadLogs(id);
-            alert('✅ Checadas descargadas y procesadas.');
-            loadData();
-        } catch (e: any) {
-            alert('❌ Error: ' + e.message);
-        } finally {
-            setDownloadingId(null);
-        }
-    };
-
-    // --- ACCIÓN 2: SINCRONIZACIÓN DE EMPLEADOS ---
-    const handleSyncEmployees = async (id: number) => {
-        if (!confirm("⚠️ ¿Estás seguro? Esto enviará la lista de empleados activos del sistema al reloj, sobrescribiendo nombres si difieren.")) return;
-
-        setSyncingEmployeesId(id);
-        try {
-            await deviceService.syncEmployees(id);
-            alert('✅ Sincronización de empleados completada.');
-        } catch (e: any) {
-            alert('❌ Error: ' + e.message);
-        } finally {
-            setSyncingEmployeesId(null);
-        }
-    };
-
-    // --- ACCIÓN 3: TEST DE CONEXIÓN ---
-    const handleTestConnection = async (id: number) => {
-        setTestingId(id);
-        try {
-            await deviceService.testConnection(id);
-            alert('✅ ¡Conexión Exitosa! El dispositivo está en línea.');
-        } catch (e: any) {
-            alert('❌ Falló la conexión: ' + e.message);
-        } finally {
-            setTestingId(null);
-        }
-    };
-
-    // --- ACCIÓN 4: DIAGNÓSTICO TÉCNICO ---
-    const handleDiagnose = async (id: number) => {
-        setDiagnosingId(id);
-        try {
-            const info = await deviceService.diagnose(id);
-            alert(`📊 REPORTE TÉCNICO:\n\n` +
-                  `Firmware: ${info.firmware}\n` +
-                  `Plataforma: ${info.platform}\n` +
-                  `Serial: ${info.serial}\n` +
-                  `Hora Equipo: ${info.deviceTime}\n` +
-                  `Usuarios: ${info.userCount}\n` +
-                  `Estado: ${info.status}`);
-        } catch (e: any) {
-            alert('❌ Error: ' + e.message);
-        } finally {
-            setDiagnosingId(null);
-        }
-    };
-
-    // --- ACCIÓN 5: CAPTURA REMOTA (NUEVO) ---
-    const handleCapture = async (id: number) => {
-        setCapturingId(id);
-        try {
-            // Asumimos que agregaste captureImage a tu deviceService del frontend
-            const result = await deviceService.captureImage(id);
-            if (result.success) {
-                // Abrir la imagen en una pestaña nueva
-                window.open('http://localhost:3000' + result.url, '_blank');
+            const response = await fetch(`${API_BASE_URL}/devices/${device.DispositivoId}/sync`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.message || 'Error al descargar');
+            if (data.success) {
+                addNotification('Asistencia Descargada', `Se procesaron ${data.count} registros nuevos.`, 'success');
+                setDevices(prev => prev.map(d => d.DispositivoId === device.DispositivoId ? { ...d, Estado: 'Conectado', UltimaSincronizacion: new Date().toISOString() } : d));
             } else {
-                alert('❌ No se pudo tomar la foto. El equipo podría no soportarlo.');
+                addNotification('Sin Novedades', data.message || 'No hay registros nuevos.', 'info');
+                setDevices(prev => prev.map(d => d.DispositivoId === device.DispositivoId ? { ...d, Estado: 'Conectado', UltimaSincronizacion: new Date().toISOString() } : d));
             }
-        } catch (e: any) {
-            alert('❌ Error: ' + e.message);
+        } catch (error: any) {
+            addNotification('Error Descarga', error.message, 'error');
         } finally {
-            setCapturingId(null);
+            setDeviceAction(device.DispositivoId, null);
         }
     };
 
-    const handleSaveDevice = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const handleSyncUsers = async (device: Device) => {
+        const token = getToken();
+        if (!token) return;
+        if (!window.confirm(`¿Sincronizar empleados COMPLETOS con ${device.Nombre}?`)) return;
+        setDeviceAction(device.DispositivoId, 'sync_users');
         try {
-            if (editingDevice.DispositivoId) {
-                await deviceService.update(editingDevice.DispositivoId, editingDevice);
-            } else {
-                await deviceService.create(editingDevice);
-            }
-            setIsModalOpen(false);
-            loadData();
+            const response = await fetch(`${API_BASE_URL}/devices/${device.DispositivoId}/sync-employees`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.message || 'Fallo sincronización');
+            const stats = data.stats || {};
+            addNotification('Sincronización Personal', `Importados: ${stats.importedFromDevice || 0}, Enviados: ${stats.sentToDevice || 0}, Eliminados: ${stats.deletedFromDevice || 0}`, 'success');
+            setDevices(prev => prev.map(d => d.DispositivoId === device.DispositivoId ? { ...d, Estado: 'Conectado', UltimaSincronizacion: new Date().toISOString() } : d));
+        } catch (error: any) {
+            addNotification('Error Personal', error.message, 'error');
+        } finally {
+            setDeviceAction(device.DispositivoId, null);
+        }
+    };
+
+    const handleToggleDeleteLogs = async (device: Device) => {
+        const token = getToken();
+        if (!token) return;
+        const newState = !device.BorrarChecadas;
+        setDevices(prev => prev.map(d => d.DispositivoId === device.DispositivoId ? { ...d, BorrarChecadas: newState } : d));
+        try {
+            const response = await fetch(`${API_BASE_URL}/devices/${device.DispositivoId}`, {
+                method: 'PUT',
+                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ ...device, BorrarChecadas: newState })
+            });
+            if (!response.ok) throw new Error('Error guardando');
+            addNotification('Configuración', `Auto-limpieza ${newState ? 'ACTIVADA' : 'DESACTIVADA'}`, 'info');
         } catch (error) {
-            alert('Error al guardar dispositivo');
+            setDevices(prev => prev.map(d => d.DispositivoId === device.DispositivoId ? { ...d, BorrarChecadas: device.BorrarChecadas } : d));
+            addNotification('Error', 'No se pudo actualizar.', 'error');
         }
     };
+
+    const handleSyncTime = async (device: Device) => {
+        setDeviceAction(device.DispositivoId, 'sync_time');
+        try {
+            await fetch(`${API_BASE_URL}/devices/${device.DispositivoId}/sync-time`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${getToken()}` }
+            });
+            addNotification('Hora Sincronizada', 'El reloj ahora tiene la hora del servidor.', 'success');
+        } catch (error) {
+            addNotification('Error', 'No se pudo sincronizar la hora.', 'error');
+        } finally {
+            setDeviceAction(device.DispositivoId, null);
+        }
+    };
+
+    const handleEditDevice = (device: Device) => {
+        setEditingDevice(device);
+        setIsCreateModalOpen(true);
+    };
+
+    const handleCloseModal = () => {
+        setIsCreateModalOpen(false);
+        setEditingDevice(null);
+    };
+
+    const handleEditZone = (zonaId: number) => {
+        setSelectedZoneId(zonaId);
+        setIsZonesModalOpen(true);
+    };
+
+    const toggleZoneViewMode = (zone: string) => {
+        setZoneViewModes(prev => ({
+            ...prev,
+            [zone]: prev[zone] === 'grid' ? 'list' : 'grid'
+        }));
+    };
+
+    // --- Lógica de Presentación ---
+    const stats = useMemo(() => {
+        const total = devices.length;
+        const online = devices.filter(d => d.Estado === 'Conectado').length;
+        const offline = total - online;
+        return { total, online, offline };
+    }, [devices]);
+
+    const filteredDevices = useMemo(() => {
+        return devices.filter(d =>
+            d.Nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            d.IpAddress.includes(searchTerm)
+        );
+    }, [devices, searchTerm]);
+
+    // Agrupación por Zona (Para mantener el contenedor compartido)
+    const devicesByZone = useMemo(() => {
+        const groups: Record<string, Device[]> = {};
+        const sorted = [...filteredDevices].sort((a, b) => a.Nombre.localeCompare(b.Nombre));
+
+        sorted.forEach(d => {
+            const zone = d.ZonaNombre || 'Sin Zona Asignada';
+            if (!groups[zone]) groups[zone] = [];
+            groups[zone].push(d);
+        });
+        return groups;
+    }, [filteredDevices]);
+
+    if (!canRead) {
+        return (
+            <div className="flex items-center justify-center h-full">
+                <div className="text-center p-8 text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+                    <Lock className="mx-auto mb-3 opacity-20" size={48} />
+                    <h2 className="text-lg font-semibold text-slate-600">Acceso Restringido</h2>
+                </div>
+            </div>
+        );
+    }
 
     return (
-        <div className="p-6 max-w-7xl mx-auto">
-            {/* Header y Configuración */}
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+        <div className="space-y-4 h-full flex flex-col">
+            {/* Header & Stats */}
+            <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-800">Control de Checadores</h1>
-                    <p className="text-slate-500">Gestión de dispositivos biométricos ZKTeco</p>
-                </div>
+                    <h2 className="text-2xl font-bold text-slate-800">Dispositivos Biométricos</h2>
+                    <div className="flex items-center gap-4 mt-1 text-sm text-slate-500">
+                        <span>Administración centralizada de relojes biométricos.</span>
+                        <div className="flex items-center gap-3 pl-4 border-l border-slate-300">
+                            <span className="flex items-center gap-1.5 text-slate-600 font-medium bg-slate-100 px-2 py-0.5 rounded-md"><Layers size={14} /> {stats.total}</span>
+                            <span className="flex items-center gap-1.5 text-emerald-700 font-medium bg-emerald-50 px-2 py-0.5 rounded-md"><Wifi size={14} /> {stats.online}</span>
+                            <span className="flex items-center gap-1.5 text-rose-700 font-medium bg-rose-50 px-2 py-0.5 rounded-md"><AlertCircle size={14} /> {stats.offline}</span>
+                            
+                            <div className="h-4 w-px bg-slate-200 mx-1"></div>
 
-                <div className="flex gap-3">
-                    {/* Botón de Configuración Automática */}
-                    <div className="relative">
-                        <button
-                            onClick={() => setShowConfig(!showConfig)}
-                            className={`flex items-center gap-2 px-4 py-2 rounded-lg border transition-colors ${autoInterval > 0
-                                ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
-                                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                                }`}
-                        >
-                            {autoInterval > 0 ? <Clock size={18} className="animate-pulse" /> : <Settings size={18} />}
-                            <span className="font-medium">
-                                {autoInterval > 0 ? `Auto: ${autoInterval} min` : 'Automático: OFF'}
-                            </span>
-                        </button>
-
-                        {showConfig && (
-                            <div className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-slate-100 p-4 z-10">
-                                <h4 className="text-sm font-semibold text-slate-700 mb-2">Intervalo de Descarga</h4>
-                                <select
-                                    className="w-full border rounded p-2 mb-2 text-sm"
-                                    value={autoInterval}
-                                    onChange={(e) => {
-                                        const val = parseInt(e.target.value);
-                                        setAutoInterval(val);
-                                        deviceService.setConfigInterval(val);
-                                    }}
+                            <Tooltip text="Administrar Zonas">
+                                <button 
+                                    onClick={() => setIsZonesModalOpen(true)}
+                                    className="flex items-center gap-1.5 text-slate-600 font-medium hover:text-indigo-600 hover:bg-indigo-50 px-2 py-0.5 rounded-md transition-colors"
                                 >
-                                    <option value="0">⏹️ Apagado (Manual)</option>
-                                    <option value="5">⏱️ Cada 5 minutos</option>
-                                    <option value="15">⏱️ Cada 15 minutos</option>
-                                    <option value="30">⏱️ Cada 30 minutos</option>
-                                    <option value="60">⏱️ Cada 1 hora</option>
-                                </select>
-                                <p className="text-xs text-slate-400">
-                                    Controla la descarga automática de registros. 0 detiene el servicio.
-                                </p>
-                            </div>
-                        )}
+                                    <MapPin size={14} />
+                                    <span>Zonas</span>
+                                </button>
+                            </Tooltip>
+                        </div>
                     </div>
-
-                    <button
-                        onClick={() => { setEditingDevice({}); setIsModalOpen(true); }}
-                        className="bg-slate-900 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-slate-800 shadow-lg shadow-slate-900/20 transition-all"
-                    >
-                        <Plus size={18} /> <span className="hidden sm:inline">Nuevo Dispositivo</span>
-                    </button>
                 </div>
             </div>
 
-            {/* Grid de Dispositivos */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                {devices.map(dev => (
-                    <div key={dev.DispositivoId} className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden hover:shadow-md transition-shadow">
-                        {/* Cabecera de Tarjeta */}
-                        <div className="p-5 border-b border-slate-50 bg-slate-50/50 flex justify-between items-start">
-                            <div className="flex items-center gap-4">
-                                <div className={`w-12 h-12 rounded-full flex items-center justify-center shadow-sm ${dev.Estado === 'Conectado'
-                                    ? 'bg-green-100 text-green-600'
-                                    : dev.Estado === 'Error' ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-slate-400'
-                                    }`}>
-                                    {dev.Estado === 'Conectado' ? <Wifi size={24} /> : <WifiOff size={24} />}
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-slate-800">{dev.Nombre}</h3>
-                                    <div className="flex items-center gap-2 text-xs text-slate-500 font-mono mt-1">
-                                        <span className="bg-white px-1.5 py-0.5 rounded border border-slate-200">
-                                            {dev.IpAddress}:{dev.Puerto}
-                                        </span>
-                                        <span className="bg-slate-200 px-1.5 py-0.5 rounded text-slate-600">
-                                            {dev.TipoConexion}
-                                        </span>
+            {/* Toolbar */}
+            <div className="flex justify-between items-center">
+                <div className="relative group w-64">
+                        <Search className="absolute left-3 top-2.5 text-slate-400 group-focus-within:text-[--theme-500] transition-colors" size={16} />
+                        <input
+                            type="text"
+                            className="w-full pl-9 pr-8 py-2.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[--theme-500] focus:border-transparent transition-all shadow-sm"
+                            placeholder="Buscar dispositivo..."
+                            value={searchTerm}
+                            onChange={(e) => setSearchTerm(e.target.value)}
+                        />
+                        {searchTerm && <button onClick={() => setSearchTerm('')} className="absolute right-2 top-2.5 text-slate-400 hover:text-slate-600"><X size={16} /></button>}
+                </div>
+                {canCreate && <Button onClick={() => setIsCreateModalOpen(true)}><PlusCircleIcon /> Nuevo Dispositivo</Button>}
+            </div>
+
+            {/* Content */}
+            <div className="flex-1 overflow-y-auto min-h-0 pr-2">
+                {loading ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                        {[1, 2, 3].map(i => <div key={i} className="h-64 bg-slate-100 rounded-xl animate-pulse border border-slate-200" />)}
+                    </div>
+                ) : filteredDevices.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-64 text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                        <Server size={48} className="mb-4 opacity-20" />
+                        <p>No se encontraron dispositivos.</p>
+                    </div>
+                ) : (
+                    <DraggableGrid
+                        layout={gridLayout}
+                        onLayoutChange={setGridLayout}
+                        rowHeight={ROW_HEIGHT}
+                        showEmptySlots={true}
+                        getItemColSpan={(zone, cols) => {
+                            const isGridMode = (zoneViewModes[zone] || 'list') === 'grid';
+                            return (isGridMode && cols >= 2) ? 2 : 1;
+                        }}
+                        getItemRowSpan={(zone, cols) => {
+                            const zoneDevices = devicesByZone[zone];
+                            if (!zoneDevices) return 1;
+                            const isGridMode = (zoneViewModes[zone] || 'list') === 'grid';
+                            const effectiveColSpan = (isGridMode && cols >= 2) ? 2 : 1;
+                            return Math.ceil(zoneDevices.length / effectiveColSpan);
+                        }}
+                        renderItem={(zone) => {
+                            const zoneDevices = devicesByZone[zone];
+                            if (!zoneDevices) return null;
+                            const viewMode = zoneViewModes[zone] || 'list';
+                            const isGridMode = viewMode === 'grid';
+
+                            return (
+                                <div className="rounded-2xl p-3 border-2 border-dashed border-slate-300 bg-slate-50/50 hover:border-slate-400 transition-colors h-full">
+                                    {/* ENCABEZADO DE ZONA */}
+                                    <div className="flex items-center justify-between mb-3 px-1 group">
+                                        <div className="flex items-center gap-2">
+                                            <Tooltip text={`Dispositivos en: ${zone}`}>
+                                                <div className="p-1.5 bg-white rounded-lg text-indigo-600 shadow-sm border border-indigo-50">
+                                                    <MapPin size={14} />
+                                                </div>
+                                            </Tooltip>
+                                            <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wide truncate max-w-[150px] select-none">{zone}</h3>
+                                            
+                                            {zoneDevices.length > 1 && (
+                                                <button
+                                                    onClick={() => toggleZoneViewMode(zone)}
+                                                    className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
+                                                    title={viewMode === 'list' ? "Cambiar a cuadrícula" : "Cambiar a lista"}
+                                                >
+                                                    {viewMode === 'list' ? <LayoutGrid size={14} /> : <LayoutList size={14} />}
+                                                </button>
+                                            )}
+
+                                            {zoneDevices[0]?.ZonaId > 0 && (
+                                                <button
+                                                    onClick={() => handleEditZone(zoneDevices[0].ZonaId)}
+                                                    className="opacity-0 group-hover:opacity-100 transition-all duration-200 p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md"
+                                                    title="Editar nombre de zona"
+                                                >
+                                                    <Edit2 size={12} />
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className="text-slate-300 group-hover:text-slate-500 transition-colors cursor-grab active:cursor-grabbing">
+                                            <GripVertical size={16} />
+                                        </div>
+                                    </div>
+
+                                    <div className={isGridMode ? "grid grid-cols-1 sm:grid-cols-2 gap-4" : "flex flex-col gap-4"}>
+                                        {zoneDevices.map((dev, index) => (
+                                            <div key={dev.DispositivoId} className="h-full">
+                                                <DeviceCard
+                                                    device={dev}
+                                                    actionState={actionState[dev.DispositivoId] || null}
+                                                    onSyncLogs={handleSyncLogs}
+                                                    onSyncUsers={handleSyncUsers}
+                                                    onEdit={handleEditDevice}
+                                                    onTestConnection={handleTestConnection}
+                                                    onToggleDeleteLogs={handleToggleDeleteLogs}
+                                                    onSyncTime={handleSyncTime}
+                                                />
+
+                                                {/* Separador sutil si no es el último */}
+                                                {!isGridMode && index < zoneDevices.length - 1 && (
+                                                    <div className="border-b border-slate-200 mt-4 mb-2 mx-2 border-dashed opacity-50"></div>
+                                                )}
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
-                            </div>
-                            <button
-                                onClick={() => { setEditingDevice(dev); setIsModalOpen(true); }}
-                                className="text-slate-400 hover:text-indigo-600 p-1 rounded hover:bg-indigo-50 transition-colors"
-                            >
-                                <Edit size={18} />
-                            </button>
-                        </div>
-
-                        {/* Cuerpo de Tarjeta */}
-                        <div className="p-5">
-                            <div className="flex justify-between items-center text-sm mb-4">
-                                <span className="text-slate-500">Zona:</span>
-                                <span className="font-medium text-slate-700">{dev.ZonaNombre || 'Sin Zona'}</span>
-                            </div>
-
-                            <div className="flex justify-between items-center text-sm mb-6 bg-slate-50 p-2 rounded">
-                                <span className="text-slate-500">Última Actividad:</span>
-                                <span className="font-medium text-slate-800">
-                                    {dev.UltimaSincronizacion
-                                        ? new Date(dev.UltimaSincronizacion).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                                        : '--:--'}
-                                </span>
-                            </div>
-
-                            {/* Botonera de Acciones */}
-                            <div className="flex flex-col gap-3">
-                                {/* Fila 1: Test y Cámara */}
-                                <div className="grid grid-cols-2 gap-3">
-                                    <button
-                                        onClick={() => handleTestConnection(dev.DispositivoId)}
-                                        disabled={testingId === dev.DispositivoId}
-                                        className={`py-2 px-3 rounded-lg flex items-center justify-center gap-2 text-sm font-medium transition-all ${testingId === dev.DispositivoId
-                                            ? 'bg-amber-50 text-amber-600 cursor-not-allowed'
-                                            : 'bg-white border border-slate-300 text-slate-700 hover:bg-slate-50'
-                                            }`}
-                                    >
-                                        <Plug size={18} className={testingId === dev.DispositivoId ? 'animate-pulse' : ''} />
-                                        Test
-                                    </button>
-                                    {/* BOTÓN CÁMARA NUEVO */}
-                                    <button
-                                        onClick={() => handleCapture(dev.DispositivoId)}
-                                        disabled={capturingId === dev.DispositivoId}
-                                        className={`py-2 px-3 rounded-lg flex items-center justify-center gap-2 text-sm font-medium transition-all ${capturingId === dev.DispositivoId
-                                            ? 'bg-purple-50 text-purple-600'
-                                            : 'bg-white border border-purple-200 text-purple-700 hover:bg-purple-50'
-                                            }`}
-                                        title="Tomar captura remota"
-                                    >
-                                        <Camera size={18} className={capturingId === dev.DispositivoId ? 'animate-pulse' : ''} />
-                                        {capturingId === dev.DispositivoId ? '...' : 'Foto'}
-                                    </button>
-                                </div>
-
-                                {/* Diagnóstico Técnico */}
-                                <button
-                                    onClick={() => handleDiagnose(dev.DispositivoId)}
-                                    disabled={diagnosingId === dev.DispositivoId}
-                                    className={`w-full py-2 px-3 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 text-sm font-medium hover:bg-amber-100 flex justify-center items-center gap-2 transition-all ${diagnosingId === dev.DispositivoId ? 'opacity-75' : ''}`}
-                                >
-                                    <Activity size={18} className={diagnosingId === dev.DispositivoId ? 'animate-spin' : ''} />
-                                    {diagnosingId === dev.DispositivoId ? 'Analizando...' : 'Diagnóstico Técnico'}
-                                </button>
-
-                                {/* Descarga y Subida */}
-                                <div className="grid grid-cols-2 gap-3">
-                                    {/* Descargar Checadas */}
-                                    <button
-                                        onClick={() => handleDownloadLogs(dev.DispositivoId)}
-                                        disabled={downloadingId === dev.DispositivoId}
-                                        className={`py-2 px-3 rounded-lg flex flex-col items-center justify-center gap-1 text-xs font-medium transition-all ${downloadingId === dev.DispositivoId
-                                            ? 'bg-slate-100 text-slate-400'
-                                            : 'bg-green-50 text-green-700 hover:bg-green-100 border border-green-200'
-                                        }`}
-                                        title="Descarga las checadas pendientes del dispositivo"
-                                    >
-                                        <DownloadCloud size={20} className={downloadingId === dev.DispositivoId ? 'animate-bounce' : ''} />
-                                        {downloadingId === dev.DispositivoId ? 'Bajando...' : 'Descargar'}
-                                    </button>
-
-                                    {/* Subir Empleados */}
-                                    <button
-                                        onClick={() => handleSyncEmployees(dev.DispositivoId)}
-                                        disabled={syncingEmployeesId === dev.DispositivoId}
-                                        className={`py-2 px-3 rounded-lg flex flex-col items-center justify-center gap-1 text-xs font-medium transition-all ${syncingEmployeesId === dev.DispositivoId
-                                            ? 'bg-slate-100 text-slate-400'
-                                            : 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-200'
-                                        }`}
-                                        title="Envía empleados del sistema al reloj"
-                                    >
-                                        <Users size={20} className={syncingEmployeesId === dev.DispositivoId ? 'animate-spin' : ''} />
-                                        {syncingEmployeesId === dev.DispositivoId ? 'Sincronizando...' : 'Subir Empleados'}
-                                    </button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                ))}
+                            );
+                        }}
+                    />
+                )}
             </div>
 
-            {/* Modal de Creación/Edición */}
-            {isModalOpen && (
-                <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-                    <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md">
-                        <h2 className="text-xl font-bold text-slate-800 mb-4">
-                            {editingDevice.DispositivoId ? 'Editar' : 'Nuevo'} Dispositivo
-                        </h2>
-                        <form onSubmit={handleSaveDevice} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Nombre</label>
-                                <input
-                                    className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 outline-none"
-                                    value={editingDevice.Nombre || ''}
-                                    onChange={e => setEditingDevice({ ...editingDevice, Nombre: e.target.value })}
-                                    placeholder="Ej. Acceso Principal"
-                                    required
-                                />
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">IP</label>
-                                    <input
-                                        className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 outline-none font-mono text-sm"
-                                        value={editingDevice.IpAddress || ''}
-                                        onChange={e => setEditingDevice({ ...editingDevice, IpAddress: e.target.value })}
-                                        placeholder="192.168.1.201"
-                                        required
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Puerto</label>
-                                    <input
-                                        type="number"
-                                        className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 outline-none font-mono text-sm"
-                                        value={editingDevice.Puerto || 4370}
-                                        onChange={e => setEditingDevice({ ...editingDevice, Puerto: parseInt(e.target.value) })}
-                                        required
-                                    />
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Zona</label>
-                                <select
-                                    className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 outline-none"
-                                    value={editingDevice.ZonaId || ''}
-                                    onChange={e => setEditingDevice({ ...editingDevice, ZonaId: parseInt(e.target.value) })}
-                                    required
-                                >
-                                    <option value="">-- Seleccionar Zona --</option>
-                                    {zones.map(z => <option key={z.ZonaId} value={z.ZonaId}>{z.Nombre}</option>)}
-                                </select>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Contraseña (CommKey)</label>
-                                <input
-                                    type="password"
-                                    className="w-full border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 outline-none"
-                                    value={editingDevice.PasswordCom || ''}
-                                    onChange={e => setEditingDevice({ ...editingDevice, PasswordCom: e.target.value })}
-                                    placeholder="Opcional (Ej. 123456)"
-                                />
-                            </div>
-
-                            <div className="flex justify-end gap-3 mt-6">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsModalOpen(false)}
-                                    className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-medium"
-                                >
-                                    Cancelar
-                                </button>
-                                <button
-                                    type="submit"
-                                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium shadow-md shadow-indigo-200"
-                                >
-                                    Guardar
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
+            {/* Modal */}
+            <DeviceModal
+                isOpen={isCreateModalOpen}
+                onClose={handleCloseModal}
+                onSuccess={fetchDevices}
+                deviceToEdit={editingDevice}
+            />
+            
+            <ZonesManagerModal 
+                isOpen={isZonesModalOpen}
+                onClose={() => { setIsZonesModalOpen(false); setSelectedZoneId(null); }}
+                initialZoneId={selectedZoneId}
+            />
         </div>
     );
 };

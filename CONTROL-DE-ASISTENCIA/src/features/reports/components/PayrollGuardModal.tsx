@@ -44,7 +44,7 @@ export const PayrollGuardModal = ({ isOpen, onClose, onConfirm, validation, canO
         <div className="flex justify-end gap-2 w-full">
             <Button variant="secondary" onClick={onClose}>Cancelar</Button>
             {!isBlocked && <Button onClick={onConfirm}>Generar Reporte <ArrowRight size={16} className="ml-2"/></Button>}
-            {isBlocked && canOverride && <Button className="bg-red-600 hover:bg-red-700 text-white" onClick={onConfirm}><Lock size={16} className="mr-2"/> Forzar (Admin)</Button>}
+            {isBlocked && canOverride && <Button className="bg-red-600 hover:bg-red-700 text-white" onClick={onConfirm}><Lock size={16} className="mr-2"/>  Forzar</Button>}
         </div>
     );
 

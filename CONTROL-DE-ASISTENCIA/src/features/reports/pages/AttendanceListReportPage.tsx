@@ -365,7 +365,7 @@ const AttendanceListReportPageContent = () => {
 
             <PayrollGuardModal
                 isOpen={isGuardModalOpen} onClose={() => setIsGuardModalOpen(false)}
-                onConfirm={handleConfirmGeneration} validation={validationResult} canOverride={!can('nomina.override')}
+                onConfirm={handleConfirmGeneration} validation={validationResult} canOverride={true}
                 reportType="attendance_list"
             />
 

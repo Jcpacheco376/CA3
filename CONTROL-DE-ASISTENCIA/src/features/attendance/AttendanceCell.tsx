@@ -1,12 +1,11 @@
 // src/features/attendance/AttendanceCell.tsx
 import React, { useState, useEffect, useRef, memo } from 'react';
-import ReactDOM from 'react-dom';
 import { AttendanceStatus, AttendanceStatusCode } from '../../types';
-import { Check, CheckCheck, Clock, MessageSquare, Save, Lock, AlertTriangle, X } from 'lucide-react';
+import { Clock, MessageSquare, Lock, AlertTriangle } from 'lucide-react';
 import { format } from 'date-fns';
 import { Tooltip } from '../../components/ui/Tooltip';
 import { statusColorPalette } from '../../config/theme';
-import { canAssignStatusToDate, getRestrictionMessage } from '../../utils/attendanceValidation';
+import { StatusSelectorGrid } from './StatusSelectorGrid';
 
 const getColorClasses = (colorName: string = 'slate') => {
     const palette = statusColorPalette[colorName] || statusColorPalette.slate;
@@ -71,10 +70,6 @@ export const AttendanceCell = memo(({
 }: any) => {
     const [isJustUpdated, setIsJustUpdated] = useState(false);
     const wrapperRef = useRef<HTMLTableCellElement>(null);
-    const [panelStyle, setPanelStyle] = useState({});
-    const [panelPlacement, setPanelPlacement] = useState<'top' | 'bottom'>('bottom');
-    const [comment, setComment] = useState('');
-    const [justSaved, setJustSaved] = useState(false);
 
     // --- CORRECCIÓN CRÍTICA PARA FICHAS BORRADOR/FUTURAS ---
     // Si la ficha existe pero está en estado BORRADOR y no tiene estatus, es visualmente un "-" (Vacío)
@@ -107,39 +102,6 @@ export const AttendanceCell = memo(({
         prevStatusRef.current = currentStatus;
     }, [ficha?.EstatusManualAbrev]);
 
-    useEffect(() => {
-        if (isOpen && wrapperRef.current) {
-            const cellRect = wrapperRef.current.getBoundingClientRect();
-            const panelHeight = currentStatusConfig?.PermiteComentario ? 420 : 320;
-            let top = cellRect.bottom + 8;
-            let newPlacement: 'top' | 'bottom' = 'bottom';
-            if (cellRect.bottom + panelHeight > window.innerHeight && cellRect.top > panelHeight + 8) {
-                top = cellRect.top - panelHeight - 8;
-                newPlacement = 'top';
-            }
-            
-            // Centrado horizontal
-            let left = cellRect.left + (cellRect.width / 2) - 192; // 192 es la mitad de w-96 (384px)
-            if (left < 10) left = 10;
-            if (left + 384 > window.innerWidth) left = window.innerWidth - 394;
-
-            setPanelStyle({ top, left });
-            setPanelPlacement(newPlacement);
-            setComment(ficha?.Comentarios || '');
-        }
-    }, [isOpen, ficha, currentStatusConfig]);
-
-    const handleToggleInteraction = (clickedStatus: AttendanceStatusCode) => {
-        const currentManual = ficha?.EstatusManualAbrev;
-        if (currentManual === clickedStatus) {
-            onStatusChange(null, null); 
-        } else {
-            const selectedStatusConfig = statusCatalog.find((s: AttendanceStatus) => s.Abreviatura === clickedStatus);
-            onStatusChange(clickedStatus, selectedStatusConfig?.PermiteComentario ? comment : undefined);
-        }
-    };
-
-    const handleSaveComment = () => { onStatusChange(finalStatus, comment); setJustSaved(true); setTimeout(() => setJustSaved(false), 1500); };
     const handleToggle = () => { if (!isInteractive) return; onToggleOpen(cellId); };
 
     const bgClass = needsManualAction && !isProcessing && !isBlocked ? theme.pastel : theme.bgText; 
@@ -188,71 +150,7 @@ export const AttendanceCell = memo(({
         </div>
     );
 
-    // Panel Flotante
-    const statusPanel = isOpen && isInteractive ? ReactDOM.createPortal(
-        <div className="fixed bg-white rounded-lg shadow-xl border z-50 p-2 w-64 animate-scale-in" style={panelStyle} onMouseDown={(e) => e.stopPropagation()}>
-            <div className="grid grid-cols-3 gap-1">
-                {statusCatalog.filter((status: AttendanceStatus) => status.VisibleSupervisor || status.Abreviatura === ficha?.EstatusChecadorAbrev).map((status: AttendanceStatus) => {
-                        const themeBtn = getColorClasses(status.ColorUI);
-                        const isStatusAllowed = fecha ? canAssignStatusToDate(status, fecha) : true;
-                        const isSelected = ficha?.EstatusManualAbrev === status.Abreviatura;
-                        const isSuggested = status.Abreviatura === ficha?.EstatusChecadorAbrev;
-                        return (
-                            <Tooltip key={status.EstatusId} text={isSelected ? "Click para DESHACER (Volver a Borrador)" : (fecha ? getRestrictionMessage(status, fecha) || status.Descripcion : status.Descripcion)} placement="top" offset={8} zIndex={100}>
-                                <div className="h-full">
-                                    <button 
-                                        onClick={() => {
-                                            if (!isStatusAllowed) return;
-                                            handleToggleInteraction(status.Abreviatura as AttendanceStatusCode);
-                                        }} 
-                                        className={`
-                                            w-full h-full min-h-[3.5rem] p-1.5 rounded-md text-center group transition-transform hover:scale-105 focus:outline-none focus:ring-2 ring-[--theme-500] relative overflow-hidden
-                                            ${themeBtn.bgText} 
-                                            ${!isStatusAllowed ? 'opacity-50 cursor-not-allowed pointer-events-none' : 'cursor-pointer'} 
-                                            ${isSelected ? 'ring-2 ring-offset-1 ring-[--theme-500]' : ''}
-                                        `}
-                                    >
-                                        <div className="relative z-10">
-                                            {isSelected && isSuggested ? (
-                                                <Tooltip text="Sugerido y Confirmado" zIndex={101}><CheckCheck size={16} className="absolute top-1 right-1 text-emerald-600" /></Tooltip>
-                                            ) : isSelected ? (
-                                                <Tooltip text="Confirmado Manualmente" zIndex={101}><Check size={16} className="absolute top-1 right-1 text-blue-600" /></Tooltip>
-                                            ) : isSuggested ? (
-                                                <Tooltip text="Sugerido por Checador" zIndex={101}><Check size={16} className="absolute top-1 right-1 text-slate-500" /></Tooltip>
-                                            ) : null}
-                                            <span className="font-bold block text-lg">{status.Abreviatura}</span>
-                                            <span className="text-xs block leading-tight">{status.Descripcion}</span>
-                                        </div>
-
-                                        {isSelected && (
-                                            <div className="absolute inset-0 bg-red-500 flex flex-col items-center justify-center text-white 
-                                                            translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out z-20">
-                                                <X size={18} strokeWidth={3} />
-                                                <span className="text-[10px] font-bold uppercase mt-0.5">DESHACER</span>
-                                            </div>
-                                        )}
-                                    </button>
-                                </div>
-                            </Tooltip>
-                        )
-                    })}
-            </div>
-            {currentStatusConfig?.PermiteComentario && (
-                <div className="mt-2 pt-2 border-t col-span-3">
-                    <div className="flex justify-between items-center mb-1">
-                        <label className="text-sm font-medium text-slate-600">Comentarios</label>
-                        <Tooltip text="Guardar Comentario" placement="top" offset={8} zIndex={60}>
-                            <button onClick={handleSaveComment} disabled={justSaved} className={`p-1 rounded-md transition-all duration-200 ${justSaved ? 'bg-green-100 text-green-600' : 'text-slate-400 hover:bg-slate-200 hover:text-[--theme-500]'}`}>
-                                {justSaved ? <Check size={18} /> : <Save size={18} />}
-                            </button>
-                        </Tooltip>
-                    </div>
-                    <textarea className="w-full p-2 border border-slate-300 rounded-md text-sm focus:ring-1 focus:ring-[--theme-500] focus:outline-none" placeholder="Agregar una nota..." value={comment} onChange={(e) => setComment(e.target.value)} rows={3} />
-                </div>
-            )}
-        </div>, document.body) : null;
-
-    const tooltipPlacement = panelPlacement === 'top' ? 'left' : 'top';
+    const tooltipPlacement = 'top';
     const cellWidthClass = viewMode === 'week' ? 'min-w-[6rem]' : 'min-w-[4rem]';
 
     return (
@@ -276,7 +174,18 @@ export const AttendanceCell = memo(({
                     </button>
                 </div>
             </Tooltip>
-            {statusPanel}
+            {isOpen && isInteractive && (
+                <StatusSelectorGrid
+                    isOpen={isOpen}
+                    anchorEl={wrapperRef.current}
+                    statusCatalog={statusCatalog}
+                    ficha={ficha}
+                    fecha={fecha}
+                    isRestDay={isRestDay}
+                    onStatusChange={onStatusChange}
+                    onClose={() => onToggleOpen(null)}
+                />
+            )}
         </td>
     );
 });

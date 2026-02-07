@@ -10,6 +10,7 @@ const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const config_1 = require("./config");
 const routes_1 = __importDefault(require("./api/routes"));
+const SyncScheduler_1 = require("./api/services/sync/SyncScheduler"); // <--- IMPORTAR
 const app = (0, express_1.default)();
 // --- CONFIGURACIÓN DE ORIGEN (CORS) ---
 // Generamos la URL propia para auto-autorizarnos
@@ -65,7 +66,16 @@ else {
     console.log('⚠️ AVISO: No se encontró el frontend. El servidor funciona solo como API.');
     console.log('   (Si estás en desarrollo y usas Vite aparte, ignora esto).');
 }
+// Evita que el servidor se caiga si falla la librería zkteco-js
+process.on('uncaughtException', (error) => {
+    console.error('🔥 CRITICO: Error no capturado (El sistema sigue funcionando):', error);
+    // Aquí podrías registrar el error en un archivo de log si quisieras
+});
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('⚠️ ALERTA: Promesa rechazada no manejada:', reason);
+});
 // =================================================================
+(0, SyncScheduler_1.startSyncScheduler)();
 app.listen(config_1.PORT, '0.0.0.0', () => {
     console.log(`🚀 Servidor corriendo en http://${config_1.LOCAL_IP}:${config_1.PORT}`);
     if (frontendPath) {

@@ -12,7 +12,7 @@ import { ProfessionalSidebar } from './ProfessionalSidebar';
 import { AppHeader } from './AppHeader';
 import { 
     BarChartBig, Users, Settings, Folder, FileText, CalendarClock, 
-    AlertTriangle, Lock, LayoutDashboard ,Monitor
+    AlertTriangle, Lock, LayoutDashboard, Monitor
 } from 'lucide-react';
 import { SchedulePage } from '../../features/attendance/SchedulePage';
 import { ReportsHub } from '../../features/reports/ReportsHub';
@@ -54,12 +54,12 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
                 },
             ].filter(Boolean)
         },
-        (can('usuarios.read') || can('roles.manage') || can('catalogo.departamentos.read') || can('catalogo.gruposNomina.read') || can('catalogo.estatusAsistencia.read') || can('catalogo.horarios.read') || can('catalogo.establecimientos.read') || can('catalogo.puestos.read')) && {
+        (can('usuarios.read') || can('roles.manage') || can('catalogo.departamentos.read') || can('catalogo.gruposNomina.read') || can('catalogo.estatusAsistencia.read') || can('catalogo.horarios.read') || can('catalogo.establecimientos.read') || can('catalogo.puestos.read') || can('dispositivos.read')) && {
             section: 'Administración',
             items: [
                 can('usuarios.read') && { id: 'admin_users', label: 'Usuarios', icon: <Users size={20} /> },
                 can('roles.manage') && { id: 'admin_roles', label: 'Roles', icon: <Settings size={20} /> },
-                can('usuarios.read') && { id: 'devices', label: 'Checadores', icon: <Monitor size={20} /> },
+                can('dispositivos.read') && { id: 'devices', label: 'Checadores', icon: <Monitor size={20} /> },
                 (can('catalogo.departamentos.read') || can('catalogo.gruposNomina.read') || can('catalogo.estatusAsistencia.read') || can('catalogo.horarios.read') || can('catalogo.establecimientos.read') || can('catalogo.puestos.read')) && { id: 'admin_catalogs', label: 'Catálogos', icon: <Folder size={20} /> }
             ].filter(Boolean)
         },
@@ -91,6 +91,7 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
             case 'admin_horarios':
             case 'admin_establecimientos':
             case 'admin_puestos':
+            case 'admin_devices':
                 return <CatalogLayout activeView={activeView} setActiveView={setActiveView} />;
             case 'attendance_reports':
                 return <ReportsHub setActiveView={setActiveView} />; // El Hub debe tener sus propios permisos internos para cada tarjeta/link

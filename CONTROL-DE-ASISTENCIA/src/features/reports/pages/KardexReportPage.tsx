@@ -202,13 +202,21 @@ const KardexReportPageContent = () => {
     const handleExportExcel = () => {
         if (processedReportData.length === 0) return;
         const flatData = processedReportData.flatMap(emp =>
-            emp.fichas.map(f => ({
-                'ID Empleado': emp.codRef, 'Nombre': emp.nombre, 'Departamento': emp.departamento, 'Puesto': emp.puesto,
-                'Fecha': format(safeDate(f.Fecha), 'yyyy-MM-dd'), 'Día': format(new Date(f.Fecha), 'EEEE', { locale: es }),
-                'Hora Entrada': f.HoraEntrada ? format(new Date(f.HoraEntrada), 'HH:mm') : '',
-                'Hora Salida': f.HoraSalida ? format(new Date(f.HoraSalida), 'HH:mm') : '',
-                'Estatus Oficial': f.EstatusManualAbrev || '(Pendiente)', 'Comentarios': f.Comentarios
-            }))
+            emp.fichas.map(f => {
+                let obs = f.Comentarios || '';
+                // Validación más robusta para asegurar que el dato llegue
+                if (f.IncidenciaActivaId !== null && f.IncidenciaActivaId !== undefined) {
+                    const incidentText = `[Incidencia #${f.IncidenciaActivaId}]`;
+                    obs = obs ? `${obs} | ${incidentText}` : incidentText;
+                }
+                return {
+                    'ID Empleado': emp.codRef, 'Nombre': emp.nombre, 'Departamento': emp.departamento, 'Puesto': emp.puesto,
+                    'Fecha': format(safeDate(f.Fecha), 'yyyy-MM-dd'), 'Día': format(new Date(f.Fecha), 'EEEE', { locale: es }),
+                    'Hora Entrada': f.HoraEntrada ? format(new Date(f.HoraEntrada), 'HH:mm') : '',
+                    'Hora Salida': f.HoraSalida ? format(new Date(f.HoraSalida), 'HH:mm') : '',
+                    'Estatus Oficial': f.EstatusManualAbrev || '(Pendiente)', 'Comentarios': obs
+                };
+            })
         );
         exportToExcel('Kardex_Asistencia', 'Registros', flatData);
     };
@@ -222,6 +230,23 @@ const KardexReportPageContent = () => {
             filtersText: "Filtros: Departamentos y Puestos activos"
         };
 
+        // Preparar datos para el reporte con comentarios combinados (Comentario + Incidencia)
+        const reportDataForPdf = processedReportData.map(emp => ({
+            ...emp,
+            fichas: emp.fichas.map(f => {
+                let obs = f.Comentarios || '';
+                // Validación más robusta para asegurar que el dato llegue al PDF
+                if (f.IncidenciaActivaId !== null && f.IncidenciaActivaId !== undefined) {
+                    const incidentText = `[Incidencia #${f.IncidenciaActivaId}]`;
+                    obs = obs ? `${obs}\n${incidentText}` : incidentText;
+                }
+                return {
+                    ...f,
+                    Comentarios: obs
+                };
+            })
+        }));
+
         let generator: BaseReportGenerator;
         switch (settings.layout) {
             case 'compact': generator = new KardexCompactReport(settings.theme, config); break;
@@ -229,7 +254,7 @@ const KardexReportPageContent = () => {
             case 'standard': default: generator = new KardexStandardReport(settings.theme, config); break;
         }
 
-        generator.generateContent(processedReportData);
+        generator.generateContent(reportDataForPdf);
         reportBuilderRef.current = generator;
         setPreviewPdfUrl(generator.getBlobUrl());
     };
@@ -373,7 +398,7 @@ const KardexReportPageContent = () => {
                                                                                     <td className="p-2 text-slate-500">
                                                                                         <div className="flex flex-col gap-1">
                                                                                             {ficha.Comentarios && <span className="flex items-start gap-1"><MessageSquare size={12} className="mt-0.5 shrink-0" /> <span className="italic">"{ficha.Comentarios}"</span></span>}
-                                                                                            {ficha.IncidenciaActivaId && <span className="flex items-center gap-1 text-purple-600 font-semibold bg-purple-50 px-1.5 py-0.5 rounded w-fit"><ShieldAlert size={10} /> Discrepancia #{ficha.IncidenciaActivaId}</span>}
+                                                                                            {ficha.IncidenciaActivaId && <span className="flex items-center gap-1 text-purple-600 font-semibold bg-purple-50 px-1.5 py-0.5 rounded w-fit"><ShieldAlert size={10} /> Incidencia #{ficha.IncidenciaActivaId}</span>}
                                                                                             {ReportValidators.kardex(ficha).status === 'pending_approval' && <span className="text-[10px] text-amber-600 flex items-center gap-1"><AlertCircle size={10} /> Pendiente de validar</span>}
                                                                                         </div>
                                                                                     </td>
@@ -405,7 +430,7 @@ const KardexReportPageContent = () => {
                 )}
             </div>
 
-            <PayrollGuardModal isOpen={isGuardModalOpen} onClose={() => setIsGuardModalOpen(false)} onConfirm={handleConfirmGeneration} validation={validationResult} canOverride={can('nomina.override')} reportType="kardex" />
+            <PayrollGuardModal isOpen={isGuardModalOpen} onClose={() => setIsGuardModalOpen(false)} onConfirm={handleConfirmGeneration} validation={validationResult} canOverride={true} reportType="kardex" />
             <PDFPreviewModal isOpen={isPreviewOpen} onClose={() => setIsPreviewOpen(false)} pdfUrl={previewPdfUrl} title="Kardex de Asistencia" fileName={`Kardex_${format(new Date(), 'yyyy-MM-dd')}.pdf`} onSettingsChange={generateReport} onSave={handleSaveFromPreview} allowedLayouts={['standard', 'compact', 'executive']} />
             {viewingEmployeeId && <EmployeeProfileModal employeeId={viewingEmployeeId as any} onClose={() => setViewingEmployeeId(null)} getToken={getToken} user={user} />}
         </div>

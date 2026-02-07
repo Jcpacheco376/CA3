@@ -619,6 +619,7 @@ const PayrollClosingPageContent = () => {
 
 const KpiCard = ({ title, value, total, groupValue, groupTotal, labelTotal, icon, color, barColor, isError = false }: any) => {
     const percent = total > 0 ? (value / total) * 100 : 0;
+    const showGroup = groupValue !== undefined && groupTotal !== undefined && total !== groupTotal;
     const groupPercent = groupTotal > 0 ? (groupValue / groupTotal) * 100 : 0;
 
     return (
@@ -635,41 +636,34 @@ const KpiCard = ({ title, value, total, groupValue, groupTotal, labelTotal, icon
                 </div>
             </div>
 
-            <div className="mt-4 space-y-4">
-                {/* Progress for filtered view */}
-                {total !== undefined && (
-                    <div className="space-y-1">
-                        <div className="flex justify-between text-[10px] font-medium text-slate-400">
-                            <span>{labelTotal || 'Filtro actual'}</span>
-                            <span className="font-semibold">{value} / {total}</span>
-                        </div>
-                        <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                            <div
-                                className={`h-full rounded-full transition-all duration-1000 ease-out ${barColor || 'bg-slate-900'}`}
-                                style={{ width: `${percent}%` }}
-                            />
-                        </div>
+            <div className="mt-4">
+                <div className="flex justify-between items-end text-[10px] font-medium text-slate-400 mb-1.5">
+                    <span>{labelTotal || 'Filtro actual'}</span>
+                    <div className="text-right flex flex-col items-end leading-none gap-0.5">
+                        <span className="font-bold text-slate-600">{value} / {total}</span>
+                        {showGroup && (
+                            <span className="text-[10px] text-slate-500 font-bold bg-slate-100 px-1.5 py-0.5 rounded mt-0.5 border border-slate-200">
+                                Gpo: {groupValue} / {groupTotal}
+                            </span>
+                        )}
                     </div>
-                )}
-
-                {/* Progress for entire group */}
-                {groupValue !== undefined && groupTotal !== undefined && total !== groupTotal && (
-                    <div className="space-y-1 pt-3 border-t border-slate-100">
-                        <div className="flex justify-between text-[10px] font-semibold text-slate-400">
-                            <span>Grupo de Nómina</span>
-                            <span className="text-slate-600">{Math.round(groupPercent)}%</span>
-                        </div>
-                        <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                            <div
-                                className={`h-full rounded-full transition-all duration-1000 ease-out ${barColor || 'bg-slate-900'} opacity-40`}
-                                style={{ width: `${groupPercent}%` }}
-                            />
-                        </div>
-                        <div className="text-right text-[10px] text-slate-400 mt-0.5">
-                            {groupValue} / {groupTotal}
-                        </div>
-                    </div>
-                )}
+                </div>
+                
+                <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden relative">
+                    {/* Group Bar (Background) */}
+                    {showGroup && (
+                        <div
+                            className={`absolute top-0 left-0 h-full rounded-full transition-all duration-1000 ease-out ${barColor || 'bg-slate-900'} opacity-40`}
+                            style={{ width: `${groupPercent}%` }}
+                        />
+                    )}
+                    
+                    {/* Filtered Bar (Foreground) */}
+                    <div
+                        className={`absolute top-0 left-0 h-full rounded-full transition-all duration-1000 ease-out ${barColor || 'bg-slate-900'}`}
+                        style={{ width: `${percent}%` }}
+                    />
+                </div>
             </div>
         </div>
     );

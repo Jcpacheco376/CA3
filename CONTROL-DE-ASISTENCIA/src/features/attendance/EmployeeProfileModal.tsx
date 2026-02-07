@@ -97,6 +97,13 @@ export const EmployeeProfileModal = ({ employeeId, onClose, getToken, user }: { 
 
     const getAge = (birthDate: string) => !birthDate ? null : differenceInYears(new Date(), new Date(birthDate));
 
+    const formatDateAdjusted = (dateStr: string) => {
+        if (!dateStr) return null;
+        const date = new Date(dateStr);
+        const userTimezoneOffset = date.getTimezoneOffset() * 60000;
+        return format(new Date(date.getTime() + userTimezoneOffset), 'd MMM yyyy', { locale: es });
+    };
+
     const getBirthdayStatus = (birthDateStr: string): { isToday: boolean, isThisWeek: boolean, isThisMonth: boolean } => {
         const result = { isToday: false, isThisWeek: false, isThisMonth: false };
         if (!birthDateStr) return result;
@@ -168,7 +175,7 @@ export const EmployeeProfileModal = ({ employeeId, onClose, getToken, user }: { 
                     <dl className="grid grid-cols-2 gap-x-4 gap-y-5">
                         {isLoading ? <><SkeletonItem /><SkeletonItem /><SkeletonItem /><SkeletonItem /><SkeletonItem /><SkeletonItem /><SkeletonItem /><SkeletonItem /></> : (
                             <>
-                                <InfoItem icon={<CalendarIcon size={14} />} label="Fecha de Ingreso" value={employeeData.FechaIngreso ? format(new Date(employeeData.FechaIngreso), 'd MMM yyyy', { locale: es }) : null} />
+                                <InfoItem icon={<CalendarIcon size={14} />} label="Fecha de Ingreso" value={formatDateAdjusted(employeeData.FechaIngreso)} />
                                 <InfoItem icon={<Cake size={14} />} label="Edad" value={getAge(employeeData.FechaNacimiento)}>
                                     {birthdayStatus.isToday && <span className="text-xs font-bold text-pink-500 bg-pink-100 px-2 py-0.5 rounded-full">¡HOY!</span>}
                                     {!birthdayStatus.isToday && birthdayStatus.isThisWeek && <span className="text-xs text-slate-500">(cumple esta semana)</span>}
@@ -206,4 +213,3 @@ export const EmployeeProfileModal = ({ employeeId, onClose, getToken, user }: { 
         </div>
     );
 };
-

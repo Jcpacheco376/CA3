@@ -268,7 +268,7 @@ export const RoleModal = ({ role, allPermissions, onClose, onSave, isOpen }: { r
                 cats.visual.push(key);
             } else if (key.startsWith('catalogo.')) {
                 cats.catalogs.push(key);
-            } else if (key === 'usuarios' || key === 'roles') {
+            } else if (key === 'usuarios' || key === 'roles' || key === 'dispositivos' || key === 'zonas') {
                 cats.admin.push(key);
             } else {
                 // Por defecto a operación (reportesAsistencia, horarios, nomina, etc.)
@@ -295,7 +295,7 @@ export const RoleModal = ({ role, allPermissions, onClose, onSave, isOpen }: { r
         });
 
         // Orden para Admin (Usuarios, Roles)
-        const adminOrder = ['usuarios', 'roles'];
+        const adminOrder = ['usuarios', 'roles', 'dispositivos', 'zonas'];
         cats.admin.sort((a, b) => {
             const idxA = adminOrder.indexOf(a);
             const idxB = adminOrder.indexOf(b);

@@ -4,7 +4,7 @@ import ReactDOM from 'react-dom';
 import { X } from 'lucide-react';
 import { useAppContext } from '../../context/AppContext';
 
-export const Button = ({ variant = 'primary', children, disabled, ...props }: any) => {
+export const Button = ({ variant = 'primary', children, disabled, className = '', ...props }: any) => {
     const { animationsEnabled } = useAppContext();
     const baseClasses = "py-2 px-5 rounded-lg flex items-center gap-2 justify-center font-semibold disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none";
     const animationClasses = (animationsEnabled && !disabled) ? 'transition-transform hover:scale-105 active:scale-95' : '';
@@ -15,7 +15,7 @@ export const Button = ({ variant = 'primary', children, disabled, ...props }: an
         danger: `text-white bg-red-500 hover:bg-red-600 ${animationClasses}`,
     };
 
-    return <button className={`${baseClasses} ${styles[variant]}`} disabled={disabled} {...props}>{children}</button>;
+    return <button className={`${baseClasses} ${styles[variant]} ${className}`} disabled={disabled} {...props}>{children}</button>;
 };
 
 export const Modal = ({ isOpen, onClose, title, children, footer, footerActions, size = 'md' }: any) => {

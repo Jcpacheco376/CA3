@@ -222,7 +222,7 @@ export const EstatusAsistenciaModal = ({ isOpen, onClose, onSave, status }: { is
                                 <Tooltip text="Factor multiplicador: 1.0 = Día Completo, 0.5 = Medio Día, 0.0 = Sin Pago.">
                                     <label className="block text-sm font-medium text-slate-700 mb-1">Valor / Factor Nómina</label>
                                 </Tooltip>
-                                <input type="number" name="ValorNomina" value={formData.ValorNomina ?? 0} onChange={handleChange} className="w-24 p-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[--theme-500] text-center font-semibold" step="0.1" min="0" max="3" />
+                                <input type="number" name="ValorNomina" value={formData.ValorNomina ?? 0} onChange={handleChange} className="w-24 p-2 border border-slate-300 rounded-md focus:outline-none focus:ring-1 focus:ring-[--theme-500] text-center font-semibold" step="0.01" min="0" max="3" />
                                 <span className="text-slate-500 text-sm ml-2">días/unidad</span>
                             </div>
                         </div>

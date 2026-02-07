@@ -1,8 +1,7 @@
 // src/features/admin/CatalogosPage.tsx
 import React from 'react';
 import { useAuth } from '../auth/AuthContext.tsx';
-//import { Building, UsersIcon, Clock, CalendarIcon } from '../../components/ui/Icons.tsx';
-import { Building, Users, Clock, CalendarCheck, MapPin, Tag } from 'lucide-react';
+import { Building, Users, Clock, CalendarCheck, MapPin, Tag, Server } from 'lucide-react';
 
 const CatalogCard = ({ title, description, icon, onClick, canAccess }: any) => {
     if (!canAccess) return null;
@@ -72,6 +71,7 @@ export const CatalogosPage = ({ setActiveView }: any) => {
                     onClick={() => setActiveView('admin_establecimientos')}
                     canAccess={can('catalogo.establecimientos.read')}
                 />
+                
             </div>
         </div>
     );

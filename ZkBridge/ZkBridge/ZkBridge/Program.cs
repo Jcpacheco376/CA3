@@ -40,7 +40,20 @@ namespace ZkBridge
                         case "clear_logs":
                             ClearLogs(1);
                             break;
+                        case "get_all_users": GetAllUsers(1); break;
 
+                        case "upload_user":
+                            // Usage: ZkBridge.exe IP Port Key upload_user JSON_DATA
+                            // JSON_DATA must be a stringified JSON passed as the 5th argument
+                            if (args.Length >= 5) UploadUser(1, args[4]);
+                            else Console.WriteLine("{\"error\": \"Missing JSON data for user\"}");
+                            break;
+
+                        case "delete_user":
+                            // Usage: ZkBridge.exe IP Port Key delete_user UID
+                            if (args.Length >= 5) DeleteUser(1, args[4]);
+                            else Console.WriteLine("{\"error\": \"Missing UID\"}");
+                            break;
                         case "test_connection": Console.WriteLine("{\"status\": \"OK\", \"message\": \"Conexión Exitosa\"}"); break;
 
                         case "get_info": GetDeviceInfo(1); break;
@@ -65,7 +78,18 @@ namespace ZkBridge
                             else Console.WriteLine("{\"error\": \"Falta el nombre del parametro\"}");
                             break;
 
-
+                        case "sync_time":
+                            if (axCZKEM1.SetDeviceTime(1)) // Sincroniza con la hora del PC (Servidor)
+                            {
+                                axCZKEM1.RefreshData(1);
+                                Console.WriteLine("{\"status\": \"OK\", \"message\": \"Hora sincronizada con el servidor\"}");
+                            }
+                            else
+                            {
+                                int err = 0; axCZKEM1.GetLastError(ref err);
+                                Console.WriteLine($"{{\"error\": \"Fallo al sincronizar hora. Error: {err}\"}}");
+                            }
+                            break;
 
                         default: Console.WriteLine("{\"error\": \"Comando desconocido: " + command + "\"}"); break;
                     }
@@ -148,7 +172,22 @@ namespace ZkBridge
             else { Console.WriteLine("[]"); }
             axCZKEM1.EnableDevice(iMachineNumber, true);
         }
-
+        static void ClearLogs(int iMachineNumber)
+        {
+            axCZKEM1.EnableDevice(iMachineNumber, false);
+            // ClearGLog borra SOLO los registros de asistencia, no borra usuarios ni huellas.
+            if (axCZKEM1.ClearGLog(iMachineNumber))
+            {
+                axCZKEM1.RefreshData(iMachineNumber);
+                Console.WriteLine("{\"status\": \"OK\", \"message\": \"Registros borrados correctamente\"}");
+            }
+            else
+            {
+                int err = 0; axCZKEM1.GetLastError(ref err);
+                Console.WriteLine($"{{\"error\": \"No se pudieron borrar los registros. Error: {err}\"}}");
+            }
+            axCZKEM1.EnableDevice(iMachineNumber, true);
+        }
         static void CaptureScreenshot(int iMachineNumber, string destPath)
         {
             try
@@ -328,6 +367,124 @@ namespace ZkBridge
                 }
             }
             Console.WriteLine("]"); // Cerrar Array JSON
+        }
+        static void GetAllUsers(int iMachineNumber)
+        {
+            axCZKEM1.EnableDevice(iMachineNumber, false);
+            axCZKEM1.ReadAllUserID(iMachineNumber); // Read basic info into memory
+            axCZKEM1.ReadAllTemplate(iMachineNumber); // Read Fingerprints into memory
+
+            List<string> usersJson = new List<string>();
+
+            string sEnrollNumber = "", sName = "", sPassword = "", sPrivilege = "";
+            bool bEnabled = false;
+
+            // 1. Iterate through all users
+            while (axCZKEM1.SSR_GetAllUserInfo(iMachineNumber, out sEnrollNumber, out sName, out sPassword, out int iPrivilege, out bEnabled))
+            {
+                // 2. Get Fingerprints for this user (0-9)
+                List<string> fingers = new List<string>();
+                for (int i = 0; i < 10; i++)
+                {
+                    string tmpData = "";
+                    int tmpLen = 0;
+                    // Try getting standard template (Algorithm 10)
+                    if (axCZKEM1.GetUserTmpExStr(iMachineNumber, sEnrollNumber, i, out int flag, out tmpData, out tmpLen))
+                    {
+                        fingers.Add($"{{\"fingerIndex\": {i}, \"template\": \"{tmpData}\"}}");
+                    }
+                }
+
+                // 3. Get Face Template (Index 50 is main face)
+                string faceTmp = "";
+                int faceLen = 0;
+                string faceJson = "null";
+
+                // Try getting Face (Standard ZKFace)
+                if (axCZKEM1.GetUserFaceStr(iMachineNumber, sEnrollNumber, 50, ref faceTmp, ref faceLen))
+                {
+                    faceJson = $"\"{faceTmp}\"";
+                }
+
+                string userEntry = $"{{\"uid\": \"{sEnrollNumber}\", \"name\": \"{CleanString(sName)}\", \"privilege\": {iPrivilege}, \"password\": \"{sPassword}\", \"enabled\": {(bEnabled ? "true" : "false")}, \"fingers\": [{string.Join(",", fingers)}], \"face\": {faceJson}}}";
+                usersJson.Add(userEntry);
+            }
+
+            axCZKEM1.EnableDevice(iMachineNumber, true);
+            Console.WriteLine($"[{string.Join(",", usersJson)}]");
+        }
+
+        static void UploadUser(int iMachineNumber, string jsonString)
+        {
+            // Simple manual JSON parsing (to avoid external dependencies like Newtonsoft)
+            // We assume the Node.js side sends a clean, simple object string.
+            // Format expected: "uid|name|privilege|password" 
+            // Note: For complex structure like arrays, passing JSON via CLI args is risky due to escaping.
+            // BETTER APPROACH: Node passes data separated by pipes '|' for basic info, 
+            // and we handle templates separately or we improve parsing.
+
+            // FOR ROBUSTNESS: Let's assume input format: UID|NAME|PRIVILEGE|PASSWORD|FACE_TMP|FINGER_0|FINGER_1...
+
+            string[] parts = jsonString.Split('|');
+            if (parts.Length < 4) { Console.WriteLine("{\"error\": \"Invalid data format\"}"); return; }
+
+            string uid = parts[0];
+            string name = parts[1];
+            int privilege = int.Parse(parts[2]);
+            string password = parts[3];
+            string faceTmp = (parts.Length > 4 && parts[4] != "null") ? parts[4] : "";
+
+            axCZKEM1.EnableDevice(iMachineNumber, false);
+
+            // 1. Set Basic User Info
+            if (axCZKEM1.SSR_SetUserInfo(iMachineNumber, uid, name, password, privilege, true))
+            {
+                // 2. Set Face (if exists)
+                if (!string.IsNullOrEmpty(faceTmp))
+                {
+                    axCZKEM1.SetUserFaceStr(iMachineNumber, uid, 50, faceTmp, faceTmp.Length);
+                }
+
+                // 3. Set Fingers (Remaining parts)
+                for (int i = 5; i < parts.Length; i++)
+                {
+                    if (string.IsNullOrEmpty(parts[i])) continue;
+                    // Format: Index:Template
+                    string[] fingerData = parts[i].Split(':');
+                    if (fingerData.Length == 2)
+                    {
+                        int idx = int.Parse(fingerData[0]);
+                        string tmp = fingerData[1];
+                        axCZKEM1.SetUserTmpExStr(iMachineNumber, uid, idx, 1, tmp);
+                    }
+                }
+
+                axCZKEM1.RefreshData(iMachineNumber);
+                Console.WriteLine("{\"status\": \"OK\", \"message\": \"User uploaded\"}");
+            }
+            else
+            {
+                int err = 0; axCZKEM1.GetLastError(ref err);
+                Console.WriteLine($"{{\"error\": \"Failed to set user info. Error: {err}\"}}");
+            }
+            axCZKEM1.EnableDevice(iMachineNumber, true);
+        }
+
+        static void DeleteUser(int iMachineNumber, string uid)
+        {
+            axCZKEM1.EnableDevice(iMachineNumber, false);
+            // 12 = Delete User (Info + Finger + Face)
+            if (axCZKEM1.SSR_DeleteEnrollData(iMachineNumber, uid, 12))
+            {
+                axCZKEM1.RefreshData(iMachineNumber);
+                Console.WriteLine("{\"status\": \"OK\", \"message\": \"User deleted\"}");
+            }
+            else
+            {
+                int err = 0; axCZKEM1.GetLastError(ref err);
+                Console.WriteLine($"{{\"error\": \"Failed to delete user. Error: {err}\"}}");
+            }
+            axCZKEM1.EnableDevice(iMachineNumber, true);
         }
         static string CleanString(string s) { if (string.IsNullOrEmpty(s)) return ""; return s.Replace("\"", "'").Replace("\\", "/").Trim(); }
     }

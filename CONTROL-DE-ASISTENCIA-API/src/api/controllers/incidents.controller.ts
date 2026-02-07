@@ -1,3 +1,4 @@
+//src/api/controllers/incidents.controller.ts
 import { Request, Response } from 'express';
 import sql from 'mssql';
 import { dbConfig } from '../../config/database';
@@ -116,7 +117,7 @@ export const resolveIncident = async (req: any, res: Response) => {
     const { id } = req.params;
     const { newStatus, comment } = req.body; 
     const myId = req.user.usuarioId;
-
+    console.log(`Resolviendo incidencia ${id} con nuevo estatus '${newStatus}' por usuario ${myId}`);
     try {
         const pool = await sql.connect(dbConfig);
         await pool.request()
@@ -218,7 +219,9 @@ export const getResolutionOptions = async (req: any, res: Response) => {
     const { id } = req.params;
     try {
         const pool = await sql.connect(dbConfig);
-        const result = await pool.request().input('IncidenciaId', sql.Int, id).execute('sp_Incidencias_ObtenerPosiblesSoluciones');
+        const result = await pool.request()
+            .input('IncidenciaId', sql.Int, id)
+            .execute('sp_Incidencias_ObtenerPosiblesSoluciones');
         res.json(result.recordset);
     } catch (err: any) { res.status(500).json({ message: 'Error al cargar opciones.' }); }
 };

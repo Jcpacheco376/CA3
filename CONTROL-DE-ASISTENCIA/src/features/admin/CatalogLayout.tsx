@@ -2,7 +2,7 @@
 import React from 'react';
 import { useAuth } from '../auth/AuthContext.tsx';
 import { View } from '../../types/index.ts';
-import { ArrowLeft, Building, Users, CalendarCheck, Clock, MapPin, Tag } from 'lucide-react';
+import { ArrowLeft, Building, Users, CalendarCheck, Clock, MapPin, Tag, Server } from 'lucide-react';
 import { Tooltip } from '../../components/ui/Tooltip.tsx';
 import { DepartamentosPage } from './DepartamentosPage.tsx';
 import { GruposNominaPage } from './GruposNominaPage.tsx';
@@ -10,6 +10,7 @@ import { EstatusAsistenciaPage } from './EstatusAsistenciaPage.tsx';
 import { HorariosPage } from './HorariosPage.tsx';
 import { EstablecimientosPage } from './EstablecimientosPage.tsx';
 import { PuestosPage } from './PuestosPage.tsx';
+import { DevicesPage } from '../../features/devices/DevicesPage.tsx';
 
 // --- Componente Interno de Pestaña ---
 const TabButton = ({ 
@@ -83,6 +84,13 @@ export const CatalogLayout = ({ activeView, setActiveView }: { activeView: View,
             icon: <Clock size={18} />, 
             canAccess: can('catalogo.horarios.read'),
             component: <HorariosPage />
+        },
+        { 
+            id: 'admin_devices', 
+            label: 'Dispositivos', 
+            icon: <Server size={18} />, 
+            canAccess: can('dispositivos.read'),
+            component: <DevicesPage />
         },
     ];
 
