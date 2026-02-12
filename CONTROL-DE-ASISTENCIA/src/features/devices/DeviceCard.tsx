@@ -18,6 +18,7 @@ export interface Device {
     Puerto: number;
     ZonaId: number;
     ZonaNombre?: string;
+    ZonaColor?: string;
     Activo: boolean;
     Estado: string;
     UltimaSincronizacion?: string;
@@ -50,6 +51,10 @@ export const DeviceCard = ({
     const { user, can } = useAuth();
     const userTheme = user?.Theme?.toLowerCase() || 'indigo';
     const currentTheme = themes[userTheme] || themes.indigo;
+    
+    const zoneColorName = device.ZonaColor || 'indigo';
+    const zoneTheme = themes[zoneColorName as keyof typeof themes] || themes.indigo;
+
     const [showMenu, setShowMenu] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
     const isBusy = actionState !== null;
@@ -138,18 +143,15 @@ export const DeviceCard = ({
     return (
         <div className="bg-white rounded-lg border border-slate-200 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col h-full group relative">
             {/* Header */}
-            <div className="p-3 flex justify-between items-start border-b border-slate-50">
+            <div className="p-4 flex justify-between items-start">
                 <div className="flex items-center gap-3">
                     <Tooltip text={`Dispositivo: ${device.Nombre}`}>
-                        <div 
-                            className={`p-2 rounded-lg shrink-0 transition-colors ${device.Estado !== 'Conectado' || !device.Activo ? 'bg-slate-100 text-slate-400' : ''}`}
-                            style={device.Estado === 'Conectado' && device.Activo ? { backgroundColor: `${currentTheme[500]}15`, color: currentTheme[600] } : {}}
-                        >
+                        <div className="p-2 rounded-lg shrink-0 bg-slate-50 text-slate-500">
                             <Server size={18} strokeWidth={1.5} />
                         </div>
                     </Tooltip>
                     <div>
-                        <h3 className="font-bold text-slate-800 text-sm leading-tight truncate max-w-[140px]">{device.Nombre}</h3>
+                        <h3 className="font-bold text-slate-700 text-sm leading-tight truncate max-w-[140px]">{device.Nombre}</h3>
                         <div className="mt-0.5">
                             {getStatusBadge(device.Estado)}
                         </div>
@@ -161,7 +163,7 @@ export const DeviceCard = ({
                         <Tooltip text="Más opciones">
                             <button 
                                 onClick={() => setShowMenu(!showMenu)}
-                                className="text-slate-400 hover:text-slate-600 p-2 rounded-lg hover:bg-slate-50 transition-colors"
+                                className="text-slate-300 hover:text-indigo-500 p-1.5 rounded-full hover:bg-indigo-50 transition-colors"
                             >
                                 <MoreVertical size={20} />
                             </button>
@@ -309,7 +311,7 @@ export const DeviceCard = ({
                                 <p className="text-xs font-medium text-slate-600">
                                     {device.UltimaSincronizacion
                                         ? new Date(device.UltimaSincronizacion).toLocaleString('es-MX', {
-                                            weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'UTC'
+                                            weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
                                         })
                                         : 'Nunca'}
                                 </p>
@@ -337,6 +339,11 @@ export const DeviceCard = ({
                             onClick={() => onSyncLogs(device)}
                             disabled={isBusy || !device.Activo}
                             className="w-full py-2 text-xs shadow-sm"
+                            style={{
+                                '--theme-500': zoneTheme[500],
+                                '--theme-600': zoneTheme[600],
+                                '--theme-700': zoneTheme[700]
+                            } as React.CSSProperties}
                         >
                             {actionState === 'sync_logs' ? (
                                 <RefreshCw size={18} className="animate-spin" />

@@ -1,27 +1,14 @@
 import React, { useState, useEffect, useMemo, useContext } from 'react';
-import { ChevronLeft, ChevronRight, Search as SearchIcon, Lock, Briefcase, Building, Tag, MapPin, X } from 'lucide-react';
-import { addWeeks, subWeeks, addMonths, subMonths } from 'date-fns';
+import { ChevronLeft, ChevronRight, Search as SearchIcon, Lock, Briefcase, Building, Tag, MapPin, X, CalendarRange } from 'lucide-react';
+import { addWeeks, subWeeks, addMonths, subMonths, eachDayOfInterval, differenceInDays, addDays, format, startOfDay } from 'date-fns';
+import { es } from 'date-fns/locale';
 import { Tooltip } from '../../components/ui/Tooltip';
 import { FilterPopover } from '../../components/ui/FilterPopover'; 
 import { DateRangePicker } from '../../components/ui/DateRangePicker';
 import { useAuth } from '../auth/AuthContext'; 
-import { useAttendanceToolbarContext } from './AttendanceToolbarContext';
-
-export interface FilterOption {
-    value: string | number;
-    label: string;
-}
-
-export interface FilterConfig {
-    id: string;
-    icon: React.ReactNode;
-    title: string;
-    options: FilterOption[];
-    selectedValues: (string | number)[];
-    onChange: (newSelectedValues: (string | number)[]) => void;
-    isActive: boolean; 
-    selectionMode?: 'multiple' | 'single';
-}
+import { useAppContext } from '../../context/AppContext';
+import { useAttendanceToolbarContext, FilterConfig, FilterOption } from './AttendanceToolbarContext';
+export type { FilterConfig, FilterOption };
 
 interface AttendanceToolbarProps {
     // Búsqueda (Opcionales, si no se pasan usa filters.search)
@@ -30,13 +17,16 @@ interface AttendanceToolbarProps {
     
     // Configuración Manual (Opcional)
     filterConfigurations?: FilterConfig[]; 
+
+    // Filtros Personalizados (Se agregan a los defaults)
+    customFilters?: FilterConfig[];
     
     // Estado Compartido (Necesario para el modo automático)
     filters?: { groups?: any[], depts?: any[], puestos?: any[], estabs?: any[], search?: string };
     setFilters?: React.Dispatch<React.SetStateAction<any>>;
 
-    viewMode?: 'week' | 'fortnight' | 'month'; // Ahora opcionales
-    setViewMode?: (value: 'week' | 'fortnight' | 'month') => void;
+    viewMode?: 'week' | 'fortnight' | 'month' | 'custom'; // Ahora opcionales
+    setViewMode?: (value: 'week' | 'fortnight' | 'month' | 'custom') => void;
     rangeLabel?: string;
     currentDate?: Date;
     onDateChange?: (date: Date) => void;
@@ -45,12 +35,14 @@ interface AttendanceToolbarProps {
     weekMode?: 'base' | 'natural';
     setWeekMode?: (mode: 'base' | 'natural') => void;
     allowNaturalWeek?: boolean;
+    allowCustomRange?: boolean;
 }
 
 export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
     searchTerm,
     setSearchTerm,
     filterConfigurations, 
+    customFilters,
     filters: propFilters,              
     setFilters: propSetFilters,           
     viewMode: propViewMode,
@@ -62,11 +54,14 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
     enablePayrollSync = false,
     weekMode: propWeekMode,
     setWeekMode: propSetWeekMode,
-    allowNaturalWeek = false
+    allowNaturalWeek = false,
+    allowCustomRange = false
 }) => {
     const { user } = useAuth();
+    const { weekStartDay: globalWeekStartDay } = useAppContext();
     const [isWeekModeHovered, setIsWeekModeHovered] = useState(false);
     const [isPeriodHovered, setIsPeriodHovered] = useState(false);
+    const [customRange, setCustomRange] = useState<{start: Date, end: Date} | null>(null);
     
     // --- CONFIGURACIÓN DE UI ---
     // true = Modo retráctil (ahorra espacio), false = Modo fijo (siempre visible)
@@ -89,6 +84,8 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
     const onDateChange = propOnDateChange || context?.setCurrentDate;
     const weekMode = propWeekMode || context?.weekMode || 'base';
     const setWeekMode = propSetWeekMode || context?.setWeekMode;
+
+    const effectiveWeekStartDay = weekMode === 'natural' ? 1 : globalWeekStartDay;
 
     // --- 1. MANEJO DE BÚSQUEDA UNIFICADO ---
     const effectiveSearchTerm = searchTerm ?? filters?.search ?? '';
@@ -121,7 +118,7 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
                 selectedValues: currentFilters.groups || [],
                 onChange: (vals) => setFilters && setFilters((prev: any) => ({ ...prev, groups: vals as number[] })),
                 isActive: user?.activeFilters?.gruposNomina ?? true,
-                selectionMode: enablePayrollSync ? 'single' : 'multiple'
+                selectionMode: 'multiple'
             },
             {
                 id: 'departamentos',
@@ -189,6 +186,9 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
         const updateViewMode = setViewMode || context?.setViewMode;
         if (!updateViewMode) return;
 
+        // Si estamos en modo 'custom', respetamos la elección del usuario y no forzamos el periodo del grupo
+        if (viewMode === 'custom') return;
+
         // Comparamos string vs string para evitar errores de tipo (1 vs "1")
         const groupInfo = user.GruposNomina.find(g => String(g.GrupoNominaId) === String(activeGroupId));
 
@@ -201,6 +201,28 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
     }, [activeGroupId, user, viewMode, setViewMode, context, enablePayrollSync]);
 
     const isPeriodLocked = !!activeGroupId;
+
+    // --- INICIALIZACIÓN DE RANGO PERSONALIZADO ---
+    // Si entramos en modo custom y no hay rango definido, usamos el actual del contexto
+    useEffect(() => {
+        if (viewMode === 'custom' && !customRange && context?.dateRange && context.dateRange.length > 0) {
+             const start = context.dateRange[0];
+             const end = context.dateRange[context.dateRange.length - 1];
+             setCustomRange({ start, end });
+        }
+    }, [viewMode, context?.dateRange]);
+
+    const handleCustomRangeChange = (start: Date, end: Date) => {
+        const s = startOfDay(start);
+        const e = startOfDay(end);
+        setCustomRange({ start: s, end: e });
+        
+        // Update context dateRange manually
+        if (context?.setDateRange) {
+             const days = eachDayOfInterval({ start: s, end: e });
+             context.setDateRange(days);
+        }
+    };
 
     // --- 5. NAVEGACIÓN DE FECHAS INTERNA ---
     const handleInternalPrev = () => {
@@ -215,6 +237,15 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
                 break;
             case 'month':
                 newDate = subMonths(currentDate, 1);
+                break;
+            case 'custom':
+                if (customRange) {
+                    const diff = differenceInDays(customRange.end, customRange.start) + 1;
+                    const newStart = addDays(customRange.start, -diff);
+                    const newEnd = addDays(customRange.end, -diff);
+                    handleCustomRangeChange(newStart, newEnd);
+                    return;
+                }
                 break;
             case 'week':
             default:
@@ -237,6 +268,15 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
             case 'month':
                 newDate = addMonths(currentDate, 1);
                 break;
+            case 'custom':
+                if (customRange) {
+                    const diff = differenceInDays(customRange.end, customRange.start) + 1;
+                    const newStart = addDays(customRange.start, diff);
+                    const newEnd = addDays(customRange.end, diff);
+                    handleCustomRangeChange(newStart, newEnd);
+                    return;
+                }
+                break;
             case 'week':
             default:
                 newDate = addWeeks(currentDate, 1);
@@ -244,6 +284,37 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
         }
         if (onDateChange) onDateChange(newDate);
     };
+
+    // --- 6. ETIQUETA DE RANGO DINÁMICA ---
+    // Calculamos la etiqueta localmente para el modo "custom" para asegurar que coincida con la selección
+    const effectiveRangeLabel = useMemo(() => {
+        if (viewMode === 'custom' && customRange) {
+            const startStr = format(customRange.start, 'dd MMM', { locale: es });
+            const endStr = format(customRange.end, 'dd MMM yyyy', { locale: es });
+            return `${startStr} - ${endStr}`;
+        }
+        return rangeLabel;
+    }, [viewMode, customRange, rangeLabel]);
+
+    const availableModes = useMemo(() => {
+        const modes = ['week', 'fortnight', 'month'];
+        if (allowCustomRange) modes.push('custom');
+        return modes;
+    }, [allowCustomRange]);
+
+    // --- 7. VALIDACIÓN DE MODO Y FALLBACK (Persistencia entre páginas) ---
+    useEffect(() => {
+        // Si el modo actual (persisted) no está permitido en esta página (ej. 'custom' en página sin soporte)
+        if (viewMode && !availableModes.includes(viewMode as string)) {
+            // Usamos el inicio del rango actual como ancla para no perder la ubicación temporal
+            const anchorDate = (context?.dateRange && context.dateRange.length > 0) 
+                ? context.dateRange[0] 
+                : currentDate;
+
+            if (setViewMode) setViewMode('week');
+            if (onDateChange) onDateChange(anchorDate);
+        }
+    }, [viewMode, availableModes, setViewMode, onDateChange, context?.dateRange, currentDate]);
 
     return (
         <div className="p-4 border-b border-slate-200 bg-white rounded-t-lg">
@@ -282,6 +353,23 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
 
                     <div className="flex items-center gap-2 overflow-x-auto pb-1 lg:pb-0">
                         {activeConfigs.map(config => (
+                            <FilterPopover
+                                key={config.id}
+                                icon={config.icon}
+                                title={config.title}
+                                options={config.options}
+                                selectedValues={config.selectedValues}
+                                onChange={config.onChange}
+                                selectionMode={config.selectionMode}
+                            />
+                        ))}
+
+                        {/* Separador y Filtros Personalizados */}
+                        {activeConfigs.length > 0 && customFilters && customFilters.length > 0 && (
+                            <div className="w-px h-6 bg-slate-200 mx-1 shrink-0"></div>
+                        )}
+
+                        {customFilters?.map(config => (
                             <FilterPopover
                                 key={config.id}
                                 icon={config.icon}
@@ -339,26 +427,31 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
                                     </Tooltip>
                                 </div>
                             )}
-                            {['week', 'fortnight', 'month'].map((mode) => {
+                            {availableModes.map((mode) => {
                                 const isActive = viewMode === mode;
                                 const isVisible = !IS_PERIOD_MODE_RETRACTABLE || isActive || isPeriodHovered;
-                                const label = mode === 'week' ? 'Semana' : mode === 'fortnight' ? 'Quincena' : 'Mes';
+                                const label = mode === 'week' ? 'Semana' : mode === 'fortnight' ? 'Quincena' : mode === 'month' ? 'Mes' : 'Libre';
+                                const icon = mode === 'custom' ? <CalendarRange size={10} className="opacity-70" /> : null;
+
+                                // FIX: Permitir 'custom' (Libre) incluso si hay un grupo de nómina seleccionado (isPeriodLocked)
+                                const isModeLocked = isPeriodLocked && mode !== 'custom';
 
                                 return (
                                     <div key={mode} className={`transition-all duration-300 ease-in-out overflow-hidden ${isVisible ? 'max-w-[100px] opacity-100' : 'max-w-0 opacity-0'}`}>
                                         <button 
-                                            onClick={() => !isPeriodLocked && setViewMode && setViewMode(mode as any)}
-                                            disabled={isPeriodLocked}
+                                            onClick={() => !isModeLocked && setViewMode && setViewMode(mode as any)}
+                                            disabled={isModeLocked}
                                             className={`
                                                 w-full px-3 py-1 rounded-md text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-1 whitespace-nowrap
                                                 ${isActive 
                                                     ? 'bg-white text-[--theme-600] shadow-sm ring-1 ring-black/5' 
                                                     : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
                                                 }
-                                                ${isPeriodLocked && !isActive ? 'opacity-40 grayscale' : ''}
+                                                ${isModeLocked && !isActive ? 'opacity-40 grayscale' : ''}
                                             `}
                                         >
-                                            {isPeriodLocked && isActive && <Lock size={10} className="opacity-70" />}
+                                            {isPeriodLocked && isActive && mode !== 'custom' && <Lock size={10} className="opacity-70" />}
+                                            {icon}
                                             {label}
                                         </button>
                                     </div>
@@ -369,13 +462,43 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
                     <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block"></div>
                     <div className="flex items-center gap-1">
                         <Tooltip text="Anterior">
-                            <button onClick={handleInternalPrev} className="p-1.5 text-slate-500 hover:bg-white hover:text-[--theme-600] hover:shadow-sm rounded-lg transition-all"><ChevronLeft size={18} /></button>
+                            <button 
+                                onClick={handleInternalPrev} 
+                                disabled={viewMode === 'custom'}
+                                className={`
+                                    p-1.5 rounded-lg transition-all 
+                                    ${viewMode === 'custom' 
+                                        ? 'text-slate-300 cursor-not-allowed opacity-50' 
+                                        : 'text-slate-500 hover:bg-white hover:text-[--theme-600] hover:shadow-sm'}
+                                `}
+                            >
+                                <ChevronLeft size={18} />
+                            </button>
                         </Tooltip>
-                        <div className="min-w-[140px] flex justify-center">
-                            <DateRangePicker currentDate={currentDate} onDateChange={onDateChange!} viewMode={viewMode} rangeLabel={rangeLabel} />
+                        <div className="min-w-[180px] flex justify-center">
+                            <DateRangePicker 
+                                currentDate={currentDate} 
+                                onDateChange={onDateChange!} 
+                                viewMode={viewMode} 
+                                rangeLabel={effectiveRangeLabel} 
+                                weekStartDay={effectiveWeekStartDay} 
+                                customRange={customRange || undefined}
+                                onRangeChange={handleCustomRangeChange}
+                            />
                         </div>
                         <Tooltip text="Siguiente">
-                            <button onClick={handleInternalNext} className="p-1.5 text-slate-500 hover:bg-white hover:text-[--theme-600] hover:shadow-sm rounded-lg transition-all"><ChevronRight size={18} /></button>
+                            <button 
+                                onClick={handleInternalNext} 
+                                disabled={viewMode === 'custom'}
+                                className={`
+                                    p-1.5 rounded-lg transition-all 
+                                    ${viewMode === 'custom' 
+                                        ? 'text-slate-300 cursor-not-allowed opacity-50' 
+                                        : 'text-slate-500 hover:bg-white hover:text-[--theme-600] hover:shadow-sm'}
+                                `}
+                            >
+                                <ChevronRight size={18} />
+                            </button>
                         </Tooltip>
                     </div>
                 </div>

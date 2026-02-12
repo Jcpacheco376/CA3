@@ -69,13 +69,12 @@ export const useDynamicLayout = (
             if (currentNulls < neededEmptySlots) {
                 const toAdd = neededEmptySlots - currentNulls;
                 for(let i=0; i<toAdd; i++) newLayout.push(null);
-            } else if (currentNulls > neededEmptySlots) {
-                let toRemove = currentNulls - neededEmptySlots;
-                for (let i = newLayout.length - 1; i >= 0 && toRemove > 0; i--) {
-                    if (newLayout[i] === null) {
-                        newLayout.splice(i, 1);
-                        toRemove--;
-                    }
+            } else {
+                // FIX: Solo eliminar nulls del final para no destruir el layout del usuario (huecos intermedios)
+                let i = newLayout.length - 1;
+                while (i >= 0 && newLayout[i] === null && newLayout.length > targetVisualUnits) {
+                    newLayout.pop();
+                    i--;
                 }
             }
             
@@ -108,6 +107,8 @@ interface DraggableGridProps {
     showEmptySlots?: boolean;
     /** Clases adicionales para el contenedor */
     className?: string;
+    /** Habilitar o deshabilitar el arrastre */
+    isDraggable?: boolean;
 }
 
 export const DraggableGrid = ({
@@ -117,7 +118,8 @@ export const DraggableGrid = ({
     getItemRowSpan,
     getItemColSpan,
     rowHeight = 350,
-    showEmptySlots = true,
+    showEmptySlots = true, // Ahora puede ser controlado desde fuera
+    isDraggable = true,    // Por defecto true para compatibilidad
     className = ''
 }: DraggableGridProps) => {
     const gridColumns = useGridColumns();
@@ -158,7 +160,9 @@ export const DraggableGrid = ({
             {layout.map((itemKey, index) => {
                 // --- RENDERIZADO DE SLOT VACÍO ---
                 if (!itemKey) {
-                    if (!showEmptySlots) return null;
+                    if (!showEmptySlots) {
+                        return <div key={`empty-${index}`} className="invisible pointer-events-none" style={{ gridRow: 'span 1' }} />;
+                    }
                     
                     return (
                         <div
@@ -184,12 +188,16 @@ export const DraggableGrid = ({
                 return (
                     <div 
                         key={itemKey}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, index)}
+                        draggable={isDraggable}
+                        onDragStart={(e) => {
+                            if (!isDraggable) return;
+                            handleDragStart(e, index);
+                        }}
                         onDragOver={(e) => handleDragOver(e, index)}
                         onDragEnd={handleDragEnd}
                         className={`
-                            transition-all duration-200 cursor-grab active:cursor-grabbing
+                            transition-all duration-200
+                            ${isDraggable ? 'cursor-grab active:cursor-grabbing hover:shadow-md' : ''}
                             ${isDragging ? 'opacity-50 scale-95 ring-2 ring-indigo-400 ring-offset-2 rounded-2xl' : ''} 
                             ${colSpan === 2 ? 'md:col-span-2' : ''}
                             ${colSpan === 3 ? 'xl:col-span-3' : ''}

@@ -1,5 +1,6 @@
+// src/features/devices/DevicesPage.tsx
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { Search, Server, X, Wifi, AlertCircle, Layers, MapPin, Monitor, Lock, Edit2, GripVertical, LayoutList, LayoutGrid } from 'lucide-react';
+import { Search, Server, X, Wifi, AlertCircle, Layers, MapPin, Monitor, Lock, Edit2, GripVertical, LayoutList, LayoutGrid, Move, RefreshCw } from 'lucide-react';
 import { useAuth } from '../auth/AuthContext';
 import { useNotification } from '../../context/NotificationContext';
 import { API_BASE_URL } from '../../config/api';
@@ -9,40 +10,52 @@ import { themes } from '../../config/theme';
 import { Button } from '../../components/ui/Modal';
 import { PlusCircleIcon } from '../../components/ui/Icons';
 import { Tooltip } from '../../components/ui/Tooltip';
-import { ZonesManagerModal } from './ZonesManagerModal'; // Importar el nuevo componente
+import { ZonesManagerModal } from './ZonesManagerModal';
 import { DraggableGrid, useGridColumns, useDynamicLayout } from '../../components/ui/DraggableGrid';
+import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
 
 const DEVICE_STORAGE_KEY = 'device_local_state_v1';
-const GRID_LAYOUT_KEY = 'device_grid_layout_v2'; // Nueva versión para el grid con huecos
-const ROW_HEIGHT = 350; // Altura fija para el sistema de celdas (Tarjeta + Header + Padding)
+const GRID_LAYOUT_KEY = 'device_grid_layout_v2';
+const ZONE_VIEW_MODES_KEY = 'device_zone_view_modes_v1';
+const ROW_HEIGHT = 374;
 
 export const DevicesPage = () => {
-    // --- Contextos y Hooks ---
+    // ... (El resto de hooks y estados se mantiene igual) ...
     const { getToken, can, user } = useAuth();
     const { addNotification } = useNotification();
 
-    // --- Estados ---
     const [devices, setDevices] = useState<Device[]>([]);
     const [loading, setLoading] = useState(true);
     const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
     const [editingDevice, setEditingDevice] = useState<Device | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
-    const [isZonesModalOpen, setIsZonesModalOpen] = useState(false); // Nuevo estado
-    const [selectedZoneId, setSelectedZoneId] = useState<number | null>(null); // Para editar zona específica
-    const [zoneViewModes, setZoneViewModes] = useState<Record<string, 'list' | 'grid'>>({});
-    // Estado granular para acciones
+    const [isZonesModalOpen, setIsZonesModalOpen] = useState(false);
+    const [selectedZoneId, setSelectedZoneId] = useState<number | null>(null);
+    const [zoneViewModes, setZoneViewModes] = useState<Record<string, 'list' | 'grid'>>(() => {
+        try {
+            return JSON.parse(localStorage.getItem(ZONE_VIEW_MODES_KEY) || '{}');
+        } catch {
+            return {};
+        }
+    });
+    const [isLayoutEditMode, setIsLayoutEditMode] = useState(false);
     const [actionState, setActionState] = useState<{ [id: number]: 'sync_logs' | 'sync_users' | 'test' | 'sync_time' | null }>({});
+    const [confirmModal, setConfirmModal] = useState<{
+        isOpen: boolean;
+        title: string;
+        message: string;
+        onConfirm: () => void;
+        variant?: 'danger' | 'warning' | 'info' | 'success';
+    }>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
 
-    // --- Permisos ---
     const canRead = can('dispositivos.read');
     const canCreate = can('dispositivos.create');
 
-    // --- Efectos ---
     useEffect(() => {
         if (canRead) fetchDevices();
     }, [canRead]);
 
-    // --- Persistencia ---
+    // ... (Persistencia y lógica del Grid igual) ...
     useEffect(() => {
         if (devices.length > 0) {
             const stateToSave: Record<number, { Estado: string, UltimaSincronizacion?: string }> = {};
@@ -56,17 +69,17 @@ export const DevicesPage = () => {
         }
     }, [devices]);
 
-    const gridColumns = useGridColumns(); // Usamos el hook importado
+    useEffect(() => {
+        localStorage.setItem(ZONE_VIEW_MODES_KEY, JSON.stringify(zoneViewModes));
+    }, [zoneViewModes]);
 
-    // --- Preparar datos para el Hook de Layout ---
-    // 1. Lista de zonas actuales (Estable)
+    const gridColumns = useGridColumns();
+
     const currentZoneNames = useMemo(() => 
         Array.from(new Set(devices.map(d => d.ZonaNombre || 'Sin Zona Asignada'))), 
     [devices]);
 
-    // 2. Función para calcular tamaño visual (Estable)
     const getItemVisualSize = useCallback((zone: string, cols: number) => {
-        // Usamos 'devices' raw para que el layout no salte al filtrar
         const count = devices.filter(d => (d.ZonaNombre || 'Sin Zona Asignada') === zone).length;
         const isGridMode = (zoneViewModes[zone] || 'list') === 'grid';
         const effectiveColSpan = (isGridMode && cols >= 2) ? 2 : 1;
@@ -74,7 +87,6 @@ export const DevicesPage = () => {
         return rowSpan * effectiveColSpan;
     }, [devices, zoneViewModes]);
 
-    // 3. Hook Mágico: Maneja toda la sincronización y huecos
     const [gridLayout, setGridLayout] = useDynamicLayout(
         GRID_LAYOUT_KEY,
         currentZoneNames,
@@ -82,7 +94,7 @@ export const DevicesPage = () => {
         getItemVisualSize
     );
 
-    // --- Helpers ---
+    // ... (Helpers y funciones de acción iguales: setDeviceAction, handleTestConnection, fetchDevices, syncs...) ...
     const setDeviceAction = (id: number, action: 'sync_logs' | 'sync_users' | 'test' | 'sync_time' | null) => {
         setActionState(prev => ({ ...prev, [id]: action }));
     };
@@ -90,74 +102,45 @@ export const DevicesPage = () => {
     const handleTestConnection = async (id: number, silent: boolean = false) => {
         const token = getToken();
         if (!token) return;
-
         if (!silent) setDeviceAction(id, 'test');
-
         try {
             const response = await fetch(`${API_BASE_URL}/devices/${id}/test-connection`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
             });
             if (!response.ok) throw new Error('Sin respuesta del dispositivo');
-
             if (!silent) addNotification('Conexión Exitosa', 'El dispositivo está en línea.', 'success');
-
-            setDevices(prev => prev.map(d =>
-                d.DispositivoId === id
-                    ? { ...d, Estado: 'Conectado', UltimaSincronizacion: new Date().toISOString() }
-                    : d
-            ));
+            setDevices(prev => prev.map(d => d.DispositivoId === id ? { ...d, Estado: 'Conectado', UltimaSincronizacion: new Date().toISOString() } : d));
         } catch (error: any) {
             if (!silent) addNotification('Error de Conexión', error.message, 'error');
-            setDevices(prev => prev.map(d =>
-                d.DispositivoId === id
-                    ? { ...d, Estado: 'Error' }
-                    : d
-            ));
+            setDevices(prev => prev.map(d => d.DispositivoId === id ? { ...d, Estado: 'Error' } : d));
         } finally {
             if (!silent) setDeviceAction(id, null);
         }
     };
 
-    // --- Funciones de Datos ---
     const fetchDevices = async () => {
         if (!canRead) return;
         const token = getToken();
         if (!token) return;
-
         try {
             setLoading(true);
-            const response = await fetch(`${API_BASE_URL}/devices`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-
+            const response = await fetch(`${API_BASE_URL}/devices`, { headers: { 'Authorization': `Bearer ${token}` } });
             if (!response.ok) throw new Error(`Error ${response.status}`);
-
             const data = await response.json();
-
-            // Cargar estado local
             const savedState = localStorage.getItem(DEVICE_STORAGE_KEY);
             let finalData = data;
-
             if (savedState) {
                 try {
                     const localMap = JSON.parse(savedState);
                     finalData = data.map((d: Device) => {
                         const local = localMap[d.DispositivoId];
-                        if (local) {
-                            return {
-                                ...d,
-                                Estado: local.Estado || d.Estado,
-                                UltimaSincronizacion: local.UltimaSincronizacion || d.UltimaSincronizacion
-                            };
-                        }
+                        if (local) return { ...d, Estado: local.Estado || d.Estado, UltimaSincronizacion: local.UltimaSincronizacion || d.UltimaSincronizacion };
                         return d;
                     });
                 } catch (e) { console.error("Error loading local state", e); }
             }
             setDevices(finalData);
-
-            // Intentar reconexión silenciosa para dispositivos desconectados
             finalData.forEach((d: Device) => {
                 if (d.Activo && (d.Estado === 'Error' || d.Estado === 'Desconectado')) {
                     handleTestConnection(d.DispositivoId, true);
@@ -170,7 +153,6 @@ export const DevicesPage = () => {
         }
     };
 
-    // ... (Mantén las funciones handleSyncLogs, handleSyncUsers, handleTestConnection, handleToggleDeleteLogs, handleSyncTime iguales que antes) ...
     const handleSyncLogs = async (device: Device) => {
         const token = getToken();
         if (!token) return;
@@ -199,23 +181,32 @@ export const DevicesPage = () => {
     const handleSyncUsers = async (device: Device) => {
         const token = getToken();
         if (!token) return;
-        if (!window.confirm(`¿Sincronizar empleados COMPLETOS con ${device.Nombre}?`)) return;
-        setDeviceAction(device.DispositivoId, 'sync_users');
-        try {
-            const response = await fetch(`${API_BASE_URL}/devices/${device.DispositivoId}/sync-employees`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
-            });
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.message || 'Fallo sincronización');
-            const stats = data.stats || {};
-            addNotification('Sincronización Personal', `Importados: ${stats.importedFromDevice || 0}, Enviados: ${stats.sentToDevice || 0}, Eliminados: ${stats.deletedFromDevice || 0}`, 'success');
-            setDevices(prev => prev.map(d => d.DispositivoId === device.DispositivoId ? { ...d, Estado: 'Conectado', UltimaSincronizacion: new Date().toISOString() } : d));
-        } catch (error: any) {
-            addNotification('Error Personal', error.message, 'error');
-        } finally {
-            setDeviceAction(device.DispositivoId, null);
-        }
+        
+        setConfirmModal({
+            isOpen: true,
+            title: 'Sincronizar Personal',
+            message: `¿Estás seguro de sincronizar la lista COMPLETA de empleados con el dispositivo "${device.Nombre}"? Esta acción puede tomar tiempo.`,
+            variant: 'warning',
+            onConfirm: async () => {
+                setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                setDeviceAction(device.DispositivoId, 'sync_users');
+                try {
+                    const response = await fetch(`${API_BASE_URL}/devices/${device.DispositivoId}/sync-employees`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+                    });
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.message || 'Fallo sincronización');
+                    const stats = data.stats || {};
+                    addNotification('Sincronización Personal', `Importados: ${stats.importedFromDevice || 0}, Enviados: ${stats.sentToDevice || 0}, Eliminados: ${stats.deletedFromDevice || 0}`, 'success');
+                    setDevices(prev => prev.map(d => d.DispositivoId === device.DispositivoId ? { ...d, Estado: 'Conectado', UltimaSincronizacion: new Date().toISOString() } : d));
+                } catch (error: any) {
+                    addNotification('Error Personal', error.message, 'error');
+                } finally {
+                    setDeviceAction(device.DispositivoId, null);
+                }
+            }
+        });
     };
 
     const handleToggleDeleteLogs = async (device: Device) => {
@@ -252,29 +243,26 @@ export const DevicesPage = () => {
         }
     };
 
-    const handleEditDevice = (device: Device) => {
-        setEditingDevice(device);
-        setIsCreateModalOpen(true);
-    };
-
-    const handleCloseModal = () => {
-        setIsCreateModalOpen(false);
-        setEditingDevice(null);
-    };
-
-    const handleEditZone = (zonaId: number) => {
-        setSelectedZoneId(zonaId);
-        setIsZonesModalOpen(true);
-    };
-
+    const handleEditDevice = (device: Device) => { setEditingDevice(device); setIsCreateModalOpen(true); };
+    const handleCloseModal = () => { setIsCreateModalOpen(false); setEditingDevice(null); };
+    const handleEditZone = (zonaId: number) => { setSelectedZoneId(zonaId); setIsZonesModalOpen(true); };
     const toggleZoneViewMode = (zone: string) => {
-        setZoneViewModes(prev => ({
-            ...prev,
-            [zone]: prev[zone] === 'grid' ? 'list' : 'grid'
-        }));
+        setZoneViewModes(prev => ({ ...prev, [zone]: prev[zone] === 'grid' ? 'list' : 'grid' }));
+    };
+    const handleSyncZone = async (e: React.MouseEvent, zoneDevices: Device[]) => {
+        e.stopPropagation();
+        setConfirmModal({
+            isOpen: true,
+            title: 'Sincronizar Zona',
+            message: `¿Deseas sincronizar los registros de asistencia de los ${zoneDevices.length} dispositivos en esta zona?`,
+            variant: 'info',
+            onConfirm: () => {
+                setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                zoneDevices.filter(d => d.Activo).forEach(d => handleSyncLogs(d));
+            }
+        });
     };
 
-    // --- Lógica de Presentación ---
     const stats = useMemo(() => {
         const total = devices.length;
         const online = devices.filter(d => d.Estado === 'Conectado').length;
@@ -283,17 +271,12 @@ export const DevicesPage = () => {
     }, [devices]);
 
     const filteredDevices = useMemo(() => {
-        return devices.filter(d =>
-            d.Nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            d.IpAddress.includes(searchTerm)
-        );
+        return devices.filter(d => d.Nombre.toLowerCase().includes(searchTerm.toLowerCase()) || d.IpAddress.includes(searchTerm));
     }, [devices, searchTerm]);
 
-    // Agrupación por Zona (Para mantener el contenedor compartido)
     const devicesByZone = useMemo(() => {
         const groups: Record<string, Device[]> = {};
         const sorted = [...filteredDevices].sort((a, b) => a.Nombre.localeCompare(b.Nombre));
-
         sorted.forEach(d => {
             const zone = d.ZonaNombre || 'Sin Zona Asignada';
             if (!groups[zone]) groups[zone] = [];
@@ -302,20 +285,11 @@ export const DevicesPage = () => {
         return groups;
     }, [filteredDevices]);
 
-    if (!canRead) {
-        return (
-            <div className="flex items-center justify-center h-full">
-                <div className="text-center p-8 text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-                    <Lock className="mx-auto mb-3 opacity-20" size={48} />
-                    <h2 className="text-lg font-semibold text-slate-600">Acceso Restringido</h2>
-                </div>
-            </div>
-        );
-    }
+    if (!canRead) return (<div className="flex items-center justify-center h-full"><div className="text-center p-8 text-slate-400 bg-slate-50 rounded-2xl border border-dashed border-slate-200"><Lock className="mx-auto mb-3 opacity-20" size={48} /><h2 className="text-lg font-semibold text-slate-600">Acceso Restringido</h2></div></div>);
 
     return (
         <div className="space-y-4 h-full flex flex-col">
-            {/* Header & Stats */}
+            {/* ... Header y Toolbar (Sin cambios) ... */}
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
                 <div>
                     <h2 className="text-2xl font-bold text-slate-800">Dispositivos Biométricos</h2>
@@ -325,35 +299,24 @@ export const DevicesPage = () => {
                             <span className="flex items-center gap-1.5 text-slate-600 font-medium bg-slate-100 px-2 py-0.5 rounded-md"><Layers size={14} /> {stats.total}</span>
                             <span className="flex items-center gap-1.5 text-emerald-700 font-medium bg-emerald-50 px-2 py-0.5 rounded-md"><Wifi size={14} /> {stats.online}</span>
                             <span className="flex items-center gap-1.5 text-rose-700 font-medium bg-rose-50 px-2 py-0.5 rounded-md"><AlertCircle size={14} /> {stats.offline}</span>
-                            
-                            <div className="h-4 w-px bg-slate-200 mx-1"></div>
-
-                            <Tooltip text="Administrar Zonas">
-                                <button 
-                                    onClick={() => setIsZonesModalOpen(true)}
-                                    className="flex items-center gap-1.5 text-slate-600 font-medium hover:text-indigo-600 hover:bg-indigo-50 px-2 py-0.5 rounded-md transition-colors"
-                                >
-                                    <MapPin size={14} />
-                                    <span>Zonas</span>
-                                </button>
-                            </Tooltip>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Toolbar */}
             <div className="flex justify-between items-center">
-                <div className="relative group w-64">
+                <div className="flex items-center gap-3">
+                    <div className="relative group w-64">
                         <Search className="absolute left-3 top-2.5 text-slate-400 group-focus-within:text-[--theme-500] transition-colors" size={16} />
-                        <input
-                            type="text"
-                            className="w-full pl-9 pr-8 py-2.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[--theme-500] focus:border-transparent transition-all shadow-sm"
-                            placeholder="Buscar dispositivo..."
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
+                        <input type="text" className="w-full pl-9 pr-8 py-2.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[--theme-500] focus:border-transparent transition-all shadow-sm" placeholder="Buscar dispositivo..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
                         {searchTerm && <button onClick={() => setSearchTerm('')} className="absolute right-2 top-2.5 text-slate-400 hover:text-slate-600"><X size={16} /></button>}
+                    </div>
+                    <Tooltip text="Administrar Zonas">
+                        <button onClick={() => setIsZonesModalOpen(true)} className="p-2.5 rounded-lg border transition-all bg-white border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-50 shadow-sm"><MapPin size={18} /></button>
+                    </Tooltip>
+                    <Tooltip text={isLayoutEditMode ? "Terminar de organizar" : "Organizar zonas"}>
+                        <button onClick={() => setIsLayoutEditMode(!isLayoutEditMode)} className={`p-2.5 rounded-lg border transition-all ${isLayoutEditMode ? 'bg-indigo-50 border-indigo-200 text-indigo-600 shadow-inner' : 'bg-white border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-50 shadow-sm'}`}><Move size={18} /></button>
+                    </Tooltip>
                 </div>
                 {canCreate && <Button onClick={() => setIsCreateModalOpen(true)}><PlusCircleIcon /> Nuevo Dispositivo</Button>}
             </div>
@@ -361,20 +324,16 @@ export const DevicesPage = () => {
             {/* Content */}
             <div className="flex-1 overflow-y-auto min-h-0 pr-2">
                 {loading ? (
-                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-                        {[1, 2, 3].map(i => <div key={i} className="h-64 bg-slate-100 rounded-xl animate-pulse border border-slate-200" />)}
-                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">{[1, 2, 3].map(i => <div key={i} className="h-64 bg-slate-100 rounded-xl animate-pulse border border-slate-200" />)}</div>
                 ) : filteredDevices.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center h-64 text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
-                        <Server size={48} className="mb-4 opacity-20" />
-                        <p>No se encontraron dispositivos.</p>
-                    </div>
+                    <div className="flex flex-col items-center justify-center h-64 text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200"><Server size={48} className="mb-4 opacity-20" /><p>No se encontraron dispositivos.</p></div>
                 ) : (
                     <DraggableGrid
                         layout={gridLayout}
                         onLayoutChange={setGridLayout}
                         rowHeight={ROW_HEIGHT}
-                        showEmptySlots={true}
+                        showEmptySlots={isLayoutEditMode}
+                        isDraggable={isLayoutEditMode}
                         getItemColSpan={(zone, cols) => {
                             const isGridMode = (zoneViewModes[zone] || 'list') === 'grid';
                             return (isGridMode && cols >= 2) ? 2 : 1;
@@ -391,45 +350,71 @@ export const DevicesPage = () => {
                             if (!zoneDevices) return null;
                             const viewMode = zoneViewModes[zone] || 'list';
                             const isGridMode = viewMode === 'grid';
+                            const zoneColorName = zoneDevices[0]?.ZonaColor || 'indigo';
+                            const zoneTheme = themes[zoneColorName as keyof typeof themes] || themes.indigo;
+                            
+                            const containerStyle = !isLayoutEditMode ? {
+                                borderTop: `4px solid ${zoneTheme[500]}`,
+                                backgroundColor: '#f8fafc',
+                            } : {};
+
+                            const onlineCount = zoneDevices.filter(d => d.Activo && d.Estado === 'Conectado').length;
+                            const offlineCount = zoneDevices.filter(d => d.Activo && d.Estado !== 'Conectado').length;
+                            const isSyncingZone = zoneDevices.some(d => actionState[d.DispositivoId] === 'sync_logs');
 
                             return (
-                                <div className="rounded-2xl p-3 border-2 border-dashed border-slate-300 bg-slate-50/50 hover:border-slate-400 transition-colors h-full">
-                                    {/* ENCABEZADO DE ZONA */}
-                                    <div className="flex items-center justify-between mb-3 px-1 group">
+                                <div 
+                                    className={`
+                                        rounded-xl p-3 transition-all duration-200 h-full flex flex-col
+                                        ${isLayoutEditMode ? 'border-2 border-dashed border-indigo-300 bg-indigo-50/30 hover:border-indigo-400 shadow-sm' : 'border border-slate-200 shadow-sm hover:shadow-md'}
+                                    `}
+                                    style={containerStyle}
+                                >
+                                    {/* ENCABEZADO DE ZONA (Aquí están los cambios principales de acomodo) */}
+                                    <div className="flex items-center justify-between mb-2 px-1 group">
                                         <div className="flex items-center gap-2">
                                             <Tooltip text={`Dispositivos en: ${zone}`}>
-                                                <div className="p-1.5 bg-white rounded-lg text-indigo-600 shadow-sm border border-indigo-50">
-                                                    <MapPin size={14} />
+                                                <div 
+                                                    className={`p-1.5 rounded-lg shadow-sm border transition-colors ${isLayoutEditMode ? 'text-indigo-600 border-indigo-50 bg-white' : 'bg-white'}`}
+                                                    style={!isLayoutEditMode ? { color: zoneTheme[600], borderColor: zoneTheme[200] } : {}}
+                                                >
+                                                    <MapPin size={16} />
                                                 </div>
                                             </Tooltip>
-                                            <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wide truncate max-w-[150px] select-none">{zone}</h3>
+                                            <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wide truncate max-w-[150px] select-none">
+                                                {zone}
+                                            </h3>
+
+                                            {!isLayoutEditMode && (
+                                                <div className="flex items-center gap-2 ml-2">
+                                                    {onlineCount > 0 && <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-full border border-emerald-200">{onlineCount} ON</span>}
+                                                    {offlineCount > 0 && <span className="px-2 py-0.5 bg-rose-100 text-rose-700 text-[10px] font-bold rounded-full border border-rose-200">{offlineCount} OFF</span>}
+                                                    <div className="h-4 w-px bg-slate-300 mx-1"></div>
+                                                    <Tooltip text="Sincronizar toda la zona">
+                                                        <button onClick={(e) => handleSyncZone(e, zoneDevices)} disabled={isSyncingZone} className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-white rounded-md transition-all disabled:opacity-50">
+                                                            <RefreshCw size={14} className={isSyncingZone ? "animate-spin" : ""} />
+                                                        </button>
+                                                    </Tooltip>
+                                                </div>
+                                            )}
                                             
-                                            {zoneDevices.length > 1 && (
-                                                <button
-                                                    onClick={() => toggleZoneViewMode(zone)}
-                                                    className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
-                                                    title={viewMode === 'list' ? "Cambiar a cuadrícula" : "Cambiar a lista"}
-                                                >
+                                            {isLayoutEditMode && zoneDevices.length > 1 && (
+                                                <button onClick={() => toggleZoneViewMode(zone)} className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors">
                                                     {viewMode === 'list' ? <LayoutGrid size={14} /> : <LayoutList size={14} />}
                                                 </button>
                                             )}
 
                                             {zoneDevices[0]?.ZonaId > 0 && (
-                                                <button
-                                                    onClick={() => handleEditZone(zoneDevices[0].ZonaId)}
-                                                    className="opacity-0 group-hover:opacity-100 transition-all duration-200 p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md"
-                                                    title="Editar nombre de zona"
-                                                >
+                                                <button onClick={() => handleEditZone(zoneDevices[0].ZonaId)} className="opacity-0 group-hover:opacity-100 transition-all duration-200 p-1 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md">
                                                     <Edit2 size={12} />
                                                 </button>
                                             )}
                                         </div>
-                                        <div className="text-slate-300 group-hover:text-slate-500 transition-colors cursor-grab active:cursor-grabbing">
-                                            <GripVertical size={16} />
-                                        </div>
+                                        {isLayoutEditMode && <div className="text-slate-300 group-hover:text-slate-500 transition-colors cursor-grab active:cursor-grabbing"><GripVertical size={16} /></div>}
                                     </div>
 
-                                    <div className={isGridMode ? "grid grid-cols-1 sm:grid-cols-2 gap-4" : "flex flex-col gap-4"}>
+                                    <div className={`relative flex-1 ${isGridMode ? "grid grid-cols-1 sm:grid-cols-2 gap-4" : "flex flex-col gap-4"}`}>
+                                        {isLayoutEditMode && <div className="absolute inset-0 z-10" />}
                                         {zoneDevices.map((dev, index) => (
                                             <div key={dev.DispositivoId} className="h-full">
                                                 <DeviceCard
@@ -442,13 +427,10 @@ export const DevicesPage = () => {
                                                     onToggleDeleteLogs={handleToggleDeleteLogs}
                                                     onSyncTime={handleSyncTime}
                                                 />
-
-                                                {/* Separador sutil si no es el último */}
-                                                {!isGridMode && index < zoneDevices.length - 1 && (
-                                                    <div className="border-b border-slate-200 mt-4 mb-2 mx-2 border-dashed opacity-50"></div>
-                                                )}
-                                            </div>
+                                                {!isGridMode && index < zoneDevices.length - 1 && <div className="h-12 border-b border-slate-200 mt-4 mb-2 mx-2 border-dashed opacity-50"></div>}
+                                            </div> 
                                         ))}
+                                        
                                     </div>
                                 </div>
                             );
@@ -457,19 +439,23 @@ export const DevicesPage = () => {
                 )}
             </div>
 
-            {/* Modal */}
-            <DeviceModal
-                isOpen={isCreateModalOpen}
-                onClose={handleCloseModal}
-                onSuccess={fetchDevices}
-                deviceToEdit={editingDevice}
+            <DeviceModal isOpen={isCreateModalOpen} onClose={handleCloseModal} onSuccess={fetchDevices} deviceToEdit={editingDevice} />
+            <ZonesManagerModal 
+                isOpen={isZonesModalOpen} 
+                onClose={() => { setIsZonesModalOpen(false); setSelectedZoneId(null); }} 
+                initialZoneId={selectedZoneId} 
+                onZoneUpdated={fetchDevices}
             />
             
-            <ZonesManagerModal 
-                isOpen={isZonesModalOpen}
-                onClose={() => { setIsZonesModalOpen(false); setSelectedZoneId(null); }}
-                initialZoneId={selectedZoneId}
-            />
+            <ConfirmationModal
+                isOpen={confirmModal.isOpen}
+                onClose={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                onConfirm={confirmModal.onConfirm}
+                title={confirmModal.title}
+                variant={confirmModal.variant}
+            >
+                {confirmModal.message}
+            </ConfirmationModal>
         </div>
     );
 };

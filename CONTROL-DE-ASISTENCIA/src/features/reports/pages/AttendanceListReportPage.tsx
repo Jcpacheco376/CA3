@@ -10,7 +10,7 @@ import { Tooltip } from '../../../components/ui/Tooltip';
 import { useAuth } from '../../auth/AuthContext';
 import { API_BASE_URL } from '../../../config/api';
 import { PayrollGuardModal } from '../components/PayrollGuardModal';
-import { format } from 'date-fns';
+import { format, differenceInDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 import { exportToExcel } from '../../../utils/reportExporter';
@@ -25,6 +25,7 @@ import { AttendanceToolbar } from '../../attendance/AttendanceToolbar';
 import { ReportValidators } from '../definitions/ReportRules';
 import { EmployeeProfileModal } from '../../attendance/EmployeeProfileModal';
 import { AttendanceToolbarProvider, useAttendanceToolbarContext } from '../../attendance/AttendanceToolbarContext';
+import { ConfirmationModal } from '../../../components/ui/ConfirmationModal';
 
 // --- TIPOS ---
 interface FichaData {
@@ -70,11 +71,11 @@ const AttendanceListReportPageContent = () => {
     const { getToken, user, can } = useAuth();
 
     const { 
-        filters, dateRange
+        filters, dateRange, startDate, endDate
     } = useAttendanceToolbarContext();
 
     const [isLoading, setIsLoading] = useState(false);
-    const [isInitialLoading, setIsInitialLoading] = useState(false); // <--- ESTADO ANTI-PARPADEO
+    const [isInitialLoading, setIsInitialLoading] = useState(false);
     const [reportData, setReportData] = useState<EmpleadoReporte[]>([]);
     const [expandedRows, setExpandedRows] = useState<number[]>([]);
     const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({ key: 'nombre', direction: 'asc' });
@@ -82,6 +83,7 @@ const AttendanceListReportPageContent = () => {
 
     const [validationResult, setValidationResult] = useState<any>(null);
     const [isGuardModalOpen, setIsGuardModalOpen] = useState(false);
+    const [isLongPeriodConfirmOpen, setIsLongPeriodConfirmOpen] = useState(false);
     const [pendingFilters, setPendingFilters] = useState<any>(null);
     const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -94,7 +96,7 @@ const AttendanceListReportPageContent = () => {
             setExpandedRows([]); 
             setValidationResult(null); 
         }
-    }, [dateRange, filters]);
+    }, [dateRange, filters, startDate, endDate]);
 
     const toggleRow = (id: number) => setExpandedRows(prev => prev.includes(id) ? prev.filter(r => r !== id) : [...prev, id]);
     const handleSort = (key: SortKey) => setSortConfig(current => ({ key, direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc' }));
@@ -103,6 +105,16 @@ const AttendanceListReportPageContent = () => {
     const handleGenerateClick = async () => {
         if (!dateRange || dateRange.length === 0) return;
 
+        // Advertencia de periodo largo
+        if (startDate && endDate && differenceInDays(endDate, startDate) > 32) {
+            setIsLongPeriodConfirmOpen(true);
+            return;
+        }
+        startValidationProcess();
+    };
+
+    const startValidationProcess = async () => {
+        setIsLongPeriodConfirmOpen(false);
         setIsLoading(true);
         // NO activamos isInitialLoading aquí porque es solo validación (semáforo)
         // La carga real de datos ocurre en handleConfirmGeneration
@@ -251,6 +263,8 @@ const AttendanceListReportPageContent = () => {
 
             <div className="bg-white rounded-lg shadow-sm border border-slate-200">
                 <AttendanceToolbar
+                    allowCustomRange={true}
+                  
                 />
             </div>
 
@@ -368,6 +382,18 @@ const AttendanceListReportPageContent = () => {
                 onConfirm={handleConfirmGeneration} validation={validationResult} canOverride={true}
                 reportType="attendance_list"
             />
+
+            <ConfirmationModal
+                isOpen={isLongPeriodConfirmOpen}
+                onClose={() => setIsLongPeriodConfirmOpen(false)}
+                onConfirm={startValidationProcess}
+                title="Periodo Extenso"
+                variant="warning"
+                confirmText="Continuar"
+            >
+                <p>El periodo seleccionado es muy largo.</p>
+                <p className="text-sm text-slate-500 mt-2">Generar este reporte podría tardar considerablemente. ¿Estás seguro de continuar?</p>
+            </ConfirmationModal>
 
             <PDFPreviewModal
                 isOpen={isPreviewOpen} onClose={() => setIsPreviewOpen(false)} pdfUrl={previewPdfUrl}

@@ -19,7 +19,7 @@ export const getDevices = async (req: Request, res: Response) => {
         const result = await pool.request().query(`
            SELECT d.DispositivoId, d.Nombre, d.IpAddress, d.Puerto, d.ZonaId, 
                    d.Activo, d.Estado, d.UltimaSincronizacion, d.BorrarChecadas, 
-                   z.Nombre as ZonaNombre,
+                   z.Nombre as ZonaNombre, z.ColorUI as ZonaColor,
                    CASE WHEN d.PasswordCom IS NOT NULL AND d.PasswordCom <> '0' AND d.PasswordCom <> '' THEN 1 ELSE 0 END as TieneContrasena
             FROM Dispositivos d
             LEFT JOIN Zonas z ON d.ZonaId = z.ZonaId
@@ -36,13 +36,12 @@ export const getZones = async (req: Request, res: Response) => {
         const pool = await sql.connect(dbConfig);
         // Hacemos un LEFT JOIN para contar dispositivos activos por zona
         const result = await pool.request().query(`
-            SELECT z.ZonaId, z.Nombre, z.Descripcion, 
+            SELECT z.ZonaId, z.Nombre, z.Descripcion, z.ColorUI, z.Activo,
                    COUNT(d.DispositivoId) as DispositivosCount
             FROM Zonas z
             LEFT JOIN Dispositivos d ON z.ZonaId = d.ZonaId AND d.Activo = 1
-            WHERE z.Activo = 1
-            GROUP BY z.ZonaId, z.Nombre, z.Descripcion
-            ORDER BY z.Nombre
+            GROUP BY z.ZonaId, z.Nombre, z.Descripcion, z.ColorUI, z.Activo
+            ORDER BY z.Activo DESC, z.Nombre
         `);
         res.json(result.recordset);
     } catch (error) {
@@ -50,7 +49,7 @@ export const getZones = async (req: Request, res: Response) => {
     }
 };
 export const createZone = async (req: Request, res: Response) => {
-    const { Nombre, Descripcion } = req.body;
+    const { Nombre, Descripcion, ColorUI } = req.body;
     try {
         const pool = await sql.connect(dbConfig);
         
@@ -58,10 +57,11 @@ export const createZone = async (req: Request, res: Response) => {
         const result = await pool.request()
             .input('Nombre', sql.NVarChar, Nombre)
             .input('Descripcion', sql.NVarChar, Descripcion || '')
+            .input('ColorUI', sql.NVarChar, ColorUI || null)
             .query(`
-                INSERT INTO Zonas (Nombre, Descripcion, Activo)
-                OUTPUT INSERTED.ZonaId, INSERTED.Nombre
-                VALUES (@Nombre, @Descripcion, 1)
+                INSERT INTO Zonas (Nombre, Descripcion, ColorUI, Activo)
+                OUTPUT INSERTED.ZonaId, INSERTED.Nombre, INSERTED.ColorUI
+                VALUES (@Nombre, @Descripcion, @ColorUI, 1)
             `);
         
         const newZone = result.recordset[0];
@@ -72,6 +72,45 @@ export const createZone = async (req: Request, res: Response) => {
         res.status(500).json({ message: 'Error al crear la zona' });
     }
 };
+
+export const updateZone = async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const { Nombre, Descripcion, ColorUI, Activo } = req.body;
+    try {
+        const pool = await sql.connect(dbConfig);
+        const request = pool.request()
+            .input('Id', sql.Int, id)
+            .input('Nombre', sql.NVarChar, Nombre)
+            .input('Descripcion', sql.NVarChar, Descripcion || '')
+            .input('ColorUI', sql.NVarChar, ColorUI || null);
+        
+        let query = 'UPDATE Zonas SET Nombre=@Nombre, Descripcion=@Descripcion, ColorUI=@ColorUI';
+        if (Activo !== undefined) {
+            request.input('Activo', sql.Bit, Activo);
+            query += ', Activo=@Activo';
+        }
+        query += ' WHERE ZonaId=@Id';
+
+        await request.query(query);
+        res.json({ message: 'Zona actualizada' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error al actualizar la zona' });
+    }
+};
+
+export const deleteZone = async (req: Request, res: Response) => {
+    const { id } = req.params;
+    try {
+        const pool = await sql.connect(dbConfig);
+        await pool.request()
+            .input('Id', sql.Int, id)
+            .query('UPDATE Zonas SET Activo = 0 WHERE ZonaId = @Id');
+        res.json({ message: 'Zona desactivada correctamente' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error al desactivar la zona' });
+    }
+};
+
 export const createDevice = async (req: Request, res: Response) => {
     const { Nombre, IpAddress, Puerto, ZonaId, PasswordCom, TipoConexion, BorrarChecadas, Activo } = req.body;
     try {

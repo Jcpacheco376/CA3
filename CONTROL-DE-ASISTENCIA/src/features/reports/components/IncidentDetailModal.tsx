@@ -14,7 +14,7 @@ import { useAuth } from '../../auth/AuthContext';
 import { format, formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { AttendanceStatusCode } from '../../../types';
-import { statusColorPalette } from '../../../config/theme';
+import { statusColorPalette, themes } from '../../../config/theme';
 import { ConfirmationModal } from '../../../components/ui/ConfirmationModal';
 import { useNotification } from '../../../context/NotificationContext';
 import { UserAvatar } from '../../../components/ui/UserAvatar';
@@ -30,12 +30,12 @@ const getColorClasses = (colorName: string = 'slate') => {
 
 const SeverityBadge = ({ severity }: { severity: string }) => {
     const config = {
-        'Critica': { bg: 'bg-rose-100', text: 'text-rose-700', border: 'border-rose-200', icon: <BadgeAlert size={12} /> },
-        'Advertencia': { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', icon: <AlertTriangle size={12} /> },
-        'Info': { bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-200', icon: <Info size={12} /> },
+        'Critica': { bg: 'bg-rose-100', text: 'text-rose-700', border: 'border-rose-200', icon: <BadgeAlert size={12}/> },
+        'Advertencia': { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', icon: <AlertTriangle size={12}/> },
+        'Info': { bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-200', icon: <Info size={12}/> },
     };
     const style = config[severity as keyof typeof config] || config['Info'];
-
+    
     return (
         <Tooltip text={`Nivel de severidad: ${severity}`}>
             <span className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold border ${style.bg} ${style.text} ${style.border}`}>
@@ -43,6 +43,61 @@ const SeverityBadge = ({ severity }: { severity: string }) => {
             </span>
         </Tooltip>
     );
+};
+
+// Helper para descripciones de acciones en el historial
+const getActionDescription = (action: string) => {
+    switch (action) {
+        case 'ActualizacionAutomatica': return 'El sistema actualizó la incidencia automáticamente.';
+        case 'Asignar': return 'La responsabilidad de la incidencia fue transferida.';
+        case 'AutoResolucion': return 'La incidencia se resolvió automáticamente por el sistema.';
+        case 'AutorizacionTotal': return 'La solicitud ha recibido todas las autorizaciones necesarias.';
+        case 'CancelarSolicitud': return 'La solicitud de autorización fue cancelada.';
+        case 'CorreccionManual': return 'Se modificó el estatus de asistencia manualmente.';
+        case 'CreacionAutomatica': return 'La incidencia fue creada automáticamente por el sistema.';
+        case 'EvolucionAutomatica': return 'El estado de la incidencia evolucionó automáticamente.';
+        case 'ReaperturaAutomatica': return 'La incidencia fue reabierta automáticamente.';
+        case 'RechazarSolicitud': return 'La solicitud de autorización fue rechazada.';
+        case 'Resolver': return 'La incidencia ha sido resuelta y cerrada.';
+        case 'SolicitarAutorizacion': return 'Se ha solicitado la aprobación del estatus.';
+        case 'VotoPositivo': return 'Se registró un voto a favor de la autorización.';
+        default: return 'Registro de actividad en la bitácora.';
+    }
+};
+
+const formatActionName = (action: string) => {
+    return action ? action.replace(/([A-Z])/g, ' $1').trim() : action;
+};
+
+// Helper para estilos de acciones en el historial
+const getActionStyle = (action: string) => {
+    if (action && action.includes('Automatica')) {
+        return 'bg-slate-50 border-slate-200 text-slate-600';
+    }
+    switch (action) {
+        case 'Asignar': return 'bg-blue-50 border-blue-200 text-blue-900';
+        case 'Resolver': return 'bg-emerald-50 border-emerald-200 text-emerald-900';
+        case 'AutoResolucion' : return 'bg-emerald-50 border-emerald-200 text-emerald-900';
+        case 'ResolucionManual' : return 'bg-emerald-50 border-emerald-200 text-emerald-900';
+        case 'SolicitarAutorizacion': return 'bg-amber-50 border-amber-200 text-amber-900';
+        case 'AutorizacionTotal': return 'bg-green-50 border-green-200 text-green-900';
+        case 'VotoPositivo': return 'bg-teal-50 border-teal-200 text-teal-900';
+        case 'RechazarSolicitud': return 'bg-red-50 border-red-200 text-red-900';
+        case 'CancelarSolicitud': return 'bg-rose-50 border-rose-200 text-rose-900';
+        case 'CorreccionManual': return 'bg-purple-50 border-purple-200 text-purple-900';
+        default: return 'bg-white border-slate-200 text-slate-700';
+    }
+};
+
+const getStatusDescription = (status: string) => {
+    switch (status) {
+        case 'Nueva': return 'Incidencia recién creada, requiere atención.';
+        case 'Asignada': return 'Incidencia asignada a un gestor para su resolución.';
+        case 'PorAutorizar': return 'Esperando autorización de un supervisor.';
+        case 'Resuelta': return 'Incidencia cerrada y aplicada en nómina.';
+        case 'Cancelada': return 'Incidencia anulada.';
+        default: return 'Estado actual de la incidencia.';
+    }
 };
 
 interface IncidentDetailModalProps {
@@ -91,12 +146,12 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
         if (isOpen && incidentId) {
             setData(null); setAction(null); setComment(''); setSelectedUser(''); setSelectedStatus('');
             fetchDetails();
-
+            
             const token = getToken();
             fetch(`${API_BASE_URL}/catalogs/attendance-statuses`, { headers: { 'Authorization': `Bearer ${token}` } })
                 .then(res => res.ok ? res.json() : [])
                 .then(data => setStatusCatalog(data))
-                .catch(() => { });
+                .catch(() => {});
         }
     }, [isOpen, incidentId, getToken]);
 
@@ -280,8 +335,9 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
         const isClosed = ['Resuelta', 'Cancelada'].includes(header.Estado);
         const isPendingAuth = header.Estado === 'PorAutorizar';
 
-        const iRequestedIt = header.SolicitadoPorUsuarioId === user?.UsuarioId;
-        const canCancelAuth = isPendingAuth && (iRequestedIt || user?.permissions['incidencias.resolve']);
+        // Lógica actualizada para cancelar solicitud
+        const canCancelAuth = isPendingAuth && (header.SolicitadoPorUsuarioId === user?.UsuarioId || user?.permissions['incidencias.resolve']);
+        
         const canAssign = !isClosed && !isPendingAuth && (header.Estado === 'Nueva' || amIAssigned || user?.permissions['incidencias.assign']);
         const canAct = !isClosed && !isPendingAuth && amIAssigned;
 
@@ -298,14 +354,17 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
                             </span>
                             <div className="flex gap-2">
                                 {header.NivelCriticidad && <SeverityBadge severity={header.NivelCriticidad} />}
-                                <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${header.Estado === 'Nueva' ? 'bg-blue-50 text-blue-700 border-blue-100' :
-                                    header.Estado === 'Asignada' ? 'bg-purple-50 text-purple-700 border-purple-100' :
+                                <Tooltip text={getStatusDescription(header.Estado)}>
+                                    <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${
+                                        header.Estado === 'Nueva' ? 'bg-blue-50 text-blue-700 border-blue-100' :
+                                        header.Estado === 'Asignada' ? 'bg-purple-50 text-purple-700 border-purple-100' :
                                         header.Estado === 'PorAutorizar' ? 'bg-amber-50 text-amber-700 border-amber-100' :
-                                            header.Estado === 'Resuelta' ? 'bg-green-50 text-green-700 border-green-100' :
-                                                'bg-slate-50 text-slate-500 border-slate-200'
+                                        header.Estado === 'Resuelta' ? 'bg-green-50 text-green-700 border-green-100' :
+                                        'bg-slate-50 text-slate-500 border-slate-200'
                                     }`}>
-                                    {header.Estado}
-                                </span>
+                                        {header.Estado}
+                                    </span>
+                                </Tooltip>
                             </div>
                         </div>
                         <h3 className="text-lg font-bold text-slate-900 leading-tight truncate" title={header.Empleado}>{header.Empleado}</h3>
@@ -319,31 +378,63 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
                     <div className="px-5 mb-4">
                         {(() => {
                             const sysStatus = statusCatalog.find(s => s.Abreviatura === header.EstatusChecadorOriginal);
-                            const manStatus = statusCatalog.find(s => s.Abreviatura === header.EstatusManualOriginal);
-
+                            const manStatusOriginal = statusCatalog.find(s => s.Abreviatura === header.EstatusManualOriginal);
+                            const manStatusActual = statusCatalog.find(s => s.Abreviatura === header.EstatusManualActual);
+                            
+                            // Usamos colores de texto en lugar de fondo completo para reducir la intensidad
                             const sysColor = sysStatus?.ColorUI ? `text-${sysStatus.ColorUI}-600` : 'text-slate-600';
-                            const manColor = manStatus?.ColorUI ? `text-${manStatus.ColorUI}-600` : 'text-indigo-600';
-
+                            const manColorOriginal = manStatusOriginal?.ColorUI ? `text-${manStatusOriginal.ColorUI}-600` : 'text-indigo-600';
+                            const manColorActual = manStatusActual?.ColorUI ? `text-${manStatusActual.ColorUI}-600` : 'text-emerald-600';
+                            
+                            const hasStatusChanged = header.EstatusManualActual && header.EstatusManualActual !== header.EstatusManualOriginal;
+                            
                             return (
-                                <div className="relative flex shadow-sm rounded-xl overflow-hidden border border-slate-200 h-20 group bg-white">
-                                    <div className="flex-1 flex flex-col items-center justify-center relative border-r border-slate-100">
-                                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5 flex items-center gap-1.5"><Clock size={12} /> Checador</div>
-                                        <div className={`text-2xl font-black tracking-tight ${sysColor}`}>{header.EstatusChecadorOriginal || '-'}</div>
-                                        <div className="text-[9px] text-slate-400 truncate max-w-[120px]">{sysStatus?.Descripcion || 'No registrado'}</div>
+                        <div className="relative flex shadow-sm rounded-xl overflow-hidden border border-slate-200 h-20 group bg-white">
+                            <div className="flex-1 flex flex-col items-center justify-center relative border-r border-slate-100">
+                                <Tooltip text="Estatus calculado automáticamente por el reloj checador">
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5 flex items-center gap-1.5"><Clock size={12} /> Sistema</div>
+                                </Tooltip>
+                                <Tooltip text={sysStatus?.Descripcion || 'Sin descripción'}>
+                                    <div className={`text-2xl font-black tracking-tight ${sysColor}`}>{header.EstatusChecadorOriginal || '-'}</div>
+                                </Tooltip>
+                                <div className="text-[9px] text-slate-400 truncate max-w-[120px]">{sysStatus?.Descripcion || 'No registrado'}</div>
+                            </div>
+                            
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
+                                <Tooltip text="Comparativa: Sistema vs Manual">
+                                    <div className="bg-slate-50 border border-slate-200 rounded-full w-6 h-6 flex items-center justify-center shadow-sm">
+                                        <span className="text-[8px] font-black text-slate-400 italic">VS</span>
                                     </div>
-
-                                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
-                                        <div className="bg-slate-50 border border-slate-200 rounded-full w-6 h-6 flex items-center justify-center shadow-sm">
-                                            <span className="text-[8px] font-black text-slate-400 italic">VS</span>
+                                </Tooltip>
+                            </div>
+                            
+                            <div className={`flex-1 flex flex-col items-center justify-center relative ${hasStatusChanged ? 'bg-emerald-50/30' : ''}`}>
+                                <Tooltip text="Estatus asignado manualmente o propuesto para corrección">
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5 flex items-center gap-1.5">Manual <UserCog size={12} /></div>
+                                </Tooltip>
+                                {hasStatusChanged ? (
+                                    <div className="flex flex-col items-center justify-center">
+                                        <div className="flex items-center gap-2">
+                                            <Tooltip text={manStatusOriginal?.Descripcion || 'Original'}>
+                                                <span className="text-xl font-bold text-slate-400 shrink-0">{header.EstatusManualOriginal || '-'}</span>
+                                            </Tooltip>
+                                            <ArrowRight size={16} className="text-slate-400 shrink-0" />
+                                            <Tooltip text={manStatusActual?.Descripcion || 'Nuevo'}>
+                                                <span className={`text-2xl font-black tracking-tight ${manColorActual}`}>{header.EstatusManualActual}</span>
+                                            </Tooltip>
                                         </div>
+                                        <div className="text-[9px] text-slate-500 truncate max-w-[140px] mt-1">{manStatusActual?.Descripcion || 'No asignado'}</div>
                                     </div>
-
-                                    <div className="flex-1 flex flex-col items-center justify-center relative">
-                                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5 flex items-center gap-1.5">Manual <UserCog size={12} /></div>
-                                        <div className={`text-2xl font-black tracking-tight ${manColor}`}>{header.EstatusManualOriginal || '-'}</div>
-                                        <div className="text-[9px] text-slate-400 truncate max-w-[120px]">{manStatus?.Descripcion || 'No asignado'}</div>
-                                    </div>
-                                </div>
+                                ) : (
+                                    <>
+                                        <Tooltip text={manStatusOriginal?.Descripcion || 'Sin descripción'}>
+                                            <div className={`text-2xl font-black tracking-tight ${manColorOriginal}`}>{header.EstatusManualOriginal || '-'}</div>
+                                        </Tooltip>
+                                        <div className="text-[9px] text-slate-400 truncate max-w-[120px]">{manStatusOriginal?.Descripcion || 'No asignado'}</div>
+                                    </>
+                                )}
+                            </div>
+                        </div>
                             );
                         })()}
                     </div>
@@ -357,18 +448,20 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
                                         <Hourglass size={12} /> Proceso de Aprobación
                                     </p>
                                     {canCancelAuth && (
-                                        <button onClick={handleCancelAuth} disabled={isSubmitting} className="text-[10px] text-red-500 hover:text-red-700 font-semibold underline flex items-center gap-1">
-                                            <XCircle size={10} /> Cancelar Solicitud
-                                        </button>
+                                        <Tooltip text="Cancelar solicitud">
+                                            <button onClick={handleCancelAuth} disabled={isSubmitting} className="text-[10px] text-red-500 hover:text-red-700 font-semibold underline flex items-center gap-1">
+                                                <XCircle size={10} /> Cancelar Solicitud
+                                            </button>
+                                        </Tooltip>
                                     )}
                                 </div>
                                 {authorizations?.map((auth: any) => {
                                     const showButtons = canISign(auth);
-
+                                    
                                     return (
-                                        <div key={auth.AutorizacionId} className="flex flex-col p-3 bg-white border border-slate-100 rounded-lg shadow-sm gap-2">
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center gap-3">
+                                        <div key={auth.AutorizacionId} className="p-3 bg-white border border-slate-100 rounded-lg shadow-sm">
+                                            <div className="flex items-center justify-between gap-2">
+                                                <div className="flex items-center gap-3 min-w-0">
                                                     <div className={`w-8 h-8 rounded-full flex items-center justify-center ${auth.Estatus === 'Aprobado' ? 'bg-green-100 text-green-600' : auth.Estatus === 'Rechazado' ? 'bg-red-100 text-red-600' : 'bg-slate-100 text-slate-400'}`}>
                                                         {auth.Estatus === 'Aprobado' ? <CheckCircle size={16} /> : auth.Estatus === 'Rechazado' ? <XCircle size={16} /> : <FileSignature size={16} />}
                                                     </div>
@@ -383,15 +476,19 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
                                                     <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">Pendiente</span>
                                                 )}
                                             </div>
-
+                                            
                                             {showButtons && (
                                                 <div className="flex gap-2 mt-1 border-t pt-2 border-slate-100">
-                                                    <button onClick={() => handleVote(auth.AutorizacionId, 'Aprobado')} disabled={isSubmitting} className="flex-1 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 rounded py-1 text-[10px] font-bold flex items-center justify-center gap-1 transition-colors">
-                                                        <ThumbsUp size={12} /> Aprobar
-                                                    </button>
-                                                    <button onClick={() => handleVote(auth.AutorizacionId, 'Rechazado')} disabled={isSubmitting} className="flex-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded py-1 text-[10px] font-bold flex items-center justify-center gap-1 transition-colors">
-                                                        <ThumbsDown size={12} /> Rechazar
-                                                    </button>
+                                                    <Tooltip text="Autorizar solicitud" triggerClassName="flex-1 flex">
+                                                        <button onClick={() => handleVote(auth.AutorizacionId, 'Aprobado')} disabled={isSubmitting} className="flex-1 bg-green-50 hover:bg-green-100 text-green-700 border border-green-200 rounded py-1 text-[10px] font-bold flex items-center justify-center gap-1 transition-colors">
+                                                            <ThumbsUp size={12} /> Aprobar
+                                                        </button>
+                                                    </Tooltip>
+                                                    <Tooltip text="Rechazar solicitud" triggerClassName="flex-1 flex">
+                                                        <button onClick={() => handleVote(auth.AutorizacionId, 'Rechazado')} disabled={isSubmitting} className="flex-1 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded py-1 text-[10px] font-bold flex items-center justify-center gap-1 transition-colors">
+                                                            <ThumbsDown size={12} /> Rechazar
+                                                        </button>
+                                                    </Tooltip>
                                                 </div>
                                             )}
                                         </div>
@@ -460,65 +557,40 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
                                             </span>
                                         </div>
 
-                                        <div className={`p-3 rounded-xl rounded-tl-none shadow-sm border text-sm leading-relaxed ${log.Accion === 'Resolver' ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900' :
-                                            log.Accion === 'SolicitarAutorizacion' ? 'bg-amber-50/80 border-amber-200 text-amber-900' :
-                                                log.Accion === 'Asignar' ? 'bg-blue-50/80 border-blue-200 text-blue-900' :
-                                                    'bg-white border-slate-200 text-slate-700'
-                                            }`}>
+                                        <div className={`p-3 rounded-xl rounded-tl-none shadow-sm border text-sm leading-relaxed ${getActionStyle(log.Accion)}`}>
                                             <div className="text-[9px] font-bold uppercase mb-1 opacity-70 tracking-wide flex items-center gap-1 flex-wrap">
-                                                {log.Accion}
+                                                <Tooltip text={getActionDescription(log.Accion)} placement="top">
+                                                    <span >{formatActionName(log.Accion)}</span>
+                                                </Tooltip>
                                                 {log.Accion === 'Asignar' && log.AsignadoANombre && (
-                                                    <span className="flex items-center gap-1 text-indigo-600 bg-white px-1.5 rounded border border-indigo-100 shadow-sm normal-case ml-1">
-                                                        <ArrowRight size={10} />
-                                                        {log.AsignadoANombre}
-                                                    </span>
+                                                    <Tooltip text={`Responsabilidad transferida a ${log.AsignadoANombre}`}>
+                                                        <span className="flex items-center gap-1 text-indigo-600 bg-white px-1.5 rounded border border-indigo-100 shadow-sm normal-case ml-1  hover:bg-indigo-50 transition-colors">
+                                                            <ArrowRight size={10} />
+                                                            {log.AsignadoANombre}
+                                                        </span>
+                                                    </Tooltip>
+                                                )}
+                                                {/* Visualización de cambio de estatus en el historial */}
+                                                {log.EstatusManualId_Anterior !== log.EstatusManualId_Nuevo && (
+                                                    (() => {
+                                                        const prevStatus = statusCatalog.find(s => s.EstatusId === log.EstatusManualId_Anterior);
+                                                        const newStatus = statusCatalog.find(s => s.EstatusId === log.EstatusManualId_Nuevo);
+                                                        const prevTheme = themes[prevStatus?.ColorUI || 'slate'];
+                                                        const newTheme = themes[newStatus?.ColorUI || 'slate'];
+
+                                                        return (
+                                                            <Tooltip text={`Cambio: ${prevStatus?.Descripcion || 'Original'} ➔ ${newStatus?.Descripcion || 'Nuevo'}`}>
+                                                                <span className="flex items-center gap-1.5 ml-1.5 normal-case ">
+                                                                    <span className="font-bold text-[11px]" style={{ color: prevTheme[600] }}>{prevStatus?.Abreviatura || '-'}</span>
+                                                                    <ArrowRight size={12} className="text-slate-400" />
+                                                                    <span className="font-black text-[11px]" style={{ color: newTheme[700] }}>{newStatus?.Abreviatura || '?'}</span>
+                                                                </span>
+                                                            </Tooltip>
+                                                        );
+                                                    })()
                                                 )}
                                             </div>
                                             <div className="whitespace-pre-wrap break-words">{log.Comentario}</div>
-
-                                            {/* AQUÍ ESTÁ EL BLOQUE NUEVO: VISUALIZACIÓN DE CAMBIOS DE ESTATUS */}
-                                            {(() => {
-                                                // Helper para obtener datos del catálogo
-                                                const getStatus = (id: any) => statusCatalog.find(s => s.EstatusId === id);
-
-                                                // Detectamos si hay cambio REAL en Manual o Checador
-                                                // (Regla: Si son nulos o iguales, se considera sin cambio y no entra)
-                                                const hasManChange = log.EstatusManualId_Anterior && log.EstatusManualId_Nuevo &&
-                                                    log.EstatusManualId_Anterior !== log.EstatusManualId_Nuevo;
-
-                                                const hasSysChange = log.EstatusChecadorId_Anterior && log.EstatusChecadorId_Nuevo &&
-                                                    log.EstatusChecadorId_Anterior !== log.EstatusChecadorId_Nuevo;
-
-                                                // Si no hubo cambios en ninguno de los dos, no renderizamos nada (return null)
-                                                if (!hasManChange && !hasSysChange) return null;
-
-                                                return (
-                                                    <div className="mt-2 pt-2 border-t border-slate-100 flex flex-col gap-1">
-                                                        {hasSysChange && (
-                                                            <div className="flex items-center gap-2 text-[10px] bg-slate-50 p-1.5 rounded border border-slate-100">
-                                                                <span className="font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                                                                    <Clock size={10} /> Sistema
-                                                                </span>
-                                                                <span className="text-slate-400 line-through">{getStatus(log.EstatusChecadorId_Anterior)?.Abreviatura || '-'}</span>
-                                                                <ArrowRight size={10} className="text-slate-300" />
-                                                                <span className="font-bold text-slate-700">{getStatus(log.EstatusChecadorId_Nuevo)?.Abreviatura || '-'}</span>
-                                                            </div>
-                                                        )}
-                                                        {hasManChange && (
-                                                            <div className="flex items-center gap-2 text-[10px] bg-indigo-50/50 p-1.5 rounded border border-indigo-100">
-                                                                <span className="font-bold text-indigo-500 uppercase tracking-wider flex items-center gap-1">
-                                                                    <UserCog size={10} /> Manual
-                                                                </span>
-                                                                <span className="text-indigo-300 line-through">{getStatus(log.EstatusManualId_Anterior)?.Abreviatura || '-'}</span>
-                                                                <ArrowRight size={10} className="text-indigo-300" />
-                                                                <span className="font-bold text-indigo-700">{getStatus(log.EstatusManualId_Nuevo)?.Abreviatura || '-'}</span>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })()}
-                                            {/* FIN DEL BLOQUE NUEVO */}
-
                                         </div>
                                     </div>
                                 </div>
@@ -611,8 +683,8 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
                                                                         setIsUserDropdownOpen(false);
                                                                     }}
                                                                     className={`w-full flex items-center justify-between p-2.5 rounded-lg transition-colors text-left group mb-0.5 ${selectedUser.toString() === m.UsuarioId.toString()
-                                                                        ? 'bg-blue-50 ring-1 ring-blue-100'
-                                                                        : 'hover:bg-slate-50'
+                                                                            ? 'bg-blue-50 ring-1 ring-blue-100'
+                                                                            : 'hover:bg-slate-50'
                                                                         }`}
                                                                 >
                                                                     <div className="flex items-center gap-3 min-w-0">
@@ -634,7 +706,7 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
                                                         }
                                                         {managers.length === 0 && (
                                                             <div className="p-6 text-center text-xs text-slate-400 flex flex-col items-center">
-                                                                <User size={24} className="mb-2 opacity-20" />
+                                                                <User size={24} className="mb-2 opacity-20"/>
                                                                 No se encontraron gestores.
                                                             </div>
                                                         )}
@@ -648,33 +720,31 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
                                 {action === 'resolve' && (
                                     <div className="mb-4">
                                         <p className="text-xs font-semibold text-slate-500 mb-2 uppercase tracking-wider">Selecciona el Estatus Correcto:</p>
-
-                                        {/* GRID DE SELECCIÓN (Replicado visualmente de StatusSelectorGrid) */}
-                                        <div className="grid grid-cols-4 gap-1">
+                                        <div className="grid grid-cols-4 gap-2">
                                             {resolutionOptions.map((status: any) => {
                                                 const themeBtn = getColorClasses(status.ColorUI);
                                                 const isSelected = selectedStatus === status.Abreviatura;
-
+                                                
                                                 return (
-                                                    <Tooltip key={status.EstatusId} text={status.Descripcion} placement="top" offset={8}>
+                                                    <Tooltip key={status.EstatusId} text={status.Descripcion} placement="top">
                                                         <button
-                                                            onClick={() => setSelectedStatus(status.Abreviatura)}
+                                                            onClick={() => setSelectedStatus(isSelected ? '' : status.Abreviatura)}
                                                             className={`
-                                                                w-full min-h-[3.5rem] p-1.5 rounded-md text-center group transition-transform hover:scale-105 focus:outline-none focus:ring-2 ring-[--theme-500] relative overflow-hidden
-                                                                ${themeBtn.bgText} 
-                                                                cursor-pointer
-                                                                ${isSelected ? 'ring-2 ring-offset-1 ring-[--theme-500]' : ''}
+                                                                relative w-full p-2 rounded-lg text-center transition-all duration-200 border border-transparent
+                                                                ${themeBtn.bgText}
+                                                                ${isSelected 
+                                                                    ? `ring-2 ring-offset-1 ring-[--theme-500] shadow-md transform scale-[1.02]` 
+                                                                    : `hover:scale-[1.08] hover:shadow-sm`
+                                                                }
                                                             `}
                                                         >
-                                                            <div className="relative z-10">
-                                                                {isSelected && (
-                                                                    <div className="absolute top-1 right-1">
-                                                                        <Check size={16} className="text-blue-600" />
-                                                                    </div>
-                                                                )}
-                                                                <span className="font-bold block text-lg">{status.Abreviatura}</span>
-                                                                <span className="text-xs block leading-tight">{status.Descripcion}</span>
-                                                            </div>
+                                                            {isSelected && (
+                                                                <div className="absolute top-1 right-1">
+                                                                    <Check size={14} className="text-current" />
+                                                                </div>
+                                                            )}
+                                                            <span className="block text-2xl font-bold mb-0.5">{status.Abreviatura}</span>
+                                                            <span className="block text-xs font-medium leading-tight opacity-90 truncate px-1">{status.Descripcion}</span>
                                                         </button>
                                                     </Tooltip>
                                                 );
@@ -701,8 +771,8 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Detalle de Incidencia" size="5xl">
             {content}
-            <ConfirmationModal
-                isOpen={confirmation.isOpen}
+            <ConfirmationModal 
+                isOpen={confirmation.isOpen} 
                 onClose={() => setConfirmation({ ...confirmation, isOpen: false })}
                 onConfirm={() => {
                     if (confirmation.onConfirm) confirmation.onConfirm();

@@ -17,7 +17,8 @@ export const Tooltip = ({
     zIndex = 50, // <-- Nueva propiedad zIndex
     disabled = false,
     className,
-    withArrow = false // Nueva propiedad para la "colita"
+    withArrow = false, // Nueva propiedad para la "colita"
+    triggerClassName
 }: { 
     text: React.ReactNode; 
     children: React.ReactNode; 
@@ -27,7 +28,8 @@ export const Tooltip = ({
     zIndex?: number, // <-- Nueva propiedad zIndex
     disabled?: boolean,
     className?: string,
-    withArrow?: boolean
+    withArrow?: boolean,
+    triggerClassName?: string
 }) => {
     const [visible, setVisible] = useState(false);
     const [position, setPosition] = useState({ top: 0, left: 0 });
@@ -99,7 +101,7 @@ export const Tooltip = ({
     }
 
     const target = (
-        <span ref={targetRef} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+        <span ref={targetRef} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} className={triggerClassName}>
             {children}
         </span>
     );

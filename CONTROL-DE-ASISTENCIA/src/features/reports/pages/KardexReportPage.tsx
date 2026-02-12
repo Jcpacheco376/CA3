@@ -10,7 +10,7 @@ import { Tooltip } from '../../../components/ui/Tooltip';
 import { useAuth } from '../../auth/AuthContext';
 import { API_BASE_URL } from '../../../config/api';
 import { PayrollGuardModal } from '../components/PayrollGuardModal';
-import { format } from 'date-fns';
+import { format, differenceInDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 // --- IMPORTACIONES DEL MOTOR DE REPORTES ---
@@ -28,6 +28,7 @@ import { ReportValidators } from '../definitions/ReportRules';
 import { AttendanceToolbar } from '../../attendance/AttendanceToolbar';
 import { EmployeeProfileModal } from '../../attendance/EmployeeProfileModal';
 import { AttendanceToolbarProvider, useAttendanceToolbarContext } from '../../attendance/AttendanceToolbarContext';
+import { ConfirmationModal } from '../../../components/ui/ConfirmationModal';
 
 // --- INTERFACES ---
 interface FichaData {
@@ -71,7 +72,7 @@ const KardexReportPageContent = () => {
     const { getToken, user, can } = useAuth();
 
     const {
-        filters, dateRange
+        filters, dateRange, startDate, endDate // <--- Usamos startDate y endDate del contexto
     } = useAttendanceToolbarContext();
 
     const [isLoading, setIsLoading] = useState(false);
@@ -82,6 +83,7 @@ const KardexReportPageContent = () => {
 
     const [validationResult, setValidationResult] = useState<any>(null);
     const [isGuardModalOpen, setIsGuardModalOpen] = useState(false);
+    const [isLongPeriodConfirmOpen, setIsLongPeriodConfirmOpen] = useState(false);
     const [pendingFilters, setPendingFilters] = useState<any>(null);
     const [previewPdfUrl, setPreviewPdfUrl] = useState<string | null>(null);
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -98,7 +100,7 @@ const KardexReportPageContent = () => {
             setValidationResult(null);
             setExpandedRows([]);
         }
-    }, [dateRange, filters]);
+    }, [startDate, endDate, filters]); // <--- Dependencia actualizada
 
     const toggleRow = (empleadoId: number) => {
         setExpandedRows(prev => prev.includes(empleadoId) ? prev.filter(id => id !== empleadoId) : [...prev, empleadoId]);
@@ -112,16 +114,26 @@ const KardexReportPageContent = () => {
     };
 
     const handleGenerateClick = async () => {
-        if (!dateRange || dateRange.length === 0) return;
+        if (!startDate || !endDate) return; // <--- Validación basada en fechas explícitas
+        
+        // Advertencia de periodo largo
+        if (differenceInDays(endDate, startDate) > 32) {
+            setIsLongPeriodConfirmOpen(true);
+            return;
+        }
+        startValidationProcess();
+    };
 
+    const startValidationProcess = async () => {
+        setIsLongPeriodConfirmOpen(false);
         setIsLoading(true);
        
         const token = getToken();
         if (!token) return;
 
         const activeFilters = {
-            startDate: format(dateRange[0], 'yyyy-MM-dd'),
-            endDate: format(dateRange[dateRange.length - 1], 'yyyy-MM-dd'),
+            startDate: format(startDate, 'yyyy-MM-dd'), // <--- Uso directo
+            endDate: format(endDate, 'yyyy-MM-dd'),     // <--- Uso directo
             filters: {
                 departamentos: filters.depts,
                 gruposNomina: filters.groups,
@@ -319,7 +331,9 @@ const KardexReportPageContent = () => {
 
             <div className="bg-white rounded-lg shadow-sm border border-slate-200">
                 <AttendanceToolbar
-                    showSearch={true}
+                    
+                    allowCustomRange={true}
+                    // enablePayrollSync={true}
                 />
             </div>
 
@@ -431,6 +445,19 @@ const KardexReportPageContent = () => {
             </div>
 
             <PayrollGuardModal isOpen={isGuardModalOpen} onClose={() => setIsGuardModalOpen(false)} onConfirm={handleConfirmGeneration} validation={validationResult} canOverride={true} reportType="kardex" />
+            
+            <ConfirmationModal
+                isOpen={isLongPeriodConfirmOpen}
+                onClose={() => setIsLongPeriodConfirmOpen(false)}
+                onConfirm={startValidationProcess}
+                title="Periodo Extenso"
+                variant="warning"
+                confirmText="Continuar"
+            >
+                <p>El periodo seleccionado es muy largo.</p>
+                <p className="text-sm text-slate-500 mt-2">Generar este reporte podría tardar considerablemente. ¿Estás seguro de continuar?</p>
+            </ConfirmationModal>
+
             <PDFPreviewModal isOpen={isPreviewOpen} onClose={() => setIsPreviewOpen(false)} pdfUrl={previewPdfUrl} title="Kardex de Asistencia" fileName={`Kardex_${format(new Date(), 'yyyy-MM-dd')}.pdf`} onSettingsChange={generateReport} onSave={handleSaveFromPreview} allowedLayouts={['standard', 'compact', 'executive']} />
             {viewingEmployeeId && <EmployeeProfileModal employeeId={viewingEmployeeId as any} onClose={() => setViewingEmployeeId(null)} getToken={getToken} user={user} />}
         </div>

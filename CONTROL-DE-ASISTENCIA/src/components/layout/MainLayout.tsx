@@ -43,7 +43,7 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
 
                 can('reportesAsistencia.read') && {
                     id: 'report_incidencias',
-                    label: 'Control de Incidencias',
+                    label: 'Tablero de Incidencias',
                     icon: <AlertTriangle size={20} />
                 },
 
