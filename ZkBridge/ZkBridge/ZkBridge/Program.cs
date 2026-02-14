@@ -1,27 +1,32 @@
 ﻿using System;
 using System.Text;
 using System.IO;
-using System.Collections.Generic; 
+using System.Collections.Generic;
 
 namespace ZkBridge
 {
     class Program
     {
         public static zkemkeeper.CZKEM axCZKEM1 = new zkemkeeper.CZKEM();
-
-        // Buffer necesario para capturas de imagen (1MB)
+        // Buffer grande para lectura de datos
         public static byte[] map = new byte[1024 * 1024];
 
         static void Main(string[] args)
         {
-            if (args.Length < 4) { Console.WriteLine("{\"error\": \"Args insuficientes\"}"); return; }
+            // Forzar codificación UTF8 para nombres con acentos y salida JSON limpia
+            Console.OutputEncoding = Encoding.UTF8;
+
+            if (args.Length < 4)
+            {
+                Console.WriteLine("{\"error\": \"Args insuficientes\"}");
+                return;
+            }
 
             string ip = args[0];
             int port = int.Parse(args[1]);
             int commKey = int.Parse(args[2]);
             string command = args[3];
 
-            // Configurar password antes de conectar
             axCZKEM1.SetCommPassword(commKey);
 
             if (axCZKEM1.Connect_Net(ip, port))
@@ -30,33 +35,79 @@ namespace ZkBridge
                 {
                     switch (command)
                     {
-                        case "dump_config":
-                            DumpConfig(1);
+                        // --- COMANDOS BÁSICOS ---
+                        case "test_connection":
+                            Console.WriteLine("{\"status\": \"OK\"}");
                             break;
-                        case "download_logs": 
-                            DownloadLogs(1); 
+
+                        case "get_info":
+                            GetDeviceInfo(1);
+                            break;
+
+                        case "get_all_users":
+                            GetAllUsers(1);
+                            break;
+
+                        case "download_logs":
+                            DownloadLogs(1);
                             break;
 
                         case "clear_logs":
                             ClearLogs(1);
                             break;
-                        case "get_all_users": GetAllUsers(1); break;
 
+                        case "sync_time":
+                            SyncTime(1);
+                            break;
+
+                        // --- CARGAS MASIVAS (BATCH) ---
+                        case "upload_users_file":
+                            if (args.Length >= 5) UploadUsersFromFile(1, args[4]);
+                            else Console.WriteLine("{\"error\": \"Falta archivo\"}");
+                            break;
+
+                        case "upload_faces_file":
+                            if (args.Length >= 5) UploadFacesFromFile(1, args[4]);
+                            else Console.WriteLine("{\"error\": \"Falta archivo\"}");
+                            break;
+
+                        case "upload_biotemplates":
+                            if (args.Length >= 5) UploadBioTemplates(1, args[4]);
+                            else Console.WriteLine("{\"error\": \"Falta archivo\"}");
+                            break;
+
+                        case "delete_users_file":
+                            if (args.Length >= 5) DeleteUsersFromFile(1, args[4]);
+                            else Console.WriteLine("{\"error\": \"Falta archivo\"}");
+                            break;
+
+                        // --- COMANDOS INDIVIDUALES (LEGACY) ---
                         case "upload_user":
-                            // Usage: ZkBridge.exe IP Port Key upload_user JSON_DATA
-                            // JSON_DATA must be a stringified JSON passed as the 5th argument
                             if (args.Length >= 5) UploadUser(1, args[4]);
-                            else Console.WriteLine("{\"error\": \"Missing JSON data for user\"}");
+                            else Console.WriteLine("{\"error\": \"Missing data for user\"}");
                             break;
 
                         case "delete_user":
-                            // Usage: ZkBridge.exe IP Port Key delete_user UID
                             if (args.Length >= 5) DeleteUser(1, args[4]);
                             else Console.WriteLine("{\"error\": \"Missing UID\"}");
                             break;
-                        case "test_connection": Console.WriteLine("{\"status\": \"OK\", \"message\": \"Conexión Exitosa\"}"); break;
 
-                        case "get_info": GetDeviceInfo(1); break;
+                        // --- COMANDO DE DIAGNÓSTICO ---
+                        case "debug_faces":
+                            if (args.Length >= 5) DebugFaces(1, args[4]);
+                            else Console.WriteLine("{\"error\": \"Falta UID\"}");
+                            break;
+
+                        // --- NUEVO COMANDO: Consulta directa a tabla biométrica ---
+                        case "get_biodata":
+                            if (args.Length >= 5) GetBioData(1, args[4]);
+                            else Console.WriteLine("{\"error\": \"Falta UID para consultar\"}");
+                            break;
+
+                        // --- COMANDOS ADICIONALES (Mantenidos) ---
+                        case "dump_config":
+                            DumpConfig(1);
+                            break;
 
                         case "capture_image":
                             if (args.Length >= 5) CaptureScreenshot(1, args[4]);
@@ -68,43 +119,357 @@ namespace ZkBridge
                             else Console.WriteLine("{\"error\": \"Faltan parametros\"}");
                             break;
 
-                        case "download_photos":
-                            if (args.Length >= 5) DownloadPhotos(1, args[4]);
-                            else Console.WriteLine("{\"error\": \"Falta la ruta de destino\"}");
-                            break;
                         case "get_param":
-                            // Uso: ZkBridge.exe IP Port Key get_param CaptureErrorImage
                             if (args.Length >= 5) GetParam(1, args[4]);
                             else Console.WriteLine("{\"error\": \"Falta el nombre del parametro\"}");
                             break;
 
-                        case "sync_time":
-                            if (axCZKEM1.SetDeviceTime(1)) // Sincroniza con la hora del PC (Servidor)
-                            {
-                                axCZKEM1.RefreshData(1);
-                                Console.WriteLine("{\"status\": \"OK\", \"message\": \"Hora sincronizada con el servidor\"}");
-                            }
-                            else
-                            {
-                                int err = 0; axCZKEM1.GetLastError(ref err);
-                                Console.WriteLine($"{{\"error\": \"Fallo al sincronizar hora. Error: {err}\"}}");
-                            }
+                        case "download_photos":
+                            if (args.Length >= 5) DownloadPhotos(1, args[4]);
+                            else Console.WriteLine("{\"error\": \"Falta la ruta de destino\"}");
                             break;
 
-                        default: Console.WriteLine("{\"error\": \"Comando desconocido: " + command + "\"}"); break;
+                        default:
+                            Console.WriteLine("{\"error\": \"Comando desconocido\"}");
+                            break;
                     }
                 }
-                catch (Exception ex) { Console.WriteLine("{\"error\": \"" + CleanString(ex.Message) + "\"}"); }
-                finally { axCZKEM1.Disconnect(); }
+                catch (Exception ex)
+                {
+                    Console.WriteLine("{\"error\": \"" + CleanString(ex.Message) + "\"}");
+                }
+                finally
+                {
+                    axCZKEM1.Disconnect();
+                    Console.Out.Flush();
+                }
             }
             else
             {
                 int err = 0; axCZKEM1.GetLastError(ref err);
-                Console.WriteLine("{\"error\": \"No conecta. ErrorCode: " + err + "\"}");
+                Console.WriteLine("{\"error\": \"No conecta (Error " + err + ")\"}");
+            }
+
+            Environment.Exit(0);
+        }
+
+        // --- CONSULTA DE DATOS BIOMÉTRICOS CRUDOS (NUEVO) ---
+        static void GetBioData(int iMachineNumber, string uid)
+        {
+            axCZKEM1.EnableDevice(iMachineNumber, false);
+
+            string tableName = "Pers_Biotemplate";
+            string fields = "*"; // Traer todo: Version, Tipo, Formato, etc.
+            string filter = "Pin=" + uid; // Filtramos solo el usuario que nos interesa
+            string options = "";
+            string buffer = "";
+
+            // Buffer grande (10MB) para asegurar que quepan los rostros
+            int bufferSize = 10 * 1024 * 1024;
+
+            // Esta función lee la tabla interna tal cual la tiene el reloj
+            if (axCZKEM1.SSR_GetDeviceData(iMachineNumber, out buffer, bufferSize, tableName, fields, filter, options))
+            {
+                // El buffer viene como texto separado por \r\n y \t. 
+                // Lo escapamos para meterlo en un JSON y que tú lo veas en el frontend.
+                string safeData = buffer.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "\\r").Replace("\n", "\\n");
+
+                Console.WriteLine($"{{\"status\": \"OK\", \"uid\": \"{uid}\", \"raw_data\": \"{safeData}\"}}");
+            }
+            else
+            {
+                int err = 0; axCZKEM1.GetLastError(ref err);
+                // Si da error -4 o similar, puede que el reloj no soporte esta tabla (modelos muy viejos)
+                // Pero si es Visible Light (nuevo), debe soportarla.
+                Console.WriteLine($"{{\"error\": \"Error leyendo Pers_Biotemplate. Code: {err}\"}}");
+            }
+
+            axCZKEM1.EnableDevice(iMachineNumber, true);
+            Console.Out.Flush();
+        }
+
+        // --- INYECCIÓN DIRECTA DE TABLA BIOMÉTRICA ---
+        static void UploadBioTemplates(int iMachineNumber, string filePath)
+        {
+            if (!File.Exists(filePath)) { Console.WriteLine("{\"error\": \"Archivo no encontrado\"}"); return; }
+
+            string buffer = File.ReadAllText(filePath, Encoding.UTF8);
+
+            if (string.IsNullOrEmpty(buffer)) { Console.WriteLine("{\"status\": \"OK\", \"message\": \"Archivo vacio\"}"); return; }
+
+            axCZKEM1.EnableDevice(iMachineNumber, false);
+
+            if (axCZKEM1.SSR_SetDeviceData(iMachineNumber, "Pers_Biotemplate", buffer, ""))
+            {
+                axCZKEM1.RefreshData(iMachineNumber);
+                Console.WriteLine("{\"status\": \"OK\", \"message\": \"Datos biométricos inyectados correctamente\"}");
+            }
+            else
+            {
+                int err = 0; axCZKEM1.GetLastError(ref err);
+                Console.WriteLine($"{{\"error\": \"Fallo SSR_SetDeviceData. Code: {err}\"}}");
+            }
+
+            axCZKEM1.EnableDevice(iMachineNumber, true);
+            Console.Out.Flush();
+        }
+
+        // --- FUNCIÓN DE DIAGNÓSTICO BIOMÉTRICO ---
+        static void DebugFaces(int iMachineNumber, string uid)
+        {
+            axCZKEM1.EnableDevice(iMachineNumber, false);
+            List<string> foundFaces = new List<string>();
+
+            int[] indicesToCheck = { 50, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
+
+            foreach (int idx in indicesToCheck)
+            {
+                string tmp = "";
+                int len = 0;
+
+                if (axCZKEM1.GetUserFaceStr(iMachineNumber, uid, idx, ref tmp, ref len))
+                {
+                    string cleanData = tmp.Replace("\"", "\\\"");
+                    foundFaces.Add($"{{\"index\":{idx}, \"type\":\"String\", \"len\":{len}, \"data\":\"{cleanData}\"}}");
+                }
+
+                byte[] buffer = new byte[256 * 1024];
+                int blen = 0;
+                if (axCZKEM1.GetUserFace(iMachineNumber, uid, idx, ref buffer[0], ref blen))
+                {
+                    string b64 = Convert.ToBase64String(buffer, 0, blen);
+                    foundFaces.Add($"{{\"index\":{idx}, \"type\":\"Binary\", \"len\":{blen}, \"data\":\"{b64}\"}}");
+                }
+            }
+
+            axCZKEM1.EnableDevice(iMachineNumber, true);
+            Console.WriteLine($"[{string.Join(",", foundFaces)}]");
+            Console.Out.Flush();
+        }
+
+        // --- SYNC TIME ---
+        static void SyncTime(int iMachineNumber)
+        {
+            DateTime now = DateTime.Now;
+            if (axCZKEM1.SetDeviceTime2(iMachineNumber, now.Year, now.Month, now.Day, now.Hour, now.Minute, now.Second))
+            {
+                axCZKEM1.RefreshData(iMachineNumber);
+                Console.WriteLine("{\"status\": \"OK\"}");
+            }
+            else
+            {
+                int err = 0; axCZKEM1.GetLastError(ref err);
+                Console.WriteLine($"{{\"error\": \"Error Time: {err}\"}}");
             }
         }
 
-        // --- FUNCIONES ---
+        // --- FUNCIONES DE CARGA MASIVA ---
+
+        static void UploadUsersFromFile(int iMachineNumber, string filePath)
+        {
+            if (!File.Exists(filePath)) { Console.WriteLine("{\"error\": \"No file\"}"); return; }
+
+            axCZKEM1.EnableDevice(iMachineNumber, false);
+
+            int successCount = 0;
+            int failCount = 0;
+
+            foreach (string line in File.ReadAllLines(filePath))
+            {
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                try
+                {
+                    string[] p = line.Split('|');
+                    if (p.Length < 5) continue;
+
+                    if (axCZKEM1.SSR_SetUserInfo(iMachineNumber, p[0], p[1], p[3], int.Parse(p[2]), p[4] == "1"))
+                    {
+                        if (p.Length > 5 && p[5].Length > 50 && p[5] != "null")
+                        {
+                            if (!axCZKEM1.SetUserFaceStr(iMachineNumber, p[0], 50, p[5], p[5].Length))
+                            {
+                                try
+                                {
+                                    byte[] b = Convert.FromBase64String(p[5]);
+                                    axCZKEM1.SetUserFace(iMachineNumber, p[0], 50, ref b[0], b.Length);
+                                }
+                                catch { }
+                            }
+                        }
+
+                        for (int k = 6; k < p.Length; k++)
+                        {
+                            if (string.IsNullOrEmpty(p[k])) continue;
+                            string[] fd = p[k].Split(':');
+                            if (fd.Length == 2)
+                                axCZKEM1.SetUserTmpExStr(iMachineNumber, p[0], int.Parse(fd[0]), 1, fd[1]);
+                        }
+                        successCount++;
+                    }
+                    else failCount++;
+                }
+                catch { failCount++; }
+            }
+
+            axCZKEM1.RefreshData(iMachineNumber);
+            axCZKEM1.EnableDevice(iMachineNumber, true);
+
+            Console.WriteLine($"{{\"status\": \"OK\", \"processed\": {successCount + failCount}, \"success\": {successCount}, \"failed\": {failCount}}}");
+            Console.Out.Flush();
+        }
+
+        static void UploadFacesFromFile(int iMachineNumber, string filePath)
+        {
+            if (!File.Exists(filePath)) { Console.WriteLine("{\"error\": \"Archivo no encontrado\"}"); return; }
+
+            axCZKEM1.EnableDevice(iMachineNumber, false);
+            int success = 0, fail = 0;
+            string[] lines = File.ReadAllLines(filePath);
+
+            foreach (string line in lines)
+            {
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                string[] parts = line.Split('|');
+
+                if (parts.Length < 2) continue;
+
+                string uid = parts[0];
+                string face = parts[1];
+                int faceIdx = 50;
+
+                if (parts.Length > 2) int.TryParse(parts[2], out faceIdx);
+
+                if (string.IsNullOrEmpty(face) || face == "null") continue;
+
+                axCZKEM1.DelUserFace(iMachineNumber, uid, faceIdx);
+
+                bool uploaded = false;
+
+                if (axCZKEM1.SetUserFaceStr(iMachineNumber, uid, faceIdx, face, face.Length))
+                {
+                    uploaded = true;
+                }
+                else
+                {
+                    try
+                    {
+                        byte[] b = Convert.FromBase64String(face);
+                        if (axCZKEM1.SetUserFace(iMachineNumber, uid, faceIdx, ref b[0], b.Length))
+                            uploaded = true;
+                    }
+                    catch { }
+                }
+
+                if (uploaded) success++;
+                else
+                {
+                    fail++;
+                    int err = 0; axCZKEM1.GetLastError(ref err);
+                    Console.Error.WriteLine($"[ERROR] Face UID {uid} Index {faceIdx} falló. Código SDK: {err}");
+                }
+            }
+
+            axCZKEM1.RefreshData(iMachineNumber);
+            axCZKEM1.EnableDevice(iMachineNumber, true);
+            Console.WriteLine($"{{\"status\": \"OK\", \"processed\": {lines.Length}, \"success\": {success}, \"failed\": {fail}}}");
+            Console.Out.Flush();
+        }
+
+        static void DeleteUsersFromFile(int iMachineNumber, string filePath)
+        {
+            if (!File.Exists(filePath)) { Console.WriteLine("{\"error\": \"Archivo no encontrado\"}"); return; }
+
+            axCZKEM1.EnableDevice(iMachineNumber, false);
+            int deleted = 0;
+
+            foreach (string u in File.ReadAllLines(filePath))
+            {
+                if (string.IsNullOrWhiteSpace(u)) continue;
+                if (axCZKEM1.SSR_DeleteEnrollData(iMachineNumber, u.Trim(), 12))
+                    deleted++;
+            }
+
+            axCZKEM1.RefreshData(iMachineNumber);
+            axCZKEM1.EnableDevice(iMachineNumber, true);
+            Console.WriteLine($"{{\"status\":\"OK\",\"deleted\":{deleted}}}");
+            Console.Out.Flush();
+        }
+
+        // --- FUNCIONES LEGACY ---
+
+        static void GetAllUsers(int iMachineNumber)
+        {
+            axCZKEM1.EnableDevice(iMachineNumber, false);
+            axCZKEM1.ReadAllUserID(iMachineNumber);
+            axCZKEM1.ReadAllTemplate(iMachineNumber);
+
+            List<string> usersJson = new List<string>();
+            string sEnrollNumber = "", sName = "", sPassword = "";
+            int iPrivilege = 0;
+            bool bEnabled = false;
+
+            while (axCZKEM1.SSR_GetAllUserInfo(iMachineNumber, out sEnrollNumber, out sName, out sPassword, out iPrivilege, out bEnabled))
+            {
+                List<string> fingers = new List<string>();
+                for (int k = 0; k < 10; k++)
+                {
+                    string t = ""; int l = 0; int fl = 0;
+                    if (axCZKEM1.GetUserTmpExStr(iMachineNumber, sEnrollNumber, k, out fl, out t, out l))
+                        fingers.Add($"{{\"fingerIndex\":{k},\"template\":\"{t}\"}}");
+                }
+
+                string fa = ""; int flen = 0; string fJ = "null";
+                if (axCZKEM1.GetUserFaceStr(iMachineNumber, sEnrollNumber, 50, ref fa, ref flen))
+                    fJ = $"\"{fa}\"";
+
+                usersJson.Add($"{{\"uid\":\"{sEnrollNumber}\",\"name\":\"{CleanString(sName)}\",\"privilege\":{iPrivilege},\"password\":\"{sPassword}\",\"fingers\":[{string.Join(",", fingers)}],\"face\":{fJ}}}");
+            }
+
+            axCZKEM1.EnableDevice(iMachineNumber, true);
+            Console.WriteLine($"[{string.Join(",", usersJson)}]");
+            Console.Out.Flush();
+        }
+
+        static void DownloadLogs(int iMachineNumber)
+        {
+            axCZKEM1.EnableDevice(iMachineNumber, false);
+            if (axCZKEM1.ReadGeneralLogData(iMachineNumber))
+            {
+                List<string> logs = new List<string>();
+                string sE = "";
+                int v = 0, m = 0, Y = 0, M = 0, D = 0, H = 0, mm = 0, s = 0, w = 0;
+
+                while (axCZKEM1.SSR_GetGeneralLogData(iMachineNumber, out sE, out v, out m, out Y, out M, out D, out H, out mm, out s, ref w))
+                {
+                    logs.Add($"{{\"uid\":\"{sE}\",\"timestamp\":\"{Y}-{M:D2}-{D:D2} {H:D2}:{mm:D2}:{s:D2}\",\"verifyMode\":{v},\"inOutMode\":{m}}}");
+                }
+                Console.WriteLine($"[{string.Join(",", logs)}]");
+            }
+            else
+            {
+                Console.WriteLine("[]");
+            }
+            Console.Out.Flush();
+            axCZKEM1.EnableDevice(iMachineNumber, true);
+        }
+
+        static void ClearLogs(int iMachineNumber)
+        {
+            axCZKEM1.EnableDevice(iMachineNumber, false);
+            if (axCZKEM1.ClearGLog(iMachineNumber))
+            {
+                axCZKEM1.RefreshData(iMachineNumber);
+                Console.WriteLine("{\"status\":\"OK\"}");
+            }
+            else
+            {
+                Console.WriteLine("{\"error\":\"Fail\"}");
+            }
+            Console.Out.Flush();
+            axCZKEM1.EnableDevice(iMachineNumber, true);
+        }
+
+        // --- FUNCIONES ADICIONALES MANTENIDAS ---
 
         static void GetDeviceInfo(int iMachineNumber)
         {
@@ -127,18 +492,14 @@ namespace ZkBridge
                 sDeviceTime = $"{idwYear}-{idwMonth:D2}-{idwDay:D2} {idwHour:D2}:{idwMinute:D2}:{idwSecond:D2}";
             }
 
-            // CORRECCIÓN JSON: Usamos camelCase para coincidir con tu Frontend (React)
             StringBuilder json = new StringBuilder();
             json.Append("{");
             json.Append($"\"status\": \"OK\",");
             json.Append($"\"firmware\": \"{CleanString(sFirmware)}\",");
             json.Append($"\"serial\": \"{CleanString(sSerial)}\",");
             json.Append($"\"platform\": \"{CleanString(sPlatform)}\",");
-
-            // Aquí arreglamos los UNDEFINED:
-            json.Append($"\"deviceTime\": \"{sDeviceTime}\","); // Antes device_time
-            json.Append($"\"userCount\": {iUserCount},");       // Antes users
-
+            json.Append($"\"deviceTime\": \"{sDeviceTime}\",");
+            json.Append($"\"userCount\": {iUserCount},");
             json.Append($"\"fingers\": {iFingerCount},");
             json.Append($"\"faces\": {iFaceCount},");
             json.Append($"\"records\": {iRecordCount}");
@@ -146,53 +507,38 @@ namespace ZkBridge
             Console.WriteLine(json.ToString());
         }
 
-        static void DownloadLogs(int iMachineNumber)
+        static void DumpConfig(int iMachineNumber)
         {
-            axCZKEM1.EnableDevice(iMachineNumber, false);
-            string sdwEnrollNumber = "";
-            int idwVerifyMode = 0, idwInOutMode = 0, idwYear = 0, idwMonth = 0, idwDay = 0, idwHour = 0, idwMinute = 0, idwSecond = 0, idwWorkcode = 0;
-
-            if (axCZKEM1.ReadGeneralLogData(iMachineNumber))
+            List<string> paramsToCheck = new List<string>()
             {
-                StringBuilder json = new StringBuilder();
-                json.Append("[");
-                bool first = true;
-                while (axCZKEM1.SSR_GetGeneralLogData(iMachineNumber, out sdwEnrollNumber, out idwVerifyMode,
-                           out idwInOutMode, out idwYear, out idwMonth, out idwDay, out idwHour, out idwMinute, out idwSecond, ref idwWorkcode))
+                "~SerialNumber", "~DeviceName", "~Platform", "~OS", "FirmwareVersion", "~ZKFPVersion",
+                "IPAddress", "NetMask", "GATEIPAddress", "RS232BaudRate",
+                "UserCount", "FaceCount", "FingerCount", "AttLogCount", "PhotoCount",
+                "CameraOn", "CaptureErrorImage", "SaveUserPhoto",
+                "FaceFunOn", "FaceIdentify", "FaceVerify", "CaptureFace",
+                "UploadPhoto", "TakeUserPhoto", "ShowPicture",
+                "LockFunOn", "Door1ForcePassWord", "ReaderTeacher","ParametroTrampa"
+            };
+
+            Console.WriteLine("[");
+            bool first = true;
+            foreach (string param in paramsToCheck)
+            {
+                string val = "";
+                if (axCZKEM1.GetSysOption(iMachineNumber, param, out val))
                 {
-                    if (!first) json.Append(",");
-                    string dt = $"{idwYear}-{idwMonth:D2}-{idwDay:D2} {idwHour:D2}:{idwMinute:D2}:{idwSecond:D2}";
-                    // status = InOutMode (0=Entrada, 1=Salida, etc), verify = Metodo (Huella, Rostro)
-                    json.Append($"{{\"uid\":\"{sdwEnrollNumber}\",\"time\":\"{dt}\",\"status\":{idwInOutMode},\"verify\":{idwVerifyMode}}}");
+                    if (!first) Console.WriteLine(",");
+                    Console.Write($"{{\"param\": \"{param}\", \"value\": \"{CleanString(val)}\", \"status\": \"OK\"}}");
                     first = false;
                 }
-                json.Append("]");
-                Console.WriteLine(json.ToString());
             }
-            else { Console.WriteLine("[]"); }
-            axCZKEM1.EnableDevice(iMachineNumber, true);
+            Console.WriteLine("]");
         }
-        static void ClearLogs(int iMachineNumber)
-        {
-            axCZKEM1.EnableDevice(iMachineNumber, false);
-            // ClearGLog borra SOLO los registros de asistencia, no borra usuarios ni huellas.
-            if (axCZKEM1.ClearGLog(iMachineNumber))
-            {
-                axCZKEM1.RefreshData(iMachineNumber);
-                Console.WriteLine("{\"status\": \"OK\", \"message\": \"Registros borrados correctamente\"}");
-            }
-            else
-            {
-                int err = 0; axCZKEM1.GetLastError(ref err);
-                Console.WriteLine($"{{\"error\": \"No se pudieron borrar los registros. Error: {err}\"}}");
-            }
-            axCZKEM1.EnableDevice(iMachineNumber, true);
-        }
+
         static void CaptureScreenshot(int iMachineNumber, string destPath)
         {
             try
             {
-                // CORRECCIÓN BUFFER: Pasamos ref map[0]
                 if (axCZKEM1.CaptureImage(false, 0, 0, ref map[0], destPath))
                     Console.WriteLine($"{{\"status\": \"OK\", \"message\": \"Captura exitosa\", \"path\": \"{CleanString(destPath)}\"}}");
                 else
@@ -201,7 +547,10 @@ namespace ZkBridge
                     Console.WriteLine($"{{\"error\": \"Fallo captura. ErrorCode: {err}\"}}");
                 }
             }
-            catch (Exception ex) { Console.WriteLine($"{{\"error\": \"Excepción: {CleanString(ex.Message)}\"}}"); }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"{{\"error\": \"Excepción: {CleanString(ex.Message)}\"}}");
+            }
         }
 
         static void SetParam(int iMachineNumber, string paramName, string paramValue)
@@ -219,97 +568,17 @@ namespace ZkBridge
                     Console.WriteLine($"{{\"error\": \"No se pudo establecer {paramName}. Error: {err}\"}}");
                 }
             }
-            catch (Exception ex) { Console.WriteLine($"{{\"error\": \"Excepción: {CleanString(ex.Message)}\"}}"); }
-        }
-
-        static void DownloadPhotos(int iMachineNumber, string destFolder)
-        {
-            try
-            {
-                if (!Directory.Exists(destFolder)) Directory.CreateDirectory(destFolder);
-
-                // PASO 0: HACK DE CONFIGURACIÓN (Forzar persistencia)
-                // Desactivamos UploadPhoto silenciosamente para asegurar que las SIGUIENTES fotos se guarden
-                axCZKEM1.SetSysOption(iMachineNumber, "UploadPhoto", "0");
-                axCZKEM1.RefreshData(iMachineNumber);
-
-                axCZKEM1.EnableDevice(iMachineNumber, false);
-                Console.WriteLine("{\"message\": \"[MODO FUERZA BRUTA] 1. UploadPhoto desactivado. 2. Leyendo TODOS los logs...\"}");
-
-                string sdwEnrollNumber = "";
-                int idwVerifyMode = 0, idwInOutMode = 0, idwYear = 0, idwMonth = 0, idwDay = 0, idwHour = 0, idwMinute = 0, idwSecond = 0, idwWorkcode = 0;
-                int found = 0;
-
-                // PASO 1: Usamos ReadAllGLogData (Más lento pero compatible con todos los firmwares)
-                if (axCZKEM1.ReadAllGLogData(iMachineNumber))
-                {
-                    while (axCZKEM1.SSR_GetGeneralLogData(iMachineNumber, out sdwEnrollNumber, out idwVerifyMode,
-                               out idwInOutMode, out idwYear, out idwMonth, out idwDay, out idwHour, out idwMinute, out idwSecond, ref idwWorkcode))
-                    {
-                        // Solo nos interesan los registros RECIENTES (ej. último mes) para no tardar años
-                        DateTime logTime = new DateTime(idwYear, idwMonth, idwDay, idwHour, idwMinute, idwSecond);
-                        if (logTime < DateTime.Now.AddDays(-1)) continue; // Solo logs de HOY y AYER
-
-                        // PASO 2: Generador de Nombres con Compensación de Hora (Fuzzy Search)
-                        // Probamos la hora exacta y variaciones de zona horaria (UTC vs Local)
-                        List<DateTime> timeCandidates = new List<DateTime> {
-                            logTime,
-                            logTime.AddHours(6),  // UTC+6
-                            logTime.AddHours(5),
-                            logTime.AddHours(-6), // UTC-6
-                            logTime.AddHours(-5)
-                        };
-
-                        foreach (var t in timeCandidates)
-                        {
-                            string ts = $"{t.Year}{t.Month:D2}{t.Day:D2}{t.Hour:D2}{t.Minute:D2}{t.Second:D2}";
-
-                            // Lista de formatos posibles
-                            string[] filenames = { $"{ts}.jpg", $"{sdwEnrollNumber}_{ts}.jpg", $"{ts}_{sdwEnrollNumber}.jpg" };
-
-                            foreach (string fname in filenames)
-                            {
-                                string localPath = Path.Combine(destFolder, fname);
-                                if (File.Exists(localPath)) continue;
-
-                                // PASO 3: Intento de Descarga
-                                if (axCZKEM1.GetPhotoByNameToFile(iMachineNumber, fname, localPath))
-                                {
-                                    Console.WriteLine($"{{\"status\": \"found\", \"file\": \"{fname}\", \"log_time\": \"{logTime}\"}}");
-                                    found++;
-                                    goto NextLog; // Salimos de los bucles de nombre y hora si encontramos la foto
-                                }
-                            }
-                        }
-                    NextLog:;
-                    }
-
-                    if (found > 0)
-                        Console.WriteLine($"{{\"status\": \"OK\", \"message\": \"¡ÉXITO! Se recuperaron {found} fotos.\", \"path\": \"{CleanString(destFolder)}\"}}");
-                    else
-                        Console.WriteLine("{\"status\": \"OK\", \"message\": \"Logs leídos correctamente, pero 0 fotos encontradas. Reinicia el equipo y genera fallos NUEVOS ahora que UploadPhoto=0.\", \"count\": 0}");
-                }
-                else
-                {
-                    int err = 0; axCZKEM1.GetLastError(ref err);
-                    Console.WriteLine($"{{\"error\": \"Fallo al leer logs (ReadAllGLogData). ErrorCode: {err}\"}}");
-                }
-            }
             catch (Exception ex)
             {
-                Console.WriteLine($"{{\"error\": \"Error Critico: {CleanString(ex.Message)}\"}}");
-            }
-            finally
-            {
-                axCZKEM1.EnableDevice(iMachineNumber, true);
+                Console.WriteLine($"{{\"error\": \"Excepción: {CleanString(ex.Message)}\"}}");
             }
         }
+
         static void GetParam(int iMachineNumber, string paramName)
         {
             try
             {
                 string value = "";
-                // GetSysOption lee la configuración interna del sistema de archivos del reloj
                 if (axCZKEM1.GetSysOption(iMachineNumber, paramName, out value))
                 {
                     Console.WriteLine($"{{\"status\": \"OK\", \"param\": \"{paramName}\", \"value\": \"{CleanString(value)}\"}}");
@@ -325,107 +594,79 @@ namespace ZkBridge
                 Console.WriteLine($"{{\"error\": \"Excepción: {CleanString(ex.Message)}\"}}");
             }
         }
-        static void DumpConfig(int iMachineNumber)
+
+        static void DownloadPhotos(int iMachineNumber, string destFolder)
         {
-            // Lista de posibles parámetros en equipos ZKTeco (Linux, TFT, VL)
-            List<string> paramsToCheck = new List<string>()
+            try
             {
-                // Básicos
-                "~SerialNumber", "~DeviceName", "~Platform", "~OS", "FirmwareVersion", "~ZKFPVersion",
-                // Red
-                "IPAddress", "NetMask", "GATEIPAddress", "RS232BaudRate",
-                // Capacidades
-                "UserCount", "FaceCount", "FingerCount", "AttLogCount", "PhotoCount",
-                // Cámara y Fotos (Lo que te interesa)
-                "CameraOn", "CaptureErrorImage", "SaveUserPhoto",
-                "FaceFunOn", "FaceIdentify", "FaceVerify", "CaptureFace",
-                "UploadPhoto", "TakeUserPhoto", "ShowPicture",
-                // Control
-                "LockFunOn", "Door1ForcePassWord", "ReaderTeacher","ParametroTrampa"
-            };
+                if (!Directory.Exists(destFolder)) Directory.CreateDirectory(destFolder);
+                axCZKEM1.SetSysOption(iMachineNumber, "UploadPhoto", "0");
+                axCZKEM1.RefreshData(iMachineNumber);
+                axCZKEM1.EnableDevice(iMachineNumber, false);
 
-            Console.WriteLine("["); // Iniciar Array JSON
-            bool first = true;
+                Console.WriteLine("{\"message\": \"[MODO FUERZA BRUTA] Procesando logs recientes...\"}");
 
-            foreach (string param in paramsToCheck)
-            {
-                string val = "";
-                // Intentamos leer el parámetro
-                if (axCZKEM1.GetSysOption(iMachineNumber, param, out val))
+                string sdwEnrollNumber = "";
+                int idwVerifyMode = 0, idwInOutMode = 0, idwYear = 0, idwMonth = 0, idwDay = 0, idwHour = 0, idwMinute = 0, idwSecond = 0, idwWorkcode = 0;
+                int found = 0;
+
+                if (axCZKEM1.ReadAllGLogData(iMachineNumber))
                 {
-                    if (!first) Console.WriteLine(",");
-                    Console.Write($"{{\"param\": \"{param}\", \"value\": \"{CleanString(val)}\", \"status\": \"OK\"}}");
-                    first = false;
+                    while (axCZKEM1.SSR_GetGeneralLogData(iMachineNumber, out sdwEnrollNumber, out idwVerifyMode,
+                               out idwInOutMode, out idwYear, out idwMonth, out idwDay, out idwHour, out idwMinute, out idwSecond, ref idwWorkcode))
+                    {
+                        DateTime logTime = new DateTime(idwYear, idwMonth, idwDay, idwHour, idwMinute, idwSecond);
+                        if (logTime < DateTime.Now.AddDays(-1)) continue;
+
+                        List<DateTime> timeCandidates = new List<DateTime> {
+                            logTime, logTime.AddHours(6), logTime.AddHours(5),
+                            logTime.AddHours(-6), logTime.AddHours(-5)
+                        };
+
+                        foreach (var t in timeCandidates)
+                        {
+                            string ts = $"{t.Year}{t.Month:D2}{t.Day:D2}{t.Hour:D2}{t.Minute:D2}{t.Second:D2}";
+                            string[] filenames = { $"{ts}.jpg", $"{sdwEnrollNumber}_{ts}.jpg", $"{ts}_{sdwEnrollNumber}.jpg" };
+
+                            foreach (string fname in filenames)
+                            {
+                                string localPath = Path.Combine(destFolder, fname);
+                                if (File.Exists(localPath)) continue;
+
+                                if (axCZKEM1.GetPhotoByNameToFile(iMachineNumber, fname, localPath))
+                                {
+                                    Console.WriteLine($"{{\"status\": \"found\", \"file\": \"{fname}\", \"log_time\": \"{logTime}\"}}");
+                                    found++;
+                                    goto NextLog;
+                                }
+                            }
+                        }
+                    NextLog:;
+                    }
+
+                    Console.WriteLine(found > 0
+                        ? $"{{\"status\": \"OK\", \"message\": \"¡ÉXITO! Se recuperaron {found} fotos.\", \"path\": \"{CleanString(destFolder)}\"}}"
+                        : "{\"status\": \"OK\", \"message\": \"0 fotos encontradas en logs recientes.\", \"count\": 0}");
                 }
                 else
                 {
-                    // Opcional: Si quieres ver también los que fallan para confirmar que no existen
-                    // int err = 0; axCZKEM1.GetLastError(ref err);
-                    // if (!first) Console.WriteLine(",");
-                    // Console.Write($"{{\"param\": \"{param}\", \"error\": {err}, \"status\": \"FAIL\"}}");
-                    // first = false;
+                    int err = 0; axCZKEM1.GetLastError(ref err);
+                    Console.WriteLine($"{{\"error\": \"Fallo al leer logs. ErrorCode: {err}\"}}");
                 }
             }
-            Console.WriteLine("]"); // Cerrar Array JSON
-        }
-        static void GetAllUsers(int iMachineNumber)
-        {
-            axCZKEM1.EnableDevice(iMachineNumber, false);
-            axCZKEM1.ReadAllUserID(iMachineNumber); // Read basic info into memory
-            axCZKEM1.ReadAllTemplate(iMachineNumber); // Read Fingerprints into memory
-
-            List<string> usersJson = new List<string>();
-
-            string sEnrollNumber = "", sName = "", sPassword = "", sPrivilege = "";
-            bool bEnabled = false;
-
-            // 1. Iterate through all users
-            while (axCZKEM1.SSR_GetAllUserInfo(iMachineNumber, out sEnrollNumber, out sName, out sPassword, out int iPrivilege, out bEnabled))
+            catch (Exception ex)
             {
-                // 2. Get Fingerprints for this user (0-9)
-                List<string> fingers = new List<string>();
-                for (int i = 0; i < 10; i++)
-                {
-                    string tmpData = "";
-                    int tmpLen = 0;
-                    // Try getting standard template (Algorithm 10)
-                    if (axCZKEM1.GetUserTmpExStr(iMachineNumber, sEnrollNumber, i, out int flag, out tmpData, out tmpLen))
-                    {
-                        fingers.Add($"{{\"fingerIndex\": {i}, \"template\": \"{tmpData}\"}}");
-                    }
-                }
-
-                // 3. Get Face Template (Index 50 is main face)
-                string faceTmp = "";
-                int faceLen = 0;
-                string faceJson = "null";
-
-                // Try getting Face (Standard ZKFace)
-                if (axCZKEM1.GetUserFaceStr(iMachineNumber, sEnrollNumber, 50, ref faceTmp, ref faceLen))
-                {
-                    faceJson = $"\"{faceTmp}\"";
-                }
-
-                string userEntry = $"{{\"uid\": \"{sEnrollNumber}\", \"name\": \"{CleanString(sName)}\", \"privilege\": {iPrivilege}, \"password\": \"{sPassword}\", \"enabled\": {(bEnabled ? "true" : "false")}, \"fingers\": [{string.Join(",", fingers)}], \"face\": {faceJson}}}";
-                usersJson.Add(userEntry);
+                Console.WriteLine($"{{\"error\": \"Error Critico: {CleanString(ex.Message)}\"}}");
             }
-
-            axCZKEM1.EnableDevice(iMachineNumber, true);
-            Console.WriteLine($"[{string.Join(",", usersJson)}]");
+            finally
+            {
+                axCZKEM1.EnableDevice(iMachineNumber, true);
+            }
         }
 
-        static void UploadUser(int iMachineNumber, string jsonString)
+        static void UploadUser(int iMachineNumber, string dataString)
         {
-            // Simple manual JSON parsing (to avoid external dependencies like Newtonsoft)
-            // We assume the Node.js side sends a clean, simple object string.
-            // Format expected: "uid|name|privilege|password" 
-            // Note: For complex structure like arrays, passing JSON via CLI args is risky due to escaping.
-            // BETTER APPROACH: Node passes data separated by pipes '|' for basic info, 
-            // and we handle templates separately or we improve parsing.
-
-            // FOR ROBUSTNESS: Let's assume input format: UID|NAME|PRIVILEGE|PASSWORD|FACE_TMP|FINGER_0|FINGER_1...
-
-            string[] parts = jsonString.Split('|');
+            string[] parts = dataString.Split('|');
             if (parts.Length < 4) { Console.WriteLine("{\"error\": \"Invalid data format\"}"); return; }
 
             string uid = parts[0];
@@ -436,20 +677,27 @@ namespace ZkBridge
 
             axCZKEM1.EnableDevice(iMachineNumber, false);
 
-            // 1. Set Basic User Info
             if (axCZKEM1.SSR_SetUserInfo(iMachineNumber, uid, name, password, privilege, true))
             {
-                // 2. Set Face (if exists)
                 if (!string.IsNullOrEmpty(faceTmp))
                 {
-                    axCZKEM1.SetUserFaceStr(iMachineNumber, uid, 50, faceTmp, faceTmp.Length);
+                    axCZKEM1.DelUserFace(iMachineNumber, uid, 50);
+
+                    bool faceUploaded = axCZKEM1.SetUserFaceStr(iMachineNumber, uid, 50, faceTmp, faceTmp.Length);
+                    if (!faceUploaded)
+                    {
+                        try
+                        {
+                            byte[] faceBytes = Convert.FromBase64String(faceTmp);
+                            axCZKEM1.SetUserFace(iMachineNumber, uid, 50, ref faceBytes[0], faceBytes.Length);
+                        }
+                        catch { }
+                    }
                 }
 
-                // 3. Set Fingers (Remaining parts)
                 for (int i = 5; i < parts.Length; i++)
                 {
                     if (string.IsNullOrEmpty(parts[i])) continue;
-                    // Format: Index:Template
                     string[] fingerData = parts[i].Split(':');
                     if (fingerData.Length == 2)
                     {
@@ -467,25 +715,29 @@ namespace ZkBridge
                 int err = 0; axCZKEM1.GetLastError(ref err);
                 Console.WriteLine($"{{\"error\": \"Failed to set user info. Error: {err}\"}}");
             }
+
             axCZKEM1.EnableDevice(iMachineNumber, true);
         }
 
         static void DeleteUser(int iMachineNumber, string uid)
         {
             axCZKEM1.EnableDevice(iMachineNumber, false);
-            // 12 = Delete User (Info + Finger + Face)
             if (axCZKEM1.SSR_DeleteEnrollData(iMachineNumber, uid, 12))
             {
                 axCZKEM1.RefreshData(iMachineNumber);
-                Console.WriteLine("{\"status\": \"OK\", \"message\": \"User deleted\"}");
+                Console.WriteLine("{\"status\": \"OK\"}");
             }
             else
             {
-                int err = 0; axCZKEM1.GetLastError(ref err);
-                Console.WriteLine($"{{\"error\": \"Failed to delete user. Error: {err}\"}}");
+                Console.WriteLine("{\"error\": \"Fail\"}");
             }
             axCZKEM1.EnableDevice(iMachineNumber, true);
         }
-        static string CleanString(string s) { if (string.IsNullOrEmpty(s)) return ""; return s.Replace("\"", "'").Replace("\\", "/").Trim(); }
+
+        static string CleanString(string s)
+        {
+            if (string.IsNullOrEmpty(s)) return "";
+            return s.Replace("\"", "'").Replace("\\", "/").Trim();
+        }
     }
 }

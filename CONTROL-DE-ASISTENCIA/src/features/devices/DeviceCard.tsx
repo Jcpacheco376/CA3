@@ -4,7 +4,7 @@ import {
     Server, Wifi, MapPin, Clock, MoreVertical, RefreshCw, 
     DownloadCloud, Activity, Users, Fingerprint, Trash2, 
     ToggleRight, ToggleLeft, CheckCircle2, AlertCircle, Pencil,
-    Hash, KeyRound, PowerOff, Loader2
+    Hash, KeyRound, PowerOff, Loader2, ScanFace, Wrench
 } from 'lucide-react';
 import { Tooltip } from  '../../components/ui/Tooltip';
 import { useAuth } from '../auth/AuthContext';
@@ -29,24 +29,20 @@ export interface Device {
 
 interface DeviceCardProps {
     device: Device;
-    actionState: 'sync_logs' | 'sync_users' | 'test' | 'sync_time' | null;
+    actionState: 'sync_logs' | 'sync_users' | 'test' | 'sync_time' | 'sync_faces' | 'delete_fingerprints' | 'delete_users' | 'delete_admins' | 'delete_faces' | 'delete_all' | null;
     onSyncLogs: (device: Device) => void;
-    onSyncUsers: (device: Device) => void;
     onEdit: (device: Device) => void;
     onTestConnection: (id: number) => void;
-    onToggleDeleteLogs: (device: Device) => void;
-    onSyncTime: (device: Device) => void;
+    onOpenTools: (device: Device) => void;
 }
 
 export const DeviceCard = ({
     device,
     actionState,
     onSyncLogs,
-    onSyncUsers,
     onEdit,
     onTestConnection,
-    onToggleDeleteLogs,
-    onSyncTime
+    onOpenTools
 }: DeviceCardProps) => {
     const { user, can } = useAuth();
     const userTheme = user?.Theme?.toLowerCase() || 'indigo';
@@ -198,53 +194,16 @@ export const DeviceCard = ({
                                     </button>
                                 </Tooltip>
                             
-                            {canUpdate && (
-                                <Tooltip text="Ajustar hora del reloj con el servidor" position="left">
+                            {(canUpdate || canSyncUsers) && (
+                                <Tooltip text="Herramientas avanzadas y configuración" position="left">
                                     <button
-                                        onClick={() => { onSyncTime(device); setShowMenu(false); }}
+                                        onClick={() => { onOpenTools(device); setShowMenu(false); }}
                                         disabled={isBusy || !device.Activo}
                                         className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors disabled:opacity-50 hover:text-slate-900"
                                     >
-                                        <Clock size={16} /> Sincronizar Hora
+                                        <Wrench size={16} /> Herramientas
                                     </button>
                                 </Tooltip>
-                            )}
-                            {canSyncUsers && (
-                                <Tooltip text="Enviar empleados y huellas al dispositivo" position="left">
-                                    <button
-                                        onClick={() => { onSyncUsers(device); setShowMenu(false); }}
-                                        disabled={isBusy || !device.Activo}
-                                        className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors disabled:opacity-50 hover:text-slate-900"
-                                    >
-                                        <Users size={16} /> Sincronizar Personal
-                                    </button>
-                                </Tooltip>
-                            )}
-
-                            {canUpdate && (
-                                <>
-                                    <div className="my-1 border-t border-slate-100"></div>
-                                    <div className="px-3 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                                        Configuración
-                                    </div>
-                                    <Tooltip text="Borrar registros del reloj tras descarga" position="left">
-                                        <button
-                                            onClick={() => { onToggleDeleteLogs(device); }}
-                                            disabled={isBusy || !device.Activo}
-                                            className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center justify-between gap-2 transition-colors disabled:opacity-50"
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                <Trash2 size={16} /> Auto-limpiar
-                                            </div>
-                                            <div 
-                                                className={device.BorrarChecadas ? "" : "text-slate-300"}
-                                                style={device.BorrarChecadas ? { color: currentTheme[600] } : {}}
-                                            >
-                                                {device.BorrarChecadas ? <ToggleRight size={24} /> : <ToggleLeft size={24} />}
-                                            </div>
-                                        </button>
-                                    </Tooltip>
-                                </>
                             )}
                         </div>
                     )}

@@ -13,11 +13,12 @@ import { Tooltip } from '../../components/ui/Tooltip';
 import { ZonesManagerModal } from './ZonesManagerModal';
 import { DraggableGrid, useGridColumns, useDynamicLayout } from '../../components/ui/DraggableGrid';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
+import { DeviceToolsModal } from './DeviceToolsModal';
 
 const DEVICE_STORAGE_KEY = 'device_local_state_v1';
 const GRID_LAYOUT_KEY = 'device_grid_layout_v2';
 const ZONE_VIEW_MODES_KEY = 'device_zone_view_modes_v1';
-const ROW_HEIGHT = 374;
+const ROW_HEIGHT =374;
 
 export const DevicesPage = () => {
     // ... (El resto de hooks y estados se mantiene igual) ...
@@ -39,7 +40,7 @@ export const DevicesPage = () => {
         }
     });
     const [isLayoutEditMode, setIsLayoutEditMode] = useState(false);
-    const [actionState, setActionState] = useState<{ [id: number]: 'sync_logs' | 'sync_users' | 'test' | 'sync_time' | null }>({});
+    const [actionState, setActionState] = useState<{ [id: number]: 'sync_logs' | 'sync_users' | 'test' | 'sync_time' | 'sync_faces' | 'delete_fingerprints' | 'delete_users' | 'delete_admins' | 'delete_faces' | 'delete_all' | null }>({});
     const [confirmModal, setConfirmModal] = useState<{
         isOpen: boolean;
         title: string;
@@ -47,6 +48,14 @@ export const DevicesPage = () => {
         onConfirm: () => void;
         variant?: 'danger' | 'warning' | 'info' | 'success';
     }>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
+    
+    const [toolsDevice, setToolsDevice] = useState<Device | null>(null);
+    const [isToolsModalOpen, setIsToolsModalOpen] = useState(false);
+
+    const handleOpenTools = (device: Device) => {
+        setToolsDevice(device);
+        setIsToolsModalOpen(true);
+    };
 
     const canRead = can('dispositivos.read');
     const canCreate = can('dispositivos.create');
@@ -95,7 +104,7 @@ export const DevicesPage = () => {
     );
 
     // ... (Helpers y funciones de acción iguales: setDeviceAction, handleTestConnection, fetchDevices, syncs...) ...
-    const setDeviceAction = (id: number, action: 'sync_logs' | 'sync_users' | 'test' | 'sync_time' | null) => {
+    const setDeviceAction = (id: number, action: 'sync_logs' | 'sync_users' | 'test' | 'sync_time' | 'sync_faces' | 'delete_fingerprints' | 'delete_users' | 'delete_admins' | 'delete_faces' | 'delete_all' | null) => {
         setActionState(prev => ({ ...prev, [id]: action }));
     };
 
@@ -209,6 +218,35 @@ export const DevicesPage = () => {
         });
     };
 
+    const handleSyncFaces = async (device: Device) => {
+        const token = getToken();
+        if (!token) return;
+        
+        setConfirmModal({
+            isOpen: true,
+            title: 'Sincronizar Rostros',
+            message: `¿Estás seguro de sincronizar los rostros con el dispositivo "${device.Nombre}"? Esta acción puede tomar tiempo.`,
+            variant: 'warning',
+            onConfirm: async () => {
+                setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                setDeviceAction(device.DispositivoId, 'sync_faces');
+                try {
+                    const response = await fetch(`${API_BASE_URL}/devices/${device.DispositivoId}/sync-faces`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+                    });
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.message || 'Fallo sincronización de rostros');
+                    addNotification('Sincronización Rostros', data.message || 'Rostros sincronizados correctamente', 'success');
+                } catch (error: any) {
+                    addNotification('Error Rostros', error.message, 'error');
+                } finally {
+                    setDeviceAction(device.DispositivoId, null);
+                }
+            }
+        });
+    };
+
     const handleToggleDeleteLogs = async (device: Device) => {
         const token = getToken();
         if (!token) return;
@@ -241,6 +279,35 @@ export const DevicesPage = () => {
         } finally {
             setDeviceAction(device.DispositivoId, null);
         }
+    };
+
+    const handleGenericDelete = async (device: Device, action: 'delete_fingerprints' | 'delete_users' | 'delete_admins' | 'delete_faces' | 'delete_all', title: string, message: string, endpoint: string) => {
+        const token = getToken();
+        if (!token) return;
+
+        setConfirmModal({
+            isOpen: true,
+            title: title,
+            message: message,
+            variant: 'danger',
+            onConfirm: async () => {
+                setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                setDeviceAction(device.DispositivoId, action);
+                try {
+                    const response = await fetch(`${API_BASE_URL}/devices/${device.DispositivoId}/${endpoint}`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+                    });
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.message || 'Error en la operación');
+                    addNotification('Éxito', data.message || 'Operación completada', 'success');
+                } catch (error: any) {
+                    addNotification('Error', error.message, 'error');
+                } finally {
+                    setDeviceAction(device.DispositivoId, null);
+                }
+            }
+        });
     };
 
     const handleEditDevice = (device: Device) => { setEditingDevice(device); setIsCreateModalOpen(true); };
@@ -421,11 +488,9 @@ export const DevicesPage = () => {
                                                     device={dev}
                                                     actionState={actionState[dev.DispositivoId] || null}
                                                     onSyncLogs={handleSyncLogs}
-                                                    onSyncUsers={handleSyncUsers}
                                                     onEdit={handleEditDevice}
                                                     onTestConnection={handleTestConnection}
-                                                    onToggleDeleteLogs={handleToggleDeleteLogs}
-                                                    onSyncTime={handleSyncTime}
+                                                    onOpenTools={handleOpenTools}
                                                 />
                                                 {!isGridMode && index < zoneDevices.length - 1 && <div className="h-12 border-b border-slate-200 mt-4 mb-2 mx-2 border-dashed opacity-50"></div>}
                                             </div> 
@@ -445,6 +510,22 @@ export const DevicesPage = () => {
                 onClose={() => { setIsZonesModalOpen(false); setSelectedZoneId(null); }} 
                 initialZoneId={selectedZoneId} 
                 onZoneUpdated={fetchDevices}
+            />
+
+            <DeviceToolsModal 
+                isOpen={isToolsModalOpen}
+                onClose={() => { setIsToolsModalOpen(false); setToolsDevice(null); }}
+                device={toolsDevice ? devices.find(d => d.DispositivoId === toolsDevice.DispositivoId) || null : null}
+                onSyncUsers={handleSyncUsers}
+                onSyncFaces={handleSyncFaces}
+                onSyncTime={handleSyncTime}
+                onToggleDeleteLogs={handleToggleDeleteLogs}
+                onDeleteFingerprints={(d) => handleGenericDelete(d, 'delete_fingerprints', 'Borrar Huellas', `¿Estás seguro de borrar TODAS las huellas del dispositivo "${d.Nombre}"? Esta acción no se puede deshacer.`, 'delete-fingerprints')}
+                onDeleteUsers={(d) => handleGenericDelete(d, 'delete_users', 'Borrar Usuarios', `¿Estás seguro de borrar TODOS los usuarios del dispositivo "${d.Nombre}"? Esta acción no se puede deshacer.`, 'delete-users')}
+                onDeleteAdmins={(d) => handleGenericDelete(d, 'delete_admins', 'Borrar Administradores', `¿Estás seguro de quitar los privilegios de administrador en el dispositivo "${d.Nombre}"?`, 'delete-admins')}
+                onDeleteFaces={(d) => handleGenericDelete(d, 'delete_faces', 'Borrar Rostros', `¿Estás seguro de borrar TODOS los rostros del dispositivo "${d.Nombre}"? Esta acción no se puede deshacer.`, 'delete-faces')}
+                onDeleteAll={(d) => handleGenericDelete(d, 'delete_all', 'Formatear Datos', `¿Estás seguro de borrar TODO (usuarios, huellas, rostros, logs) del dispositivo "${d.Nombre}"? El dispositivo quedará vacío.`, 'delete-data')}
+                actionState={toolsDevice ? (actionState[toolsDevice.DispositivoId] || null) : null}
             />
             
             <ConfirmationModal
