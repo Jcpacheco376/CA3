@@ -1,8 +1,8 @@
-C:\Users\SISTEMAS\Documents\VSC-PROJECTS\CA3\ZkBridge\ZkBridge\ZkBridge\bin\x86\Debug\ZkBridge.exe.config
-C:\Users\SISTEMAS\Documents\VSC-PROJECTS\CA3\ZkBridge\ZkBridge\ZkBridge\bin\x86\Debug\ZkBridge.exe
-C:\Users\SISTEMAS\Documents\VSC-PROJECTS\CA3\ZkBridge\ZkBridge\ZkBridge\bin\x86\Debug\ZkBridge.pdb
 C:\Users\SISTEMAS\Documents\VSC-PROJECTS\CA3\ZkBridge\ZkBridge\ZkBridge\obj\x86\Debug\Interop.zkemkeeper.dll
 C:\Users\SISTEMAS\Documents\VSC-PROJECTS\CA3\ZkBridge\ZkBridge\ZkBridge\obj\x86\Debug\ZkBridge.csproj.ResolveComReference.cache
 C:\Users\SISTEMAS\Documents\VSC-PROJECTS\CA3\ZkBridge\ZkBridge\ZkBridge\obj\x86\Debug\ZkBridge.csproj.CoreCompileInputs.cache
+C:\Users\SISTEMAS\Documents\VSC-PROJECTS\CA3\ZkBridge\ZkBridge\ZkBridge\bin\x86\Debug\ZkBridge.exe.config
+C:\Users\SISTEMAS\Documents\VSC-PROJECTS\CA3\ZkBridge\ZkBridge\ZkBridge\bin\x86\Debug\ZkBridge.exe
+C:\Users\SISTEMAS\Documents\VSC-PROJECTS\CA3\ZkBridge\ZkBridge\ZkBridge\bin\x86\Debug\ZkBridge.pdb
 C:\Users\SISTEMAS\Documents\VSC-PROJECTS\CA3\ZkBridge\ZkBridge\ZkBridge\obj\x86\Debug\ZkBridge.exe
 C:\Users\SISTEMAS\Documents\VSC-PROJECTS\CA3\ZkBridge\ZkBridge\ZkBridge\obj\x86\Debug\ZkBridge.pdb

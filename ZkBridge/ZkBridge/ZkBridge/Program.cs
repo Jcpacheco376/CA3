@@ -70,7 +70,10 @@ namespace ZkBridge
                             if (args.Length >= 5) UploadFacesFromFile(1, args[4]);
                             else Console.WriteLine("{\"error\": \"Falta archivo\"}");
                             break;
-
+                        case "upload_fingerprints_file":
+                            if (args.Length >= 5) UploadFingerprintsFromFile(1, args[4]);
+                            else Console.WriteLine("{\"error\": \"Falta archivo\"}");
+                            break;
                         case "upload_biotemplates":
                             if (args.Length >= 5) UploadBioTemplates(1, args[4]);
                             else Console.WriteLine("{\"error\": \"Falta archivo\"}");
@@ -127,6 +130,19 @@ namespace ZkBridge
                         case "download_photos":
                             if (args.Length >= 5) DownloadPhotos(1, args[4]);
                             else Console.WriteLine("{\"error\": \"Falta la ruta de destino\"}");
+                            break;
+
+                        // --- COMANDOS DE LIMPIEZA ESPECÍFICA ---
+                        case "clear_faces":
+                            ClearFaces(1);
+                            break;
+
+                        case "clear_fingerprints":
+                            ClearFingerprints(1);
+                            break;
+
+                        case "clear_data":
+                            ClearAllData(1);
                             break;
 
                         default:
@@ -663,7 +679,52 @@ namespace ZkBridge
                 axCZKEM1.EnableDevice(iMachineNumber, true);
             }
         }
+static void UploadFingerprintsFromFile(int iMachineNumber, string filePath)
+        {
+            if (!File.Exists(filePath)) { Console.WriteLine("{\"error\": \"Archivo no encontrado\"}"); return; }
 
+            axCZKEM1.EnableDevice(iMachineNumber, false);
+            int success = 0, fail = 0;
+            
+            // Formato esperado: UID|Index:Template|Index:Template...
+            foreach (string line in File.ReadAllLines(filePath))
+            {
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                try
+                {
+                    string[] parts = line.Split('|');
+                    if (parts.Length < 2) continue;
+
+                    string uid = parts[0];
+                    bool userSuccess = true;
+
+                    for (int i = 1; i < parts.Length; i++)
+                    {
+                        if (string.IsNullOrEmpty(parts[i])) continue;
+                        string[] fingerData = parts[i].Split(':');
+                        if (fingerData.Length == 2)
+                        {
+                            int idx = int.Parse(fingerData[0]);
+                            string tmp = fingerData[1];
+                            // 1 = Flag válido
+                            if (!axCZKEM1.SetUserTmpExStr(iMachineNumber, uid, idx, 1, tmp))
+                            {
+                                userSuccess = false;
+                            }
+                        }
+                    }
+
+                    if (userSuccess) success++;
+                    else fail++;
+                }
+                catch { fail++; }
+            }
+
+            axCZKEM1.RefreshData(iMachineNumber);
+            axCZKEM1.EnableDevice(iMachineNumber, true);
+            Console.WriteLine($"{{\"status\": \"OK\", \"success\": {success}, \"failed\": {fail}}}");
+            Console.Out.Flush();
+        }
         static void UploadUser(int iMachineNumber, string dataString)
         {
             string[] parts = dataString.Split('|');
@@ -732,6 +793,65 @@ namespace ZkBridge
                 Console.WriteLine("{\"error\": \"Fail\"}");
             }
             axCZKEM1.EnableDevice(iMachineNumber, true);
+        }
+
+        static void ClearFaces(int iMachineNumber)
+        {
+            axCZKEM1.EnableDevice(iMachineNumber, false);
+            axCZKEM1.ReadAllUserID(iMachineNumber);
+
+            string sEnrollNumber = "", sName = "", sPassword = "";
+            int iPrivilege = 0;
+            bool bEnabled = false;
+            int count = 0;
+
+            // Iteramos todos los usuarios y borramos su rostro (Index 50)
+            while (axCZKEM1.SSR_GetAllUserInfo(iMachineNumber, out sEnrollNumber, out sName, out sPassword, out iPrivilege, out bEnabled))
+            {
+                if (axCZKEM1.DelUserFace(iMachineNumber, sEnrollNumber, 50))
+                    count++;
+            }
+
+            axCZKEM1.RefreshData(iMachineNumber);
+            axCZKEM1.EnableDevice(iMachineNumber, true);
+            Console.WriteLine($"{{\"status\": \"OK\", \"deleted\": {count}}}");
+            Console.Out.Flush();
+        }
+
+        static void ClearFingerprints(int iMachineNumber)
+        {
+            axCZKEM1.EnableDevice(iMachineNumber, false);
+            // ClearData(2) borra todas las plantillas de huellas
+            if (axCZKEM1.ClearData(iMachineNumber, 2))
+            {
+                axCZKEM1.RefreshData(iMachineNumber);
+                Console.WriteLine("{\"status\": \"OK\"}");
+            }
+            else
+            {
+                int err = 0; axCZKEM1.GetLastError(ref err);
+                Console.WriteLine($"{{\"error\": \"Fallo ClearData(2). Code: {err}\"}}");
+            }
+            axCZKEM1.EnableDevice(iMachineNumber, true);
+            Console.Out.Flush();
+        }
+
+        static void ClearAllData(int iMachineNumber)
+        {
+            axCZKEM1.EnableDevice(iMachineNumber, false);
+            // ClearData(5) borra toda la información de usuarios (Huellas, Rostros, Passwords, Tarjetas)
+            if (axCZKEM1.ClearData(iMachineNumber, 5))
+            {
+                axCZKEM1.RefreshData(iMachineNumber);
+                Console.WriteLine("{\"status\": \"OK\"}");
+            }
+            else
+            {
+                int err = 0; axCZKEM1.GetLastError(ref err);
+                Console.WriteLine($"{{\"error\": \"Fallo ClearData(5). Code: {err}\"}}");
+            }
+            axCZKEM1.EnableDevice(iMachineNumber, true);
+            Console.Out.Flush();
         }
 
         static string CleanString(string s)

@@ -29,7 +29,7 @@ export interface Device {
 
 interface DeviceCardProps {
     device: Device;
-    actionState: 'sync_logs' | 'sync_users' | 'test' | 'sync_time' | 'sync_faces' | 'delete_fingerprints' | 'delete_users' | 'delete_admins' | 'delete_faces' | 'delete_all' | null;
+    actionState: string | null;
     onSyncLogs: (device: Device) => void;
     onEdit: (device: Device) => void;
     onTestConnection: (id: number) => void;
