@@ -5,6 +5,7 @@ import { useNotification } from '../../context/NotificationContext';
 import { API_BASE_URL } from '../../config/api';
 import { DeviceCard, Device } from './DeviceCard';
 import { DeviceModal } from './DeviceModal';
+import { EmpleadoModal } from '../admin/EmpleadoModal';
 import { themes } from '../../config/theme';
 import { Button } from '../../components/ui/Modal';
 import { PlusCircleIcon } from '../../components/ui/Icons';
@@ -43,6 +44,7 @@ export const DevicesPage = () => {
     
     const [toolsDevice, setToolsDevice] = useState<Device | null>(null);
     const [isToolsModalOpen, setIsToolsModalOpen] = useState(false);
+    const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
 
     const handleOpenTools = (device: Device) => {
         setToolsDevice(device);
@@ -420,6 +422,7 @@ export const DevicesPage = () => {
                                                     onEdit={handleEditDevice}
                                                     onTestConnection={handleTestConnection}
                                                     onOpenTools={handleOpenTools}
+                                                    onAddEmployee={() => setIsEmployeeModalOpen(true)}
                                                 />
                                                 {!isGridMode && index < zoneDevices.length - 1 && <div className="h-12 border-b border-slate-200 mt-4 mb-2 mx-2 border-dashed opacity-50"></div>}
                                             </div> 
@@ -434,6 +437,7 @@ export const DevicesPage = () => {
 
             <DeviceModal isOpen={isCreateModalOpen} onClose={handleCloseModal} onSuccess={fetchDevices} deviceToEdit={editingDevice} />
             <ZonesManagerModal isOpen={isZonesModalOpen} onClose={() => { setIsZonesModalOpen(false); setSelectedZoneId(null); }} initialZoneId={selectedZoneId} onZoneUpdated={fetchDevices} />
+            <EmpleadoModal isOpen={isEmployeeModalOpen} onClose={() => setIsEmployeeModalOpen(false)} onSave={() => { setIsEmployeeModalOpen(false); addNotification('Éxito', 'Empleado creado', 'success'); }} />
             
             <DeviceToolsModal 
                 isOpen={isToolsModalOpen}

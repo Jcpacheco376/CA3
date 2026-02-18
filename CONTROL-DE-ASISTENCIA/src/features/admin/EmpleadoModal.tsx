@@ -2,9 +2,11 @@ import { API_BASE_URL } from '../../config/api';
 import React, { useState, useEffect, useRef } from 'react';
 import { Modal, Button } from '../../components/ui/Modal';
 import { useAuth } from '../auth/AuthContext';
-import { Camera, Upload, X, User, Calendar, Briefcase, MapPin, Clock, FileText, Hash, Fingerprint, Badge } from 'lucide-react';
+import { Camera, Upload, X, User, Calendar, Briefcase, MapPin, Clock, FileText, Hash, Fingerprint, Badge, Check, CheckCheck, XCircle } from 'lucide-react';
 import { SmartSelect } from '../../components/ui/SmartSelect';
 import { format } from 'date-fns';
+import { Tooltip } from '../../components/ui/Tooltip';
+import { Zone } from '../../types';
 
 interface EmpleadoModalProps {
     isOpen: boolean;
@@ -12,6 +14,59 @@ interface EmpleadoModalProps {
     onSave: () => void;
     empleado?: any;
 }
+
+// --- Helper Components (Adapted from UserModal) ---
+
+const Checkbox = ({ id, label, checked, onChange }: { id: string | number, label: string, checked: boolean, onChange: (checked: boolean) => void }) => {
+    return (
+        <label htmlFor={`cb-zone-${id}`} className="flex items-center space-x-3 p-2 rounded-md hover:bg-slate-100 cursor-pointer transition-colors">
+            <div className="relative w-5 h-5 shrink-0">
+                <input id={`cb-zone-${id}`} type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="peer appearance-none w-5 h-5 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[--theme-500]" />
+                <div className="absolute inset-0 w-full h-full rounded-md border-2 border-slate-300 peer-checked:bg-[--theme-500] peer-checked:border-[--theme-500] transition-colors pointer-events-none"></div>
+                <Check size={14} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white pointer-events-none transition-opacity opacity-0 peer-checked:opacity-100" />
+            </div>
+            <span className="text-sm text-slate-700 select-none truncate" title={label}>{label}</span>
+        </label>
+    );
+};
+
+const CatalogSection = ({ title, icon, items, selectedItems, onItemsChange, keyField, labelField, loading, error }: any) => {
+    const allSelected = items.length > 0 && selectedItems.length === items.length;
+    const handleToggleAll = () => allSelected ? onItemsChange([]) : onItemsChange(items);
+
+    const handleToggle = (item: any) => {
+        const itemId = item[keyField];
+        const isSelected = selectedItems.some((s: any) => s[keyField] === itemId);
+        // We filter or add the full item object
+        onItemsChange(isSelected ? selectedItems.filter((s: any) => s[keyField] !== itemId) : [...selectedItems, item]);
+    };
+
+    return (
+        <div className="flex flex-col h-full">
+            <div className="flex justify-between items-center mb-2 px-1">
+                <h4 className="font-semibold text-slate-800 flex items-center gap-2 text-sm">{icon} {title}</h4>
+                <Tooltip text={allSelected ? "Limpiar todo" : "Marcar todos"}>
+                    <button type="button" onClick={handleToggleAll} className={`p-1 transition-colors ${allSelected ? 'text-red-500 hover:text-red-700' : 'text-slate-400 hover:text-[--theme-500]'}`}>
+                        {allSelected ? <XCircle size={16} /> : <CheckCheck size={16} />}
+                    </button>
+                </Tooltip>
+            </div>
+            <div className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 flex-1 min-h-[120px]">
+                <div className="max-h-48 h-full overflow-y-auto space-y-1 custom-scrollbar">
+                    {loading && <p className="text-xs text-slate-400 p-2">Cargando...</p>}
+                    {error && <p className="text-xs text-red-500 p-2">{error}</p>}
+                    {!loading && !error && items.length === 0 && <p className="text-xs text-slate-400 p-2">Sin datos disponibles.</p>}
+                    {!loading && !error && items.map((item: any) => (
+                        <Checkbox key={item[keyField]} id={`${keyField}-${item[keyField]}`} label={item[labelField]}
+                            checked={selectedItems?.some((s: any) => s[keyField] === item[keyField]) || false}
+                            onChange={() => handleToggle(item)}
+                        />
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+};
 
 export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, onSave, empleado }) => {
     const { getToken } = useAuth();
@@ -30,7 +85,8 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
         CURP: '',
         RFC: '',
         Imagen: null, // Base64 string
-        Activo: true
+        Activo: true,
+        Zonas: [] // Array of Zone objects or Zone IDs
     });
 
     // Catalogs state
@@ -39,6 +95,7 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
     const [puestos, setPuestos] = useState<any[]>([]);
     const [horarios, setHorarios] = useState<any[]>([]);
     const [establecimientos, setEstablecimientos] = useState<any[]>([]);
+    const [zonas, setZonas] = useState<Zone[]>([]);
 
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -55,7 +112,8 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
                     ...prev,
                     ...empleado,
                     // If image is already here (from list), use it initially to prevent flickering
-                    Imagen: empleado.Imagen ? arrayBufferToBase64(empleado.Imagen) : null
+                    Imagen: empleado.Imagen ? arrayBufferToBase64(empleado.Imagen) : null,
+                    Zonas: empleado.Zonas || []
                 }));
 
                 // Fetch full details
@@ -76,7 +134,8 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
                             HorarioIdPredeterminado: fullData.HorarioIdPredeterminado || '',
                             EstablecimientoId: fullData.EstablecimientoId || '',
                             Imagen: fullData.Imagen ? arrayBufferToBase64(fullData.Imagen) : null,
-                            Activo: fullData.Activo
+                            Activo: fullData.Activo,
+                            Zonas: fullData.Zonas || []
                         }));
                     })
                     .catch(err => {
@@ -101,7 +160,8 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
                     CURP: '',
                     RFC: '',
                     Imagen: null,
-                    Activo: true
+                    Activo: true,
+                    Zonas: []
                 });
             }
         }
@@ -113,12 +173,13 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
 
         try {
             const headers = { 'Authorization': `Bearer ${token}` };
-            const [deptosRes, gruposRes, puestosRes, horariosRes, estabRes] = await Promise.all([
+            const [deptosRes, gruposRes, puestosRes, horariosRes, estabRes, zonasRes] = await Promise.all([
                 fetch(`${API_BASE_URL}/catalogs/departamentos`, { headers }),
                 fetch(`${API_BASE_URL}/catalogs/grupos-nomina`, { headers }),
                 fetch(`${API_BASE_URL}/catalogs/puestos`, { headers }),
                 fetch(`${API_BASE_URL}/catalogs/schedules`, { headers }), // Schedules endpoint
-                fetch(`${API_BASE_URL}/catalogs/establecimientos`, { headers })
+                fetch(`${API_BASE_URL}/catalogs/establecimientos`, { headers }),
+                fetch(`${API_BASE_URL}/devices/zones`, { headers })
             ]);
 
             if (deptosRes.ok) setDepartamentos(await deptosRes.json());
@@ -126,6 +187,7 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
             if (puestosRes.ok) setPuestos(await puestosRes.json());
             if (horariosRes.ok) setHorarios(await horariosRes.json());
             if (estabRes.ok) setEstablecimientos(await estabRes.json());
+            if (zonasRes.ok) setZonas(await zonasRes.json());
 
         } catch (err) {
             console.error("Error fetching catalogs", err);
@@ -169,6 +231,10 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
         }
     };
 
+    const handleZonasChange = (newZonas: Zone[]) => {
+        setFormData((prev: any) => ({ ...prev, Zonas: newZonas }));
+    };
+
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setIsLoading(true);
@@ -180,7 +246,6 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
             const method = isNew ? 'POST' : 'PUT';
 
             // Clean data before sending (convert empty strings to null for IDs if API expects it, or keep as string)
-            // SQL might expect NULL for empty strings on INT columns, but let's see if we can send 0 or null
             const payload = {
                 ...formData,
                 DepartamentoId: formData.DepartamentoId || null,
@@ -188,6 +253,13 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
                 PuestoId: formData.PuestoId || null,
                 HorarioIdPredeterminado: formData.HorarioIdPredeterminado || null,
                 EstablecimientoId: formData.EstablecimientoId || null,
+                // Ensure Zonas are sent in the format backend expects (e.g., array of IDs or objects)
+                // Assuming backend can handle the array of objects if that's what we received,
+                // or we might need to map to IDs. Let's map to be safe if that's the pattern, 
+                // but usually full object update might be easier. 
+                // However, matching UserModal pattern which sends "Roles" as array of Role objects.
+                // We'll stick to sending the array of Zone objects.
+                Zonas: formData.Zonas
             };
 
             const res = await fetch(url, {
@@ -285,6 +357,25 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
                                 Fotografía de perfil
                             </p>
                         </div>
+
+                        {/* Zone Assignment in Left Column to utilize space */}
+                        <div className="pt-2">
+                            <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                                <Badge size={14} /> Control de Acceso
+                            </h4>
+                            <CatalogSection
+                                title="Zonas Asignadas"
+                                icon={<MapPin size={14} />}
+                                items={zonas}
+                                selectedItems={formData.Zonas}
+                                onItemsChange={handleZonasChange}
+                                keyField="ZonaId"
+                                labelField="Nombre"
+                                loading={false}
+                                error={null}
+                            />
+                        </div>
+
                     </div>
 
                     {/* Right Column: Form Fields */}

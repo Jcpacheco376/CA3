@@ -16,7 +16,8 @@ CREATE PROCEDURE dbo.sp_Empleados_Update
     @CURP nvarchar(40) = NULL,
     @RFC nvarchar(40) = NULL,
     @Imagen varbinary(MAX) = NULL,
-    @Activo bit = 1
+    @Activo bit = 1,
+    @Zonas nvarchar(MAX) = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -45,5 +46,14 @@ BEGIN
         Imagen = ISNULL(@Imagen, Imagen), -- Keep existing image if null passed? Or handle differently in API
         Activo = @Activo
     WHERE EmpleadoId = @EmpleadoId;
+
+    IF @Zonas IS NOT NULL
+    BEGIN
+        DELETE FROM dbo.EmpleadosZonas WHERE EmpleadoId = @EmpleadoId;
+
+        INSERT INTO dbo.EmpleadosZonas (EmpleadoId, ZonaId)
+        SELECT @EmpleadoId, ZonaId
+        FROM OPENJSON(@Zonas) WITH (ZonaId INT '$.ZonaId');
+    END
 END
 GO

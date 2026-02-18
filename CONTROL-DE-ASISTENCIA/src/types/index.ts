@@ -104,3 +104,9 @@ export interface Zone {
 
 
 
+export interface EmployeeStats {
+    TotalActivos: number;
+    SinHorario: number;
+    HorarioRotativo: number;
+    SinDispositivo: number;
+}

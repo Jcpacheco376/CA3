@@ -16,7 +16,20 @@ export const getEmployeeProfile = async (req: any, res: Response) => {
         const pool = await sql.connect(dbConfig);
         const result = await pool.request().input('EmpleadoId', sql.Int, employeeId).execute('sp_Empleados_GetDatos');
         if (result.recordset.length === 0) return res.status(404).json({ message: 'Empleado no encontrado.' });
-        res.json(result.recordset[0]);
+
+        const employee = result.recordset[0];
+        if (employee.Zonas) {
+            try {
+                employee.Zonas = JSON.parse(employee.Zonas);
+            } catch (e) {
+                console.error("Error parsing Zonas JSON", e);
+                employee.Zonas = [];
+            }
+        } else {
+            employee.Zonas = [];
+        }
+
+        res.json(employee);
     } catch (err: any) {
         res.status(500).json({ message: err.message || 'Error al obtener la información del empleado.' });
     }
@@ -32,6 +45,19 @@ export const getEmployees = async (req: any, res: Response) => {
         res.json(result.recordset);
     } catch (err: any) {
         res.status(500).json({ message: err.message || 'Error al obtener empleados.' });
+    }
+};
+
+export const getEmployeeStats = async (req: any, res: Response) => {
+    if (!req.user.permissions['catalogo.empleados.read'] && !req.user.permissions['catalogo.empleados.manage']) {
+        return res.status(403).json({ message: 'No tienes permiso.' });
+    }
+    try {
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request().execute('dbo.sp_Empleados_GetStats');
+        res.json(result.recordset[0]);
+    } catch (err: any) {
+        res.status(500).json({ message: err.message || 'Error al obtener estadísticas.' });
     }
 };
 
@@ -61,6 +87,10 @@ export const createEmployee = async (req: any, res: Response) => {
             request.input('Imagen', sql.VarBinary, Buffer.from(req.body.Imagen, 'base64'));
         }
         request.input('Activo', sql.Bit, req.body.Activo);
+
+        if (req.body.Zonas) {
+            request.input('Zonas', sql.NVarChar, JSON.stringify(req.body.Zonas));
+        }
 
         const result = await request.execute('dbo.sp_Empleados_Insert');
         res.status(201).json({ message: 'Empleado creado correctamente.', empleadoId: result.recordset[0].EmpleadoId });
@@ -95,6 +125,10 @@ export const updateEmployee = async (req: any, res: Response) => {
             request.input('Imagen', sql.VarBinary, Buffer.from(req.body.Imagen, 'base64'));
         }
         request.input('Activo', sql.Bit, req.body.Activo);
+
+        if (req.body.Zonas) {
+            request.input('Zonas', sql.NVarChar, JSON.stringify(req.body.Zonas));
+        }
 
         await request.execute('dbo.sp_Empleados_Update');
         res.json({ message: 'Empleado actualizado correctamente.' });

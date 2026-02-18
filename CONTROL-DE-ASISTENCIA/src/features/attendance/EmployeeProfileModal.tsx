@@ -1,13 +1,16 @@
 // src/features/attendance/EmployeeProfileModal.tsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { API_BASE_URL } from '../../config/api';
 import { format, startOfWeek, endOfWeek, differenceInYears, isWithinInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Badge, Cake, Calendar as CalendarIcon, Hash, Fingerprint, X, User, Briefcase, Building, AlertCircle, Mars, Venus } from 'lucide-react';
+import { Badge, Cake, Calendar as CalendarIcon, Hash, Fingerprint, X, User, Briefcase, Building, AlertCircle, Mars, Venus, Pencil, MapPin, Clock } from 'lucide-react';
 import { Tooltip } from '../../components/ui/Tooltip';
 import { themes } from '../../config/theme';
+import { EmpleadoModal } from '../admin/EmpleadoModal';
+import { useAuth } from '../auth/AuthContext';
 
 export const EmployeeProfileModal = ({ employeeId, onClose, getToken, user }: { employeeId: string, onClose: () => void, getToken: () => string | null, user: any }) => {
+    const { can } = useAuth();
     const [employeeData, setEmployeeData] = useState<any>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -15,6 +18,7 @@ export const EmployeeProfileModal = ({ employeeId, onClose, getToken, user }: { 
     const [isDragging, setIsDragging] = useState(false);
     const dragStartOffset = useRef({ x: 0, y: 0 });
     const cardRef = useRef<HTMLDivElement>(null);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
     const arrayBufferToBase64 = (buffer: { type: string, data: number[] }) => {
         if (!buffer || !buffer.data) return '';
@@ -26,29 +30,30 @@ export const EmployeeProfileModal = ({ employeeId, onClose, getToken, user }: { 
         return window.btoa(binary);
     };
 
-    useEffect(() => {
-        const fetchEmployeeData = async () => {
-            setIsLoading(true);
-            setError(null);
-            const token = getToken();
-            if (!token) { setError("Sesión no válida."); setIsLoading(false); return; }
-            try {
-                // Pequeño delay para que la UI de carga sea perceptible
-                await new Promise(resolve => setTimeout(resolve, 300));
-                const res = await fetch(`${API_BASE_URL}/employees/${employeeId}/profile`, { headers: { 'Authorization': `Bearer ${token}` } });
-                if (!res.ok) {
-                    const errorData = await res.json();
-                    throw new Error(errorData.message || 'No se pudo cargar la información del empleado.');
-                }
-                setEmployeeData(await res.json());
-            } catch (err: any) {
-                setError(err.message);
-            } finally {
-                setIsLoading(false);
+    const fetchEmployeeData = useCallback(async () => {
+        setIsLoading(true);
+        setError(null);
+        const token = getToken();
+        if (!token) { setError("Sesión no válida."); setIsLoading(false); return; }
+        try {
+            // Pequeño delay para que la UI de carga sea perceptible
+            await new Promise(resolve => setTimeout(resolve, 300));
+            const res = await fetch(`${API_BASE_URL}/employees/${employeeId}/profile`, { headers: { 'Authorization': `Bearer ${token}` } });
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.message || 'No se pudo cargar la información del empleado.');
             }
-        };
-        fetchEmployeeData();
+            setEmployeeData(await res.json());
+        } catch (err: any) {
+            setError(err.message);
+        } finally {
+            setIsLoading(false);
+        }
     }, [employeeId, getToken]);
+
+    useEffect(() => {
+        fetchEmployeeData();
+    }, [fetchEmployeeData]);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -184,9 +189,11 @@ export const EmployeeProfileModal = ({ employeeId, onClose, getToken, user }: { 
                                 <InfoItem icon={<Fingerprint size={14} />} label="CURP" value={employeeData.CURP} />
                                 <InfoItem icon={<Hash size={14} />} label="NSS" value={employeeData.NSS} />
                                 <InfoItem icon={<Badge size={14} />} label="RFC" value={employeeData.RFC} />
-                                <InfoItem icon={<Building size={14} />} label="Departamento" value={employeeData.departamento_nombre} />
-                                <InfoItem icon={<Briefcase size={14} />} label="Grupo Nómina" value={employeeData.grupo_nomina_nombre} />
+                                <InfoItem icon={<Building size={14} />} label="Departamento" value={employeeData.departamento_nombre || employeeData.Departamento?.Nombre} />
+                                <InfoItem icon={<Briefcase size={14} />} label="Grupo Nómina" value={employeeData.grupo_nomina_nombre || employeeData.GrupoNomina?.Nombre} />
                                 <InfoItem icon={<User size={14} />} label="Sexo" value={employeeData.Sexo === 'M' ? 'Masculino' : 'Femenino'}>{employeeData.Sexo === 'M' ? <Mars size={14} className="text-blue-500" /> : <Venus size={14} className="text-pink-500" />}</InfoItem>
+                                <InfoItem icon={<MapPin size={14} />} label="Zona" value={employeeData.ZonaNombre || (employeeData.Zonas && employeeData.Zonas.length > 0 ? employeeData.Zonas.map((z: any) => z.Nombre).join(', ') : 'Sin Zona asignada')} />
+                                <InfoItem icon={<Clock size={14} />} label="Horario" value={employeeData.HorarioNombre || employeeData.Horario?.Nombre || 'Sin Horario'} />
                             </>
                         )}
                     </dl>
@@ -202,14 +209,37 @@ export const EmployeeProfileModal = ({ employeeId, onClose, getToken, user }: { 
 
     return (
         <div ref={cardRef} className={`fixed bg-white rounded-xl shadow-2xl z-40 w-[600px] animate-scale-in overflow-hidden`} style={positionStyle}>
-            <div onMouseDown={handleDragStart} className="h-12 w-full cursor-move p-4 flex items-center border-b border-slate-200" style={{ backgroundColor: themeColors[50] }}>
-                <h3 className="font-semibold" style={{ color: themeColors[600] }}>Ficha de Empleado</h3>
+            <div onMouseDown={handleDragStart} className="h-12 w-full cursor-move p-4 flex items-center justify-between border-b border-slate-200" style={{ backgroundColor: themeColors[50] }}>
+                <div className="flex items-center gap-3">
+                    <h3 className="font-semibold" style={{ color: themeColors[600] }}>Ficha de Empleado</h3>
+                    {!isLoading && can('catalogo.empleados.manage') && (
+                        <Tooltip text="Editar Empleado">
+                            <button
+                                onClick={() => setIsEditModalOpen(true)}
+                                className="p-1.5 rounded-full text-slate-400 hover:text-[--theme-600] hover:bg-[--theme-100] transition-colors"
+                            >
+                                <Pencil size={16} />
+                            </button>
+                        </Tooltip>
+                    )}
+                </div>
+                {/* Spacer to avoid overlap with absolute close button if needed, but close button is absolute */}
             </div>
-            <button onClick={onClose} className="absolute top-3 right-3 p-1 rounded-full text-slate-400 hover:bg-slate-200"><X size={18} /></button>
+
+            <button onClick={onClose} className="absolute top-3 right-3 p-1 rounded-full text-slate-400 hover:bg-slate-200 z-50"><X size={18} /></button>
+
             <div className={`absolute inset-0 bg-white/30 bg-clip-padding backdrop-filter backdrop-blur-sm animate-pulse ${!isLoading && 'hidden'}`}>
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/80 to-transparent -translate-x-full animate-[shimmer_2s_infinite]"></div>
             </div>
             {renderContent()}
+            {isEditModalOpen && (
+                <EmpleadoModal
+                    isOpen={isEditModalOpen}
+                    onClose={() => setIsEditModalOpen(false)}
+                    empleado={{ EmpleadoId: employeeId, ...employeeData }}
+                    onSave={() => { setIsEditModalOpen(false); fetchEmployeeData(); }}
+                />
+            )}
         </div>
     );
 };

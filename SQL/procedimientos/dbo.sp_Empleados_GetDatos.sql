@@ -22,7 +22,14 @@ BEGIN
         e.EstablecimientoId,
         e.HorarioIdPredeterminado,
         e.Activo,
-        e.Imagen
+        e.Imagen,
+        (
+            SELECT z.ZonaId, z.Nombre
+            FROM dbo.EmpleadosZonas ez
+            INNER JOIN dbo.Zonas z ON ez.ZonaId = z.ZonaId
+            WHERE ez.EmpleadoId = e.EmpleadoId
+            FOR JSON PATH
+        ) AS Zonas
     FROM dbo.Empleados e
     WHERE e.EmpleadoId = @EmpleadoId;
 END

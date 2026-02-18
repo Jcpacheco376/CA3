@@ -4,7 +4,7 @@ import {
     Server, Wifi, MapPin, Clock, MoreVertical, RefreshCw, 
     DownloadCloud, Activity, Users, Fingerprint, Trash2, 
     ToggleRight, ToggleLeft, CheckCircle2, AlertCircle, Pencil,
-    Hash, KeyRound, PowerOff, Loader2, ScanFace, Wrench
+    Hash, KeyRound, PowerOff, Loader2, ScanFace, Wrench, UserPlus
 } from 'lucide-react';
 import { Tooltip } from  '../../components/ui/Tooltip';
 import { useAuth } from '../auth/AuthContext';
@@ -34,6 +34,7 @@ interface DeviceCardProps {
     onEdit: (device: Device) => void;
     onTestConnection: (id: number) => void;
     onOpenTools: (device: Device) => void;
+    onAddEmployee?: () => void;
 }
 
 export const DeviceCard = ({
@@ -42,7 +43,8 @@ export const DeviceCard = ({
     onSyncLogs,
     onEdit,
     onTestConnection,
-    onOpenTools
+    onOpenTools,
+    onAddEmployee
 }: DeviceCardProps) => {
     const { user, can } = useAuth();
     const userTheme = user?.Theme?.toLowerCase() || 'indigo';
@@ -154,59 +156,72 @@ export const DeviceCard = ({
                     </div>
                 </div>
                 
-                <div className="relative" ref={menuRef}>
-                    {hasMenuActions && (
-                        <Tooltip text="Más opciones">
+                <div className="flex items-center gap-1">
+                    {onAddEmployee && can('catalogo.empleados.manage') && (
+                        <Tooltip text="Nuevo Empleado">
                             <button 
-                                onClick={() => setShowMenu(!showMenu)}
-                                className="text-slate-300 hover:text-indigo-500 p-1.5 rounded-full hover:bg-indigo-50 transition-colors"
+                                onClick={(e) => { e.stopPropagation(); onAddEmployee(); }}
+                                className="text-slate-300 hover:text-emerald-600 p-1.5 rounded-full hover:bg-emerald-50 transition-colors"
                             >
-                                <MoreVertical size={20} />
+                                <UserPlus size={20} />
                             </button>
                         </Tooltip>
                     )}
 
-                    {/* Menú Desplegable */}
-                    {showMenu && (
-                        <div className="absolute right-0 top-full mt-1 w-56 bg-white rounded-lg shadow-xl border border-slate-100 z-50 py-1 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
-                            <div className="px-3 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                                Mantenimiento
+                    <div className="relative" ref={menuRef}>
+                        {hasMenuActions && (
+                            <Tooltip text="Más opciones">
+                                <button 
+                                    onClick={() => setShowMenu(!showMenu)}
+                                    className="text-slate-300 hover:text-indigo-500 p-1.5 rounded-full hover:bg-indigo-50 transition-colors"
+                                >
+                                    <MoreVertical size={20} />
+                                </button>
+                            </Tooltip>
+                        )}
+
+                        {/* Menú Desplegable */}
+                        {showMenu && (
+                            <div className="absolute right-0 top-full mt-1 w-56 bg-white rounded-lg shadow-xl border border-slate-100 z-50 py-1 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
+                                <div className="px-3 py-2 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                                    Mantenimiento
+                                </div>
+                                {canUpdate && (
+                                    <Tooltip text="Modificar configuración del dispositivo" position="left">
+                                        <button
+                                            onClick={() => { onEdit(device); setShowMenu(false); }}
+                                            disabled={isBusy}
+                                            className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors disabled:opacity-50 hover:text-slate-900"
+                                        >
+                                            <Pencil size={16} /> Editar
+                                        </button>
+                                    </Tooltip>
+                                )}
+                                
+                                    <Tooltip text="Verificar conectividad con el dispositivo" position="left">
+                                        <button
+                                            onClick={() => { onTestConnection(device.DispositivoId); setShowMenu(false); }}
+                                            disabled={isBusy || !device.Activo}
+                                            className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors disabled:opacity-50 hover:text-slate-900"
+                                        >
+                                            <Activity size={16} /> Probar Conexión
+                                        </button>
+                                    </Tooltip>
+                                
+                                {(canUpdate || canSyncUsers) && (
+                                    <Tooltip text="Herramientas avanzadas y configuración" position="left">
+                                        <button
+                                            onClick={() => { onOpenTools(device); setShowMenu(false); }}
+                                            disabled={isBusy || !device.Activo}
+                                            className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors disabled:opacity-50 hover:text-slate-900"
+                                        >
+                                            <Wrench size={16} /> Herramientas
+                                        </button>
+                                    </Tooltip>
+                                )}
                             </div>
-                            {canUpdate && (
-                                <Tooltip text="Modificar configuración del dispositivo" position="left">
-                                    <button
-                                        onClick={() => { onEdit(device); setShowMenu(false); }}
-                                        disabled={isBusy}
-                                        className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors disabled:opacity-50 hover:text-slate-900"
-                                    >
-                                        <Pencil size={16} /> Editar
-                                    </button>
-                                </Tooltip>
-                            )}
-                              
-                                <Tooltip text="Verificar conectividad con el dispositivo" position="left">
-                                    <button
-                                        onClick={() => { onTestConnection(device.DispositivoId); setShowMenu(false); }}
-                                        disabled={isBusy || !device.Activo}
-                                        className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors disabled:opacity-50 hover:text-slate-900"
-                                    >
-                                        <Activity size={16} /> Probar Conexión
-                                    </button>
-                                </Tooltip>
-                            
-                            {(canUpdate || canSyncUsers) && (
-                                <Tooltip text="Herramientas avanzadas y configuración" position="left">
-                                    <button
-                                        onClick={() => { onOpenTools(device); setShowMenu(false); }}
-                                        disabled={isBusy || !device.Activo}
-                                        className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors disabled:opacity-50 hover:text-slate-900"
-                                    >
-                                        <Wrench size={16} /> Herramientas
-                                    </button>
-                                </Tooltip>
-                            )}
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
             </div>
 
