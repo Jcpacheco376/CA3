@@ -10,16 +10,16 @@ import { EstatusAsistenciaPage } from './EstatusAsistenciaPage.tsx';
 import { HorariosPage } from './HorariosPage.tsx';
 import { EstablecimientosPage } from './EstablecimientosPage.tsx';
 import { PuestosPage } from './PuestosPage.tsx';
-import { DevicesPage } from '../../features/devices/DevicesPage.tsx';
+import { EmpleadosPage } from './EmpleadosPage.tsx';
 
 // --- Componente Interno de Pestaña ---
-const TabButton = ({ 
-    icon, label, isActive, onClick, canAccess 
-}: { 
-    icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void, canAccess: boolean 
+const TabButton = ({
+    icon, label, isActive, onClick, canAccess
+}: {
+    icon: React.ReactNode, label: string, isActive: boolean, onClick: () => void, canAccess: boolean
 }) => {
     if (!canAccess) return null;
-    
+
     return (
         <button
             onClick={onClick}
@@ -43,54 +43,54 @@ export const CatalogLayout = ({ activeView, setActiveView }: { activeView: View,
 
     // Definimos las pestañas de navegación
     const catalogTabs = [
-        { 
-            id: 'admin_departamentos', 
-            label: 'Departamentos', 
-            icon: <Building size={18} />, 
+        {
+            id: 'admin_empleados',
+            label: 'Empleados',
+            icon: <Users size={18} />,
+            canAccess: can('catalogo.empleados.read'), // Or manage
+            component: <EmpleadosPage />
+        },
+        {
+            id: 'admin_departamentos',
+            label: 'Departamentos',
+            icon: <Building size={18} />,
             canAccess: can('catalogo.departamentos.read'),
             component: <DepartamentosPage />
         },
-        { 
-            id: 'admin_grupos_nomina', 
-            label: 'Grupos Nómina', 
-            icon: <Users size={18} />, 
+        {
+            id: 'admin_grupos_nomina',
+            label: 'Grupos Nómina',
+            icon: <Users size={18} />,
             canAccess: can('catalogo.gruposNomina.read'),
             component: <GruposNominaPage />
         },
-        { 
-            id: 'admin_puestos', 
-            label: 'Puestos', 
-            icon: <Tag size={18} />, 
+        {
+            id: 'admin_puestos',
+            label: 'Puestos',
+            icon: <Tag size={18} />,
             canAccess: can('catalogo.puestos.read'),
             component: <PuestosPage />
         },
-        { 
-            id: 'admin_establecimientos', 
-            label: 'Establecimientos', 
-            icon: <MapPin size={18} />, 
+        {
+            id: 'admin_establecimientos',
+            label: 'Establecimientos',
+            icon: <MapPin size={18} />,
             canAccess: can('catalogo.establecimientos.read'),
             component: <EstablecimientosPage />
         },
-        { 
-            id: 'admin_estatus_asistencia', 
-            label: 'Estatus Asistencia', 
-            icon: <CalendarCheck size={18} />, 
+        {
+            id: 'admin_estatus_asistencia',
+            label: 'Estatus Asistencia',
+            icon: <CalendarCheck size={18} />,
             canAccess: can('catalogo.estatusAsistencia.read'),
             component: <EstatusAsistenciaPage />
         },
-        { 
-            id: 'admin_horarios', 
-            label: 'Horarios', 
-            icon: <Clock size={18} />, 
+        {
+            id: 'admin_horarios',
+            label: 'Horarios',
+            icon: <Clock size={18} />,
             canAccess: can('catalogo.horarios.read'),
             component: <HorariosPage />
-        },
-        { 
-            id: 'admin_devices', 
-            label: 'Dispositivos', 
-            icon: <Server size={18} />, 
-            canAccess: can('dispositivos.read'),
-            component: <DevicesPage />
         },
     ];
 
@@ -101,14 +101,14 @@ export const CatalogLayout = ({ activeView, setActiveView }: { activeView: View,
             <div className="flex-none pt-1">
                 <div className="flex items-center border-b border-slate-200 px-1">
                     <Tooltip text="Volver al menú de catálogos">
-                        <button 
-                            onClick={() => setActiveView('admin_catalogs')} 
+                        <button
+                            onClick={() => setActiveView('admin_catalogs')}
                             className="p-2 mr-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors"
                         >
                             <ArrowLeft size={20} />
                         </button>
                     </Tooltip>
-                    
+
                     <div className="h-5 w-px bg-slate-200 mx-2 hidden sm:block"></div>
 
                     <nav className="flex items-center gap-1 overflow-x-auto no-scrollbar">

@@ -6,6 +6,7 @@ import { useNotification } from '../../context/NotificationContext';
 import { API_BASE_URL } from '../../config/api';
 // Added Coffee, Sun, Sunset, Moon icons
 import { Loader2, AlertTriangle, CheckCircle, XCircle, Edit, RotateCw, Coffee, Sun, Moon, Sunset, ArrowUpDown, ArrowUp, ArrowDown, Search, X } from 'lucide-react';
+import { GenericTableSkeleton } from '../../components/ui/GenericTableSkeleton';
 import { HorarioModal } from './HorarioModal';
 import { Tooltip, InfoIcon } from '../../components/ui/Tooltip';
 import { Button, Modal } from '../../components/ui/Modal';
@@ -38,11 +39,11 @@ const JornadaSemanalVisual = ({ detalles, esRotativo }: { detalles: any[], esRot
     // Handle 'No definido' case first
     if (!detalles || detalles.length === 0) {
         if (isActuallyRotativo) {
-             // Use containerClasses for consistent height and border
-             return <div className={`flex items-center justify-center px-3 bg-slate-100 text-slate-500 text-xs italic ${containerClasses}`}>Rotativo (sin turnos definidos)</div>;
+            // Use containerClasses for consistent height and border
+            return <div className={`flex items-center justify-center px-3 bg-slate-100 text-slate-500 text-xs italic ${containerClasses}`}>Rotativo (sin turnos definidos)</div>;
         }
         // If not rotativo and no details
-         // Use containerClasses for consistent height and border
+        // Use containerClasses for consistent height and border
         return <div className={`flex items-center justify-center px-3 bg-slate-50 text-slate-400 text-xs italic ${containerClasses}`}>No definido</div>;
     }
 
@@ -64,20 +65,20 @@ const JornadaSemanalVisual = ({ detalles, esRotativo }: { detalles: any[], esRot
                 <div className='text-xs text-left p-1'>
                     <p className='font-semibold mb-1 border-b border-slate-600'>{baseTooltipText}</p>
                     {/* Ensure HoraEntrada and HoraSalida exist before substring */}
-                    <p>{detail.HoraEntrada?.substring(0,5) ?? '??:??'} - {detail.HoraSalida?.substring(0,5) ?? '??:??'}</p>
+                    <p>{detail.HoraEntrada?.substring(0, 5) ?? '??:??'} - {detail.HoraSalida?.substring(0, 5) ?? '??:??'}</p>
                     {/* Use derived tieneComida for tooltip */}
                     {tieneComida && (
-                        <p className='flex items-center gap-1 text-amber-600'><Coffee size={12}/> Con comida</p>
+                        <p className='flex items-center gap-1 text-amber-600'><Coffee size={12} /> Con comida</p>
                     )}
                 </div>
             );
         } else {
-             tooltipJsxContent = (
-                 <div className='text-xs text-left p-1'>
+            tooltipJsxContent = (
+                <div className='text-xs text-left p-1'>
                     <p className='font-semibold mb-1 border-b border-slate-600'>{baseTooltipText}</p>
                     <p className='text-slate-400'>Descanso</p>
-                 </div>
-             );
+                </div>
+            );
         }
         // --- End Enhanced Tooltip Content ---
 
@@ -153,14 +154,14 @@ export const HorariosPage = () => {
                 throw new Error(errorData.message || 'No se pudo cargar el catálogo de horarios.');
             }
             const data = await response.json();
-             // ***** LOG: Check the exact structure and casing of EsRotativo AND turno here *****
+            // ***** LOG: Check the exact structure and casing of EsRotativo AND turno here *****
             console.log("[HorariosPage] fetchHorarios - Raw data received:", data);
             if (data && data.length > 0) {
-                 console.log("[HorariosPage] fetchHorarios - First item check:", data[0]);
-                 console.log(`[HorariosPage] fetchHorarios - Does first item have 'esRotativo'?`, data[0].hasOwnProperty('esRotativo'));
-                 console.log(`[HorariosPage] fetchHorarios - Value of 'esRotativo':`, data[0].esRotativo);
-                 console.log(`[HorariosPage] fetchHorarios - Does first item have 'turno'?`, data[0].hasOwnProperty('turno'));
-                 console.log(`[HorariosPage] fetchHorarios - Value of 'turno':`, data[0].turno);
+                console.log("[HorariosPage] fetchHorarios - First item check:", data[0]);
+                console.log(`[HorariosPage] fetchHorarios - Does first item have 'esRotativo'?`, data[0].hasOwnProperty('esRotativo'));
+                console.log(`[HorariosPage] fetchHorarios - Value of 'esRotativo':`, data[0].esRotativo);
+                console.log(`[HorariosPage] fetchHorarios - Does first item have 'turno'?`, data[0].hasOwnProperty('turno'));
+                console.log(`[HorariosPage] fetchHorarios - Value of 'turno':`, data[0].turno);
             }
             setHorarios(data);
         } catch (err: any) {
@@ -227,7 +228,7 @@ export const HorariosPage = () => {
     const renderContent = () => {
         // ... (renderContent logic remains the same) ...
         if (isLoading) {
-            return <div className="flex justify-center items-center p-8 h-full"><Loader2 className="animate-spin mr-2" /> Cargando horarios...</div>;
+            return <GenericTableSkeleton columns={7} rows={10} />;
         }
         if (error) {
             return <div className="text-center p-8 text-red-600 bg-red-50 rounded-lg"><AlertTriangle className="mx-auto mb-2" />{error}</div>;
@@ -235,74 +236,74 @@ export const HorariosPage = () => {
         return (
             <div className={`bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden ${useFixedLayout ? 'flex-1 flex flex-col min-h-0' : ''}`}>
                 <div className={useFixedLayout ? 'overflow-auto flex-1' : ''}>
-                <table className="w-full text-sm">
-                    <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
-                        <tr>
-                            <th className="p-3 text-left font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('HorarioId')}>
-                                <div className="flex items-center gap-2">ID {getSortIcon('HorarioId')}</div>
-                            </th>
-                            <th className="p-3 text-left font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('Abreviatura')}>
-                                <div className="flex items-center gap-2">Abreviatura {getSortIcon('Abreviatura')}</div>
-                            </th>
-                            <th className="p-3 text-left font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('Nombre')}>
-                                <div className="flex items-center gap-2">Nombre del Horario {getSortIcon('Nombre')}</div>
-                            </th>
-                            <th className="p-3 text-left font-semibold text-slate-600">Jornada Semanal</th>
-                            <th className="p-3 text-center font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('MinutosTolerancia')}>
-                                <div className="flex items-center justify-center gap-2">Tolerancia {getSortIcon('MinutosTolerancia')}</div>
-                            </th>
-                            <th className="p-3 text-center font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('Activo')}>
-                                <div className="flex items-center justify-center gap-2">Estado {getSortIcon('Activo')}</div>
-                            </th>
-                            {canManage && <th className="p-3 text-center font-semibold text-slate-600">Acciones</th>}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {processedHorarios.map((horario) => {
-                             // ***** LOG: Check the value being passed for each row *****
-                             // console.log(`[HorariosPage] Rendering row for HorarioId ${horario.HorarioId}, esRotativo prop value:`, horario.esRotativo, typeof horario.esRotativo);
-                             return (
-                                <tr key={horario.HorarioId} className="border-t border-slate-200 hover:bg-slate-50">
-                                    <td className="p-3 font-medium text-slate-800">{horario.HorarioId}</td>
-                                    <td className="p-3 font-medium text-slate-800">
-                                        <span className="px-2 py-1 rounded-md text-xs font-semibold" style={{
-                                            backgroundColor: themes[horario.ColorUI as keyof typeof themes]?.[100] || '#EFF6FF',
-                                            color: themes[horario.ColorUI as keyof typeof themes]?.[600] || '#2563EB'
-                                        }}>
-                                            {horario.Abreviatura}
-                                        </span>
-                                    </td>
-                                    {/* Display Turno Icon next to Nombre */}
-                                    <td className="p-3 font-medium text-slate-800">
-                                        <div className="flex items-center gap-2">
-                                            {/* Conditionally render icon only if NOT rotativo and turno is valid */}
-                                            {(!horario.esRotativo && horario.turno) && getTurnoIcon(horario.turno)}
-                                            <span>{horario.Nombre}</span>
-                                        </div>
-                                    </td>
-                                    {/* Pass esRotativo (camelCase) to JornadaSemanalVisual */}
-                                    <td className="p-3"><JornadaSemanalVisual detalles={horario.Detalles} esRotativo={horario.esRotativo} /></td>
-                                    <td className="p-3 text-center">{horario.MinutosTolerancia}</td>
-                                    <td className="p-3 text-center">
-                                        {horario.Activo ?
-                                            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800"><CheckCircle size={14} /> Activo</span> :
-                                            <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800"><XCircle size={14} /> Inactivo</span>
-                                        }
-                                    </td>
-                                    {canManage && (
-                                        <td className="p-3 text-center">
-                                            <Tooltip text="Editar Horario">
-                                                <button onClick={() => handleOpenModal(horario)} className="p-2 text-slate-500 hover:text-[--theme-500] rounded-full hover:bg-slate-100 transition-colors">
-                                                    <PencilIcon />
-                                                </button>
-                                            </Tooltip>
+                    <table className="w-full text-sm">
+                        <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
+                            <tr>
+                                <th className="p-3 text-left font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('HorarioId')}>
+                                    <div className="flex items-center gap-2">ID {getSortIcon('HorarioId')}</div>
+                                </th>
+                                <th className="p-3 text-left font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('Abreviatura')}>
+                                    <div className="flex items-center gap-2">Abreviatura {getSortIcon('Abreviatura')}</div>
+                                </th>
+                                <th className="p-3 text-left font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('Nombre')}>
+                                    <div className="flex items-center gap-2">Nombre del Horario {getSortIcon('Nombre')}</div>
+                                </th>
+                                <th className="p-3 text-left font-semibold text-slate-600">Jornada Semanal</th>
+                                <th className="p-3 text-center font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('MinutosTolerancia')}>
+                                    <div className="flex items-center justify-center gap-2">Tolerancia {getSortIcon('MinutosTolerancia')}</div>
+                                </th>
+                                <th className="p-3 text-center font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('Activo')}>
+                                    <div className="flex items-center justify-center gap-2">Estado {getSortIcon('Activo')}</div>
+                                </th>
+                                {canManage && <th className="p-3 text-center font-semibold text-slate-600">Acciones</th>}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {processedHorarios.map((horario) => {
+                                // ***** LOG: Check the value being passed for each row *****
+                                // console.log(`[HorariosPage] Rendering row for HorarioId ${horario.HorarioId}, esRotativo prop value:`, horario.esRotativo, typeof horario.esRotativo);
+                                return (
+                                    <tr key={horario.HorarioId} className="border-t border-slate-200 hover:bg-slate-50">
+                                        <td className="p-3 font-medium text-slate-800">{horario.HorarioId}</td>
+                                        <td className="p-3 font-medium text-slate-800">
+                                            <span className="px-2 py-1 rounded-md text-xs font-semibold" style={{
+                                                backgroundColor: themes[horario.ColorUI as keyof typeof themes]?.[100] || '#EFF6FF',
+                                                color: themes[horario.ColorUI as keyof typeof themes]?.[600] || '#2563EB'
+                                            }}>
+                                                {horario.Abreviatura}
+                                            </span>
                                         </td>
-                                    )}
-                                </tr>
-                             );
-                        })}
-                    </tbody>
-                </table>
+                                        {/* Display Turno Icon next to Nombre */}
+                                        <td className="p-3 font-medium text-slate-800">
+                                            <div className="flex items-center gap-2">
+                                                {/* Conditionally render icon only if NOT rotativo and turno is valid */}
+                                                {(!horario.esRotativo && horario.turno) && getTurnoIcon(horario.turno)}
+                                                <span>{horario.Nombre}</span>
+                                            </div>
+                                        </td>
+                                        {/* Pass esRotativo (camelCase) to JornadaSemanalVisual */}
+                                        <td className="p-3"><JornadaSemanalVisual detalles={horario.Detalles} esRotativo={horario.esRotativo} /></td>
+                                        <td className="p-3 text-center">{horario.MinutosTolerancia}</td>
+                                        <td className="p-3 text-center">
+                                            {horario.Activo ?
+                                                <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800"><CheckCircle size={14} /> Activo</span> :
+                                                <span className="inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800"><XCircle size={14} /> Inactivo</span>
+                                            }
+                                        </td>
+                                        {canManage && (
+                                            <td className="p-3 text-center">
+                                                <Tooltip text="Editar Horario">
+                                                    <button onClick={() => handleOpenModal(horario)} className="p-2 text-slate-500 hover:text-[--theme-500] rounded-full hover:bg-slate-100 transition-colors">
+                                                        <PencilIcon />
+                                                    </button>
+                                                </Tooltip>
+                                            </td>
+                                        )}
+                                    </tr>
+                                );
+                            })}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         );

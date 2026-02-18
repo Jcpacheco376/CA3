@@ -1,0 +1,91 @@
+IF OBJECT_ID('dbo.sp_CatalogoEstatusAsistencia_Upsert') IS NOT NULL      DROP PROCEDURE dbo.sp_CatalogoEstatusAsistencia_Upsert;
+GO
+CREATE PROCEDURE [dbo].[sp_CatalogoEstatusAsistencia_Upsert]
+    @EstatusId INT = NULL,
+    @Abreviatura NVARCHAR(20),
+    @Descripcion NVARCHAR(200),
+    @ColorUI NVARCHAR(100),
+    @ValorNomina DECIMAL(5,2) = 0,
+    @VisibleSupervisor BIT = 1,
+    @DiasRegistroFuturo INT = 0,
+    @PermiteComentario BIT = 0,
+    @Activo BIT = 1,
+    @TipoCalculoId VARCHAR(20),
+	@ConceptoNominaId INT = NULL,
+    @UsuarioId INT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Validar que TipoCalculoId sea obligatorio
+    IF @TipoCalculoId IS NULL OR LTRIM(RTRIM(@TipoCalculoId)) = ''
+    BEGIN
+        RAISERROR('El Tipo de Cálculo es obligatorio.', 16, 1);
+        RETURN;
+    END
+
+    -- Validar que el tipo de cálculo exista en la tabla de referencia
+    IF NOT EXISTS (SELECT 1 FROM SistemaTiposCalculo WHERE TipoCalculoId = @TipoCalculoId)
+    BEGIN
+        RAISERROR('El tipo de cálculo especificado (%s) no existe en el sistema.', 16, 1, @TipoCalculoId);
+        RETURN;
+    END
+
+
+    -- Asegurar unicidad: solo un estatus puede tener este TipoCalculoId a la vez.
+    -- Si otro estatus lo tiene asignado, se lo quitamos (lo dejamos en blanco).
+    UPDATE CatalogoEstatusAsistencia
+    SET TipoCalculoId = 'NINGUNO'
+    WHERE TipoCalculoId = @TipoCalculoId
+      AND (@EstatusId IS NULL OR EstatusId <> @EstatusId);
+
+    -- INSERT (nuevo registro)
+    IF @EstatusId IS NULL
+    BEGIN
+        INSERT INTO CatalogoEstatusAsistencia (
+            Abreviatura,
+            Descripcion,
+            ColorUI,
+            ValorNomina,
+            VisibleSupervisor,
+            Activo,
+            DiasRegistroFuturo,
+            PermiteComentario,
+            TipoCalculoId,
+			ConceptoNominaId
+        )
+        VALUES (
+            @Abreviatura,
+            @Descripcion,
+            @ColorUI,
+            @ValorNomina,
+            @VisibleSupervisor,
+            @Activo,
+            @DiasRegistroFuturo,
+            @PermiteComentario,
+            @TipoCalculoId,
+			@ConceptoNominaId
+        );
+    END
+    -- UPDATE (edición de registro existente)
+    ELSE
+    BEGIN
+        UPDATE CatalogoEstatusAsistencia
+        SET
+            Abreviatura = @Abreviatura,
+            Descripcion = @Descripcion,
+            ColorUI = @ColorUI,
+            ValorNomina = @ValorNomina,
+            VisibleSupervisor = @VisibleSupervisor,
+            Activo = @Activo,
+            DiasRegistroFuturo = @DiasRegistroFuturo,
+            PermiteComentario = @PermiteComentario,
+            TipoCalculoId = @TipoCalculoId,
+			ConceptoNominaId = @ConceptoNominaId
+        WHERE EstatusId = @EstatusId;
+    END
+END
+
+
+
+

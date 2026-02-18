@@ -7,6 +7,7 @@ import { PencilIcon, PlusCircleIcon } from '../../components/ui/Icons.tsx';
 import { Button } from '../../components/ui/Modal.tsx';
 import { PuestoModal } from './PuestoModal.tsx';
 import { CheckCircle, XCircle, Loader2, ArrowUpDown, ArrowUp, ArrowDown, Search, X } from 'lucide-react';
+import { GenericTableSkeleton } from '../../components/ui/GenericTableSkeleton';
 
 export const PuestosPage = () => {
     const { can, getToken, user } = useAuth();
@@ -107,51 +108,51 @@ export const PuestosPage = () => {
     const useFixedLayout = filteredData.length > SCROLL_THRESHOLD;
 
     const renderContent = () => {
-        if (isLoading) return <div className="text-center p-8 flex justify-center items-center h-full"><Loader2 className="animate-spin mr-2"/>Cargando puestos...</div>;
+        if (isLoading) return <GenericTableSkeleton columns={4} rows={10} />;
         if (error) return <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md">{error}</div>;
 
         return (
             <div className={`bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden ${useFixedLayout ? 'flex-1 flex flex-col min-h-0' : ''}`}>
                 <div className={useFixedLayout ? 'overflow-auto flex-1' : ''}>
-                <table className="w-full text-sm">
-                    <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
-                        <tr>
-                            <th className="p-3 text-left font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('PuestoId')}>
-                                <div className="flex items-center gap-2">ID {getSortIcon('PuestoId')}</div>
-                            </th>
-                            <th className="p-3 text-left font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('Nombre')}>
-                                <div className="flex items-center gap-2">Nombre {getSortIcon('Nombre')}</div>
-                            </th>
-                            <th className="p-3 text-center font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('Activo')}>
-                                <div className="flex items-center justify-center gap-2">Estado {getSortIcon('Activo')}</div>
-                            </th>
-                            {canManage && <th className="p-3 text-center font-semibold text-slate-600">Acciones</th>}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {filteredData.map(item => (
-                            <tr key={item.PuestoId} className="border-t border-slate-200 hover:bg-slate-50">
-                                <td className="p-3 font-mono text-slate-500">{item.PuestoId}</td>
-                                <td className="p-3 font-medium text-slate-800">{item.Nombre}</td>
-                                <td className="p-3 text-center">
-                                    <span className={`inline-flex items-center gap-1.5 px-2 py-1 text-xs font-semibold rounded-full ${item.Activo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                                        {item.Activo ? <CheckCircle size={14} /> : <XCircle size={14} />}
-                                        {item.Activo ? 'Activo' : 'Inactivo'}
-                                    </span>
-                                </td>
-                                {canManage && (
-                                    <td className="p-3 text-center">
-                                        <Tooltip text="Editar Puesto">
-                                            <button onClick={() => handleOpenModal(item)} className="p-2 text-slate-500 hover:text-[--theme-500] rounded-full hover:bg-slate-100">
-                                                <PencilIcon />
-                                            </button>
-                                        </Tooltip>
-                                    </td>
-                                )}
+                    <table className="w-full text-sm">
+                        <thead className="bg-slate-50 sticky top-0 z-10 shadow-sm">
+                            <tr>
+                                <th className="p-3 text-left font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('PuestoId')}>
+                                    <div className="flex items-center gap-2">ID {getSortIcon('PuestoId')}</div>
+                                </th>
+                                <th className="p-3 text-left font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('Nombre')}>
+                                    <div className="flex items-center gap-2">Nombre {getSortIcon('Nombre')}</div>
+                                </th>
+                                <th className="p-3 text-center font-semibold text-slate-600 cursor-pointer group hover:bg-slate-100 transition-colors" onClick={() => handleSort('Activo')}>
+                                    <div className="flex items-center justify-center gap-2">Estado {getSortIcon('Activo')}</div>
+                                </th>
+                                {canManage && <th className="p-3 text-center font-semibold text-slate-600">Acciones</th>}
                             </tr>
-                        ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                            {filteredData.map(item => (
+                                <tr key={item.PuestoId} className="border-t border-slate-200 hover:bg-slate-50">
+                                    <td className="p-3 font-mono text-slate-500">{item.PuestoId}</td>
+                                    <td className="p-3 font-medium text-slate-800">{item.Nombre}</td>
+                                    <td className="p-3 text-center">
+                                        <span className={`inline-flex items-center gap-1.5 px-2 py-1 text-xs font-semibold rounded-full ${item.Activo ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                                            {item.Activo ? <CheckCircle size={14} /> : <XCircle size={14} />}
+                                            {item.Activo ? 'Activo' : 'Inactivo'}
+                                        </span>
+                                    </td>
+                                    {canManage && (
+                                        <td className="p-3 text-center">
+                                            <Tooltip text="Editar Puesto">
+                                                <button onClick={() => handleOpenModal(item)} className="p-2 text-slate-500 hover:text-[--theme-500] rounded-full hover:bg-slate-100">
+                                                    <PencilIcon />
+                                                </button>
+                                            </Tooltip>
+                                        </td>
+                                    )}
+                                </tr>
+                            ))}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         );
@@ -166,7 +167,7 @@ export const PuestosPage = () => {
 
             {/* Buscador y Botón "Crear" */}
             <div className="flex justify-between items-center">
-                 <div className="relative group w-64">
+                <div className="relative group w-64">
                     <Search className="absolute left-3 top-2.5 text-slate-400 group-focus-within:text-[--theme-500] transition-colors" size={16} />
                     <input
                         type="text"

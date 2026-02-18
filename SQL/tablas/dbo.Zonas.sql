@@ -1,0 +1,9 @@
+CREATE TABLE [dbo].[Zonas] (
+
+[ZonaId] int IDENTITY(1,1) NOT NULL,
+[Nombre] nvarchar(200) NOT NULL,
+[Descripcion] nvarchar(510) NULL,
+[Activo] bit DEFAULT ((1)) NULL,
+[ColorUI] varchar(100) NULL,
+CONSTRAINT [PK__Zonas__1F1E0576FF7229FD] PRIMARY KEY CLUSTERED ([ZonaId] ASC) WITH (PAD_INDEX = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
+) ON [PRIMARY]

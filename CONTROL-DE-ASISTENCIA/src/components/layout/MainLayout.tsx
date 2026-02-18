@@ -7,11 +7,12 @@ import { UsersPage } from '../../features/admin/UsersPage';
 import { RolesPage } from '../../features/admin/RolesPage';
 import { CatalogLayout } from '../../features/admin/CatalogLayout';
 import { CatalogosPage } from '../../features/admin/CatalogosPage';
+import { EmpleadosPage } from '../../features/admin/EmpleadosPage';
 import { UserProfileModal } from '../../features/auth/UserProfileModal';
 import { ProfessionalSidebar } from './ProfessionalSidebar';
 import { AppHeader } from './AppHeader';
-import { 
-    BarChartBig, Users, Settings, Folder, FileText, CalendarClock, 
+import {
+    BarChartBig, Users, Settings, Folder, FileText, CalendarClock,
     AlertTriangle, Lock, LayoutDashboard, Monitor
 } from 'lucide-react';
 import { SchedulePage } from '../../features/attendance/SchedulePage';
@@ -63,7 +64,7 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
                 (can('catalogo.departamentos.read') || can('catalogo.gruposNomina.read') || can('catalogo.estatusAsistencia.read') || can('catalogo.horarios.read') || can('catalogo.establecimientos.read') || can('catalogo.puestos.read')) && { id: 'admin_catalogs', label: 'Catálogos', icon: <Folder size={20} /> }
             ].filter(Boolean)
         },
-       can('nomina.read') && {
+        can('nomina.read') && {
             section: 'Nómina',
             items: [
                 {
@@ -74,7 +75,7 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
             ]
         },
     ].filter(Boolean);
-    
+
     const renderContent = () => {
         switch (activeView) {
             case 'dashboard': return <DashboardPage setActiveView={setActiveView} />;
@@ -85,6 +86,7 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
             case 'admin_roles': return <RolesPage />;
             case 'devices': return <DevicesPage />;
             case 'admin_catalogs': return <CatalogosPage setActiveView={setActiveView} />;
+            case 'admin_empleados':
             case 'admin_departamentos':
             case 'admin_grupos_nomina':
             case 'admin_estatus_asistencia':

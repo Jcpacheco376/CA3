@@ -15,8 +15,13 @@ export type View =
     'admin_establecimientos' |
     'admin_estatus_asistencia' |
     'admin_horarios' |
-    'schedule_planner'|
-    'devices';
+    'admin_empleados' |
+    'admin_devices' |
+    'schedule_planner' |
+    'devices' |
+    'report_prenomina' |
+    'report_attendance_list' |
+    'payroll_closing';
 
 
 export type DayOfWeek = 'Lunes' | 'Martes' | 'Miércoles' | 'Jueves' | 'Viernes' | 'Sábado' | 'Domingo';

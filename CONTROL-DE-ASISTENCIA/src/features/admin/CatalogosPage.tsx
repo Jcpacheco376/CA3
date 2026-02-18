@@ -71,7 +71,14 @@ export const CatalogosPage = ({ setActiveView }: any) => {
                     onClick={() => setActiveView('admin_establecimientos')}
                     canAccess={can('catalogo.establecimientos.read')}
                 />
-                
+                <CatalogCard
+                    title="Empleados"
+                    description="Gestiona la información de los colaboradores."
+                    icon={<Users />}
+                    onClick={() => setActiveView('admin_empleados')}
+                    canAccess={can('catalogo.empleados.read')}
+                />
+
             </div>
         </div>
     );
