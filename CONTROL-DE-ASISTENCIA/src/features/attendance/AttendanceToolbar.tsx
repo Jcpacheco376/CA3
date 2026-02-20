@@ -3,9 +3,9 @@ import { ChevronLeft, ChevronRight, Search as SearchIcon, Lock, Briefcase, Build
 import { addWeeks, subWeeks, addMonths, subMonths, eachDayOfInterval, differenceInDays, addDays, format, startOfDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Tooltip } from '../../components/ui/Tooltip';
-import { FilterPopover } from '../../components/ui/FilterPopover'; 
+import { FilterPopover } from '../../components/ui/FilterPopover';
 import { DateRangePicker } from '../../components/ui/DateRangePicker';
-import { useAuth } from '../auth/AuthContext'; 
+import { useAuth } from '../auth/AuthContext';
 import { useAppContext } from '../../context/AppContext';
 import { useAttendanceToolbarContext, FilterConfig, FilterOption } from './AttendanceToolbarContext';
 export type { FilterConfig, FilterOption };
@@ -14,13 +14,13 @@ interface AttendanceToolbarProps {
     // Búsqueda (Opcionales, si no se pasan usa filters.search)
     searchTerm?: string;
     setSearchTerm?: (value: string) => void;
-    
+
     // Configuración Manual (Opcional)
-    filterConfigurations?: FilterConfig[]; 
+    filterConfigurations?: FilterConfig[];
 
     // Filtros Personalizados (Se agregan a los defaults)
     customFilters?: FilterConfig[];
-    
+
     // Estado Compartido (Necesario para el modo automático)
     filters?: { groups?: any[], depts?: any[], puestos?: any[], estabs?: any[], search?: string };
     setFilters?: React.Dispatch<React.SetStateAction<any>>;
@@ -31,7 +31,7 @@ interface AttendanceToolbarProps {
     currentDate?: Date;
     onDateChange?: (date: Date) => void;
     showSearch?: boolean;
-    enablePayrollSync?: boolean; 
+    enablePayrollSync?: boolean;
     weekMode?: 'base' | 'natural';
     setWeekMode?: (mode: 'base' | 'natural') => void;
     allowNaturalWeek?: boolean;
@@ -41,10 +41,10 @@ interface AttendanceToolbarProps {
 export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
     searchTerm,
     setSearchTerm,
-    filterConfigurations, 
+    filterConfigurations,
     customFilters,
-    filters: propFilters,              
-    setFilters: propSetFilters,           
+    filters: propFilters,
+    setFilters: propSetFilters,
     viewMode: propViewMode,
     setViewMode: propSetViewMode,
     rangeLabel: propRangeLabel,
@@ -61,13 +61,13 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
     const { weekStartDay: globalWeekStartDay } = useAppContext();
     const [isWeekModeHovered, setIsWeekModeHovered] = useState(false);
     const [isPeriodHovered, setIsPeriodHovered] = useState(false);
-    const [customRange, setCustomRange] = useState<{start: Date, end: Date} | null>(null);
-    
+    const [customRange, setCustomRange] = useState<{ start: Date, end: Date } | null>(null);
+
     // --- CONFIGURACIÓN DE UI ---
     // true = Modo retráctil (ahorra espacio), false = Modo fijo (siempre visible)
     const IS_WEEK_MODE_RETRACTABLE = true;
     const IS_PERIOD_MODE_RETRACTABLE = false;
-    
+
     // --- 0. CONTEXTO HÍBRIDO ---
     // Intentamos obtener datos del contexto de forma segura
     let context = null;
@@ -89,7 +89,7 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
 
     // --- 1. MANEJO DE BÚSQUEDA UNIFICADO ---
     const effectiveSearchTerm = searchTerm ?? filters?.search ?? '';
-    
+
     const handleSearchChange = (val: string) => {
         if (setSearchTerm) {
             setSearchTerm(val);
@@ -206,9 +206,9 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
     // Si entramos en modo custom y no hay rango definido, usamos el actual del contexto
     useEffect(() => {
         if (viewMode === 'custom' && !customRange && context?.dateRange && context.dateRange.length > 0) {
-             const start = context.dateRange[0];
-             const end = context.dateRange[context.dateRange.length - 1];
-             setCustomRange({ start, end });
+            const start = context.dateRange[0];
+            const end = context.dateRange[context.dateRange.length - 1];
+            setCustomRange({ start, end });
         }
     }, [viewMode, context?.dateRange]);
 
@@ -216,11 +216,11 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
         const s = startOfDay(start);
         const e = startOfDay(end);
         setCustomRange({ start: s, end: e });
-        
+
         // Update context dateRange manually
         if (context?.setDateRange) {
-             const days = eachDayOfInterval({ start: s, end: e });
-             context.setDateRange(days);
+            const days = eachDayOfInterval({ start: s, end: e });
+            context.setDateRange(days);
         }
     };
 
@@ -307,8 +307,8 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
         // Si el modo actual (persisted) no está permitido en esta página (ej. 'custom' en página sin soporte)
         if (viewMode && !availableModes.includes(viewMode as string)) {
             // Usamos el inicio del rango actual como ancla para no perder la ubicación temporal
-            const anchorDate = (context?.dateRange && context.dateRange.length > 0) 
-                ? context.dateRange[0] 
+            const anchorDate = (context?.dateRange && context.dateRange.length > 0)
+                ? context.dateRange[0]
                 : currentDate;
 
             if (setViewMode) setViewMode('week');
@@ -319,12 +319,12 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
     return (
         <div className="p-4 border-b border-slate-200 bg-white rounded-t-lg">
             <div className="flex flex-col lg:flex-row justify-between items-center gap-4">
-                
+
                 {/* IZQUIERDA: Buscador + Filtros */}
                 <div className="flex items-center gap-3 w-full lg:w-auto flex-wrap">
                     {showSearch && (
                         <Tooltip text="Buscar por nombre o ID de empleado">
-                            <div className={`relative group w-full transition-all duration-300 ${effectiveSearchTerm ? 'lg:w-64' : 'lg:w-48 focus-within:lg:w-64'}`}>
+                            <div className={`relative group w-full transition-all duration-500 ${effectiveSearchTerm ? 'lg:w-64' : 'lg:w-48 focus-within:lg:w-64'}`}>
                                 <SearchIcon className="absolute left-3 top-2.5 text-slate-400 group-focus-within:text-[--theme-500] transition-colors" size={16} />
                                 <input
                                     type="text"
@@ -385,16 +385,16 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
 
                 {/* DERECHA: Fechas */}
                 <div className="flex items-center gap-2 shrink-0 w-full lg:w-auto justify-between lg:justify-end bg-slate-50 p-1 rounded-xl border border-slate-100 shadow-sm relative">
-                     <div className="flex items-center relative gap-2">
+                    <div className="flex items-center relative gap-2">
                         {setWeekMode && !isPeriodLocked && allowNaturalWeek && (
-                            <div 
+                            <div
                                 className="flex items-center bg-slate-200/50 rounded-lg p-0.5 gap-1"
                                 onMouseEnter={() => setIsWeekModeHovered(true)}
                                 onMouseLeave={() => setIsWeekModeHovered(false)}
                             >
-                                <div className={`transition-all duration-300 ease-in-out overflow-hidden ${(!IS_WEEK_MODE_RETRACTABLE || weekMode === 'base' || isWeekModeHovered) ? 'max-w-[50px] opacity-100' : 'max-w-0 opacity-0'}`}>
+                                <div className={`transition-all duration-500 ease-in-out overflow-hidden ${(!IS_WEEK_MODE_RETRACTABLE || weekMode === 'base' || isWeekModeHovered) ? 'max-w-[50px] opacity-100' : 'max-w-0 opacity-0'}`}>
                                     <Tooltip text="Semana según corte de Nómina">
-                                        <button 
+                                        <button
                                             onClick={() => setWeekMode('base')}
                                             className={`w-full px-2 py-1 rounded-md text-[10px] font-bold transition-all whitespace-nowrap ${weekMode === 'base' ? 'bg-white text-[--theme-600] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                         >
@@ -402,9 +402,9 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
                                         </button>
                                     </Tooltip>
                                 </div>
-                                <div className={`transition-all duration-300 ease-in-out overflow-hidden ${(!IS_WEEK_MODE_RETRACTABLE || weekMode === 'natural' || isWeekModeHovered) ? 'max-w-[50px] opacity-100' : 'max-w-0 opacity-0'}`}>
+                                <div className={`transition-all duration-500 ease-in-out overflow-hidden ${(!IS_WEEK_MODE_RETRACTABLE || weekMode === 'natural' || isWeekModeHovered) ? 'max-w-[50px] opacity-100' : 'max-w-0 opacity-0'}`}>
                                     <Tooltip text="Semana Natural (Lunes-Domingo)">
-                                        <button 
+                                        <button
                                             onClick={() => setWeekMode('natural')}
                                             className={`w-full px-2 py-1 rounded-md text-[10px] font-bold transition-all whitespace-nowrap ${weekMode === 'natural' ? 'bg-white text-[--theme-600] shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                                         >
@@ -414,8 +414,8 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
                                 </div>
                             </div>
                         )}
-                         <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block"></div>
-                        <div 
+                        <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block"></div>
+                        <div
                             className="flex items-center relative bg-slate-200/50 rounded-lg p-0.5 gap-1"
                             onMouseEnter={() => !isPeriodLocked && setIsPeriodHovered(true)}
                             onMouseLeave={() => setIsPeriodHovered(false)}
@@ -437,14 +437,14 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
                                 const isModeLocked = isPeriodLocked && mode !== 'custom';
 
                                 return (
-                                    <div key={mode} className={`transition-all duration-300 ease-in-out overflow-hidden ${isVisible ? 'max-w-[100px] opacity-100' : 'max-w-0 opacity-0'}`}>
-                                        <button 
+                                    <div key={mode} className={`transition-all duration-500 ease-in-out overflow-hidden ${isVisible ? 'max-w-[100px] opacity-100' : 'max-w-0 opacity-0'}`}>
+                                        <button
                                             onClick={() => !isModeLocked && setViewMode && setViewMode(mode as any)}
                                             disabled={isModeLocked}
                                             className={`
                                                 w-full px-3 py-1 rounded-md text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-1 whitespace-nowrap
-                                                ${isActive 
-                                                    ? 'bg-white text-[--theme-600] shadow-sm ring-1 ring-black/5' 
+                                                ${isActive
+                                                    ? 'bg-white text-[--theme-600] shadow-sm ring-1 ring-black/5'
                                                     : 'text-slate-500 hover:text-slate-700 hover:bg-slate-200/50'
                                                 }
                                                 ${isModeLocked && !isActive ? 'opacity-40 grayscale' : ''}
@@ -462,13 +462,13 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
                     <div className="h-6 w-px bg-slate-200 mx-1 hidden sm:block"></div>
                     <div className="flex items-center gap-1">
                         <Tooltip text="Anterior">
-                            <button 
-                                onClick={handleInternalPrev} 
+                            <button
+                                onClick={handleInternalPrev}
                                 disabled={viewMode === 'custom'}
                                 className={`
                                     p-1.5 rounded-lg transition-all 
-                                    ${viewMode === 'custom' 
-                                        ? 'text-slate-300 cursor-not-allowed opacity-50' 
+                                    ${viewMode === 'custom'
+                                        ? 'text-slate-300 cursor-not-allowed opacity-50'
                                         : 'text-slate-500 hover:bg-white hover:text-[--theme-600] hover:shadow-sm'}
                                 `}
                             >
@@ -476,24 +476,24 @@ export const AttendanceToolbar: React.FC<AttendanceToolbarProps> = ({
                             </button>
                         </Tooltip>
                         <div className="min-w-[180px] flex justify-center">
-                            <DateRangePicker 
-                                currentDate={currentDate} 
-                                onDateChange={onDateChange!} 
-                                viewMode={viewMode} 
-                                rangeLabel={effectiveRangeLabel} 
-                                weekStartDay={effectiveWeekStartDay} 
+                            <DateRangePicker
+                                currentDate={currentDate}
+                                onDateChange={onDateChange!}
+                                viewMode={viewMode}
+                                rangeLabel={effectiveRangeLabel}
+                                weekStartDay={effectiveWeekStartDay}
                                 customRange={customRange || undefined}
                                 onRangeChange={handleCustomRangeChange}
                             />
                         </div>
                         <Tooltip text="Siguiente">
-                            <button 
-                                onClick={handleInternalNext} 
+                            <button
+                                onClick={handleInternalNext}
                                 disabled={viewMode === 'custom'}
                                 className={`
                                     p-1.5 rounded-lg transition-all 
-                                    ${viewMode === 'custom' 
-                                        ? 'text-slate-300 cursor-not-allowed opacity-50' 
+                                    ${viewMode === 'custom'
+                                        ? 'text-slate-300 cursor-not-allowed opacity-50'
                                         : 'text-slate-500 hover:bg-white hover:text-[--theme-600] hover:shadow-sm'}
                                 `}
                             >

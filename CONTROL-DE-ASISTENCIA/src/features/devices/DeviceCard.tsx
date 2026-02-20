@@ -4,7 +4,7 @@ import {
     Server, Wifi, MapPin, Clock, MoreVertical, RefreshCw, 
     DownloadCloud, Activity, Users, Fingerprint, Trash2, 
     ToggleRight, ToggleLeft, CheckCircle2, AlertCircle, Pencil,
-    Hash, KeyRound, PowerOff, Loader2, ScanFace, Wrench, UserPlus
+    Hash, KeyRound, PowerOff, Loader2, ScanFace, Wrench
 } from 'lucide-react';
 import { Tooltip } from  '../../components/ui/Tooltip';
 import { useAuth } from '../auth/AuthContext';
@@ -34,7 +34,6 @@ interface DeviceCardProps {
     onEdit: (device: Device) => void;
     onTestConnection: (id: number) => void;
     onOpenTools: (device: Device) => void;
-    onAddEmployee?: () => void;
 }
 
 export const DeviceCard = ({
@@ -43,8 +42,7 @@ export const DeviceCard = ({
     onSyncLogs,
     onEdit,
     onTestConnection,
-    onOpenTools,
-    onAddEmployee
+    onOpenTools
 }: DeviceCardProps) => {
     const { user, can } = useAuth();
     const userTheme = user?.Theme?.toLowerCase() || 'indigo';
@@ -157,17 +155,6 @@ export const DeviceCard = ({
                 </div>
                 
                 <div className="flex items-center gap-1">
-                    {onAddEmployee && can('catalogo.empleados.manage') && (
-                        <Tooltip text="Nuevo Empleado">
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); onAddEmployee(); }}
-                                className="text-slate-300 hover:text-emerald-600 p-1.5 rounded-full hover:bg-emerald-50 transition-colors"
-                            >
-                                <UserPlus size={20} />
-                            </button>
-                        </Tooltip>
-                    )}
-
                     <div className="relative" ref={menuRef}>
                         {hasMenuActions && (
                             <Tooltip text="Más opciones">

@@ -2,8 +2,11 @@ import { API_BASE_URL } from '../../config/api';
 import React, { useState, useEffect, useRef } from 'react';
 import { Modal, Button } from '../../components/ui/Modal';
 import { useAuth } from '../auth/AuthContext';
-import { Camera, Upload, X, User, Calendar, Briefcase, MapPin, Clock, FileText, Hash, Fingerprint, Badge, Check, CheckCheck, XCircle } from 'lucide-react';
+//import { Camera, Upload, X, User, Calendar, Briefcase, MapPin, Clock, FileText, Hash, Fingerprint, Badge, Check, CheckCheck, XCircle } from 'lucide-react';
+import { Camera, Upload, X, User, Calendar, Briefcase, MapPin, Clock, FileText, Hash, Fingerprint, Badge, Check, CheckCheck, XCircle, Lock } from 'lucide-react';
+import { themes } from '../../config/theme';
 import { SmartSelect } from '../../components/ui/SmartSelect';
+import { ModernDatePicker } from '../../components/ui/ModernDatePicker';
 import { format } from 'date-fns';
 import { Tooltip } from '../../components/ui/Tooltip';
 import { Zone } from '../../types';
@@ -30,15 +33,36 @@ const Checkbox = ({ id, label, checked, onChange }: { id: string | number, label
     );
 };
 
+const ToggleSwitch = ({ checked, onChange, themeColor }: { checked: boolean, onChange: (checked: boolean) => void, themeColor: string }) => {
+    return (
+        <button
+            type="button"
+            role="switch"
+            aria-checked={checked}
+            onClick={() => onChange(!checked)}
+            className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none`}
+            style={{
+                backgroundColor: checked ? themeColor : '#E5E7EB', // Tailwind's gray-200
+            }}
+        >
+            <span
+                aria-hidden="true"
+                className={`${checked ? 'translate-x-5' : 'translate-x-0'} pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out`}
+            />
+        </button>
+    );
+};
+
 const CatalogSection = ({ title, icon, items, selectedItems, onItemsChange, keyField, labelField, loading, error }: any) => {
-    const allSelected = items.length > 0 && selectedItems.length === items.length;
+    const validSelectedItems = Array.isArray(selectedItems) ? selectedItems : [];
+    const allSelected = items.length > 0 && validSelectedItems.length === items.length;
     const handleToggleAll = () => allSelected ? onItemsChange([]) : onItemsChange(items);
 
     const handleToggle = (item: any) => {
         const itemId = item[keyField];
-        const isSelected = selectedItems.some((s: any) => s[keyField] === itemId);
+        const isSelected = validSelectedItems.some((s: any) => s[keyField] === itemId);
         // We filter or add the full item object
-        onItemsChange(isSelected ? selectedItems.filter((s: any) => s[keyField] !== itemId) : [...selectedItems, item]);
+        onItemsChange(isSelected ? validSelectedItems.filter((s: any) => s[keyField] !== itemId) : [...validSelectedItems, item]);
     };
 
     return (
@@ -58,7 +82,7 @@ const CatalogSection = ({ title, icon, items, selectedItems, onItemsChange, keyF
                     {!loading && !error && items.length === 0 && <p className="text-xs text-slate-400 p-2">Sin datos disponibles.</p>}
                     {!loading && !error && items.map((item: any) => (
                         <Checkbox key={item[keyField]} id={`${keyField}-${item[keyField]}`} label={item[labelField]}
-                            checked={selectedItems?.some((s: any) => s[keyField] === item[keyField]) || false}
+                            checked={validSelectedItems.some((s: any) => s[keyField] === item[keyField])}
                             onChange={() => handleToggle(item)}
                         />
                     ))}
@@ -69,10 +93,13 @@ const CatalogSection = ({ title, icon, items, selectedItems, onItemsChange, keyF
 };
 
 export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, onSave, empleado }) => {
-    const { getToken } = useAuth();
+    const { getToken, user } = useAuth();
     const [formData, setFormData] = useState<any>({
         CodRef: '',
-        NombreCompleto: '',
+        Pim: '', // New field for Device ID
+        Nombres: '',
+        ApellidoPaterno: '',
+        ApellidoMaterno: '',
         FechaNacimiento: '',
         FechaIngreso: format(new Date(), 'yyyy-MM-dd'),
         DepartamentoId: '',
@@ -96,12 +123,47 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
     const [horarios, setHorarios] = useState<any[]>([]);
     const [establecimientos, setEstablecimientos] = useState<any[]>([]);
     const [zonas, setZonas] = useState<Zone[]>([]);
+    const [sortedZonas, setSortedZonas] = useState<Zone[]>([]);
+    const [systemConfig, setSystemConfig] = useState<any>({}); // Store system config
 
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const hasSortedRef = useRef(false);
 
     const isNew = !empleado;
+    const theme = themes[user?.Theme as keyof typeof themes] || themes.indigo;
+
+    // Effect to handle one-time sorting of Zonas (Assigned First, then Alphabetical)
+    useEffect(() => {
+        if (!isOpen) {
+            hasSortedRef.current = false;
+            setSortedZonas([]);
+            return;
+        }
+
+        // Wait for catalogs and employee data loading (if editing)
+        if (zonas.length === 0) return;
+        if (!isNew && isLoading) return;
+
+        // Check if we already sorted for this session to prevent re-sorting on user interaction
+        if (hasSortedRef.current) return;
+
+        // Sorting Logic
+        const assignedIds = new Set(formData.Zonas ? formData.Zonas.map((z: any) => z.ZonaId) : []);
+
+        const assigned = zonas.filter(z => assignedIds.has(z.ZonaId));
+        const unassigned = zonas.filter(z => !assignedIds.has(z.ZonaId));
+
+        const sortByName = (a: Zone, b: Zone) => a.Nombre.localeCompare(b.Nombre);
+
+        assigned.sort(sortByName);
+        unassigned.sort(sortByName);
+
+        setSortedZonas([...assigned, ...unassigned]);
+        hasSortedRef.current = true;
+
+    }, [isOpen, isLoading, zonas, formData.Zonas, isNew]);
 
     useEffect(() => {
         if (isOpen) {
@@ -113,7 +175,7 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
                     ...empleado,
                     // If image is already here (from list), use it initially to prevent flickering
                     Imagen: empleado.Imagen ? arrayBufferToBase64(empleado.Imagen) : null,
-                    Zonas: empleado.Zonas || []
+                    Zonas: Array.isArray(empleado.Zonas) ? empleado.Zonas : []
                 }));
 
                 // Fetch full details
@@ -135,7 +197,7 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
                             EstablecimientoId: fullData.EstablecimientoId || '',
                             Imagen: fullData.Imagen ? arrayBufferToBase64(fullData.Imagen) : null,
                             Activo: fullData.Activo,
-                            Zonas: fullData.Zonas || []
+                            Zonas: Array.isArray(fullData.Zonas) ? fullData.Zonas : []
                         }));
                     })
                     .catch(err => {
@@ -147,7 +209,10 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
             } else {
                 setFormData({
                     CodRef: '',
-                    NombreCompleto: '',
+                    Pim: '',
+                    Nombres: '',
+                    ApellidoPaterno: '',
+                    ApellidoMaterno: '',
                     FechaNacimiento: '',
                     FechaIngreso: format(new Date(), 'yyyy-MM-dd'),
                     DepartamentoId: '',
@@ -173,13 +238,14 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
 
         try {
             const headers = { 'Authorization': `Bearer ${token}` };
-            const [deptosRes, gruposRes, puestosRes, horariosRes, estabRes, zonasRes] = await Promise.all([
+            const [deptosRes, gruposRes, puestosRes, horariosRes, estabRes, zonasRes, configRes] = await Promise.all([
                 fetch(`${API_BASE_URL}/catalogs/departamentos`, { headers }),
                 fetch(`${API_BASE_URL}/catalogs/grupos-nomina`, { headers }),
                 fetch(`${API_BASE_URL}/catalogs/puestos`, { headers }),
                 fetch(`${API_BASE_URL}/catalogs/schedules`, { headers }), // Schedules endpoint
                 fetch(`${API_BASE_URL}/catalogs/establecimientos`, { headers }),
-                fetch(`${API_BASE_URL}/devices/zones`, { headers })
+                fetch(`${API_BASE_URL}/devices/zones`, { headers }),
+                fetch(`${API_BASE_URL}/catalogs/system-config`, { headers }) // Fetch system config
             ]);
 
             if (deptosRes.ok) setDepartamentos(await deptosRes.json());
@@ -188,6 +254,7 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
             if (horariosRes.ok) setHorarios(await horariosRes.json());
             if (estabRes.ok) setEstablecimientos(await estabRes.json());
             if (zonasRes.ok) setZonas(await zonasRes.json());
+            if (configRes.ok) setSystemConfig(await configRes.json());
 
         } catch (err) {
             console.error("Error fetching catalogs", err);
@@ -248,6 +315,7 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
             // Clean data before sending (convert empty strings to null for IDs if API expects it, or keep as string)
             const payload = {
                 ...formData,
+                Pim: formData.Pim || null, // Send Pim
                 DepartamentoId: formData.DepartamentoId || null,
                 GrupoNominaId: formData.GrupoNominaId || null,
                 PuestoId: formData.PuestoId || null,
@@ -301,7 +369,7 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
         <input
             {...props}
             className={`w-full bg-white text-slate-900 text-sm rounded-lg border border-slate-200 px-3 py-2 
-            focus:outline-none focus:border-[--theme-500] focus:ring-2 focus:ring-[--theme-500]/10 
+            focus:outline-none focus:border-[--theme-500] 
             transition-all duration-200 placeholder:text-slate-400 font-normal hover:border-slate-300 ${props.className}`}
         />
     );
@@ -314,24 +382,11 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
     );
 
     const footer = (
-        <div className="flex justify-between items-center w-full">
-            <div className="flex items-center gap-3">
-                <label className="flex items-center gap-2 cursor-pointer group p-1.5 rounded-lg hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-200/60">
-                    <div className={`w-9 h-5 flex items-center bg-slate-200 rounded-full p-1 duration-300 ease-in-out group-hover:bg-slate-300 ${formData.Activo ? 'bg-[--theme-500] group-hover:bg-[--theme-600]' : ''}`}>
-                        <div className={`bg-white w-3.5 h-3.5 rounded-full shadow-md transform duration-300 ease-in-out ${formData.Activo ? 'translate-x-4' : ''}`}></div>
-                    </div>
-                    <span className={`text-sm font-medium transition-colors ${formData.Activo ? 'text-[--theme-700]' : 'text-slate-500'}`}>
-                        {formData.Activo ? 'Activo' : 'Inactivo'}
-                    </span>
-                    <input type="checkbox" name="Activo" checked={formData.Activo} onChange={handleChange} className="hidden" />
-                </label>
-            </div>
-            <div className="flex gap-2">
-                <Button variant="secondary" onClick={onClose} disabled={isLoading}>Cancelar</Button>
-                <Button onClick={handleSubmit} disabled={isLoading}>
-                    {isLoading ? 'Guardando...' : 'Guardar'}
-                </Button>
-            </div>
+        <div className="flex justify-end items-center w-full gap-2">
+            <Button variant="secondary" onClick={onClose} disabled={isLoading}>Cancelar</Button>
+            <Button onClick={handleSubmit} disabled={isLoading}>
+                {isLoading ? 'Guardando...' : 'Guardar'}
+            </Button>
         </div>
     );
 
@@ -366,7 +421,7 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
                             <CatalogSection
                                 title="Zonas Asignadas"
                                 icon={<MapPin size={14} />}
-                                items={zonas}
+                                items={sortedZonas.length > 0 ? sortedZonas : zonas}
                                 selectedItems={formData.Zonas}
                                 onItemsChange={handleZonasChange}
                                 keyField="ZonaId"
@@ -379,49 +434,87 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
                     </div>
 
                     {/* Right Column: Form Fields */}
-                    <div className="lg:col-span-9 grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-6">
+                    <div className="lg:col-span-9 grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-4">
 
                         {/* Personal Information */}
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                             <SectionHeader title="Información Personal" icon={User} />
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-3">
                                 <InputGroup label="Código">
+                                    {(() => {
+                                        const isBlocked = systemConfig.SyncEmpleados === 'true' || systemConfig.SyncEmpleados === true;
+                                        const input = (
+                                            <ModernInput
+                                                name="CodRef"
+                                                value={formData.CodRef}
+                                                onChange={handleChange}
+                                                placeholder="Ej. 1001"
+                                                required
+                                                autoFocus={!isBlocked}
+                                                disabled={isBlocked}
+                                                className={isBlocked ? 'bg-slate-200 text-slate-500 cursor-not-allowed pr-8' : ''}
+                                            />
+                                        );
+                                        return isBlocked ? (
+                                            <Tooltip text="Campo bloqueado por sincronización externa">
+                                                <div className="relative w-full">
+                                                    {input}
+                                                    <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none text-slate-400">
+                                                        <Lock size={14} />
+                                                    </div>
+                                                </div>
+                                            </Tooltip>
+                                        ) : input;
+                                    })()}
+                                </InputGroup>
+
+                                <InputGroup label="ID Dispositivo (Pim)">
                                     <ModernInput
-                                        name="CodRef"
-                                        value={formData.CodRef}
+                                        name="Pim"
+                                        value={formData.Pim || ''}
                                         onChange={handleChange}
-                                        placeholder="Ej. 1001"
-                                        required
-                                        autoFocus
+                                        placeholder="ID en Checador"
                                     />
                                 </InputGroup>
 
-                                <InputGroup label="RFC">
+                                <InputGroup label="Nombres" className="col-span-2">
                                     <ModernInput
-                                        name="RFC"
-                                        value={formData.RFC}
+                                        name="Nombres"
+                                        value={formData.Nombres || ''}
                                         onChange={handleChange}
-                                        placeholder="RFC"
+                                        placeholder="Ej. Juan Carlos"
+                                        required
                                     />
                                 </InputGroup>
 
-                                <InputGroup label="Nombre Completo" className="col-span-2">
+                                <InputGroup label="Apellido Paterno">
                                     <ModernInput
-                                        name="NombreCompleto"
-                                        value={formData.NombreCompleto}
+                                        name="ApellidoPaterno"
+                                        value={formData.ApellidoPaterno || ''}
                                         onChange={handleChange}
-                                        placeholder="Apellidos y Nombres"
+                                        placeholder="Ej. Perez"
                                         required
+                                    />
+                                </InputGroup>
+
+                                <InputGroup label="Apellido Materno">
+                                    <ModernInput
+                                        name="ApellidoMaterno"
+                                        value={formData.ApellidoMaterno || ''}
+                                        onChange={handleChange}
+                                        placeholder="Ej. Lopez"
                                     />
                                 </InputGroup>
 
                                 <InputGroup label="Fecha Nacimiento">
-                                    <ModernInput
-                                        type="date"
-                                        name="FechaNacimiento"
+                                    <ModernDatePicker
                                         value={formData.FechaNacimiento}
-                                        onChange={handleChange}
+                                        onChange={(date) => setFormData(prev => ({
+                                            ...prev,
+                                            FechaNacimiento: date ? date.toISOString().split('T')[0] : null
+                                        }))}
+                                        placeholder="Seleccionar fecha"
                                     />
                                 </InputGroup>
 
@@ -434,37 +527,48 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
                                     />
                                 </InputGroup>
 
+                                <InputGroup label="RFC">
+                                    <ModernInput
+                                        name="RFC"
+                                        value={formData.RFC}
+                                        onChange={handleChange}
+                                        placeholder="RFC"
+                                    />
+                                </InputGroup>
+
+                                <InputGroup label="IMSS / NSS">
+                                    <ModernInput
+                                        name="NSS"
+                                        value={formData.NSS}
+                                        onChange={handleChange}
+                                        placeholder="No. Seguro Social"
+                                    />
+                                </InputGroup>
+
                                 <InputGroup label="CURP" className="col-span-2">
                                     <ModernInput
                                         name="CURP"
                                         value={formData.CURP}
                                         onChange={handleChange}
-                                        placeholder="Clave Única de Registro"
-                                    />
-                                </InputGroup>
-
-                                <InputGroup label="IMSS / NSS" className="col-span-2">
-                                    <ModernInput
-                                        name="NSS"
-                                        value={formData.NSS}
-                                        onChange={handleChange}
-                                        placeholder="Número de Seguridad Social"
+                                        placeholder="Clave Única de Registro de Población"
                                     />
                                 </InputGroup>
                             </div>
                         </div>
 
                         {/* Labor Information */}
-                        <div className="space-y-4">
+                        <div className="space-y-3">
                             <SectionHeader title="Información Laboral" icon={Briefcase} />
 
-                            <div className="grid grid-cols-2 gap-4">
+                            <div className="grid grid-cols-2 gap-3">
                                 <InputGroup label="Fecha Ingreso">
-                                    <ModernInput
-                                        type="date"
-                                        name="FechaIngreso"
+                                    <ModernDatePicker
                                         value={formData.FechaIngreso}
-                                        onChange={handleChange}
+                                        onChange={(date) => setFormData(prev => ({
+                                            ...prev,
+                                            FechaIngreso: date ? date.toISOString().split('T')[0] : null
+                                        }))}
+                                        placeholder="Seleccionar fecha de ingreso"
                                     />
                                 </InputGroup>
 
@@ -495,30 +599,37 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
                                     />
                                 </InputGroup>
 
-                                <InputGroup label="Grupo Nómina">
+                                <InputGroup label="Grupo Nómina" className="col-span-2">
                                     <SmartSelect
                                         value={formData.GrupoNominaId}
                                         options={gruposNomina.map(g => ({ value: g.GrupoNominaId, title: g.Nombre }))}
                                         onChange={(val) => setFormData(prev => ({ ...prev, GrupoNominaId: val }))}
-                                        placeholder="Seleccionar Grupo..."
+                                        placeholder="Seleccionar Grupo Nómina..."
                                     />
                                 </InputGroup>
 
-                                <InputGroup label="Establecimiento">
+                                <InputGroup label="Establecimiento" className="col-span-2">
                                     <SmartSelect
                                         value={formData.EstablecimientoId}
                                         options={establecimientos.map(e => ({ value: e.EstablecimientoId, title: e.Nombre }))}
                                         onChange={(val) => setFormData(prev => ({ ...prev, EstablecimientoId: val }))}
-                                        placeholder="Seleccionar..."
+                                        placeholder="Seleccionar Establecimiento..."
                                     />
                                 </InputGroup>
-                            </div>
 
-                            <div className="mt-6 p-3 bg-blue-50/50 rounded-lg border border-blue-100/50">
-                                <p className="text-xs text-slate-500 leading-relaxed flex gap-2">
-                                    <span className="shrink-0 mt-0.5 w-1.5 h-1.5 bg-blue-400 rounded-full" />
-                                    Todos los campos son importantes para el cálculo de nómina.
-                                </p>
+                                {/* Activo Toggle Moved to Right Side */}
+                                <div className="col-span-2 flex justify-end mt-4">
+                                    <div className="flex items-center gap-2">
+                                        <ToggleSwitch
+                                            checked={formData.Activo}
+                                            onChange={(val) => setFormData((prev: any) => ({ ...prev, Activo: val }))}
+                                            themeColor={theme[600]}
+                                        />
+                                        <span className="text-sm font-medium text-slate-700">
+                                            {formData.Activo ? 'Activo' : 'Inactivo'}
+                                        </span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>

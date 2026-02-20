@@ -1,56 +1,49 @@
-IF OBJECT_ID('dbo.sp_SyncToExternal_GrupoNomina') IS NOT NULL      DROP PROCEDURE dbo.sp_SyncToExternal_GrupoNomina;
+USE [CA]
 GO
-CREATE PROCEDURE [dbo].[sp_SyncToExternal_GrupoNomina]
-    @CodRef NVARCHAR(50),      -- El CodRef local (que es 'grupo_nomina' en bmsjs)
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE OR ALTER PROCEDURE [dbo].[sp_SyncToExternal_GrupoNomina]
+    @CodRef NVARCHAR(50),
     @Nombre NVARCHAR(100),
-    @Abreviatura NVARCHAR(50),
-    @Status CHAR(1)          -- 'V' para Activo, 'B' para Baja
+    @Status CHAR(1)
 AS
 BEGIN
     SET NOCOUNT ON;
     
-    -- Validar que el servidor vinculado exista
-    IF NOT EXISTS (SELECT 1 FROM sys.servers WHERE name = 'bmsjs')
+    DECLARE @TargetDB NVARCHAR(100);
+    SELECT TOP 1 @TargetDB = ConfigValue FROM dbo.ConfiguracionSistema WHERE ConfigKey = 'DBENTRADA';
+    
+    IF @TargetDB IS NULL OR @TargetDB = ''
     BEGIN
-        PRINT 'Servidor vinculado [bmsjs] no encontrado. Omitiendo PUSH.';
+        PRINT 'ConfiguraciÃ³n DBENTRADA no encontrada. Omitiendo PUSH.';
         RETURN;
     END
 
-    -- Intentar el MERGE en el servidor remoto
+    DECLARE @SQL NVARCHAR(MAX);
+    
+    SET @SQL = '
+    MERGE INTO ' + QUOTENAME(@TargetDB) + '.[dbo].[grupos_nomina] AS Target
+    USING (SELECT @CodRef AS grupo_nomina, @Nombre AS nombre, @Status AS status) AS Source 
+    ON RTRIM(Target.grupo_nomina) = Source.grupo_nomina
+    WHEN MATCHED AND (
+        RTRIM(Target.nombre) <> Source.nombre OR 
+        Target.status <> Source.status
+    ) THEN
+        UPDATE SET 
+            Target.nombre = Source.nombre,
+            Target.status = Source.status
+    WHEN NOT MATCHED BY TARGET THEN
+        INSERT (grupo_nomina, nombre, status)
+        VALUES (Source.grupo_nomina, Source.nombre, Source.status);';
+
     BEGIN TRY
-        PRINT 'Sincronizando (PUSH) GrupoNomina ' + @CodRef + ' hacia bmsjs...';
-        
-        MERGE INTO [bmsjs].[dbo].[grupos_nomina] AS Target
-        USING (
-            SELECT 
-                @CodRef AS grupo_nomina, 
-                @Nombre AS nombre, 
-                @Abreviatura AS abreviatura, 
-                @Status AS status
-        ) AS Source ON RTRIM(Target.grupo_nomina) = Source.grupo_nomina
-        
-        -- Si existe y algo cambió, actualizarlo
-        WHEN MATCHED AND (
-            RTRIM(Target.nombre) <> Source.nombre OR 
-            RTRIM(Target.abreviatura) <> Source.abreviatura OR 
-            Target.status <> Source.status
-        ) THEN
-            UPDATE SET 
-                Target.nombre = Source.nombre,
-                Target.abreviatura = Source.abreviatura,
-                Target.status = Source.status
-        
-        -- Si no existe en el remoto, crearlo
-        WHEN NOT MATCHED BY TARGET THEN
-            INSERT (grupo_nomina, nombre, abreviatura, status)
-            VALUES (Source.grupo_nomina, Source.nombre, Source.abreviatura, Source.status);
-            
-        PRINT 'Sincronización (PUSH) para ' + @CodRef + ' completada.';
-            
+        EXEC sp_executesql @SQL, 
+            N'@CodRef NVARCHAR(50), @Nombre NVARCHAR(100), @Status CHAR(1)',
+            @CodRef, @Nombre, @Status;
     END TRY
     BEGIN CATCH
-        -- Si la sincronización (push) falla, solo imprimimos el error.
-        -- NO lanzamos un THROW, para no hacer fallar la transacción de la API.
         PRINT 'Error en sp_SyncToExternal_GrupoNomina: ' + ERROR_MESSAGE();
     END CATCH
 END

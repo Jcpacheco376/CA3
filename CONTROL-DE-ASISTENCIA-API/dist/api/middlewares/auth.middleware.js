@@ -18,11 +18,17 @@ const mssql_1 = __importDefault(require("mssql"));
 const database_1 = require("../../config/database");
 const config_1 = require("../../config");
 const authMiddleware = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    let token;
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.split(' ')[1];
+    }
+    else if (req.query.token) {
+        token = req.query.token;
+    }
+    if (!token) {
         return res.status(401).json({ message: 'Acceso no autorizado: Token no proporcionado.' });
     }
-    const token = authHeader.split(' ')[1];
     try {
         const decoded = jsonwebtoken_1.default.verify(token, config_1.JWT_SECRET);
         // Si es el super admin temporal, asigna todos los permisos

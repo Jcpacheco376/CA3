@@ -16,6 +16,7 @@ export const EmpleadosPage = () => {
     const [data, setData] = useState<any[]>([]);
     const [stats, setStats] = useState<EmployeeStats | null>(null);
     const [activeSmartFilter, setActiveSmartFilter] = useState<string | null>(null);
+    const [showInactive, setShowInactive] = useState(false);
 
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -51,8 +52,9 @@ export const EmpleadosPage = () => {
         setError(null);
         try {
             // Fetch List AND Stats in parallel
+            // Append includeInactive query param based on showInactive state
             const [resList, resStats] = await Promise.all([
-                fetch(`${API_BASE_URL}/employees`, { headers }),
+                fetch(`${API_BASE_URL}/employees?includeInactive=${showInactive}`, { headers }),
                 fetch(`${API_BASE_URL}/employees/stats`, { headers })
             ]);
 
@@ -60,21 +62,28 @@ export const EmpleadosPage = () => {
                 throw new Error('Error al cargar datos.');
             }
 
-            setData(await resList.json());
-            setStats(await resStats.json());
+            const list = await resList.json();
+            const statsData = await resStats.json();
+
+            // Calculate SinFoto and TotalInactivos manually from the list
+            statsData.SinFoto = list.filter((e: any) => e.Activo && !e.Imagen).length; // Only active without photo? Or all? Usually Active.
+            statsData.TotalInactivos = list.filter((e: any) => !e.Activo).length;
+
+            setData(list);
+            setStats(statsData);
 
         } catch (err: any) {
             setError(err.message);
         } finally {
             setIsLoading(false);
         }
-    }, [getToken, canRead, canManage]);
+    }, [getToken, canRead, canManage, showInactive]); // Re-fetch when showInactive changes
 
     useEffect(() => {
         if (user) {
             fetchData();
         }
-    }, [user, fetchData]);
+    }, [user, fetchData]); // fetchData now depends on showInactive, so this will run when showInactive changes
 
     const handleOpenModal = (item: any = null) => {
         setEditingItem(item);
@@ -92,16 +101,35 @@ export const EmpleadosPage = () => {
 
 
     const handleSmartFilterClick = (filterType: string) => {
-        if (activeSmartFilter === filterType) {
-            setActiveSmartFilter(null); // Toggle off
+        if (filterType === 'all') {
+            // Toggle Inactive View on "All" click
+            setShowInactive(prev => !prev);
+            setActiveSmartFilter(null); // Ensure no specific filter is active
         } else {
-            setActiveSmartFilter(filterType);
+            // For any other filter, enforce Active Only (as requested)
+            setShowInactive(false);
+
+            if (activeSmartFilter === filterType) {
+                setActiveSmartFilter(null); // Toggle off specific filter
+            } else {
+                setActiveSmartFilter(filterType);
+            }
         }
     };
 
     // --- Filtering Logic ---
     const filteredData = useMemo(() => {
+        // Debugging Activo values
+        if (data.length > 0) {
+            console.log("Sample Employee Activo:", data[0].Activo, typeof data[0].Activo);
+        }
         let result = [...data];
+
+        // 0. Base Filter: Active or All
+        if (!showInactive) {
+            result = result.filter(item => item.Activo);
+        }
+        // If showInactive is true, we keep everyone (Active + Inactive)
 
         // 1. Apply Smart Chips Filter
         if (activeSmartFilter) {
@@ -110,10 +138,13 @@ export const EmpleadosPage = () => {
                     result = result.filter(item => !item.HorarioIdPredeterminado);
                     break;
                 case 'rotative':
-                    result = result.filter(item => item.EsRotativo);
+                    result = result.filter(item => item.HorarioIdPredeterminado === 2); // Corrected property access and value
                     break;
                 case 'no_device':
                     result = result.filter(item => (!item.ZonasAsignadas || item.ZonasAsignadas === 0));
+                    break;
+                case 'no_photo':
+                    result = result.filter(item => !item.Imagen);
                     break;
             }
         }
@@ -136,7 +167,7 @@ export const EmpleadosPage = () => {
             if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
             return 0;
         });
-    }, [data, searchTerm, sortConfig, activeSmartFilter]);
+    }, [data, searchTerm, sortConfig, activeSmartFilter, showInactive]);
 
     const handleSort = (key: string) => {
         setSortConfig(current => ({ key, direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc' }));
@@ -150,11 +181,13 @@ export const EmpleadosPage = () => {
         const container = tableContainerRef.current;
 
         const handleMouseMove = (moveEvent: MouseEvent) => {
+            // Synchronous update for responsiveness
             const newWidth = Math.max(200, Math.min(startWidth + (moveEvent.clientX - startX), 600));
             if (container) {
                 container.style.setProperty('--employee-col-width', `${newWidth}px`);
             }
         };
+
         const handleMouseUp = (upEvent: MouseEvent) => {
             document.body.classList.remove('select-none', 'cursor-col-resize');
             window.removeEventListener('mousemove', handleMouseMove);
@@ -179,17 +212,17 @@ export const EmpleadosPage = () => {
         return (
             <div ref={tableContainerRef} className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden flex-1 flex flex-col min-h-0" style={{ '--employee-col-width': `${employeeColumnWidth}px` } as React.CSSProperties}>
                 <div className="overflow-auto flex-1">
-                    <table className="w-full text-sm relative">
+                    <table className="w-full text-sm relative table-fixed">
                         <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
                             <tr>
                                 <th className="p-3 text-left font-semibold text-slate-600 cursor-pointer w-20 min-w-[5rem]" onClick={() => handleSort('CodRef')}>
                                     <div className="flex items-center gap-1">ID {getSortIcon('CodRef')}</div>
                                 </th>
-                                <th className="p-3 text-left font-semibold text-slate-600 cursor-pointer relative group select-none" style={{ width: 'var(--employee-col-width)' }} onClick={() => handleSort('NombreCompleto')}>
+                                <th className="p-3 text-left font-semibold text-slate-600 cursor-pointer relative group select-none" style={{ width: 'var(--employee-col-width)', willChange: 'width' }} onClick={() => handleSort('NombreCompleto')}>
                                     <div className="flex items-center gap-1">Empleado {getSortIcon('NombreCompleto')}</div>
                                     <div onMouseDown={handleResizeMouseDown} onClick={(e) => e.stopPropagation()} className="absolute right-0 top-0 h-full w-4 cursor-col-resize flex items-center justify-center hover:bg-slate-200/50 z-20"><GripVertical size={14} className="text-slate-300 opacity-0 group-hover:opacity-100" /></div>
                                 </th>
-                                <th className="p-3 text-left font-semibold text-slate-600 hidden md:table-cell">Info Laboral</th>
+                                <th className="p-3 text-left font-semibold text-slate-600 hidden md:table-cell w-64">Info Laboral</th>
                                 <th className="p-3 text-left font-semibold text-slate-600 hidden lg:table-cell">Horario</th>
                                 <th className="p-3 text-center font-semibold text-slate-600 hidden xl:table-cell">Acceso</th>
                                 <th className="p-3 text-center font-semibold text-slate-600">Estado</th>
@@ -203,7 +236,7 @@ export const EmpleadosPage = () => {
                                     <td className="p-3 font-medium text-slate-800">
                                         <div className="flex items-center gap-3">
                                             <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center text-xs font-bold text-slate-600 overflow-hidden text-clip whitespace-nowrap shrink-0 cursor-pointer">
-                                                {item.Imagen
+                                                {item.TieneFoto
                                                     ? (
                                                         <Tooltip
                                                             text={
@@ -221,7 +254,7 @@ export const EmpleadosPage = () => {
                                                                     </style>
                                                                     <div className="absolute inset-0 bg-black/20 rounded-full blur-xl transform scale-90 translate-y-4 animate-magnify"></div>
                                                                     <img
-                                                                        src={`data:image/jpeg;base64,${arrayBufferToBase64(item.Imagen)}`}
+                                                                        src={`${API_BASE_URL}/employees/${item.EmpleadoId}/photo?token=${getToken()}`}
                                                                         alt={item.NombreCompleto}
                                                                         className="relative w-48 h-48 rounded-full object-cover border-4 border-white shadow-2xl animate-magnify"
                                                                     />
@@ -232,7 +265,7 @@ export const EmpleadosPage = () => {
                                                             placement="right"
                                                             offset={20}
                                                         >
-                                                            <img src={`data:image/jpeg;base64,${arrayBufferToBase64(item.Imagen)}`} alt="" className="w-full h-full object-cover transform transition-transform duration-300 hover:scale-110" />
+                                                            <img src={`${API_BASE_URL}/employees/${item.EmpleadoId}/photo?token=${getToken()}`} alt="" className="w-full h-full object-cover transform transition-transform duration-300 hover:scale-110" loading="lazy" />
                                                         </Tooltip>
                                                     )
                                                     : (item.NombreCompleto?.[0] || '?')}
@@ -361,32 +394,13 @@ export const EmpleadosPage = () => {
         );
     };
 
-    // Helper for listing image (repeating logic from modal, ideally utility)
-    const arrayBufferToBase64 = (buffer: any) => {
-        if (!buffer || !buffer.data) return null;
-        let binary = '';
-        const bytes = new Uint8Array(buffer.data);
-        const len = bytes.byteLength;
-        for (let i = 0; i < len; i++) {
-            binary += String.fromCharCode(bytes[i]);
-        }
-        return window.btoa(binary);
-    };
-
     return (
-        <div className="space-y-4 h-full flex flex-col overflow-hidden p-1">
+        <div className="space-y-4 flex flex-col min-h-[calc(100vh-250px)] p-1">
             <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 shrink-0">
                 <div>
                     <h2 className="text-2xl font-bold text-slate-800">Empleados</h2>
-                    <div className="flex items-center gap-4 mt-1 text-sm text-slate-500">
-                        <span>Gestión integral del personal.</span>
-                        <SmartStatsHeader
-                            stats={stats}
-                            isLoading={isLoading}
-                            onFilterClick={handleSmartFilterClick}
-                            activeFilter={activeSmartFilter}
-                        />
-                    </div>
+                    <span>Gestión integral del personal.</span>
+
                 </div>
             </div>
 
@@ -408,6 +422,14 @@ export const EmpleadosPage = () => {
                         )}
                     </div>
 
+                    <SmartStatsHeader
+                        stats={stats}
+                        isLoading={isLoading}
+                        onFilterClick={handleSmartFilterClick}
+                        activeFilter={activeSmartFilter}
+                        showInactive={showInactive}
+                    />
+
                 </div>
                 {canManage && (
                     <Button onClick={() => handleOpenModal()}>
@@ -419,14 +441,16 @@ export const EmpleadosPage = () => {
 
             {renderContent()}
 
-            {isModalOpen && (
-                <EmpleadoModal
-                    isOpen={isModalOpen}
-                    onClose={handleCloseModal}
-                    onSave={handleSave}
-                    empleado={editingItem}
-                />
-            )}
-        </div>
+            {
+                isModalOpen && (
+                    <EmpleadoModal
+                        isOpen={isModalOpen}
+                        onClose={handleCloseModal}
+                        onSave={handleSave}
+                        empleado={editingItem}
+                    />
+                )
+            }
+        </div >
     );
 };

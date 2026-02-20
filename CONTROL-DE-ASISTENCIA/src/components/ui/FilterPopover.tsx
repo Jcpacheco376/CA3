@@ -18,13 +18,13 @@ interface FilterPopoverProps {
     selectionMode?: 'multiple' | 'single'; // Nuevo prop con valor por defecto 'multiple'
 }
 
-export const FilterPopover = ({ 
-    icon, 
-    title, 
-    options, 
-    selectedValues, 
-    onChange, 
-    selectionMode = 'multiple' 
+export const FilterPopover = ({
+    icon,
+    title,
+    options,
+    selectedValues,
+    onChange,
+    selectionMode = 'multiple'
 }: FilterPopoverProps) => {
     const [isOpen, setIsOpen] = useState(false);
     const triggerRef = useRef<HTMLButtonElement>(null);
@@ -37,7 +37,7 @@ export const FilterPopover = ({
 
     const filteredOptions = useMemo(() => {
         if (!searchTerm) return options;
-        return options.filter(opt => 
+        return options.filter(opt =>
             opt.label.toLowerCase().includes(searchTerm.toLowerCase())
         );
     }, [options, searchTerm]);
@@ -110,8 +110,8 @@ export const FilterPopover = ({
             {options.length > 10 && (
                 <div className="relative">
                     <Search size={16} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input 
-                        type="text" 
+                    <input
+                        type="text"
                         placeholder="Buscar..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
@@ -180,7 +180,7 @@ export const FilterPopover = ({
                 type="button"
                 onClick={() => setIsOpen(!isOpen)}
                 className={`
-                    flex items-center pl-2 pr-1.5 py-2 rounded-lg transition-all duration-300
+                    flex items-center pl-2 pr-1.5 py-2 rounded-lg transition-all duration-500
                     group
                     border border-slate-300
                     bg-white hover:bg-slate-100
@@ -191,27 +191,27 @@ export const FilterPopover = ({
                 <span className={isFiltered ? 'text-[--theme-500]' : 'text-slate-400'}>
                     {React.cloneElement(icon as React.ReactElement, { size: 18 })}
                 </span>
-                
+
                 <span className={`
-                    text-sm font-medium whitespace-nowrap overflow-hidden transition-all duration-300
+                    text-sm font-medium whitespace-nowrap overflow-hidden transition-all duration-500
                     ${isFiltered ? 'text-[--theme-500]' : 'text-slate-500 group-hover:text-slate-800'}
-                    ${isOpen 
-                        ? 'max-w-[200px] opacity-100 ml-1.5' 
+                    ${isOpen
+                        ? 'max-w-[200px] opacity-100 ml-1.5'
                         : 'max-w-0 opacity-0 group-hover:max-w-[200px] group-hover:opacity-100 group-hover:ml-1.5'
                     }
                 `}>
                     {title}
                 </span>
-                
+
                 {isFiltered && (
                     <span className="text-xs font-bold px-1.5 py-0.5 bg-white rounded-full shadow-sm text-[--theme-600] shrink-0 ml-1.5">
                         {activeFilterCount}
                     </span>
                 )}
-                
+
                 <ChevronDown size={16} className={`text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''} shrink-0 ml-1.5`} />
             </button>
-            
+
             {isOpen && ReactDOM.createPortal(PopoverContent, document.body)}
         </>
     );

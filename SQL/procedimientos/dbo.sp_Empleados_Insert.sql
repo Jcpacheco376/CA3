@@ -1,52 +1,50 @@
-IF OBJECT_ID('dbo.sp_Empleados_Insert') IS NOT NULL DROP PROCEDURE dbo.sp_Empleados_Insert;
+IF OBJECT_ID('dbo.sp_Empleados_Insert') IS NOT NULL      DROP PROCEDURE dbo.sp_Empleados_Insert;
 GO
-CREATE PROCEDURE dbo.sp_Empleados_Insert
-    @CodRef nvarchar(20),
-    @NombreCompleto nvarchar(300),
-    @FechaNacimiento date = NULL,
-    @FechaIngreso date = NULL,
-    @DepartamentoId int = NULL,
-    @GrupoNominaId int = NULL,
-    @PuestoId int = NULL,
-    @HorarioIdPredeterminado int = NULL,
-    @EstablecimientoId int = NULL,
-    @Sexo nchar(2) = NULL,
-    @NSS nvarchar(40) = NULL,
-    @CURP nvarchar(40) = NULL,
-    @RFC nvarchar(40) = NULL,
-    @Imagen varbinary(MAX) = NULL,
-    @Activo bit = 1,
-    @Zonas nvarchar(MAX) = NULL
-AS
-BEGIN
-    SET NOCOUNT ON;
-    
-    IF EXISTS (SELECT 1 FROM dbo.Empleados WHERE CodRef = @CodRef)
-    BEGIN
-        RAISERROR('El código de referencia ya está en uso.', 16, 1);
-        RETURN;
-    END
 
-    INSERT INTO dbo.Empleados (
-        CodRef, NombreCompleto, FechaNacimiento, FechaIngreso,
-        DepartamentoId, GrupoNominaId, PuestoId, HorarioIdPredeterminado,
-        EstablecimientoId, Sexo, NSS, CURP, RFC, Imagen, Activo
-    )
-    VALUES (
-        @CodRef, @NombreCompleto, @FechaNacimiento, @FechaIngreso,
-        @DepartamentoId, @GrupoNominaId, @PuestoId, @HorarioIdPredeterminado,
-        @EstablecimientoId, @Sexo, @NSS, @CURP, @RFC, @Imagen, @Activo
-    );
-    
-    DECLARE @NewEmpleadoId INT = SCOPE_IDENTITY();
+            CREATE   PROCEDURE [dbo].[sp_Empleados_Insert]
+                @CodRef NVARCHAR(50),
+                @Pim NVARCHAR(50) = NULL,
+                @Nombres NVARCHAR(100),
+                @ApellidoPaterno NVARCHAR(100),
+                @ApellidoMaterno NVARCHAR(100),
+                @FechaNacimiento DATE,
+                @FechaIngreso DATE,
+                @DepartamentoId INT,
+                @PuestoId INT,
+                @HorarioIdPredeterminado INT,
+                @GrupoNominaId INT,
+                @EstablecimientoId INT,
+                @Sexo CHAR(1),
+                @NSS NVARCHAR(20),
+                @CURP NVARCHAR(20),
+                @RFC NVARCHAR(20),
+                @Imagen VARBINARY(MAX),
+                @UsuarioId INT,
+                @NewId INT OUTPUT
+            AS
+            BEGIN
+                SET NOCOUNT ON;
 
-    IF @Zonas IS NOT NULL
-    BEGIN
-        INSERT INTO dbo.EmpleadosZonas (EmpleadoId, ZonaId)
-        SELECT @NewEmpleadoId, ZonaId
-        FROM OPENJSON(@Zonas) WITH (ZonaId INT '$.ZonaId');
-    END
+                -- Calculate NombreCompleto based on Config
+                DECLARE @FormatoNombre INT;
+                SELECT TOP 1 @FormatoNombre = ISNULL(FormatoNombre, 1) FROM ConfiguracionSistema;
+                
+                DECLARE @NombreCompleto NVARCHAR(300);
+                IF @FormatoNombre = 2 -- Apellidos Nombres
+                    SET @NombreCompleto = TRIM(@ApellidoPaterno + ' ' + ISNULL(@ApellidoMaterno, '') + ' ' + @Nombres);
+                ELSE -- Nombres Apellidos (Default)
+                    SET @NombreCompleto = TRIM(@Nombres + ' ' + @ApellidoPaterno + ' ' + ISNULL(@ApellidoMaterno, ''));
 
-    SELECT @NewEmpleadoId as EmpleadoId;
-END
-GO
+                INSERT INTO Empleados (
+                    CodRef, Pim, Nombres, ApellidoPaterno, ApellidoMaterno, NombreCompleto,
+                    FechaNacimiento, FechaIngreso, DepartamentoId, PuestoId, HorarioIdPredeterminado,
+                    GrupoNominaId, EstablecimientoId, Sexo, NSS, CURP, RFC, Imagen, Activo
+                ) VALUES (
+                    @CodRef, @Pim, @Nombres, @ApellidoPaterno, @ApellidoMaterno, @NombreCompleto,
+                    @FechaNacimiento, @FechaIngreso, @DepartamentoId, @PuestoId, @HorarioIdPredeterminado,
+                    @GrupoNominaId, @EstablecimientoId, @Sexo, @NSS, @CURP, @RFC, @Imagen, 1
+                );
+
+                SET @NewId = SCOPE_IDENTITY();
+            END
+        

@@ -21,7 +21,9 @@ export type View =
     'devices' |
     'report_prenomina' |
     'report_attendance_list' |
-    'payroll_closing';
+    'payroll_closing' |
+    'admin_calendar_events' |
+    'vacations';
 
 
 export type DayOfWeek = 'Lunes' | 'Martes' | 'Miércoles' | 'Jueves' | 'Viernes' | 'Sábado' | 'Domingo';
@@ -109,4 +111,6 @@ export interface EmployeeStats {
     SinHorario: number;
     HorarioRotativo: number;
     SinDispositivo: number;
+    SinFoto?: number;
+    TotalInactivos?: number;
 }

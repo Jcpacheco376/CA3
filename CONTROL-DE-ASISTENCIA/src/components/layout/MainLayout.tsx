@@ -8,12 +8,13 @@ import { RolesPage } from '../../features/admin/RolesPage';
 import { CatalogLayout } from '../../features/admin/CatalogLayout';
 import { CatalogosPage } from '../../features/admin/CatalogosPage';
 import { EmpleadosPage } from '../../features/admin/EmpleadosPage';
+import { CalendarEventsPage } from '../../features/admin/CalendarEventsPage';
 import { UserProfileModal } from '../../features/auth/UserProfileModal';
 import { ProfessionalSidebar } from './ProfessionalSidebar';
 import { AppHeader } from './AppHeader';
 import {
-    BarChartBig, Users, Settings, Folder, FileText, CalendarClock,
-    AlertTriangle, Lock, LayoutDashboard, Monitor
+    BarChartBig, Users, Shield, Folder, FileText, CalendarClock, Calendar,
+    AlertTriangle, Lock, LayoutDashboard, Monitor, Palmtree
 } from 'lucide-react';
 import { SchedulePage } from '../../features/attendance/SchedulePage';
 import { ReportsHub } from '../../features/reports/ReportsHub';
@@ -22,6 +23,7 @@ import { IncidentsControlPage } from '../../features/reports/pages/IncidentsCont
 import PayrollClosingPage from '../../features/payroll/PayrollClosingPage';
 import { DashboardPage } from '../../features/dashboard/DashboardPage';
 import { DevicesPage } from '../../features/devices/DevicesPage';
+import { VacationsPage } from '../../features/vacations/VacationsPage';
 interface MainLayoutProps {
     user: User;
     onLogout: () => void;
@@ -53,13 +55,15 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
                     id: 'attendance_reports',
                     label: 'Reportes', icon: <FileText size={20} />
                 },
+                { id: 'vacations', label: 'Vacaciones', icon: <Palmtree size={20} /> },
+                { id: 'admin_calendar_events', label: 'Eventos y Feriados', icon: <Calendar size={20} /> },
             ].filter(Boolean)
         },
         (can('usuarios.read') || can('roles.manage') || can('catalogo.departamentos.read') || can('catalogo.gruposNomina.read') || can('catalogo.estatusAsistencia.read') || can('catalogo.horarios.read') || can('catalogo.establecimientos.read') || can('catalogo.puestos.read') || can('dispositivos.read')) && {
             section: 'Administración',
             items: [
                 can('usuarios.read') && { id: 'admin_users', label: 'Usuarios', icon: <Users size={20} /> },
-                can('roles.manage') && { id: 'admin_roles', label: 'Roles', icon: <Settings size={20} /> },
+                can('roles.manage') && { id: 'admin_roles', label: 'Roles', icon: <Shield size={20} /> },
                 can('dispositivos.read') && { id: 'devices', label: 'Checadores', icon: <Monitor size={20} /> },
                 (can('catalogo.departamentos.read') || can('catalogo.gruposNomina.read') || can('catalogo.estatusAsistencia.read') || can('catalogo.horarios.read') || can('catalogo.establecimientos.read') || can('catalogo.puestos.read')) && { id: 'admin_catalogs', label: 'Catálogos', icon: <Folder size={20} /> }
             ].filter(Boolean)
@@ -108,6 +112,10 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
                 return <ReportsLayout activeView={activeView} setActiveView={setActiveView} />;
             case 'payroll_closing':
                 return <PayrollClosingPage />;
+            case 'admin_calendar_events':
+                return <CalendarEventsPage />;
+            case 'vacations':
+                return <VacationsPage />;
             default: return <DashboardPage setActiveView={setActiveView} />;
         }
     };

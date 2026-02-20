@@ -1,49 +1,49 @@
-IF OBJECT_ID('dbo.sp_SyncToExternal_Establecimiento') IS NOT NULL      DROP PROCEDURE dbo.sp_SyncToExternal_Establecimiento;
+USE [CA]
 GO
-CREATE PROCEDURE [dbo].[sp_SyncToExternal_Establecimiento]
-    @CodRef NVARCHAR(50),     
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE OR ALTER PROCEDURE [dbo].[sp_SyncToExternal_Establecimiento]
+    @CodRef NVARCHAR(50),
     @Nombre NVARCHAR(100),
-    @Abreviatura NVARCHAR(50),
-    @Status CHAR(1)          
+    @Status CHAR(1)
 AS
 BEGIN
-    SET NOCOUNT ON; 
-    IF NOT EXISTS (SELECT 1 FROM sys.servers WHERE name = 'bmsjs')
+    SET NOCOUNT ON;
+    
+    DECLARE @TargetDB NVARCHAR(100);
+    SELECT TOP 1 @TargetDB = ConfigValue FROM dbo.ConfiguracionSistema WHERE ConfigKey = 'DBENTRADA';
+    
+    IF @TargetDB IS NULL OR @TargetDB = ''
     BEGIN
-        PRINT 'Servidor vinculado [bmsjs] no encontrado. Omitiendo PUSH.';
+        PRINT 'ConfiguraciÃ³n DBENTRADA no encontrada. Omitiendo PUSH.';
         RETURN;
     END
 
+    DECLARE @SQL NVARCHAR(MAX);
+    
+    SET @SQL = '
+    MERGE INTO ' + QUOTENAME(@TargetDB) + '.[dbo].[catalogo_establecimientos] AS Target
+    USING (SELECT @CodRef AS cod_estab, @Nombre AS nombre, @Status AS status) AS Source 
+    ON RTRIM(Target.cod_estab) = Source.cod_estab
+    WHEN MATCHED AND (
+        RTRIM(Target.nombre) <> Source.nombre OR 
+        Target.status <> Source.status
+    ) THEN
+        UPDATE SET 
+            Target.nombre = Source.nombre,
+            Target.status = Source.status
+    WHEN NOT MATCHED BY TARGET THEN
+        INSERT (cod_estab, nombre, status)
+        VALUES (Source.cod_estab, Source.nombre, Source.status);';
+
     BEGIN TRY
-        PRINT 'Sincronizando (PUSH) Establecimiento ' + @CodRef + ' hacia bmsjs...';
-        MERGE INTO [bmsjs].[dbo].[establecimientos] AS Target
-        USING (
-            SELECT 
-                @CodRef AS cod_estab, 
-                @Nombre AS nombre, 
-                @Abreviatura AS abreviatura, 
-                @Status AS status
-        ) AS Source ON RTRIM(Target.cod_estab) = Source.cod_estab
-        
-        WHEN MATCHED AND (
-            RTRIM(Target.nombre) <> Source.nombre OR 
-            RTRIM(Target.abreviatura) <> Source.abreviatura OR 
-            Target.status <> Source.status
-        ) THEN
-            UPDATE SET 
-                Target.nombre = Source.nombre,
-                Target.abreviatura = Source.abreviatura,
-                Target.status = Source.status
-        
-        WHEN NOT MATCHED BY TARGET THEN
-            INSERT (cod_estab, nombre, abreviatura, status)
-            VALUES (Source.cod_estab, Source.nombre, Source.abreviatura, Source.status);
-            
-        PRINT 'Sincronización (PUSH) para ' + @CodRef + ' completada.';
-            
+        EXEC sp_executesql @SQL, 
+            N'@CodRef NVARCHAR(50), @Nombre NVARCHAR(100), @Status CHAR(1)',
+            @CodRef, @Nombre, @Status;
     END TRY
     BEGIN CATCH
         PRINT 'Error en sp_SyncToExternal_Establecimiento: ' + ERROR_MESSAGE();
     END CATCH
 END
-

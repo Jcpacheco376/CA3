@@ -18,6 +18,9 @@ CREATE TABLE [dbo].[Empleados] (
 [EstablecimientoId] int NULL,
 [Pim] int NULL,
 [AdminDisp] bit DEFAULT ((0)) NOT NULL,
+[Nombres] nvarchar(200) NULL,
+[ApellidoPaterno] nvarchar(200) NULL,
+[ApellidoMaterno] nvarchar(200) NULL,
 CONSTRAINT [PK__Empleado__958BE910924FBBD4] PRIMARY KEY CLUSTERED ([EmpleadoId] ASC) WITH (PAD_INDEX = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY],
 CONSTRAINT [UQ__Empleado__84823DEF9F934FB5] UNIQUE NONCLUSTERED ([CodRef] ASC) WITH (PAD_INDEX = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
 ) ON [PRIMARY]

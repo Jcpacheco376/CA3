@@ -8,22 +8,22 @@ export const InfoIcon = () => (
     </svg>
 );
 
-export const Tooltip = ({ 
-    text, 
-    children, 
-    placement = 'top', 
-    offset = 8, 
+export const Tooltip = ({
+    text,
+    children,
+    placement = 'top',
+    offset = 8,
     delay = 100,
-    zIndex = 50, // <-- Nueva propiedad zIndex
+    zIndex = 10050, // Must be above SmartSelect dropdown (z-[9999])
     disabled = false,
     className,
     withArrow = false, // Nueva propiedad para la "colita"
     triggerClassName
-}: { 
-    text: React.ReactNode; 
-    children: React.ReactNode; 
-    placement?: 'top' | 'bottom' | 'left' | 'right'; 
-    offset?: number, 
+}: {
+    text: React.ReactNode;
+    children: React.ReactNode;
+    placement?: 'top' | 'bottom' | 'left' | 'right';
+    offset?: number,
     delay?: number,
     zIndex?: number, // <-- Nueva propiedad zIndex
     disabled?: boolean,
@@ -69,7 +69,7 @@ export const Tooltip = ({
             }
         }, delay);
     };
-    
+
     const handleMouseLeave = () => {
         if (timerRef.current) {
             clearTimeout(timerRef.current);
@@ -116,7 +116,7 @@ export const Tooltip = ({
     );
 
     const [isMounted, setIsMounted] = useState(false);
-    
+
     useEffect(() => { // <-- Error estaba aquí, faltaba importar useEffect
         setIsMounted(true);
         let portalRoot = document.getElementById('portal-root-tooltip');
@@ -126,10 +126,10 @@ export const Tooltip = ({
             document.body.appendChild(portalRoot);
         }
         return () => {
-             // Optional: clean up portal root if it's empty
-             if (portalRoot && portalRoot.children.length === 0) {
-                 // portalRoot.remove(); // Comentado para evitar posibles problemas si se desmonta rápido
-             }
+            // Optional: clean up portal root if it's empty
+            if (portalRoot && portalRoot.children.length === 0) {
+                // portalRoot.remove(); // Comentado para evitar posibles problemas si se desmonta rápido
+            }
         }
     }, [])
 

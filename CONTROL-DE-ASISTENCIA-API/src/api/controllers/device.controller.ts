@@ -85,7 +85,7 @@ export const updateZone = async (req: Request, res: Response) => {
             .input('Nombre', sql.NVarChar, Nombre)
             .input('Descripcion', sql.NVarChar, Descripcion || '')
             .input('ColorUI', sql.NVarChar, ColorUI || null);
-        
+
         let query = 'UPDATE Zonas SET Nombre=@Nombre, Descripcion=@Descripcion, ColorUI=@ColorUI';
         if (Activo !== undefined) {
             request.input('Activo', sql.Bit, Activo);
@@ -132,7 +132,7 @@ export const createDevice = async (req: Request, res: Response) => {
             .input('Puerto', sql.Int, Puerto)
             .input('ZonaId', sql.Int, ZonaId)
             .input('PasswordCom', sql.NVarChar, String(PasswordCom || '0'))
-            .input('TipoConexion', sql.NVarChar, TipoConexion || 'SDK') 
+            .input('TipoConexion', sql.NVarChar, TipoConexion || 'SDK')
             .input('BorrarChecadas', sql.Bit, !!BorrarChecadas)
             .input('Activo', sql.Bit, Activo !== undefined ? !!Activo : 1)
             .query(`INSERT INTO Dispositivos (Nombre, IpAddress, Puerto, ZonaId, PasswordCom, TipoConexion, Activo, Estado, BorrarChecadas) VALUES (@Nombre, @IpAddress, @Puerto, @ZonaId, @PasswordCom, @TipoConexion, @Activo, 'Desconocido', @BorrarChecadas)`);
@@ -186,7 +186,7 @@ export const updateDevice = async (req: Request, res: Response) => {
 // ==================================================================================
 export const syncDevice = async (req: Request, res: Response) => {
     const { id } = req.params;
-    
+
     // Opciones por defecto (Si el frontend no envía nada, hace una sync inteligente)
     let options = req.body.options || {
         harvestUsers: true,     // 1. Bajar usuarios nuevos del reloj
@@ -203,13 +203,13 @@ export const syncDevice = async (req: Request, res: Response) => {
     if (options.syncFingerprints !== undefined) options.pushFingerprints = options.syncFingerprints;
 
     console.log(`🔄 [SYNC MASTER] Disp ID: ${id} | Ops:`, options);
-    
+
     let stats = { harvested: 0, usersSent: 0, facesSent: 0, deleted: 0, errors: [] as string[] };
 
     try {
         const device = await getDeviceById(parseInt(id));
         if (!device || !device.Activo || !device.ZonaId) return res.status(400).json({ error: 'Dispositivo inválido' });
-        
+
         const zkDev = { Nombre: device.Nombre, IpAddress: device.IpAddress, Puerto: device.Puerto, PasswordCom: device.PasswordCom };
         const pool = await sql.connect(dbConfig);
 
@@ -221,21 +221,21 @@ export const syncDevice = async (req: Request, res: Response) => {
             console.log(`📥 Cosechando usuarios...`);
             const users = await ZkDeviceService.getAllUsers(zkDev);
             stats.harvested = users.length;
-            
+
             for (const u of users) {
                 const uid = u.uid;
-                const emp = await pool.request().input('Uid', sql.VarChar, uid).query('SELECT EmpleadoId FROM Empleados WHERE CodRef=@Uid');
-                
+                const emp = await pool.request().input('Uid', sql.VarChar, uid).query('SELECT EmpleadoId FROM Empleados WHERE Pim=@Uid');
+
                 if (emp.recordset.length > 0) {
                     const empId = emp.recordset[0].EmpleadoId;
                     // Vincular a Zona si hace falta
                     await pool.request().input('EId', sql.Int, empId).input('ZId', sql.Int, device.ZonaId)
                         .query(`IF NOT EXISTS (SELECT 1 FROM EmpleadosZonas WHERE EmpleadoId=@EId AND ZonaId=@ZId) INSERT INTO EmpleadosZonas VALUES (@EId, @ZId)`);
-                    
+
                     // Guardar Huellas (si vienen en getAllUsers)
                     if (u.fingers?.length) {
                         for (const f of u.fingers) {
-                             await pool.request().input('EId', sql.Int, empId).input('Idx', sql.Int, f.fingerIndex).input('Tmp', sql.NVarChar(sql.MAX), f.template)
+                            await pool.request().input('EId', sql.Int, empId).input('Idx', sql.Int, f.fingerIndex).input('Tmp', sql.NVarChar(sql.MAX), f.template)
                                 .query(`MERGE BiometriaHuellas AS T USING (SELECT @EId AS E, @Idx AS I) AS S ON (T.EmpleadoId=S.E AND T.DedoIndice=S.I) WHEN MATCHED THEN UPDATE SET Template=@Tmp WHEN NOT MATCHED THEN INSERT (EmpleadoId,DedoIndice,Template) VALUES (@EId,@Idx,@Tmp);`);
                         }
                     }
@@ -247,20 +247,20 @@ export const syncDevice = async (req: Request, res: Response) => {
         if (options.pushUsers) {
             console.log(`📤 Enviando usuarios...`);
             const qUsers = `
-                SELECT E.CodRef as uid, E.NombreCompleto as name, 
+                SELECT E.Pim as uid, E.NombreCompleto as name, 
                        CASE WHEN E.Admindisp = 1 THEN 3 ELSE 0 END as privilege, 
                        '0' as password, 1 as enabled,
                        (SELECT DedoIndice as [index], Template as template FROM BiometriaHuellas WHERE EmpleadoId = E.EmpleadoId FOR JSON PATH) as fingersJson
                 FROM Empleados E 
                 JOIN EmpleadosZonas EZ ON E.EmpleadoId = EZ.EmpleadoId 
-                WHERE EZ.ZonaId = @ZId AND E.Activo = 1
+                WHERE EZ.ZonaId = @ZId AND E.Activo = 1 AND E.Pim IS NOT NULL AND E.Pim <> ''
             `;
             const dbUsers = await pool.request().input('ZId', sql.Int, device.ZonaId).query(qUsers);
-            
+
             if (dbUsers.recordset.length > 0) {
                 const fName = path.join(process.cwd(), `users_${Date.now()}.txt`);
                 const s = fs.createWriteStream(fName, { encoding: 'utf8' });
-                
+
                 for (const u of dbUsers.recordset) {
                     // Enviamos rostro como null para no romper el flujo con formatos viejos
                     let line = `${u.uid}|${u.name.substring(0, 24)}|${u.privilege}|${u.password}|${u.enabled}|null`;
@@ -276,7 +276,7 @@ export const syncDevice = async (req: Request, res: Response) => {
                 const res = await ZkDeviceService.uploadUsersBatch(zkDev, fName);
                 stats.usersSent = res.success || 0;
                 if (res.failed > 0) stats.errors.push(`Fallaron ${res.failed} usuarios.`);
-                try { fs.unlinkSync(fName); } catch {}
+                try { fs.unlinkSync(fName); } catch { }
             }
         }
 
@@ -284,11 +284,11 @@ export const syncDevice = async (req: Request, res: Response) => {
         if (options.pushBiometrics) {
             console.log(`🧬 Inyectando tabla de rostros (Visible Light)...`);
             const qFaces = `
-                SELECT E.CodRef as uid, BR.Template, BR.Version, BR.IndiceRostro
+                SELECT E.Pim as uid, BR.Template, BR.Version, BR.IndiceRostro
                 FROM Empleados E
                 JOIN EmpleadosZonas EZ ON E.EmpleadoId = EZ.EmpleadoId
                 JOIN BiometriaRostros BR ON E.EmpleadoId = BR.EmpleadoId
-                WHERE EZ.ZonaId = @ZId AND E.Activo = 1 AND DATALENGTH(BR.Template) > 100
+                WHERE EZ.ZonaId = @ZId AND E.Activo = 1 AND DATALENGTH(BR.Template) > 100 AND E.Pim IS NOT NULL AND E.Pim <> ''
             `;
             const dbFaces = await pool.request().input('ZId', sql.Int, device.ZonaId).query(qFaces);
 
@@ -301,7 +301,7 @@ export const syncDevice = async (req: Request, res: Response) => {
                     const [maj, min] = verStr.split('.');
                     const tmp = f.Template.replace(/[\r\n\s]+/g, '');
                     // Formato SDKHelper: Pin=... Type=9 ...
-                    const line = `Pin=${f.uid}\tValid=1\tDuress=0\tType=9\tMajorVer=${maj||35}\tMinorVer=${min||4}\tFormat=0\tNo=0\tIndex=${f.IndiceRostro||0}\tTmp=${tmp}`;
+                    const line = `Pin=${f.uid}\tValid=1\tDuress=0\tType=9\tMajorVer=${maj || 35}\tMinorVer=${min || 4}\tFormat=0\tNo=0\tIndex=${f.IndiceRostro || 0}\tTmp=${tmp}`;
                     s.write(line + '\r\n');
                 }
                 s.end();
@@ -309,7 +309,7 @@ export const syncDevice = async (req: Request, res: Response) => {
 
                 await ZkDeviceService.uploadBioTable(zkDev, fName);
                 stats.facesSent = dbFaces.recordset.length;
-                try { fs.unlinkSync(fName); } catch {}
+                try { fs.unlinkSync(fName); } catch { }
             }
         }
 
@@ -331,16 +331,16 @@ export const pushFacesToDevice = async (req: Request, res: Response) => {
     try {
         const device = await getDeviceById(parseInt(id));
         if (!device || !device.Activo || !device.ZonaId) return res.status(400).json({ error: 'Dispositivo inválido' });
-        
+
         const zkDev = { Nombre: device.Nombre, IpAddress: device.IpAddress, Puerto: device.Puerto, PasswordCom: device.PasswordCom };
         const pool = await sql.connect(dbConfig);
 
         const qFaces = `
-            SELECT E.CodRef as uid, BR.Template, BR.Version, BR.IndiceRostro
+            SELECT E.Pim as uid, BR.Template, BR.Version, BR.IndiceRostro
             FROM Empleados E
             JOIN EmpleadosZonas EZ ON E.EmpleadoId = EZ.EmpleadoId
             JOIN BiometriaRostros BR ON E.EmpleadoId = BR.EmpleadoId
-            WHERE EZ.ZonaId = @ZId AND E.Activo = 1 AND DATALENGTH(BR.Template) > 100
+            WHERE EZ.ZonaId = @ZId AND E.Activo = 1 AND DATALENGTH(BR.Template) > 100 AND E.Pim IS NOT NULL AND E.Pim <> ''
         `;
         const dbFaces = await pool.request().input('ZId', sql.Int, device.ZonaId).query(qFaces);
 
@@ -352,15 +352,15 @@ export const pushFacesToDevice = async (req: Request, res: Response) => {
                 const verStr = f.Version || "35.4";
                 const [maj, min] = verStr.split('.');
                 const tmp = f.Template.replace(/[\r\n\s]+/g, '');
-                const line = `Pin=${f.uid}\tValid=1\tDuress=0\tType=9\tMajorVer=${maj||35}\tMinorVer=${min||4}\tFormat=0\tNo=0\tIndex=${f.IndiceRostro||0}\tTmp=${tmp}`;
+                const line = `Pin=${f.uid}\tValid=1\tDuress=0\tType=9\tMajorVer=${maj || 35}\tMinorVer=${min || 4}\tFormat=0\tNo=0\tIndex=${f.IndiceRostro || 0}\tTmp=${tmp}`;
                 s.write(line + '\r\n');
             }
             s.end();
             await new Promise<void>(r => s.on('finish', r));
 
             await ZkDeviceService.uploadBioTable(zkDev, fName);
-            try { fs.unlinkSync(fName); } catch {}
-            
+            try { fs.unlinkSync(fName); } catch { }
+
             res.json({ status: 'OK', message: `Se enviaron ${dbFaces.recordset.length} rostros.` });
         } else {
             res.json({ status: 'OK', message: 'No hay rostros para enviar en esta zona.' });
@@ -381,17 +381,17 @@ export const pushFingerprintsToDevice = async (req: Request, res: Response) => {
     try {
         const device = await getDeviceById(parseInt(id));
         if (!device || !device.Activo || !device.ZonaId) return res.status(400).json({ error: 'Dispositivo inválido o sin zona.' });
-        
+
         const zkDev = { Nombre: device.Nombre, IpAddress: device.IpAddress, Puerto: device.Puerto, PasswordCom: device.PasswordCom };
         const pool = await sql.connect(dbConfig);
 
         // 1. Obtener huellas de empleados ACTIVOS en la ZONA
         const qFingers = `
-            SELECT E.CodRef as uid, BH.DedoIndice, BH.Template
+            SELECT E.Pim as uid, BH.DedoIndice, BH.Template
             FROM Empleados E
             JOIN EmpleadosZonas EZ ON E.EmpleadoId = EZ.EmpleadoId
             JOIN BiometriaHuellas BH ON E.EmpleadoId = BH.EmpleadoId
-            WHERE EZ.ZonaId = @ZId AND E.Activo = 1
+            WHERE EZ.ZonaId = @ZId AND E.Activo = 1 AND E.Pim IS NOT NULL AND E.Pim <> ''
             ORDER BY E.CodRef
         `;
         const dbFingers = await pool.request().input('ZId', sql.Int, device.ZonaId).query(qFingers);
@@ -399,7 +399,7 @@ export const pushFingerprintsToDevice = async (req: Request, res: Response) => {
         if (dbFingers.recordset.length > 0) {
             // 2. Agrupar por Usuario: UID|Idx:Tmp|Idx:Tmp
             const usersMap = new Map<string, string[]>();
-            
+
             for (const row of dbFingers.recordset) {
                 if (!usersMap.has(row.uid)) usersMap.set(row.uid, []);
                 usersMap.get(row.uid)?.push(`${row.DedoIndice}:${row.Template}`);
@@ -418,8 +418,8 @@ export const pushFingerprintsToDevice = async (req: Request, res: Response) => {
 
             // 3. Enviar al Bridge
             const result = await ZkDeviceService.uploadFingerprintsBatch(zkDev, fName);
-            try { fs.unlinkSync(fName); } catch {}
-            
+            try { fs.unlinkSync(fName); } catch { }
+
             res.json({ status: 'OK', message: `Se procesaron huellas de ${usersMap.size} usuarios.`, result });
         } else {
             res.json({ status: 'OK', message: 'No hay huellas para enviar en esta zona.' });
@@ -440,14 +440,14 @@ export const downloadFacesFromDevice = async (req: Request, res: Response) => {
     try {
         const device = await getDeviceById(parseInt(id));
         if (!device) return res.status(404).json({ error: 'Dispositivo no encontrado' });
-        
+
         const zkDev = { Nombre: device.Nombre, IpAddress: device.IpAddress, Puerto: device.Puerto, PasswordCom: device.PasswordCom };
         const pool = await sql.connect(dbConfig);
 
         // 1. Obtener lista de usuarios para iterar
         const users = await ZkDeviceService.getAllUsers(zkDev);
         if (!users.length) return res.json({ status: 'OK', message: 'Reloj vacío.' });
-        
+
         let saved = 0;
 
         for (const user of users) {
@@ -455,9 +455,9 @@ export const downloadFacesFromDevice = async (req: Request, res: Response) => {
             const result = await ZkDeviceService.getBioData(zkDev, user.uid);
 
             console.log(`👤 Procesando UID ${user.uid} - Resultado:`, result);
-             if (result.raw_data) {
+            if (result.raw_data) {
                 const lines = result.raw_data.split(/\r?\n/);
-                
+
                 console.log(`👤 Procesando UID ${user.uid} - ${lines.length} líneas de datos biométricos crudos.`);
                 for (const line of lines) {
                     const parts = line.trim().split(',');
@@ -479,7 +479,7 @@ export const downloadFacesFromDevice = async (req: Request, res: Response) => {
                             SELECT E.EmpleadoId 
                             FROM Empleados E
                             INNER JOIN EmpleadosZonas EZ ON E.EmpleadoId = EZ.EmpleadoId
-                            WHERE E.CodRef = @U AND E.Activo = 1 AND EZ.ZonaId = @ZId
+                            WHERE E.Pim = @U AND E.Activo = 1 AND EZ.ZonaId = @ZId
                         `);
 
                     if (emp.recordset.length > 0) {
@@ -496,9 +496,9 @@ export const downloadFacesFromDevice = async (req: Request, res: Response) => {
             }
         }
         res.json({ status: 'OK', message: `Descarga completada. ${saved} rostros procesados.` });
-    } catch (e: any) { 
+    } catch (e: any) {
         console.error("Error downloadFacesFromDevice:", e);
-        res.status(500).json({ error: e.message }); 
+        res.status(500).json({ error: e.message });
     }
 };
 
@@ -524,8 +524,8 @@ export const getLogs = async (req: Request, res: Response) => {
 
         for (const log of logs) {
             const request = new sql.Request(transaction);
-            await request.input('CodRef', sql.NVarChar, log.uid).input('FechaHora', sql.VarChar, log.timestamp).input('Checador', sql.NVarChar, device.Nombre)
-                .query(`INSERT INTO dbo.Checadas (EmpleadoId, FechaHora, Checador) SELECT E.EmpleadoId, @FechaHora, @Checador FROM dbo.Empleados E WHERE E.CodRef = @CodRef AND NOT EXISTS (SELECT 1 FROM dbo.Checadas C WHERE C.EmpleadoId = E.EmpleadoId AND C.FechaHora = @FechaHora)`);
+            await request.input('DeviceUid', sql.NVarChar, log.uid).input('FechaHora', sql.VarChar, log.timestamp).input('Checador', sql.NVarChar, device.Nombre)
+                .query(`INSERT INTO dbo.Checadas (EmpleadoId, FechaHora, Checador) SELECT E.EmpleadoId, @FechaHora, @Checador FROM dbo.Empleados E WHERE E.Pim = @DeviceUid AND NOT EXISTS (SELECT 1 FROM dbo.Checadas C WHERE C.EmpleadoId = E.EmpleadoId AND C.FechaHora = @FechaHora)`);
         }
         await transaction.commit();
 
@@ -534,7 +534,7 @@ export const getLogs = async (req: Request, res: Response) => {
             await ZkDeviceService.clearLogs(zkDev);
             logMessage += " Registros borrados.";
         }
-        
+
         await pool.request().input('Id', sql.Int, device.DispositivoId).query("UPDATE Dispositivos SET UltimaSincronizacion = GETDATE(), Estado='Conectado' WHERE DispositivoId = @Id");
         res.json({ success: true, message: logMessage, count: logs.length });
     } catch (error: any) {
@@ -616,7 +616,7 @@ export const deleteEmployeesFromDevice = async (req: Request, res: Response) => 
     try {
         const device = await getDeviceById(parseInt(id));
         const zkDev = { Nombre: device.Nombre, IpAddress: device.IpAddress, Puerto: device.Puerto, PasswordCom: device.PasswordCom };
-        
+
         const fName = path.join(process.cwd(), `del_${Date.now()}.txt`);
         const s = fs.createWriteStream(fName);
         uids.forEach((u: string) => s.write(`${u}\n`));
@@ -624,7 +624,7 @@ export const deleteEmployeesFromDevice = async (req: Request, res: Response) => 
         await new Promise<void>(r => s.on('finish', r));
 
         const result = await ZkDeviceService.deleteUsersBatch(zkDev, fName);
-        try { fs.unlinkSync(fName); } catch {}
+        try { fs.unlinkSync(fName); } catch { }
         res.json(result);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
 };
@@ -637,7 +637,7 @@ export const deleteFaces = async (req: Request, res: Response) => {
         if (!device) return res.status(404).json({ error: 'Dispositivo no encontrado' });
 
         const zkDev = { Nombre: device.Nombre, IpAddress: device.IpAddress, Puerto: device.Puerto, PasswordCom: device.PasswordCom };
-        
+
         const result = await ZkDeviceService.clearFaces(zkDev);
         res.json({ status: 'OK', message: 'Rostros eliminados del dispositivo.', result });
     } catch (e: any) {
@@ -654,7 +654,7 @@ export const deleteFingerprints = async (req: Request, res: Response) => {
         if (!device) return res.status(404).json({ error: 'Dispositivo no encontrado' });
 
         const zkDev = { Nombre: device.Nombre, IpAddress: device.IpAddress, Puerto: device.Puerto, PasswordCom: device.PasswordCom };
-        
+
         const result = await ZkDeviceService.clearFingerprints(zkDev);
         res.json({ status: 'OK', message: 'Huellas eliminadas del dispositivo.', result });
     } catch (e: any) {
@@ -671,7 +671,7 @@ export const deleteAllData = async (req: Request, res: Response) => {
         if (!device) return res.status(404).json({ error: 'Dispositivo no encontrado' });
 
         const zkDev = { Nombre: device.Nombre, IpAddress: device.IpAddress, Puerto: device.Puerto, PasswordCom: device.PasswordCom };
-        
+
         const result = await ZkDeviceService.clearData(zkDev);
         res.json({ status: 'OK', message: 'Todos los datos han sido eliminados del dispositivo.', result });
     } catch (e: any) {
@@ -686,7 +686,7 @@ export const deleteAllUsersFromDevice = async (req: Request, res: Response) => {
     try {
         const device = await getDeviceById(parseInt(id));
         const zkDev = { Nombre: device.Nombre, IpAddress: device.IpAddress, Puerto: device.Puerto, PasswordCom: device.PasswordCom };
-        
+
         const users = await ZkDeviceService.getAllUsers(zkDev);
         // Borrar TODOS (sin filtrar por privilegio)
         const uidsToDelete = users.map((u: any) => u.uid);
@@ -700,7 +700,7 @@ export const deleteAllUsersFromDevice = async (req: Request, res: Response) => {
         await new Promise<void>(r => s.on('finish', r));
 
         const result = await ZkDeviceService.deleteUsersBatch(zkDev, fName);
-        try { fs.unlinkSync(fName); } catch {}
+        try { fs.unlinkSync(fName); } catch { }
         res.json(result);
     } catch (e: any) { res.status(500).json({ error: e.message }); }
 };
@@ -711,10 +711,10 @@ export const deleteAllAdminsFromDevice = async (req: Request, res: Response) => 
     try {
         const device = await getDeviceById(parseInt(id));
         const zkDev = { Nombre: device.Nombre, IpAddress: device.IpAddress, Puerto: device.Puerto, PasswordCom: device.PasswordCom };
-        
+
         // 1. Obtener usuarios del dispositivo
         const users = await ZkDeviceService.getAllUsers(zkDev);
-        
+
         // 2. Filtrar los que son administradores (privilege > 0)
         const admins = users.filter((u: any) => u.privilege > 0);
 
@@ -727,10 +727,10 @@ export const deleteAllAdminsFromDevice = async (req: Request, res: Response) => 
         for (const u of admins) {
             // Formato esperado por UploadUsersFromFile en Program.cs:
             // uid|name|privilege|password|enabled|face|finger1|finger2...
-            
+
             // Forzamos privilegio 0 (Usuario Normal)
             let line = `${u.uid}|${u.name}|0|${u.password}|1|${u.face || 'null'}`;
-            
+
             if (u.fingers && Array.isArray(u.fingers)) {
                 for (const f of u.fingers) {
                     line += `|${f.fingerIndex}:${f.template}`;
@@ -743,16 +743,16 @@ export const deleteAllAdminsFromDevice = async (req: Request, res: Response) => 
 
         // 4. Usar uploadUsersBatch para sobrescribir la info con el nuevo privilegio
         const result = await ZkDeviceService.uploadUsersBatch(zkDev, fName);
-        try { fs.unlinkSync(fName); } catch {}
-        
-        res.json({ 
-            status: 'OK', 
+        try { fs.unlinkSync(fName); } catch { }
+
+        res.json({
+            status: 'OK',
             message: `Se quitaron permisos de administrador a ${admins.length} usuarios.`,
-            details: result 
+            details: result
         });
 
-    } catch (e: any) { 
+    } catch (e: any) {
         console.error("Error demoting admins:", e);
-        res.status(500).json({ error: e.message }); 
+        res.status(500).json({ error: e.message });
     }
 };

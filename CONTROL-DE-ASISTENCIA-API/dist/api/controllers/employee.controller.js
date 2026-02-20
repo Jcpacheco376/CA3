@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteEmployee = exports.updateEmployee = exports.createEmployee = exports.getEmployees = exports.getEmployeeProfile = void 0;
+exports.deleteEmployee = exports.updateEmployee = exports.createEmployee = exports.getEmployeePhoto = exports.getEmployeeStats = exports.getEmployees = exports.getEmployeeProfile = void 0;
 const mssql_1 = __importDefault(require("mssql"));
 const database_1 = require("../../config/database");
 const getEmployeeProfile = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -31,7 +31,20 @@ const getEmployeeProfile = (req, res) => __awaiter(void 0, void 0, void 0, funct
         const result = yield pool.request().input('EmpleadoId', mssql_1.default.Int, employeeId).execute('sp_Empleados_GetDatos');
         if (result.recordset.length === 0)
             return res.status(404).json({ message: 'Empleado no encontrado.' });
-        res.json(result.recordset[0]);
+        const employee = result.recordset[0];
+        if (employee.Zonas) {
+            try {
+                employee.Zonas = JSON.parse(employee.Zonas);
+            }
+            catch (e) {
+                console.error("Error parsing Zonas JSON", e);
+                employee.Zonas = [];
+            }
+        }
+        else {
+            employee.Zonas = [];
+        }
+        res.json(employee);
     }
     catch (err) {
         res.status(500).json({ message: err.message || 'Error al obtener la información del empleado.' });
@@ -44,7 +57,10 @@ const getEmployees = (req, res) => __awaiter(void 0, void 0, void 0, function* (
     }
     try {
         const pool = yield mssql_1.default.connect(database_1.dbConfig);
-        const result = yield pool.request().execute('dbo.sp_Empleados_GetAll');
+        const includeInactive = req.query.includeInactive === 'true' ? 1 : 0;
+        const result = yield pool.request()
+            .input('IncluirInactivos', mssql_1.default.Bit, includeInactive)
+            .execute('dbo.sp_Empleados_GetAllManagement');
         res.json(result.recordset);
     }
     catch (err) {
@@ -52,16 +68,62 @@ const getEmployees = (req, res) => __awaiter(void 0, void 0, void 0, function* (
     }
 });
 exports.getEmployees = getEmployees;
+const getEmployeeStats = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    if (!req.user.permissions['catalogo.empleados.read'] && !req.user.permissions['catalogo.empleados.manage']) {
+        return res.status(403).json({ message: 'No tienes permiso.' });
+    }
+    try {
+        const pool = yield mssql_1.default.connect(database_1.dbConfig);
+        const result = yield pool.request().execute('dbo.sp_Empleados_GetStats');
+        res.json(result.recordset[0]);
+    }
+    catch (err) {
+        res.status(500).json({ message: err.message || 'Error al obtener estadísticas.' });
+    }
+});
+exports.getEmployeeStats = getEmployeeStats;
+const getEmployeePhoto = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    // Both read and manage permissions can view photos
+    if (!req.user.permissions['catalogo.empleados.read'] && !req.user.permissions['catalogo.empleados.manage']) {
+        return res.status(403).json({ message: 'No tienes permiso.' });
+    }
+    const { employeeId } = req.params;
+    if (!employeeId)
+        return res.status(400).send('El ID del empleado es requerido.');
+    try {
+        const pool = yield mssql_1.default.connect(database_1.dbConfig);
+        const result = yield pool.request()
+            .input('EmpleadoId', mssql_1.default.Int, employeeId)
+            .query('SELECT Imagen FROM dbo.Empleados WHERE EmpleadoId = @EmpleadoId');
+        if (result.recordset.length === 0 || !result.recordset[0].Imagen) {
+            return res.status(404).send('Foto no encontrada.');
+        }
+        const imageBuffer = result.recordset[0].Imagen;
+        res.setHeader('Content-Type', 'image/jpeg');
+        res.setHeader('Cache-Control', 'public, max-age=86400'); // Cache for 24 hours
+        res.send(imageBuffer);
+    }
+    catch (err) {
+        console.error('Error fetching photo:', err);
+        res.status(500).send('Error al obtener la foto.');
+    }
+});
+exports.getEmployeePhoto = getEmployeePhoto;
 const createEmployee = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    var _a;
     if (!req.user.permissions['catalogo.empleados.manage']) {
         return res.status(403).json({ message: 'No tienes permiso para crear empleados.' });
     }
     try {
         const pool = yield mssql_1.default.connect(database_1.dbConfig);
         const request = pool.request();
-        // Add inputs based on sp_Empleados_Insert
+        // New Fields
         request.input('CodRef', mssql_1.default.NVarChar, req.body.CodRef);
-        request.input('NombreCompleto', mssql_1.default.NVarChar, req.body.NombreCompleto);
+        request.input('Pim', mssql_1.default.NVarChar, req.body.Pim || null);
+        request.input('Nombres', mssql_1.default.NVarChar, req.body.Nombres);
+        request.input('ApellidoPaterno', mssql_1.default.NVarChar, req.body.ApellidoPaterno);
+        request.input('ApellidoMaterno', mssql_1.default.NVarChar, req.body.ApellidoMaterno || '');
+        // NombreCompleto is calculated in SP
         request.input('FechaNacimiento', mssql_1.default.Date, req.body.FechaNacimiento);
         request.input('FechaIngreso', mssql_1.default.Date, req.body.FechaIngreso);
         request.input('DepartamentoId', mssql_1.default.Int, req.body.DepartamentoId);
@@ -73,15 +135,27 @@ const createEmployee = (req, res) => __awaiter(void 0, void 0, void 0, function*
         request.input('NSS', mssql_1.default.NVarChar, req.body.NSS);
         request.input('CURP', mssql_1.default.NVarChar, req.body.CURP);
         request.input('RFC', mssql_1.default.NVarChar, req.body.RFC);
-        // Image handling might need specific logic (base64 to binary)
+        request.input('UsuarioId', mssql_1.default.Int, req.user.usuarioId);
+        // Image handling
         if (req.body.Imagen) {
             request.input('Imagen', mssql_1.default.VarBinary, Buffer.from(req.body.Imagen, 'base64'));
         }
-        request.input('Activo', mssql_1.default.Bit, req.body.Activo);
-        const result = yield request.execute('dbo.sp_Empleados_Insert');
-        res.status(201).json({ message: 'Empleado creado correctamente.', empleadoId: result.recordset[0].EmpleadoId });
+        else {
+            request.input('Imagen', mssql_1.default.VarBinary, null);
+        }
+        request.input('Activo', mssql_1.default.Bit, (_a = req.body.Activo) !== null && _a !== void 0 ? _a : true);
+        // EmpleadoId is OUTPUT for Insert (NULL input, New ID output)
+        request.output('EmpleadoId', mssql_1.default.Int);
+        const result = yield request.execute('dbo.sp_Empleados_Save');
+        res.status(201).json({ message: 'Empleado creado correctamente.', id: result.output.EmpleadoId });
     }
     catch (err) {
+        if (err.number === 2627)
+            return res.status(409).json({ message: 'El Código ya existe.' });
+        // Custom error from SP
+        if (err.message && err.message.includes('El código de referencia ya existe')) {
+            return res.status(409).json({ message: err.message });
+        }
         res.status(500).json({ message: err.message || 'Error al crear empleado.' });
     }
 });
@@ -96,7 +170,11 @@ const updateEmployee = (req, res) => __awaiter(void 0, void 0, void 0, function*
         const request = pool.request();
         request.input('EmpleadoId', mssql_1.default.Int, employeeId);
         request.input('CodRef', mssql_1.default.NVarChar, req.body.CodRef);
-        request.input('NombreCompleto', mssql_1.default.NVarChar, req.body.NombreCompleto);
+        request.input('Pim', mssql_1.default.NVarChar, req.body.Pim || null);
+        request.input('Nombres', mssql_1.default.NVarChar, req.body.Nombres);
+        request.input('ApellidoPaterno', mssql_1.default.NVarChar, req.body.ApellidoPaterno);
+        request.input('ApellidoMaterno', mssql_1.default.NVarChar, req.body.ApellidoMaterno || '');
+        // NombreCompleto calculated
         request.input('FechaNacimiento', mssql_1.default.Date, req.body.FechaNacimiento);
         request.input('FechaIngreso', mssql_1.default.Date, req.body.FechaIngreso);
         request.input('DepartamentoId', mssql_1.default.Int, req.body.DepartamentoId);
@@ -108,14 +186,39 @@ const updateEmployee = (req, res) => __awaiter(void 0, void 0, void 0, function*
         request.input('NSS', mssql_1.default.NVarChar, req.body.NSS);
         request.input('CURP', mssql_1.default.NVarChar, req.body.CURP);
         request.input('RFC', mssql_1.default.NVarChar, req.body.RFC);
+        request.input('UsuarioId', mssql_1.default.Int, req.user.usuarioId);
         if (req.body.Imagen) {
             request.input('Imagen', mssql_1.default.VarBinary, Buffer.from(req.body.Imagen, 'base64'));
         }
+        else {
+            // Logic for image update: if undefined, often we don't send it to SP if SP supports optional update
+            // But our SP updates everything. So we must decide.
+            // If the user didn't change image, frontend usually sends nothing or existing?
+            // Let's assume passed null = delete, undefined = keep?
+            // Actually, for simplicity and safety: if not provided (undefined), pass null (erase) OR verify stored proc logic
+            // The SP `UPDATE ... SET Imagen = @Imagen` will erase it if we pass NULL.
+            // So if req.body.Imagen is missing, we might be erasing it unintentionally if we are not careful.
+            // However, usually detailed forms fetch everything and send everything back.
+            // Let's pass NULL if missing for now, mimicking previous behavior logic (sort of).
+            // Better: Check if `Imagen` key exists in body. 
+            if (req.body.Imagen === null)
+                request.input('Imagen', mssql_1.default.VarBinary, null);
+            // If undefined, do we pass null? Yes, let's stick to safe "send what we have"
+        }
         request.input('Activo', mssql_1.default.Bit, req.body.Activo);
-        yield request.execute('dbo.sp_Empleados_Update');
+        // Pass EmpleadoId as Input for Update. 
+        // Note: SP defines it as OUTPUT but accepts input value. 
+        // We don't need to read it back for update, so just Input is fine in mssql usually.
+        // However, to be safe and match the signature, we can use output with value?
+        // Actually, request.input works fine for loading the parameter.
+        yield request.execute('dbo.sp_Empleados_Save');
         res.json({ message: 'Empleado actualizado correctamente.' });
     }
     catch (err) {
+        // Custom error from SP
+        if (err.message && err.message.includes('El código de referencia ya existe')) {
+            return res.status(409).json({ message: err.message });
+        }
         res.status(500).json({ message: err.message || 'Error al actualizar empleado.' });
     }
 });

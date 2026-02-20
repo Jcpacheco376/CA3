@@ -6,11 +6,17 @@ import { poolPromise } from '../../config/database';
 import { JWT_SECRET } from '../../config';
 
 export const authMiddleware = async (req: any, res: Response, next: NextFunction) => {
+    let token;
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.split(' ')[1];
+    } else if (req.query.token) {
+        token = req.query.token as string;
+    }
+
+    if (!token) {
         return res.status(401).json({ message: 'Acceso no autorizado: Token no proporcionado.' });
     }
-    const token = authHeader.split(' ')[1];
     try {
         const decoded: any = jwt.verify(token, JWT_SECRET);
 

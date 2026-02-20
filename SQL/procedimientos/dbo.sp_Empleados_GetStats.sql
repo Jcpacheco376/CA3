@@ -1,4 +1,6 @@
-CREATE OR ALTER PROCEDURE [dbo].[sp_Empleados_GetStats]
+IF OBJECT_ID('dbo.sp_Empleados_GetStats') IS NOT NULL      DROP PROCEDURE dbo.sp_Empleados_GetStats;
+GO
+CREATE   PROCEDURE [dbo].[sp_Empleados_GetStats]
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -22,4 +24,4 @@ BEGIN
          WHERE e.Activo = 1 
          AND NOT EXISTS (SELECT 1 FROM EmpleadosZonas ez WHERE ez.EmpleadoId = e.EmpleadoId)) as SinDispositivo
 END
-GO
+

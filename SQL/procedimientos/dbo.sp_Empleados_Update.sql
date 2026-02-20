@@ -1,59 +1,60 @@
-IF OBJECT_ID('dbo.sp_Empleados_Update') IS NOT NULL DROP PROCEDURE dbo.sp_Empleados_Update;
+IF OBJECT_ID('dbo.sp_Empleados_Update') IS NOT NULL      DROP PROCEDURE dbo.sp_Empleados_Update;
 GO
-CREATE PROCEDURE dbo.sp_Empleados_Update
-    @EmpleadoId int,
-    @CodRef nvarchar(20),
-    @NombreCompleto nvarchar(300),
-    @FechaNacimiento date = NULL,
-    @FechaIngreso date = NULL,
-    @DepartamentoId int = NULL,
-    @GrupoNominaId int = NULL,
-    @PuestoId int = NULL,
-    @HorarioIdPredeterminado int = NULL,
-    @EstablecimientoId int = NULL,
-    @Sexo nchar(2) = NULL,
-    @NSS nvarchar(40) = NULL,
-    @CURP nvarchar(40) = NULL,
-    @RFC nvarchar(40) = NULL,
-    @Imagen varbinary(MAX) = NULL,
-    @Activo bit = 1,
-    @Zonas nvarchar(MAX) = NULL
-AS
-BEGIN
-    SET NOCOUNT ON;
 
-    IF EXISTS (SELECT 1 FROM dbo.Empleados WHERE CodRef = @CodRef AND EmpleadoId <> @EmpleadoId)
-    BEGIN
-        RAISERROR('El código de referencia ya está en uso por otro empleado.', 16, 1);
-        RETURN;
-    END
+            CREATE   PROCEDURE [dbo].[sp_Empleados_Update]
+                @EmpleadoId INT,
+                @CodRef NVARCHAR(50),
+                @Pim NVARCHAR(50) = NULL,
+                @Nombres NVARCHAR(100),
+                @ApellidoPaterno NVARCHAR(100),
+                @ApellidoMaterno NVARCHAR(100),
+                @FechaNacimiento DATE,
+                @FechaIngreso DATE,
+                @DepartamentoId INT,
+                @PuestoId INT,
+                @HorarioIdPredeterminado INT,
+                @GrupoNominaId INT,
+                @EstablecimientoId INT,
+                @Sexo CHAR(1),
+                @NSS NVARCHAR(20),
+                @CURP NVARCHAR(20),
+                @RFC NVARCHAR(20),
+                @Imagen VARBINARY(MAX),
+                @Activo BIT,
+                @UsuarioId INT
+            AS
+            BEGIN
+                SET NOCOUNT ON;
 
-    UPDATE dbo.Empleados
-    SET 
-        CodRef = @CodRef,
-        NombreCompleto = @NombreCompleto,
-        FechaNacimiento = @FechaNacimiento,
-        FechaIngreso = @FechaIngreso,
-        DepartamentoId = @DepartamentoId,
-        GrupoNominaId = @GrupoNominaId,
-        PuestoId = @PuestoId,
-        HorarioIdPredeterminado = @HorarioIdPredeterminado,
-        EstablecimientoId = @EstablecimientoId,
-        Sexo = @Sexo,
-        NSS = @NSS,
-        CURP = @CURP,
-        RFC = @RFC,
-        Imagen = ISNULL(@Imagen, Imagen), -- Keep existing image if null passed? Or handle differently in API
-        Activo = @Activo
-    WHERE EmpleadoId = @EmpleadoId;
+                DECLARE @FormatoNombre INT;
+                SELECT TOP 1 @FormatoNombre = ISNULL(FormatoNombre, 1) FROM ConfiguracionSistema;
+                
+                DECLARE @NombreCompleto NVARCHAR(300);
+                IF @FormatoNombre = 2
+                    SET @NombreCompleto = TRIM(@ApellidoPaterno + ' ' + ISNULL(@ApellidoMaterno, '') + ' ' + @Nombres);
+                ELSE
+                    SET @NombreCompleto = TRIM(@Nombres + ' ' + @ApellidoPaterno + ' ' + ISNULL(@ApellidoMaterno, ''));
 
-    IF @Zonas IS NOT NULL
-    BEGIN
-        DELETE FROM dbo.EmpleadosZonas WHERE EmpleadoId = @EmpleadoId;
-
-        INSERT INTO dbo.EmpleadosZonas (EmpleadoId, ZonaId)
-        SELECT @EmpleadoId, ZonaId
-        FROM OPENJSON(@Zonas) WITH (ZonaId INT '$.ZonaId');
-    END
-END
-GO
+                UPDATE Empleados SET 
+                    CodRef = @CodRef,
+                    Pim = @Pim,
+                    Nombres = @Nombres,
+                    ApellidoPaterno = @ApellidoPaterno,
+                    ApellidoMaterno = @ApellidoMaterno,
+                    NombreCompleto = @NombreCompleto,
+                    FechaNacimiento = @FechaNacimiento,
+                    FechaIngreso = @FechaIngreso,
+                    DepartamentoId = @DepartamentoId,
+                    PuestoId = @PuestoId,
+                    HorarioIdPredeterminado = @HorarioIdPredeterminado,
+                    GrupoNominaId = @GrupoNominaId,
+                    EstablecimientoId = @EstablecimientoId,
+                    Sexo = @Sexo,
+                    NSS = @NSS,
+                    CURP = @CURP,
+                    RFC = @RFC,
+                    Imagen = @Imagen,
+                    Activo = @Activo
+                WHERE EmpleadoId = @EmpleadoId;
+            END
+        
