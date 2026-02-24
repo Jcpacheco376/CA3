@@ -1,11 +1,11 @@
 // src/features/auth/AuthContext.tsx
 import React, { createContext, useState, useContext, ReactNode, useCallback, useMemo, useEffect } from 'react';
-import { User } from '../../types'; 
+import { User } from '../../types';
 import { API_BASE_URL } from '../../config/api';
 import { useNotification } from '../../context/NotificationContext';
 
 const SESSION_STORAGE_KEY = 'app_session';
-export const APP_DATA_VERSION = '1.3.5'; 
+export const APP_DATA_VERSION = '1.3.7';
 
 // --- NUEVO: Constantes para limpieza inteligente ---
 const LAST_USER_KEY = 'app_last_logged_user';
@@ -15,6 +15,8 @@ const KEYS_TO_CLEAR_ON_USER_CHANGE = [
     // Agrega aquí otras preferencias de UI que deban reiniciarse al cambiar de usuario
 ];
 
+
+
 interface AuthContextType {
     user: User | null;
     login: (username: string, password: string) => Promise<string | true>;
@@ -22,7 +24,7 @@ interface AuthContextType {
     can: (permission: string) => boolean;
     updateUserPreferences: (prefs: Partial<Pick<User, 'Theme' | 'AnimationsEnabled' | 'DebeCambiarPassword'>>) => void;
     getToken: () => string | null;
-    checkSessionStatus: () => Promise<void>; 
+    checkSessionStatus: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -51,7 +53,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(null);
         localStorage.removeItem(SESSION_STORAGE_KEY);
         // NOTA: No borramos LAST_USER_KEY aquí. Lo validamos al siguiente login.
-        window.location.href = '/'; 
+        window.location.href = '/';
     }, []);
 
     // --- Interceptor Global de Fetch ---
@@ -64,7 +66,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
                 if (response.status === 401) {
                     const url = typeof input === 'string' ? input : (input instanceof URL ? input.href : input.url);
-                    
+
                     if (url && !url.includes('/auth/login')) {
                         console.warn("Sesión inválida detectada globalmente (401). Ejecutando logout automático...");
                         logout();
@@ -94,9 +96,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 const errorData = await response.json().catch(() => ({}));
                 return errorData.message || "Credenciales inválidas.";
             }
-            
-            const { token, user: userData } = await response.json(); 
-            
+
+            const { token, user: userData } = await response.json();
+
             // --- LÓGICA DE LIMPIEZA DE PREFERENCIAS ---
             try {
                 const lastUser = localStorage.getItem(LAST_USER_KEY);
@@ -119,7 +121,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             setUser(userData);
             localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ version: APP_DATA_VERSION, user: userData, token }));
             return true;
-            
+
         } catch (error: any) {
             console.error("Error en el flujo de login:", error);
             return error.message || "No se pudo conectar con el servidor.";
@@ -147,14 +149,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         if (!token) return;
 
         try {
-            const response = await fetch(`${API_BASE_URL}/users/permissions`, { 
+            const response = await fetch(`${API_BASE_URL}/users/permissions`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
 
             if (response.status === 401) {
-                 logout(); 
-                 return;
-            } 
+                logout();
+                return;
+            }
         } catch (error) {
             console.warn("Error de red al verificar sesión (ignorado):", error);
         }
@@ -163,12 +165,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     // --- EFECTO: Polling cada 60 segundos ---
     useEffect(() => {
         if (!user) return;
-        
+
         checkSessionStatus();
 
         const interval = setInterval(() => {
             checkSessionStatus();
-        }, 60000); 
+        }, 60000);
 
         return () => clearInterval(interval);
     }, [user, checkSessionStatus]);

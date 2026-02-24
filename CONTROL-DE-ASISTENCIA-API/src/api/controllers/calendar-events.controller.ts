@@ -68,6 +68,33 @@ export const upsertEvent = async (req: any, res: Response) => {
 
     try {
         const pool = await sql.connect(dbConfig);
+
+        // Validar permisos si el evento no es general
+        const typeResult = await pool.request()
+            .input('TipoEventoId', sql.VarChar, tipoEventoId)
+            .query('SELECT esGeneral FROM dbo.TiposEventoCalendario WHERE TipoEventoId = @TipoEventoId');
+
+        const isGeneral = typeResult.recordset?.[0]?.esGeneral ?? true;
+
+        if (!isGeneral && !aplicaATodos && filtros && filtros.length > 0) { // NEW: Filtering logic based on user permissions for non-global events
+            // Validar que cada filtro esté dentro de lo que el usuario tiene permitido
+            // req.user.Departamentos, etc. fueron cargados en auth.controller.ts
+            for (const f of filtros) {
+                let allowed: number[] = [];
+                if (f.dimension === 'DEPARTAMENTO') allowed = req.user.Departamentos || [];
+                else if (f.dimension === 'GRUPO_NOMINA') allowed = req.user.GruposNomina || [];
+                else if (f.dimension === 'PUESTO') allowed = req.user.Puestos || [];
+                else if (f.dimension === 'ESTABLECIMIENTO') allowed = req.user.Establecimientos || [];
+
+                if (allowed.length > 0) {
+                    const unauthorized = f.valores.filter((v: number) => !allowed.includes(v));
+                    if (unauthorized.length > 0) {
+                        return res.status(403).json({ message: `No tienes permiso para aplicar eventos a los siguientes elementos de ${f.dimension}: ${unauthorized.join(', ')}` });
+                    }
+                }
+            }
+        }
+
         const result = await pool.request()
             .input('EventoId', sql.Int, eventoId || null)
             .input('Fecha', sql.Date, fecha)
@@ -108,18 +135,11 @@ export const deleteEvent = async (req: any, res: Response) => {
 
 // Cuenta empleados activos que coinciden con los grupos de filtros
 export const countMatchingEmployees = async (req: any, res: Response) => {
-    const { filterGroups, aplicaATodos } = req.body; // filterGroups: DimensionFilter[][] (array of groups, each containing array of filters)
+    const { filterGroups, aplicaATodos } = req.body;
+    const { usuarioId, Departamentos, GruposNomina, Puestos, Establecimientos } = req.user;
 
     try {
         const pool = await sql.connect(dbConfig);
-
-        if (aplicaATodos || !filterGroups || filterGroups.length === 0) {
-            // Sin filtros: contar todos los empleados activos
-            const result = await pool.request().query(
-                'SELECT COUNT(*) as total FROM dbo.Empleados WHERE Activo = 1'
-            );
-            return res.json({ total: result.recordset[0].total });
-        }
 
         const dimensionMap: Record<string, string> = {
             'DEPARTAMENTO': 'DepartamentoId',
@@ -128,13 +148,30 @@ export const countMatchingEmployees = async (req: any, res: Response) => {
             'ESTABLECIMIENTO': 'EstablecimientoId'
         };
 
+        // Función para construir la cláusula de permisos
+        const buildPermissionConditions = () => {
+            const conds = [];
+            if (Departamentos?.length > 0) conds.push(`E.DepartamentoId IN (${Departamentos.join(',')})`);
+            if (GruposNomina?.length > 0) conds.push(`E.GrupoNominaId IN (${GruposNomina.join(',')})`);
+            if (Puestos?.length > 0) conds.push(`E.PuestoId IN (${Puestos.join(',')})`);
+            if (Establecimientos?.length > 0) conds.push(`E.EstablecimientoId IN (${Establecimientos.join(',')})`);
+            return conds.length > 0 ? ' AND ' + conds.join(' AND ') : '';
+        };
+
+        const permissionConditions = buildPermissionConditions();
+
+        if (aplicaATodos || !filterGroups || filterGroups.length === 0) {
+            const result = await pool.request()
+                .query(`SELECT COUNT(*) as total FROM dbo.Empleados E WHERE E.Activo = 1 ${permissionConditions}`);
+            return res.json({ total: result.recordset[0].total });
+        }
+
         const request = pool.request();
         let paramIdx = 0;
         const subQueries: string[] = [];
 
-        // Build a query for each group
         for (const group of filterGroups) {
-            const conditions: string[] = ['Activo = 1'];
+            const conditions: string[] = ['E.Activo = 1'];
 
             for (const filtro of group) {
                 const col = dimensionMap[filtro.dimension];
@@ -146,12 +183,11 @@ export const countMatchingEmployees = async (req: any, res: Response) => {
                     paramNames.push(`@${pName}`);
                     request.input(pName, sql.Int, val);
                 }
-                conditions.push(`${col} IN (${paramNames.join(',')})`);
+                conditions.push(`E.${col} IN (${paramNames.join(',')})`);
             }
-            subQueries.push(`SELECT EmpleadoId FROM dbo.Empleados WHERE ${conditions.join(' AND ')}`);
+            subQueries.push(`SELECT E.EmpleadoId FROM dbo.Empleados E WHERE ${conditions.join(' AND ')} ${permissionConditions}`);
         }
 
-        // Get total matching union
         const unionQuery = `
             WITH CTE_Matching AS (
                 ${subQueries.join('\n                UNION\n                ')}
@@ -160,11 +196,9 @@ export const countMatchingEmployees = async (req: any, res: Response) => {
         `;
         const totalResult = await request.query(unionQuery);
 
-        // Get individual counts
         const byGroup = [];
         for (const subQuery of subQueries) {
             const countQuery = `SELECT COUNT(*) as count FROM (${subQuery}) as T`;
-            // Wait, actually using the same request object is perfectly fine as all params p0, p1... are already added to `request`.
             const sqRes = await request.query(countQuery);
             byGroup.push(sqRes.recordset[0].count);
         }

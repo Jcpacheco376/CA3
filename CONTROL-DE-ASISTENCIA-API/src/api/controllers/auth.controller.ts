@@ -18,8 +18,8 @@ export const login = async (req: Request, res: Response) => {
                 const permissionsResult = await pool.request().execute('sp_Permisos_GetAll');
                 const permissions: { [key: string]: any[] } = {};
                 permissionsResult.recordset.forEach(p => { permissions[p.NombrePermiso] = [true]; }); // <-- Cambiado aquí
-                const token = jwt.sign({ usuarioId: 0, nombreUsuario: 'admin' }, JWT_SECRET, { expiresIn: '1h' });
-                return res.json({ token, user: { UsuarioId: 0, NombreUsuario: 'admin', NombreCompleto: 'Super Administrador (Temporal)', Email: '', permissions } });
+                const token = jwt.sign({ usuarioId: 0, empleadoId: null, nombreUsuario: 'admin' }, JWT_SECRET, { expiresIn: '1h' });
+                return res.json({ token, user: { UsuarioId: 0, EmpleadoId: null, NombreUsuario: 'admin', NombreCompleto: 'Super Administrador (Temporal)', Email: '', permissions } });
             }
         } catch (err) { return res.status(500).json({ message: 'Error de servidor al verificar administradores.' }); }
     }
@@ -60,10 +60,10 @@ export const login = async (req: Request, res: Response) => {
         fullUserDetails = {
             ...fullUserDetails,
             Roles: fullUserDetails.Roles ? JSON.parse(fullUserDetails.Roles) : [],
-            Departamentos: activeFilters.departamentos && fullUserDetails.Departamentos ? JSON.parse(fullUserDetails.Departamentos) : [],
-            GruposNomina: activeFilters.gruposNomina && fullUserDetails.GruposNomina ? JSON.parse(fullUserDetails.GruposNomina) : [],
-            Puestos: activeFilters.puestos && fullUserDetails.Puestos ? JSON.parse(fullUserDetails.Puestos) : [],
-            Establecimientos: activeFilters.establecimientos && fullUserDetails.Establecimientos ? JSON.parse(fullUserDetails.Establecimientos) : []
+            Departamentos: fullUserDetails.Departamentos ? JSON.parse(fullUserDetails.Departamentos) : [],
+            GruposNomina: fullUserDetails.GruposNomina ? JSON.parse(fullUserDetails.GruposNomina) : [],
+            Puestos: fullUserDetails.Puestos ? JSON.parse(fullUserDetails.Puestos) : [],
+            Establecimientos: fullUserDetails.Establecimientos ? JSON.parse(fullUserDetails.Establecimientos) : []
         };
 
         const permissions: { [key: string]: any[] } = {};
@@ -73,6 +73,7 @@ export const login = async (req: Request, res: Response) => {
 
         const tokenPayload = {
             usuarioId: loggedInUser.UsuarioId,
+            empleadoId: fullUserDetails.EmpleadoId,
             nombreUsuario: loggedInUser.NombreUsuario,
             tokenVersion: currentTokenVersion
         };
@@ -84,7 +85,12 @@ export const login = async (req: Request, res: Response) => {
                 ...fullUserDetails,
                 DebeCambiarPassword: loggedInUser.DebeCambiarPassword,
                 permissions,
-                activeFilters
+                activeFilters,
+                // Devolvemos las dimensiones como objetos completos para que el frontend pueda compararlos correctamente
+                Departamentos: fullUserDetails.Departamentos ? (typeof fullUserDetails.Departamentos === 'string' ? JSON.parse(fullUserDetails.Departamentos) : fullUserDetails.Departamentos) : [],
+                GruposNomina: fullUserDetails.GruposNomina ? (typeof fullUserDetails.GruposNomina === 'string' ? JSON.parse(fullUserDetails.GruposNomina) : fullUserDetails.GruposNomina) : [],
+                Puestos: fullUserDetails.Puestos ? (typeof fullUserDetails.Puestos === 'string' ? JSON.parse(fullUserDetails.Puestos) : fullUserDetails.Puestos) : [],
+                Establecimientos: fullUserDetails.Establecimientos ? (typeof fullUserDetails.Establecimientos === 'string' ? JSON.parse(fullUserDetails.Establecimientos) : fullUserDetails.Establecimientos) : []
             }
         });
 

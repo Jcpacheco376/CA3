@@ -6,9 +6,9 @@ import { ClipboardIcon, KeyIcon, EyeIcon, EyeOffIcon } from '../../components/ui
 import { Tooltip } from '../../components/ui/Tooltip.tsx';
 import { Modal, Button } from '../../components/ui/Modal.tsx';
 import { useAuth } from '../auth/AuthContext.tsx';
-import { 
-    Shield, Building, Briefcase, Tag, MapPin, Check, 
-    CheckCheck, XCircle, ChevronDown, Crown 
+import {
+    Shield, Building, Briefcase, Tag, MapPin, Check,
+    CheckCheck, XCircle, ChevronDown, Crown, UserCheck, Search, Link2Off
 } from 'lucide-react'; // Importé Crown para el icono de principal
 
 // --- Componentes UI Auxiliares (Checkbox, Toggle, Collapsible) ---
@@ -18,7 +18,7 @@ const Checkbox = ({ id, label, checked, onChange }: { id: string | number, label
     return (
         <label htmlFor={`cb-local-${id}`} className="flex items-center space-x-3 p-2 rounded-md hover:bg-slate-100 cursor-pointer transition-colors">
             <div className="relative w-5 h-5 shrink-0">
-                <input id={`cb-local-${id}`} type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="peer appearance-none w-5 h-5 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[--theme-500]"/>
+                <input id={`cb-local-${id}`} type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="peer appearance-none w-5 h-5 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[--theme-500]" />
                 <div className="absolute inset-0 w-full h-full rounded-md border-2 border-slate-300 peer-checked:bg-[--theme-500] peer-checked:border-[--theme-500] transition-colors pointer-events-none"></div>
                 <Check size={14} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white pointer-events-none transition-opacity opacity-0 peer-checked:opacity-100" />
             </div>
@@ -36,8 +36,8 @@ const Toggle = ({ enabled, onChange }: { enabled: boolean, onChange: (enabled: b
 const CollapsibleSection = ({ title, children, defaultOpen = true }: { title: string, children: React.ReactNode, defaultOpen?: boolean }) => {
     const [isOpen, setIsOpen] = useState(defaultOpen);
     return (
-        <div className="border border-slate-200 rounded-lg overflow-hidden">
-            <button type="button" onClick={() => setIsOpen(!isOpen)} className="w-full flex justify-between items-center p-4 bg-white hover:bg-slate-50 transition-colors">
+        <div className={`border border-slate-200 rounded-lg ${isOpen ? 'overflow-visible' : 'overflow-hidden'}`}>
+            <button type="button" onClick={() => setIsOpen(!isOpen)} className="w-full flex justify-between items-center p-4 bg-white hover:bg-slate-50 transition-colors rounded-lg">
                 <h3 className="font-semibold text-slate-800">{title}</h3>
                 <ChevronDown size={20} className={`text-slate-500 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
             </button>
@@ -50,7 +50,7 @@ const CollapsibleSection = ({ title, children, defaultOpen = true }: { title: st
 const CatalogSection = ({ title, icon, items, selectedItems, onItemsChange, keyField, labelField, loading, error }: any) => {
     const allSelected = items.length > 0 && selectedItems.length === items.length;
     const handleToggleAll = () => allSelected ? onItemsChange([]) : onItemsChange(items);
-    
+
     const handleToggle = (item: any) => {
         const itemId = item[keyField];
         const isSelected = selectedItems.some((s: any) => s[keyField] === itemId);
@@ -73,9 +73,9 @@ const CatalogSection = ({ title, icon, items, selectedItems, onItemsChange, keyF
                     {error && <p className="text-xs text-red-500 p-2">{error}</p>}
                     {!loading && !error && items.length === 0 && <p className="text-xs text-slate-400 p-2">Sin datos disponibles.</p>}
                     {!loading && !error && items.map((item: any) => (
-                        <Checkbox key={item[keyField]} id={`${keyField}-${item[keyField]}`} label={item[labelField]} 
-                            checked={selectedItems?.some((s: any) => s[keyField] === item[keyField]) || false} 
-                            onChange={() => handleToggle(item)} 
+                        <Checkbox key={item[keyField]} id={`${keyField}-${item[keyField]}`} label={item[labelField]}
+                            checked={selectedItems?.some((s: any) => s[keyField] === item[keyField]) || false}
+                            onChange={() => handleToggle(item)}
                         />
                     ))}
                 </div>
@@ -103,11 +103,11 @@ const ConfirmationModal = ({ isOpen, onClose, onConfirm, title, children }: any)
 
 // --- COMPONENTE PRINCIPAL ---
 export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: User | null; allRoles: Role[]; onClose: () => void; onSave: (user: User, password?: string) => void; isOpen: boolean; }) => {
-    const { getToken, user: adminUser } = useAuth(); 
-    const activeFilters = adminUser?.activeFilters; 
-    
+    const { getToken, user: adminUser } = useAuth();
+    const activeFilters = (adminUser as any)?.activeFilters;
+
     const [formData, setFormData] = useState<Partial<User>>({});
-    
+
     // UI Local States
     const [password, setPassword] = useState('');
     const [passwordError, setPasswordError] = useState('');
@@ -124,11 +124,15 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
     const [allGruposNomina, setAllGruposNomina] = useState<any[]>([]);
     const [allPuestos, setAllPuestos] = useState<any[]>([]);
     const [allEstablecimientos, setAllEstablecimientos] = useState<any[]>([]);
+    const [allEmpleados, setAllEmpleados] = useState<any[]>([]);
+    const [empleadoSearch, setEmpleadoSearch] = useState('');
+    const [showEmpleadoDropdown, setShowEmpleadoDropdown] = useState(false);
     const [catalogsLoading, setCatalogsLoading] = useState(false);
     const [catalogsError, setCatalogsError] = useState<string | null>(null);
+    const [empleadosLoading, setEmpleadosLoading] = useState(false);
 
     const isNewUser = !user?.UsuarioId;
-    
+
     // Efecto de Carga Inicial
     useEffect(() => {
         const fetchCatalogsAndNextId = async () => {
@@ -137,41 +141,64 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
             const headers = { 'Authorization': `Bearer ${token}` };
             setCatalogsLoading(true);
             setCatalogsError(null);
-            
+
+            // Defaults: si no vienen en el perfil, asumimos true para no romper la UI
+            const filters = {
+                departamentos: activeFilters?.departamentos ?? true,
+                gruposNomina: activeFilters?.gruposNomina ?? true,
+                puestos: activeFilters?.puestos ?? true,
+                establecimientos: activeFilters?.establecimientos ?? true
+            };
+
             try {
-                const requests = [];
-                if (activeFilters?.departamentos) requests.push(fetch(`${API_BASE_URL}/catalogs/departamentos`, { headers }));
-                if (activeFilters?.gruposNomina) requests.push(fetch(`${API_BASE_URL}/catalogs/grupos-nomina`, { headers }));
-                if (activeFilters?.puestos) requests.push(fetch(`${API_BASE_URL}/catalogs/puestos`, { headers }));
-                if (activeFilters?.establecimientos) requests.push(fetch(`${API_BASE_URL}/catalogs/establecimientos`, { headers }));
-                if (!user) requests.push(fetch(`${API_BASE_URL}/users/next-id`, { headers }));
+                const requests: Promise<Response>[] = [];
+                const keys: string[] = [];
+
+                if (filters.departamentos) { requests.push(fetch(`${API_BASE_URL}/catalogs/departamentos`, { headers })); keys.push('departamentos'); }
+                if (filters.gruposNomina) { requests.push(fetch(`${API_BASE_URL}/catalogs/grupos-nomina`, { headers })); keys.push('gruposNomina'); }
+                if (filters.puestos) { requests.push(fetch(`${API_BASE_URL}/catalogs/puestos`, { headers })); keys.push('puestos'); }
+                if (filters.establecimientos) { requests.push(fetch(`${API_BASE_URL}/catalogs/establecimientos`, { headers })); keys.push('establecimientos'); }
+
+                // El NextId solo para usuarios nuevos
+                if (!user) { requests.push(fetch(`${API_BASE_URL}/users/next-id`, { headers })); keys.push('nextId'); }
 
                 const responses = await Promise.all(requests);
-                let nextIdRes;
-                if (!user) nextIdRes = responses.pop();
 
-                for (const res of responses) {
-                    if (!res.ok) throw new Error('Error cargando catálogos.');
+                for (let i = 0; i < responses.length; i++) {
+                    const res = responses[i];
+                    const key = keys[i];
+                    if (!res.ok) continue;
+
                     const data = await res.json();
-                    if (res.url.includes('/departamentos')) setAllDepartamentos(data);
-                    else if (res.url.includes('/grupos-nomina')) setAllGruposNomina(data);
-                    else if (res.url.includes('/puestos')) setAllPuestos(data);
-                    else if (res.url.includes('/establecimientos')) setAllEstablecimientos(data);
+                    if (key === 'departamentos') setAllDepartamentos(data);
+                    else if (key === 'gruposNomina') setAllGruposNomina(data);
+                    else if (key === 'puestos') setAllPuestos(data);
+                    else if (key === 'establecimientos') setAllEstablecimientos(data);
+                    else if (key === 'nextId') setFormData(prev => ({ ...prev, UsuarioId: data.NextUsuarioId }));
                 }
 
-                if (nextIdRes && nextIdRes.ok) {
-                    const { NextUsuarioId } = await nextIdRes.json();
-                    setFormData(prev => ({ ...prev, UsuarioId: NextUsuarioId }));
-                }
+            } catch (error: any) {
+                setCatalogsError(error.message);
+            } finally {
+                setCatalogsLoading(false);
+            }
 
-            } catch (error: any) { setCatalogsError(error.message); } 
-            finally { setCatalogsLoading(false); }
+            // Carga de empleados: aislada para que su error no contamine la variable catalogsError
+            try {
+                setEmpleadosLoading(true);
+                const res = await fetch(`${API_BASE_URL}/employees`, { headers });
+                if (res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data)) setAllEmpleados(data.filter((e: any) => e.Activo));
+                }
+            } catch { /* silencioso — no afecta el modal */ }
+            finally { setEmpleadosLoading(false); }
         };
-        
-        if(isOpen && activeFilters) {
+
+        if (isOpen) {
+            // Inicialización del formulario — no depende de activeFilters
             if (user) {
                 setFormData({ ...user, Roles: user.Roles || [], Departamentos: user.Departamentos || [], GruposNomina: user.GruposNomina || [], Puestos: user.Puestos || [], Establecimientos: user.Establecimientos || [] });
-                // LÓGICA: El índice 0 es el principal por defecto al cargar
                 if (user.Roles && user.Roles.length > 0) {
                     setPrincipalRoleId(user.Roles[0].RoleId);
                 } else {
@@ -181,16 +208,20 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
                 setFormData({ NombreCompleto: '', NombreUsuario: '', Email: '', EstaActivo: true, Roles: [], Departamentos: [], GruposNomina: [], Puestos: [], Establecimientos: [] });
                 setPrincipalRoleId(null);
             }
-            fetchCatalogsAndNextId();
             setPassword('');
             setPasswordError('');
             setGeneratedPassword(null);
             setCopied(false);
+            setEmpleadoSearch('');
+            setShowEmpleadoDropdown(false);
+
+            // Carga de catálogos — se ejecuta siempre al abrir (activeFilters puede llegar después)
+            fetchCatalogsAndNextId();
         }
     }, [user, isOpen, getToken, activeFilters]);
 
     // Manejadores
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
     };
 
@@ -209,16 +240,16 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
     const handleGruposChange = (items: any[]) => setFormData(prev => ({ ...prev, GruposNomina: items }));
     const handlePuestosChange = (items: any[]) => setFormData(prev => ({ ...prev, Puestos: items }));
     const handleEstablecimientosChange = (items: any[]) => setFormData(prev => ({ ...prev, Establecimientos: items }));
-    
+
     // Contraseña
-    const handleResetPassword = () => { 
+    const handleResetPassword = () => {
         const newPass = Math.random().toString(36).substring(2, 10);
         setGeneratedPassword(newPass); setPassword(newPass); setIsConfirmOpen(false);
     };
-    const handleCopyToClipboard = () => { 
-        if (generatedPassword) { navigator.clipboard.writeText(generatedPassword).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); }); } 
+    const handleCopyToClipboard = () => {
+        if (generatedPassword) { navigator.clipboard.writeText(generatedPassword).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); }); }
     };
-    
+
     // --- SUBMIT ---
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -226,7 +257,7 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
         if (!isNewUser && password.length > 0 && password.length < 6) { setPasswordError("Mínimo 6 caracteres."); return; }
 
         const passwordToSend = password.length > 0 ? password : undefined;
-        
+
         // --- AQUÍ ESTÁ LA LÓGICA IMPLÍCITA QUE PEDISTE ---
         // Ordenamos el array: El Rol seleccionado como Principal va primero [0], el resto después.
         let sortedRoles = [...(formData.Roles || [])];
@@ -239,7 +270,7 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
         }
 
         const dataToSave = { ...formData, Roles: sortedRoles }; // Enviamos ya ordenado
-        onSave(dataToSave as User, passwordToSend); 
+        onSave(dataToSave as User, passwordToSend);
     };
 
     const renderPasswordField = () => {
@@ -249,11 +280,11 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
                 <label className="block text-sm font-medium text-slate-700 mb-1">Contraseña</label>
                 <div className="flex items-center gap-2">
                     <div className="relative flex-grow">
-                        <input 
-                            type={isPasswordVisible ? 'text' : 'password'} 
+                        <input
+                            type={isPasswordVisible ? 'text' : 'password'}
                             placeholder={!isNewUser ? "Dejar en blanco para mantener actual" : ""}
-                            value={password} 
-                            onChange={e => { setPassword(e.target.value); setPasswordError(''); setGeneratedPassword(null); }} 
+                            value={password}
+                            onChange={e => { setPassword(e.target.value); setPasswordError(''); setGeneratedPassword(null); }}
                             className={`w-full p-2 border rounded-md text-sm ${passwordError ? 'border-red-500' : 'border-slate-300'} focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500] focus:outline-none`}
                             required={isNewUser}
                         />
@@ -269,7 +300,7 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
                         </Tooltip>
                     )}
                 </div>
-                {generatedPassword && ( 
+                {generatedPassword && (
                     <div className="mt-2 bg-slate-50 border border-slate-200 p-2 rounded-md flex justify-between items-center animate-in fade-in slide-in-from-top-1">
                         <span className="text-sm text-slate-700 font-mono select-all">{generatedPassword}</span>
                         <Tooltip text={copied ? "¡Copiado!" : "Copiar"}>
@@ -283,7 +314,7 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
             </div>
         );
     };
-    
+
     const footer = (
         <>
             <Button variant="secondary" onClick={onClose}>Cancelar</Button>
@@ -295,7 +326,7 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
         <>
             <Modal isOpen={isOpen} onClose={onClose} title={isNewUser ? 'Nuevo Usuario' : 'Editar Usuario'} footer={footer} size="3xl">
                 <form id="user-modal-form" onSubmit={handleSubmit} className="space-y-5">
-                    
+
                     <CollapsibleSection title="Información General">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-1">
                             <div>
@@ -323,6 +354,85 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
                                     </div>
                                 </div>
                                 {renderPasswordField()}
+
+                                {/* ── Vincular Empleado ──────────────────────────────── */}
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-1.5">
+                                        <UserCheck size={14} className="text-[--theme-500]" />
+                                        Empleado vinculado
+                                        <span className="text-xs text-slate-400 font-normal">(nómina / vacaciones)</span>
+                                    </label>
+
+                                    {/* Badge del empleado seleccionado */}
+                                    {formData.EmpleadoId ? (
+                                        <div className="flex items-center gap-2 px-3 py-2 bg-[--theme-50] ring-1 ring-[--theme-100] rounded-lg shadow-sm">
+                                            <UserCheck size={14} className="text-[--theme-500] shrink-0" />
+                                            <span className="text-sm font-semibold text-[--theme-700] flex-1 truncate uppercase tracking-wide">
+                                                {allEmpleados.find(e => e.EmpleadoId === Number(formData.EmpleadoId))?.NombreCompleto || `Empleado #${formData.EmpleadoId}`}
+                                            </span>
+                                            <button
+                                                type="button"
+                                                onClick={() => { setFormData(prev => ({ ...prev, EmpleadoId: null })); setEmpleadoSearch(''); }}
+                                                className="p-0.5 rounded-full text-[--theme-300] hover:text-rose-500 hover:bg-rose-50 transition-colors"
+                                                title="Cambiar empleado"
+                                            >
+                                                <XCircle size={15} />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <p className="flex items-center gap-1.5 text-xs text-slate-400 mb-2 px-1">
+                                                <Link2Off size={12} /> Sin empleado vinculado
+                                            </p>
+                                            {/* Buscador — solo visible cuando NO hay empleado vinculado */}
+                                            <div className="relative">
+                                                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                                <input
+                                                    type="text"
+                                                    placeholder="Buscar por nombre o código..."
+                                                    value={empleadoSearch}
+                                                    onChange={e => { setEmpleadoSearch(e.target.value); setShowEmpleadoDropdown(true); }}
+                                                    onFocus={() => setShowEmpleadoDropdown(true)}
+                                                    onBlur={() => setTimeout(() => setShowEmpleadoDropdown(false), 150)}
+                                                    className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500] focus:outline-none bg-white"
+                                                />
+                                                {showEmpleadoDropdown && empleadoSearch.trim().length > 0 && (() => {
+                                                    const filtered = allEmpleados.filter(e =>
+                                                        e.NombreCompleto.toLowerCase().includes(empleadoSearch.toLowerCase()) ||
+                                                        (e.CodRef && e.CodRef.toLowerCase().includes(empleadoSearch.toLowerCase()))
+                                                    ).slice(0, 8);
+                                                    return filtered.length > 0 ? (
+                                                        <ul className="absolute z-[200] mt-1 w-full bg-white border border-[--theme-100] rounded-lg shadow-2xl overflow-hidden">
+                                                            {filtered.map(emp => (
+                                                                <li
+                                                                    key={emp.EmpleadoId}
+                                                                    onMouseDown={() => {
+                                                                        setFormData(prev => ({ ...prev, EmpleadoId: emp.EmpleadoId }));
+                                                                        setEmpleadoSearch('');
+                                                                        setShowEmpleadoDropdown(false);
+                                                                    }}
+                                                                    className="flex items-center gap-2.5 px-3 py-2.5 cursor-pointer hover:bg-[--theme-50] transition-colors border-b border-slate-100 last:border-0"
+                                                                >
+                                                                    <div className="w-7 h-7 rounded-full bg-[--theme-100] flex items-center justify-center shrink-0">
+                                                                        <span className="text-xs font-bold text-[--theme-600]">{emp.NombreCompleto.charAt(0)}</span>
+                                                                    </div>
+                                                                    <div className="min-w-0">
+                                                                        <p className="text-sm font-medium text-slate-600 truncate">{emp.NombreCompleto}</p>
+                                                                        {emp.CodRef && <p className="text-xs text-slate-400">{emp.CodRef}</p>}
+                                                                    </div>
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    ) : (
+                                                        <div className="absolute z-[200] mt-1 w-full bg-white border border-slate-100 rounded-lg shadow-2xl px-3 py-3 text-sm text-slate-400 text-center">
+                                                            Sin resultados para &ldquo;{empleadoSearch}&rdquo;
+                                                        </div>
+                                                    );
+                                                })()}
+                                            </div>
+                                        </>
+                                    )}
+                                </div>
                             </div>
 
                             <div className="flex flex-col gap-3">
@@ -343,7 +453,7 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
                                             {(!allRoles.length && !catalogsError && !catalogsLoading) && <p className="text-xs text-slate-400 p-2">Sin datos disponibles.</p>}
                                             {(catalogsLoading) && <p className="text-xs text-slate-400 p-2">Cargando...</p>}
                                             {catalogsError && <p className="text-xs text-red-500 p-2">{catalogsError}</p>}
-                                            
+
                                             {allRoles.map((role: Role) => {
                                                 const isSelected = formData.Roles?.some((r: Role) => r.RoleId === role.RoleId) || false;
                                                 const isPrincipal = principalRoleId === role.RoleId;
@@ -367,7 +477,7 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
                                                     <div key={role.RoleId} className="flex items-center justify-between group rounded-md hover:bg-slate-100 transition-colors">
                                                         <label htmlFor={`role-${role.RoleId}`} className="flex-grow flex items-center space-x-3 p-2 cursor-pointer">
                                                             <div className="relative w-5 h-5 shrink-0">
-                                                                <input id={`role-${role.RoleId}`} type="checkbox" checked={isSelected} onChange={(e) => handleToggle(e.target.checked)} className="peer appearance-none w-5 h-5 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[--theme-500]"/>
+                                                                <input id={`role-${role.RoleId}`} type="checkbox" checked={isSelected} onChange={(e) => handleToggle(e.target.checked)} className="peer appearance-none w-5 h-5 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[--theme-500]" />
                                                                 <div className="absolute inset-0 w-full h-full rounded-md border-2 border-slate-300 peer-checked:bg-[--theme-500] peer-checked:border-[--theme-500] transition-colors pointer-events-none"></div>
                                                                 <Check size={14} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white pointer-events-none transition-opacity opacity-0 peer-checked:opacity-100" />
                                                             </div>
@@ -392,7 +502,7 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
                             </div>
                         </div>
                     </CollapsibleSection>
-                    
+
                     {(activeFilters?.departamentos || activeFilters?.gruposNomina || activeFilters?.puestos || activeFilters?.establecimientos) && (
                         <CollapsibleSection title="Permisos de Datos (Filtros)">
                             <p className="text-xs text-slate-500 mb-3 italic">
@@ -406,10 +516,10 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
                             </div>
                         </CollapsibleSection>
                     )}
-                    
+
                     <div className="pt-2 flex items-center justify-between border-t border-slate-100">
-                         <label className="flex items-center space-x-3 cursor-pointer">
-                            <Toggle enabled={formData.EstaActivo || false} onChange={(enabled) => setFormData(prev => ({...prev, EstaActivo: enabled}))}/>
+                        <label className="flex items-center space-x-3 cursor-pointer">
+                            <Toggle enabled={formData.EstaActivo || false} onChange={(enabled) => setFormData(prev => ({ ...prev, EstaActivo: enabled }))} />
                             <span className={`text-sm font-medium ${formData.EstaActivo ? 'text-slate-800' : 'text-slate-400'}`}>
                                 {formData.EstaActivo ? 'Usuario Habilitado' : 'Usuario Deshabilitado'}
                             </span>
@@ -417,9 +527,9 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
                     </div>
                 </form>
             </Modal>
-            
+
             <ConfirmationModal isOpen={isConfirmOpen} onClose={() => setIsConfirmOpen(false)} onConfirm={handleResetPassword} title="Restablecer Contraseña">
-                <p>¿Estás seguro? Se generará una nueva clave aleatoria. <br/><span className="text-xs text-slate-500 mt-2 block">Nota: Debes guardar el formulario principal para aplicar el cambio.</span></p>
+                <p>¿Estás seguro? Se generará una nueva clave aleatoria. <br /><span className="text-xs text-slate-500 mt-2 block">Nota: Debes guardar el formulario principal para aplicar el cambio.</span></p>
             </ConfirmationModal>
         </>
     );

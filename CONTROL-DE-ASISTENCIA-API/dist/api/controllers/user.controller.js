@@ -35,7 +35,7 @@ const createUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
     if (!req.user.permissions['usuarios.create'] && !req.user.permissions['usuarios.update']) {
         return res.status(403).json({ message: 'Acceso denegado.' });
     }
-    const { UsuarioId, NombreCompleto, NombreUsuario, Email, Password, EstaActivo, Roles, Departamentos, GruposNomina, Puestos, Establecimientos } = req.body;
+    const { UsuarioId, EmpleadoId, NombreCompleto, NombreUsuario, Email, Password, EstaActivo, Roles, Departamentos, GruposNomina, Puestos, Establecimientos } = req.body;
     try {
         // LÓGICA DE NEGOCIO: Procesar Roles para marcar el Principal
         // Asumimos que el Frontend envía el Rol Principal en la posición 0.
@@ -51,6 +51,7 @@ const createUser = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
             .input('Email', mssql_1.default.NVarChar, Email)
             .input('Password', mssql_1.default.NVarChar, Password)
             .input('EstaActivo', mssql_1.default.Bit, EstaActivo)
+            .input('EmpleadoId', mssql_1.default.Int, EmpleadoId || null)
             .input('RolesJSON', mssql_1.default.NVarChar, JSON.stringify(rolesProcessed))
             .input('DepartamentosJSON', mssql_1.default.NVarChar, JSON.stringify(Departamentos || []))
             .input('GruposNominaJSON', mssql_1.default.NVarChar, JSON.stringify(GruposNomina || []))

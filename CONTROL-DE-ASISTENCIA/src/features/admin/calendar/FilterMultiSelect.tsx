@@ -10,9 +10,10 @@ interface FilterMultiSelectProps {
     onToggle: (id: number) => void;
     onClear: () => void;
     placeholder: string;
+    readOnly?: boolean;
 }
 
-export const FilterMultiSelect: React.FC<FilterMultiSelectProps> = ({ items, selected, onToggle, onClear, placeholder }) => {
+export const FilterMultiSelect: React.FC<FilterMultiSelectProps> = ({ items, selected, onToggle, onClear, placeholder, readOnly = false }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [search, setSearch] = useState('');
     const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
@@ -40,7 +41,7 @@ export const FilterMultiSelect: React.FC<FilterMultiSelectProps> = ({ items, sel
     );
 
     const handleOpen = () => {
-        if (isSingle) return;
+        if (isSingle || readOnly) return;
         if (triggerRef.current) {
             const rect = triggerRef.current.getBoundingClientRect();
             const width = Math.max(rect.width, 300);
@@ -52,6 +53,8 @@ export const FilterMultiSelect: React.FC<FilterMultiSelectProps> = ({ items, sel
         setTimeout(() => searchRef.current?.focus(), 60);
     };
 
+    const isEffectivelyReadOnly = isSingle || readOnly;
+
     return (
         <div className="relative">
             {/* Trigger */}
@@ -60,9 +63,9 @@ export const FilterMultiSelect: React.FC<FilterMultiSelectProps> = ({ items, sel
                 onClick={() => isOpen ? setIsOpen(false) : handleOpen()}
                 className={`min-h-[38px] w-full px-2.5 py-1.5 rounded-lg border transition-all
                     flex flex-wrap items-center gap-1.5
-                    ${isSingle ? 'cursor-default bg-slate-50 border-slate-200 opacity-90 text-slate-500' : 'cursor-pointer'}
-                    ${isOpen ? 'border-[--theme-500] shadow-sm bg-white' : (isSingle ? '' : 'border-slate-200 hover:border-slate-300')}
-                    ${!isSingle && effectiveSelected.length > 0 ? 'bg-white' : ''}`}
+                    ${isEffectivelyReadOnly ? 'cursor-default bg-slate-50 border-slate-200 opacity-90 text-slate-500' : 'cursor-pointer'}
+                    ${isOpen ? 'border-[--theme-500] shadow-sm bg-white' : (isEffectivelyReadOnly ? '' : 'border-slate-200 hover:border-slate-300')}
+                    ${!isEffectivelyReadOnly && effectiveSelected.length > 0 ? 'bg-white' : ''}`}
             >
                 {selectedItems.length === 0 ? (
                     <span className="text-xs text-slate-400 italic select-none">{placeholder}</span>
@@ -72,7 +75,7 @@ export const FilterMultiSelect: React.FC<FilterMultiSelectProps> = ({ items, sel
                             className="inline-flex items-center gap-1 bg-[--theme-100] text-[--theme-700] text-[11px] font-medium px-2 py-0.5 rounded-md"
                         >
                             {item.nombre}
-                            {!isSingle && (
+                            {!isEffectivelyReadOnly && (
                                 <button type="button" onClick={e => { e.stopPropagation(); onToggle(item.id); }}
                                     className="hover:text-[--theme-900] transition-colors ml-0.5">
                                     <X size={10} />
@@ -81,11 +84,11 @@ export const FilterMultiSelect: React.FC<FilterMultiSelectProps> = ({ items, sel
                         </span>
                     ))
                 )}
-                {!isSingle && (
+                {!isEffectivelyReadOnly && (
                     <ChevronDown size={14} className={`ml-auto shrink-0 transition-transform duration-200
                         ${isOpen ? 'rotate-180 text-[--theme-500]' : 'text-slate-400'}`} />
                 )}
-                {isSingle && (
+                {isEffectivelyReadOnly && (
                     <Lock size={12} className="ml-auto shrink-0 text-slate-400" />
                 )}
             </div>

@@ -12,10 +12,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteEmployee = exports.updateEmployee = exports.createEmployee = exports.getEmployeePhoto = exports.getEmployeeStats = exports.getEmployees = exports.getEmployeeProfile = void 0;
+exports.getPermittedEmployees = exports.getAnniversaries = exports.getBirthdays = exports.deleteEmployee = exports.updateEmployee = exports.createEmployee = exports.getEmployeePhoto = exports.getEmployeeStats = exports.getEmployees = exports.getEmployeeProfile = void 0;
 const mssql_1 = __importDefault(require("mssql"));
 const database_1 = require("../../config/database");
 const getEmployeeProfile = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const msg = `--- [DEBUG] getEmployeeProfile CALLED with ID: ${req.params.employeeId}\n`;
+    require('fs').appendFileSync(require('path').join(process.env.TEMP || 'C:\\Windows\\Temp', 'api_debug.log'), msg);
+    res.setHeader('X-API-Version', 'DEBUG-1');
     if (!req.user.permissions['usuarios.read'] &&
         !req.user.permissions['reportesAsistencia.read.own'] &&
         !req.user.permissions['horarios.read'] &&
@@ -238,3 +241,56 @@ const deleteEmployee = (req, res) => __awaiter(void 0, void 0, void 0, function*
     }
 });
 exports.deleteEmployee = deleteEmployee;
+const getBirthdays = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { months } = req.query;
+        if (!months)
+            return res.status(400).json({ message: 'Meses no especificados.' });
+        const pool = yield mssql_1.default.connect(database_1.dbConfig);
+        const result = yield pool.request()
+            .input('Months', mssql_1.default.NVarChar, months.toString())
+            .execute('sp_Empleados_GetBirthdays');
+        res.json(result.recordset);
+    }
+    catch (err) {
+        console.error('Error al obtener cumpleaños:', err);
+        res.status(500).json({ message: err.message || 'Error del servidor.' });
+    }
+});
+exports.getBirthdays = getBirthdays;
+const getAnniversaries = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const msg = `--- [DEBUG] getAnniversaries CALLED with query: ${JSON.stringify(req.query)}\n`;
+    require('fs').appendFileSync(require('path').join(process.env.TEMP || 'C:\\Windows\\Temp', 'api_debug.log'), msg);
+    try {
+        const { months } = req.query;
+        if (!months)
+            return res.status(400).json({ message: 'Meses no especificados.' });
+        const pool = yield mssql_1.default.connect(database_1.dbConfig);
+        const result = yield pool.request()
+            .input('Months', mssql_1.default.NVarChar, months.toString())
+            .execute('sp_Empleados_GetAnniversaries');
+        res.json(result.recordset);
+    }
+    catch (err) {
+        // Log error to a file for investigation (using a more accessible path)
+        const tempLogPath = require('path').join(process.env.TEMP || process.env.TMP || 'C:\\Windows\\Temp', 'error_anniv.log');
+        const errorLog = `[${new Date().toISOString()}] Error in getAnniversaries: ${err.message}\nStack: ${err.stack}\nQuery: ${JSON.stringify(req.query)}\n`;
+        require('fs').appendFileSync(tempLogPath, errorLog);
+        console.error('Error al obtener aniversarios:', err);
+        res.status(500).json({ message: err.message || 'Error del servidor.' });
+    }
+});
+exports.getAnniversaries = getAnniversaries;
+const getPermittedEmployees = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const pool = yield mssql_1.default.connect(database_1.dbConfig);
+        const result = yield pool.request()
+            .input('UsuarioId', mssql_1.default.Int, req.user.usuarioId)
+            .execute('dbo.sp_Empleados_GetPermitidos');
+        res.json(result.recordset);
+    }
+    catch (err) {
+        res.status(500).json({ message: err.message || 'Error al obtener empleados permitidos.' });
+    }
+});
+exports.getPermittedEmployees = getPermittedEmployees;

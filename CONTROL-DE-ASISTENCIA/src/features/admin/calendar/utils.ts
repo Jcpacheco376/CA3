@@ -31,8 +31,27 @@ export const DynamicIcon = ({ name, size = 16, className = "", style }: { name?:
 };
 
 export const SENTENCE_FLOW = [
-    { dimKey: 'GRUPO_NOMINA', connector: 'Grupo Nómina', placeholder: 'Cualquier grupo' },
-    { dimKey: 'ESTABLECIMIENTO', connector: 'Establecimiento', placeholder: 'Cualquier establecimiento' },
     { dimKey: 'DEPARTAMENTO', connector: 'Departamento', placeholder: 'Cualquier departamento' },
+    { dimKey: 'GRUPO_NOMINA', connector: 'Grupo Nómina', placeholder: 'Cualquier grupo' },
     { dimKey: 'PUESTO', connector: 'Puesto', placeholder: 'Cualquier puesto' },
+    { dimKey: 'ESTABLECIMIENTO', connector: 'Establecimiento', placeholder: 'Cualquier establecimiento' },
 ];
+
+export const getSmartEventIcon = (eventName: string, defaultIcon: string): string => {
+    const text = eventName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ""); // remove accents
+
+    if (text.includes('navidad') || text.includes('nochebuena')) return 'TreePine';
+    if (text.includes('año nuevo') || text.includes('ano nuevo')) return 'PartyPopper';
+    if (text.includes('independencia') || text.includes('bandera') || text.includes('patria')) return 'Flag';
+    if (text.includes('muertos') || text.includes('halloween')) return 'Skull';
+    if (text.includes('madre') || text.includes('padre') || text.includes('amor')) return 'Heart';
+    if (text.includes('trabajo') || text.includes('trabajador')) return 'HardHat';
+    if (text.includes('revolucion')) return 'Swords';
+    if (text.includes('natalicio') || text.includes('nacimiento') || text.includes('cumpleanos') || text.includes('cumpleaños')) return 'Cake';
+    if (text.includes('primavera')) return 'Flower2';
+    if (text.includes('constitucion') || text.includes('ley')) return 'Scale';
+    if (text.includes('maestro') || text.includes('profesor') || text.includes('clase')) return 'GraduationCap';
+    if (text.includes('mujer') || text.includes('nino') || text.includes('niño')) return 'UserRound';
+
+    return defaultIcon;
+};

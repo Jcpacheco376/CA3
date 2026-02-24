@@ -38,21 +38,22 @@ export interface ActiveFilters {
 // ... (El resto de las interfaces User, Role, etc., se mantienen sin cambios)
 export interface User {
     UsuarioId: number;
+    EmpleadoId?: number | null;
     NombreUsuario: string;
     NombreCompleto: string;
     Email: string;
     EstaActivo: boolean;
     Roles: Role[];
-    Departamentos?: { DepartamentoId: string, Nombre: string }[];
-    GruposNomina?: { GrupoNominaId: string, Nombre: string, Periodo?: string }[];
-    Puestos?: { PuestoId: number, Nombre: string }[];
-    Establecimientos?: { EstablecimientoId: number, Nombre: string }[];
+    Departamentos?: ({ DepartamentoId: string, Nombre: string } | string)[];
+    GruposNomina?: ({ GrupoNominaId: string, Nombre: string, Periodo?: string } | string)[];
+    Puestos?: ({ PuestoId: number, Nombre: string } | number)[];
+    Establecimientos?: ({ EstablecimientoId: number, Nombre: string } | number)[];
     permissions?: { [key: string]: string[] };
     Theme?: string;
     AnimationsEnabled?: boolean;
     DebeCambiarPassword?: boolean;
 
-    //activeFilters?: ActiveFilters;
+    activeFilters?: ActiveFilters;
 }
 export interface Role {
     RoleId: number;

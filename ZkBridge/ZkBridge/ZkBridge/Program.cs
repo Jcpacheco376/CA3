@@ -1,863 +1,459 @@
-﻿using System;
-using System.Text;
-using System.IO;
+﻿using ARSoftware.Contpaqi.Comercial.Sdk;
+using ARSoftware.Contpaqi.Comercial.Sdk.DatosAbstractos;
+using System;
 using System.Collections.Generic;
+using System.Data;
+using System.Data.SqlClient;
+using System.IO;
+using System.Linq;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Threading;
 
-namespace ZkBridge
+class Program
 {
-    class Program
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool SetDllDirectory(string lpPathName);
+
+    static int Main(string[] args)
     {
-        public static zkemkeeper.CZKEM axCZKEM1 = new zkemkeeper.CZKEM();
-        // Buffer grande para lectura de datos
-        public static byte[] map = new byte[1024 * 1024];
-
-        static void Main(string[] args)
+        AppDomain.CurrentDomain.UnhandledException += (s, e) =>
         {
-            // Forzar codificación UTF8 para nombres con acentos y salida JSON limpia
-            Console.OutputEncoding = Encoding.UTF8;
+            var ex = e.ExceptionObject as Exception;
+            var msg = ex != null ? FormatError(ex) : (e.ExceptionObject?.ToString() ?? "(null)");
+            Console.WriteLine($"ERROR | UnhandledException | {msg}");
+        };
 
-            if (args.Length < 4)
+        int idFactura;
+        if (args == null || args.Length == 0 || !int.TryParse(args[0], out idFactura) || idFactura <= 0)
+        {
+            Console.WriteLine("ERROR | Args | Debes pasar el ID de factura (entero > 0). Uso: ejecutable.exe <ID>");
+            return 2;
+        }
+
+        string connString = null;
+
+        try
+        {
+            string exeDir = AppDomain.CurrentDomain.BaseDirectory;
+            var ini = new IniFile(Path.Combine(exeDir, "config.ini"));
+
+            string rutaSdk = ini.Read("SDK", "RutaSdk");
+            string rutaEmpresa = ini.Read("SDK", "RutaEmpresa");
+
+            bool trusted = ini.ReadBool("SQL", "TrustedConnection", false);
+            string server = ini.Read("SQL", "Server");
+            string db = ini.Read("SQL", "Database");
+            string user = ini.Read("SQL", "User");
+            string pwd = ini.Read("SQL", "Password");
+
+            connString = trusted
+                ? $"Server={server};Database={db};Trusted_Connection=True;TrustServerCertificate=True;"
+                : $"Server={server};Database={db};User Id={user};Password={pwd};TrustServerCertificate=True;";
+
+            if (!SetDllDirectory(rutaSdk))
+                Console.WriteLine($"WARN | SetDllDirectory | Falló SetDllDirectory para: {rutaSdk}");
+
+            Environment.CurrentDirectory = rutaSdk;
+
+            SdkCheck(AdminpaqSdk.fSetNombrePAQ("CONTPAQ I FACTURACION"), "fSetNombrePAQ");
+            SdkCheck(AdminpaqSdk.fInicializaSDK(), "fInicializaSDK");
+            SdkCheck(AdminpaqSdk.fAbreEmpresa(rutaEmpresa), "fAbreEmpresa");
+
+            var data = ObtenerFacturaCompleta(connString, idFactura);
+            var enc = data.Item1;
+            var partidas = data.Item2;
+
+            GarantizarCliente(connString, enc.CodigoCliente);
+
+            // =========================================================================
+            // ACTUALIZAR CORREO DEL CLIENTE (Para el envío del CFDI)
+            // =========================================================================
+            if (!string.IsNullOrWhiteSpace(enc.Email))
             {
-                Console.WriteLine("{\"error\": \"Args insuficientes\"}");
-                return;
-            }
-
-            string ip = args[0];
-            int port = int.Parse(args[1]);
-            int commKey = int.Parse(args[2]);
-            string command = args[3];
-
-            axCZKEM1.SetCommPassword(commKey);
-
-            if (axCZKEM1.Connect_Net(ip, port))
-            {
-                try
+                if (AdminpaqSdk.fBuscaCteProv(enc.CodigoCliente) == 0)
                 {
-                    switch (command)
+                    if (AdminpaqSdk.fEditaCteProv() == 0)
                     {
-                        // --- COMANDOS BÁSICOS ---
-                        case "test_connection":
-                            Console.WriteLine("{\"status\": \"OK\"}");
-                            break;
-
-                        case "get_info":
-                            GetDeviceInfo(1);
-                            break;
-
-                        case "get_all_users":
-                            GetAllUsers(1);
-                            break;
-
-                        case "download_logs":
-                            DownloadLogs(1);
-                            break;
-
-                        case "clear_logs":
-                            ClearLogs(1);
-                            break;
-
-                        case "sync_time":
-                            SyncTime(1);
-                            break;
-
-                        // --- CARGAS MASIVAS (BATCH) ---
-                        case "upload_users_file":
-                            if (args.Length >= 5) UploadUsersFromFile(1, args[4]);
-                            else Console.WriteLine("{\"error\": \"Falta archivo\"}");
-                            break;
-
-                        case "upload_faces_file":
-                            if (args.Length >= 5) UploadFacesFromFile(1, args[4]);
-                            else Console.WriteLine("{\"error\": \"Falta archivo\"}");
-                            break;
-                        case "upload_fingerprints_file":
-                            if (args.Length >= 5) UploadFingerprintsFromFile(1, args[4]);
-                            else Console.WriteLine("{\"error\": \"Falta archivo\"}");
-                            break;
-                        case "upload_biotemplates":
-                            if (args.Length >= 5) UploadBioTemplates(1, args[4]);
-                            else Console.WriteLine("{\"error\": \"Falta archivo\"}");
-                            break;
-
-                        case "delete_users_file":
-                            if (args.Length >= 5) DeleteUsersFromFile(1, args[4]);
-                            else Console.WriteLine("{\"error\": \"Falta archivo\"}");
-                            break;
-
-                        // --- COMANDOS INDIVIDUALES (LEGACY) ---
-                        case "upload_user":
-                            if (args.Length >= 5) UploadUser(1, args[4]);
-                            else Console.WriteLine("{\"error\": \"Missing data for user\"}");
-                            break;
-
-                        case "delete_user":
-                            if (args.Length >= 5) DeleteUser(1, args[4]);
-                            else Console.WriteLine("{\"error\": \"Missing UID\"}");
-                            break;
-
-                        // --- COMANDO DE DIAGNÓSTICO ---
-                        case "debug_faces":
-                            if (args.Length >= 5) DebugFaces(1, args[4]);
-                            else Console.WriteLine("{\"error\": \"Falta UID\"}");
-                            break;
-
-                        // --- NUEVO COMANDO: Consulta directa a tabla biométrica ---
-                        case "get_biodata":
-                            if (args.Length >= 5) GetBioData(1, args[4]);
-                            else Console.WriteLine("{\"error\": \"Falta UID para consultar\"}");
-                            break;
-
-                        // --- COMANDOS ADICIONALES (Mantenidos) ---
-                        case "dump_config":
-                            DumpConfig(1);
-                            break;
-
-                        case "capture_image":
-                            if (args.Length >= 5) CaptureScreenshot(1, args[4]);
-                            else Console.WriteLine("{\"error\": \"Falta ruta de destino\"}");
-                            break;
-
-                        case "set_param":
-                            if (args.Length >= 6) SetParam(1, args[4], args[5]);
-                            else Console.WriteLine("{\"error\": \"Faltan parametros\"}");
-                            break;
-
-                        case "get_param":
-                            if (args.Length >= 5) GetParam(1, args[4]);
-                            else Console.WriteLine("{\"error\": \"Falta el nombre del parametro\"}");
-                            break;
-
-                        case "download_photos":
-                            if (args.Length >= 5) DownloadPhotos(1, args[4]);
-                            else Console.WriteLine("{\"error\": \"Falta la ruta de destino\"}");
-                            break;
-
-                        // --- COMANDOS DE LIMPIEZA ESPECÍFICA ---
-                        case "clear_faces":
-                            ClearFaces(1);
-                            break;
-
-                        case "clear_fingerprints":
-                            ClearFingerprints(1);
-                            break;
-
-                        case "clear_data":
-                            ClearAllData(1);
-                            break;
-
-                        default:
-                            Console.WriteLine("{\"error\": \"Comando desconocido\"}");
-                            break;
+                        // Se actualiza en el catálogo de clientes para que aparezca al timbrar
+                        AdminpaqSdk.fSetDatoCteProv("CEMAIL", enc.Email);
+                        AdminpaqSdk.fSetDatoCteProv("cEmail", enc.Email);
+                        AdminpaqSdk.fGuardaCteProv();
+                        Console.WriteLine($"INFO | Correo {enc.Email} actualizado en el cliente.");
                     }
                 }
-                catch (Exception ex)
+            }
+
+            // =========================================================================
+            // PASO 1: CREACIÓN DE CABECERA
+            // =========================================================================
+            var doc = new tDocumento
+            {
+                aCodConcepto = enc.CodigoConcepto,
+                aSerie = enc.Serie ?? "",
+                aFolio = CalcularFolio(enc),
+                aFecha = enc.FechaEmision.ToString("MM/dd/yyyy"),
+                aCodigoCteProv = enc.CodigoCliente,
+                aReferencia = enc.Referencia ?? "",
+                aNumMoneda = enc.Moneda,
+                aTipoCambio = enc.TipoCambio,
+                aImporte = (enc.TipoDocumento == 2) ? enc.Total : enc.Subtotal,
+                aDescuentoDoc1 = enc.DesctoImp,
+                aDescuentoDoc2 = 0,
+                aSistemaOrigen = 0,
+                aAfecta = 1,
+            };
+
+            int idDocumento = 0;
+            SdkCheck(AdminpaqSdk.fAltaDocumento(ref idDocumento, ref doc), "fAltaDocumento");
+
+            // =========================================================================
+            // PASO 2: RECUPERAR FOLIO REAL Y DATOS EXTRA
+            // =========================================================================
+            SdkCheck(AdminpaqSdk.fBuscarIdDocumento(idDocumento), "fBuscaIdDocumento");
+
+            StringBuilder sbFolio = new StringBuilder(20);
+            AdminpaqSdk.fLeeDatoDocumento("CFOLIO", sbFolio, 20);
+            double.TryParse(sbFolio.ToString(), out double folioAbonoReal);
+            if (folioAbonoReal <= 0) folioAbonoReal = doc.aFolio;
+
+            SdkCheck(AdminpaqSdk.fEditarDocumento(), "fEditarDocumento");
+
+            // =========================================================================
+            // CAMPOS REQUERIDOS PARA TIMBRADO CFDI 
+            // Usamos nombres físicos de la BD y nombres lógicos para asegurar su guardado
+            // =========================================================================
+
+            // 1. Método de Pago (PUE / PPD)
+            SetDatoDoc("CMETODOPAG", enc.MetodoPago);
+            SetDatoDoc("cMetodoPago", enc.MetodoPago);
+
+            // 2. Forma de Pago (01, 03, 99...) - ¡Faltaba enviar este!
+            SetDatoDoc("CFORMAPAGO", enc.FormaPago);
+            SetDatoDoc("cFormaPago", enc.FormaPago);
+
+            // 3. Uso de CFDI (G01, G02, G03...)
+            if (!string.IsNullOrWhiteSpace(enc.UsoCFDI))
+            {
+                SetDatoDoc("CUSOCFDI", enc.UsoCFDI);
+                SetDatoDoc("cusocfdi", enc.UsoCFDI);
+            }
+
+            // Opcional: Condiciones de pago
+            SetDatoDoc("CCANTPARCI", enc.CondicionPago);
+
+            // Inyectamos físicamente los totales iniciales si es Nota de Crédito
+            if (enc.TipoDocumento == 2)
+            {
+                AdminpaqSdk.fSetDatoDocumento("CTOTAL", enc.Total.ToString("0.00"));
+                AdminpaqSdk.fSetDatoDocumento("CNETO", enc.Subtotal.ToString("0.00"));
+                AdminpaqSdk.fSetDatoDocumento("CIMPUESTO1", enc.Impuesto1.ToString("0.00"));
+                AdminpaqSdk.fSetDatoDocumento("CPENDIENTE", enc.Total.ToString("0.00"));
+
+                var uuidsRelacionados = partidas.Where(p => !string.IsNullOrEmpty(p.FacturaOrigen_UUID)).Select(p => p.FacturaOrigen_UUID.Trim()).Distinct().ToList();
+                if (uuidsRelacionados.Count > 0)
                 {
-                    Console.WriteLine("{\"error\": \"" + CleanString(ex.Message) + "\"}");
-                }
-                finally
-                {
-                    axCZKEM1.Disconnect();
-                    Console.Out.Flush();
-                }
-            }
-            else
-            {
-                int err = 0; axCZKEM1.GetLastError(ref err);
-                Console.WriteLine("{\"error\": \"No conecta (Error " + err + ")\"}");
-            }
-
-            Environment.Exit(0);
-        }
-
-        // --- CONSULTA DE DATOS BIOMÉTRICOS CRUDOS (NUEVO) ---
-        static void GetBioData(int iMachineNumber, string uid)
-        {
-            axCZKEM1.EnableDevice(iMachineNumber, false);
-
-            string tableName = "Pers_Biotemplate";
-            string fields = "*"; // Traer todo: Version, Tipo, Formato, etc.
-            string filter = "Pin=" + uid; // Filtramos solo el usuario que nos interesa
-            string options = "";
-            string buffer = "";
-
-            // Buffer grande (10MB) para asegurar que quepan los rostros
-            int bufferSize = 10 * 1024 * 1024;
-
-            // Esta función lee la tabla interna tal cual la tiene el reloj
-            if (axCZKEM1.SSR_GetDeviceData(iMachineNumber, out buffer, bufferSize, tableName, fields, filter, options))
-            {
-                // El buffer viene como texto separado por \r\n y \t. 
-                // Lo escapamos para meterlo en un JSON y que tú lo veas en el frontend.
-                string safeData = buffer.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\r", "\\r").Replace("\n", "\\n");
-
-                Console.WriteLine($"{{\"status\": \"OK\", \"uid\": \"{uid}\", \"raw_data\": \"{safeData}\"}}");
-            }
-            else
-            {
-                int err = 0; axCZKEM1.GetLastError(ref err);
-                // Si da error -4 o similar, puede que el reloj no soporte esta tabla (modelos muy viejos)
-                // Pero si es Visible Light (nuevo), debe soportarla.
-                Console.WriteLine($"{{\"error\": \"Error leyendo Pers_Biotemplate. Code: {err}\"}}");
-            }
-
-            axCZKEM1.EnableDevice(iMachineNumber, true);
-            Console.Out.Flush();
-        }
-
-        // --- INYECCIÓN DIRECTA DE TABLA BIOMÉTRICA ---
-        static void UploadBioTemplates(int iMachineNumber, string filePath)
-        {
-            if (!File.Exists(filePath)) { Console.WriteLine("{\"error\": \"Archivo no encontrado\"}"); return; }
-
-            string buffer = File.ReadAllText(filePath, Encoding.UTF8);
-
-            if (string.IsNullOrEmpty(buffer)) { Console.WriteLine("{\"status\": \"OK\", \"message\": \"Archivo vacio\"}"); return; }
-
-            axCZKEM1.EnableDevice(iMachineNumber, false);
-
-            if (axCZKEM1.SSR_SetDeviceData(iMachineNumber, "Pers_Biotemplate", buffer, ""))
-            {
-                axCZKEM1.RefreshData(iMachineNumber);
-                Console.WriteLine("{\"status\": \"OK\", \"message\": \"Datos biométricos inyectados correctamente\"}");
-            }
-            else
-            {
-                int err = 0; axCZKEM1.GetLastError(ref err);
-                Console.WriteLine($"{{\"error\": \"Fallo SSR_SetDeviceData. Code: {err}\"}}");
-            }
-
-            axCZKEM1.EnableDevice(iMachineNumber, true);
-            Console.Out.Flush();
-        }
-
-        // --- FUNCIÓN DE DIAGNÓSTICO BIOMÉTRICO ---
-        static void DebugFaces(int iMachineNumber, string uid)
-        {
-            axCZKEM1.EnableDevice(iMachineNumber, false);
-            List<string> foundFaces = new List<string>();
-
-            int[] indicesToCheck = { 50, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 };
-
-            foreach (int idx in indicesToCheck)
-            {
-                string tmp = "";
-                int len = 0;
-
-                if (axCZKEM1.GetUserFaceStr(iMachineNumber, uid, idx, ref tmp, ref len))
-                {
-                    string cleanData = tmp.Replace("\"", "\\\"");
-                    foundFaces.Add($"{{\"index\":{idx}, \"type\":\"String\", \"len\":{len}, \"data\":\"{cleanData}\"}}");
-                }
-
-                byte[] buffer = new byte[256 * 1024];
-                int blen = 0;
-                if (axCZKEM1.GetUserFace(iMachineNumber, uid, idx, ref buffer[0], ref blen))
-                {
-                    string b64 = Convert.ToBase64String(buffer, 0, blen);
-                    foundFaces.Add($"{{\"index\":{idx}, \"type\":\"Binary\", \"len\":{blen}, \"data\":\"{b64}\"}}");
-                }
-            }
-
-            axCZKEM1.EnableDevice(iMachineNumber, true);
-            Console.WriteLine($"[{string.Join(",", foundFaces)}]");
-            Console.Out.Flush();
-        }
-
-        // --- SYNC TIME ---
-        static void SyncTime(int iMachineNumber)
-        {
-            DateTime now = DateTime.Now;
-            if (axCZKEM1.SetDeviceTime2(iMachineNumber, now.Year, now.Month, now.Day, now.Hour, now.Minute, now.Second))
-            {
-                axCZKEM1.RefreshData(iMachineNumber);
-                Console.WriteLine("{\"status\": \"OK\"}");
-            }
-            else
-            {
-                int err = 0; axCZKEM1.GetLastError(ref err);
-                Console.WriteLine($"{{\"error\": \"Error Time: {err}\"}}");
-            }
-        }
-
-        // --- FUNCIONES DE CARGA MASIVA ---
-
-        static void UploadUsersFromFile(int iMachineNumber, string filePath)
-        {
-            if (!File.Exists(filePath)) { Console.WriteLine("{\"error\": \"No file\"}"); return; }
-
-            axCZKEM1.EnableDevice(iMachineNumber, false);
-
-            int successCount = 0;
-            int failCount = 0;
-
-            foreach (string line in File.ReadAllLines(filePath))
-            {
-                if (string.IsNullOrWhiteSpace(line)) continue;
-                try
-                {
-                    string[] p = line.Split('|');
-                    if (p.Length < 5) continue;
-
-                    if (axCZKEM1.SSR_SetUserInfo(iMachineNumber, p[0], p[1], p[3], int.Parse(p[2]), p[4] == "1"))
+                    string tipoRelacion = string.IsNullOrEmpty(enc.TipoRelacion) ? "01" : enc.TipoRelacion;
+                    foreach (var u in uuidsRelacionados)
                     {
-                        if (p.Length > 5 && p[5].Length > 50 && p[5] != "null")
-                        {
-                            if (!axCZKEM1.SetUserFaceStr(iMachineNumber, p[0], 50, p[5], p[5].Length))
-                            {
-                                try
-                                {
-                                    byte[] b = Convert.FromBase64String(p[5]);
-                                    axCZKEM1.SetUserFace(iMachineNumber, p[0], 50, ref b[0], b.Length);
-                                }
-                                catch { }
-                            }
-                        }
-
-                        for (int k = 6; k < p.Length; k++)
-                        {
-                            if (string.IsNullOrEmpty(p[k])) continue;
-                            string[] fd = p[k].Split(':');
-                            if (fd.Length == 2)
-                                axCZKEM1.SetUserTmpExStr(iMachineNumber, p[0], int.Parse(fd[0]), 1, fd[1]);
-                        }
-                        successCount++;
+                        AdminpaqSdk.fAgregarRelacionCFDI2(doc.aCodConcepto, doc.aSerie, folioAbonoReal.ToString("0"), tipoRelacion, u);
                     }
-                    else failCount++;
                 }
-                catch { failCount++; }
+            }
+            SdkCheck(AdminpaqSdk.fGuardaDocumento(), "fGuardaDocumento");
+
+            // =========================================================================
+            // PASO 3: APLICACIÓN DE SALDOS (Solo Notas de Crédito)
+            // =========================================================================
+            if (enc.TipoDocumento == 2)
+            {
+                foreach (var p in partidas)
+                {
+                    if (p.FacturaOrigen_Folio.HasValue && p.FacturaOrigen_Folio.Value > 0 && !string.IsNullOrEmpty(p.FacturaOrigen_Concepto))
+                    {
+                        double importeAp = p.ImporteAplicado ?? enc.Total;
+                        if (importeAp <= 0) importeAp = enc.Total;
+
+                        int monedaSdk = enc.Moneda <= 0 ? 1 : enc.Moneda;
+                        AdminpaqSdk.fSaldarDocumento_Param(
+                            p.FacturaOrigen_Concepto,
+                            p.FacturaOrigen_Serie ?? "",
+                            p.FacturaOrigen_Folio.Value,
+                            doc.aCodConcepto,
+                            doc.aSerie,
+                            folioAbonoReal,
+                            importeAp,
+                            monedaSdk,
+                            enc.FechaEmision.ToString("MM/dd/yyyy"));
+                    }
+                }
             }
 
-            axCZKEM1.RefreshData(iMachineNumber);
-            axCZKEM1.EnableDevice(iMachineNumber, true);
-
-            Console.WriteLine($"{{\"status\": \"OK\", \"processed\": {successCount + failCount}, \"success\": {successCount}, \"failed\": {failCount}}}");
-            Console.Out.Flush();
-        }
-
-        static void UploadFacesFromFile(int iMachineNumber, string filePath)
-        {
-            if (!File.Exists(filePath)) { Console.WriteLine("{\"error\": \"Archivo no encontrado\"}"); return; }
-
-            axCZKEM1.EnableDevice(iMachineNumber, false);
-            int success = 0, fail = 0;
-            string[] lines = File.ReadAllLines(filePath);
-
-            foreach (string line in lines)
+            // =========================================================================
+            // PASO 4: MOVIMIENTOS (Solo Facturas)
+            // =========================================================================
+            if (enc.TipoDocumento == 1)
             {
-                if (string.IsNullOrWhiteSpace(line)) continue;
-                string[] parts = line.Split('|');
-
-                if (parts.Length < 2) continue;
-
-                string uid = parts[0];
-                string face = parts[1];
-                int faceIdx = 50;
-
-                if (parts.Length > 2) int.TryParse(parts[2], out faceIdx);
-
-                if (string.IsNullOrEmpty(face) || face == "null") continue;
-
-                axCZKEM1.DelUserFace(iMachineNumber, uid, faceIdx);
-
-                bool uploaded = false;
-
-                if (axCZKEM1.SetUserFaceStr(iMachineNumber, uid, faceIdx, face, face.Length))
+                for (int i = 0; i < partidas.Count; i++)
                 {
-                    uploaded = true;
+                    var d = partidas[i];
+                    GarantizarProducto(connString, d.CodigoProducto);
+
+                    var mov = new tMovimiento
+                    {
+                        aCodProdSer = d.CodigoProducto,
+                        aUnidades = d.Cantidad,
+                        aPrecio = d.PrecioUnitario,
+                        aCosto = 0,
+                        aReferencia = d.Referencia ?? "",
+                        aCodClasificacion = ""
+                    };
+
+                    int idMov = 0;
+                    SdkCheck(AdminpaqSdk.fAltaMovimiento(idDocumento, ref idMov, ref mov), $"fAltaMovimiento (#{i + 1})");
                 }
-                else
+            }
+
+            // =========================================================================
+            // PASO 5: AFECTAR EL DOCUMENTO (Timbrado / Sellado)
+            // =========================================================================
+            var llave = new tLlaveDoc { aCodConcepto = doc.aCodConcepto, aSerie = doc.aSerie, aFolio = folioAbonoReal };
+            SdkCheck(AdminpaqSdk.fAfectaDocto(ref llave, true), "fAfectaDocto");
+
+            // =========================================================================
+            // PASO 6: RESCATE POST-AFECTAR (Protección silenciosa para Notas de Crédito)
+            // Verificamos si fAfectaDocto reseteó los totales y los restauramos.
+            // =========================================================================
+            if (enc.TipoDocumento == 2)
+            {
+                AdminpaqSdk.fBuscarIdDocumento(idDocumento);
+                StringBuilder sbValorTotal = new StringBuilder(30);
+                AdminpaqSdk.fLeeDatoDocumento("CTOTAL", sbValorTotal, 30);
+
+                if (double.TryParse(sbValorTotal.ToString(), out double totalFinal) && totalFinal <= 0)
                 {
                     try
                     {
-                        byte[] b = Convert.FromBase64String(face);
-                        if (axCZKEM1.SetUserFace(iMachineNumber, uid, faceIdx, ref b[0], b.Length))
-                            uploaded = true;
+                        AdminpaqSdk.fEditarDocumento();
+                        AdminpaqSdk.fSetDatoDocumento("CTOTAL", enc.Total.ToString("0.00"));
+                        AdminpaqSdk.fSetDatoDocumento("CNETO", enc.Subtotal.ToString("0.00"));
+                        AdminpaqSdk.fSetDatoDocumento("CIMPUESTO1", enc.Impuesto1.ToString("0.00"));
+                        AdminpaqSdk.fGuardaDocumento();
                     }
-                    catch { }
-                }
-
-                if (uploaded) success++;
-                else
-                {
-                    fail++;
-                    int err = 0; axCZKEM1.GetLastError(ref err);
-                    Console.Error.WriteLine($"[ERROR] Face UID {uid} Index {faceIdx} falló. Código SDK: {err}");
+                    catch (Exception) { /* Falla silenciosa para no interrumpir el flujo exitoso */ }
                 }
             }
 
-            axCZKEM1.RefreshData(iMachineNumber);
-            axCZKEM1.EnableDevice(iMachineNumber, true);
-            Console.WriteLine($"{{\"status\": \"OK\", \"processed\": {lines.Length}, \"success\": {success}, \"failed\": {fail}}}");
-            Console.Out.Flush();
+            // === Post-proceso fijo ===
+            TryEjecutarPostProc(connString, idFactura, true, null, folioAbonoReal);
+            Console.WriteLine($"OK | Documento creado y afectado | idDocumento={idDocumento} | Llave={doc.aCodConcepto}/{doc.aSerie}-{folioAbonoReal}");
+            return 0;
         }
-
-        static void DeleteUsersFromFile(int iMachineNumber, string filePath)
+        catch (Exception ex)
         {
-            if (!File.Exists(filePath)) { Console.WriteLine("{\"error\": \"Archivo no encontrado\"}"); return; }
-
-            axCZKEM1.EnableDevice(iMachineNumber, false);
-            int deleted = 0;
-
-            foreach (string u in File.ReadAllLines(filePath))
-            {
-                if (string.IsNullOrWhiteSpace(u)) continue;
-                if (axCZKEM1.SSR_DeleteEnrollData(iMachineNumber, u.Trim(), 12))
-                    deleted++;
-            }
-
-            axCZKEM1.RefreshData(iMachineNumber);
-            axCZKEM1.EnableDevice(iMachineNumber, true);
-            Console.WriteLine($"{{\"status\":\"OK\",\"deleted\":{deleted}}}");
-            Console.Out.Flush();
+            string mensajeError = FormatError(ex);
+            TryEjecutarPostProc(connString, idFactura, false, mensajeError, 0);
+            Console.WriteLine($"ERROR | Main | {mensajeError}");
+            return 1;
         }
-
-        // --- FUNCIONES LEGACY ---
-
-        static void GetAllUsers(int iMachineNumber)
+        finally
         {
-            axCZKEM1.EnableDevice(iMachineNumber, false);
-            axCZKEM1.ReadAllUserID(iMachineNumber);
-            axCZKEM1.ReadAllTemplate(iMachineNumber);
-
-            List<string> usersJson = new List<string>();
-            string sEnrollNumber = "", sName = "", sPassword = "";
-            int iPrivilege = 0;
-            bool bEnabled = false;
-
-            while (axCZKEM1.SSR_GetAllUserInfo(iMachineNumber, out sEnrollNumber, out sName, out sPassword, out iPrivilege, out bEnabled))
-            {
-                List<string> fingers = new List<string>();
-                for (int k = 0; k < 10; k++)
-                {
-                    string t = ""; int l = 0; int fl = 0;
-                    if (axCZKEM1.GetUserTmpExStr(iMachineNumber, sEnrollNumber, k, out fl, out t, out l))
-                        fingers.Add($"{{\"fingerIndex\":{k},\"template\":\"{t}\"}}");
-                }
-
-                string fa = ""; int flen = 0; string fJ = "null";
-                if (axCZKEM1.GetUserFaceStr(iMachineNumber, sEnrollNumber, 50, ref fa, ref flen))
-                    fJ = $"\"{fa}\"";
-
-                usersJson.Add($"{{\"uid\":\"{sEnrollNumber}\",\"name\":\"{CleanString(sName)}\",\"privilege\":{iPrivilege},\"password\":\"{sPassword}\",\"fingers\":[{string.Join(",", fingers)}],\"face\":{fJ}}}");
-            }
-
-            axCZKEM1.EnableDevice(iMachineNumber, true);
-            Console.WriteLine($"[{string.Join(",", usersJson)}]");
-            Console.Out.Flush();
-        }
-
-        static void DownloadLogs(int iMachineNumber)
-        {
-            axCZKEM1.EnableDevice(iMachineNumber, false);
-            if (axCZKEM1.ReadGeneralLogData(iMachineNumber))
-            {
-                List<string> logs = new List<string>();
-                string sE = "";
-                int v = 0, m = 0, Y = 0, M = 0, D = 0, H = 0, mm = 0, s = 0, w = 0;
-
-                while (axCZKEM1.SSR_GetGeneralLogData(iMachineNumber, out sE, out v, out m, out Y, out M, out D, out H, out mm, out s, ref w))
-                {
-                    logs.Add($"{{\"uid\":\"{sE}\",\"timestamp\":\"{Y}-{M:D2}-{D:D2} {H:D2}:{mm:D2}:{s:D2}\",\"verifyMode\":{v},\"inOutMode\":{m}}}");
-                }
-                Console.WriteLine($"[{string.Join(",", logs)}]");
-            }
-            else
-            {
-                Console.WriteLine("[]");
-            }
-            Console.Out.Flush();
-            axCZKEM1.EnableDevice(iMachineNumber, true);
-        }
-
-        static void ClearLogs(int iMachineNumber)
-        {
-            axCZKEM1.EnableDevice(iMachineNumber, false);
-            if (axCZKEM1.ClearGLog(iMachineNumber))
-            {
-                axCZKEM1.RefreshData(iMachineNumber);
-                Console.WriteLine("{\"status\":\"OK\"}");
-            }
-            else
-            {
-                Console.WriteLine("{\"error\":\"Fail\"}");
-            }
-            Console.Out.Flush();
-            axCZKEM1.EnableDevice(iMachineNumber, true);
-        }
-
-        // --- FUNCIONES ADICIONALES MANTENIDAS ---
-
-        static void GetDeviceInfo(int iMachineNumber)
-        {
-            string sFirmware = "", sSerial = "", sPlatform = "";
-            axCZKEM1.GetFirmwareVersion(iMachineNumber, ref sFirmware);
-            axCZKEM1.GetSerialNumber(iMachineNumber, out sSerial);
-            axCZKEM1.GetPlatform(iMachineNumber, ref sPlatform);
-
-            int iUserCount = 0, iFingerCount = 0, iFaceCount = 0, iRecordCount = 0;
-            int val = 0;
-            if (axCZKEM1.GetDeviceStatus(iMachineNumber, 6, ref val)) iUserCount = val;
-            if (axCZKEM1.GetDeviceStatus(iMachineNumber, 2, ref val)) iFingerCount = val;
-            if (axCZKEM1.GetDeviceStatus(iMachineNumber, 21, ref val)) iFaceCount = val;
-            if (axCZKEM1.GetDeviceStatus(iMachineNumber, 12, ref val)) iRecordCount = val;
-
-            string sDeviceTime = "";
-            int idwYear = 0, idwMonth = 0, idwDay = 0, idwHour = 0, idwMinute = 0, idwSecond = 0;
-            if (axCZKEM1.GetDeviceTime(iMachineNumber, ref idwYear, ref idwMonth, ref idwDay, ref idwHour, ref idwMinute, ref idwSecond))
-            {
-                sDeviceTime = $"{idwYear}-{idwMonth:D2}-{idwDay:D2} {idwHour:D2}:{idwMinute:D2}:{idwSecond:D2}";
-            }
-
-            StringBuilder json = new StringBuilder();
-            json.Append("{");
-            json.Append($"\"status\": \"OK\",");
-            json.Append($"\"firmware\": \"{CleanString(sFirmware)}\",");
-            json.Append($"\"serial\": \"{CleanString(sSerial)}\",");
-            json.Append($"\"platform\": \"{CleanString(sPlatform)}\",");
-            json.Append($"\"deviceTime\": \"{sDeviceTime}\",");
-            json.Append($"\"userCount\": {iUserCount},");
-            json.Append($"\"fingers\": {iFingerCount},");
-            json.Append($"\"faces\": {iFaceCount},");
-            json.Append($"\"records\": {iRecordCount}");
-            json.Append("}");
-            Console.WriteLine(json.ToString());
-        }
-
-        static void DumpConfig(int iMachineNumber)
-        {
-            List<string> paramsToCheck = new List<string>()
-            {
-                "~SerialNumber", "~DeviceName", "~Platform", "~OS", "FirmwareVersion", "~ZKFPVersion",
-                "IPAddress", "NetMask", "GATEIPAddress", "RS232BaudRate",
-                "UserCount", "FaceCount", "FingerCount", "AttLogCount", "PhotoCount",
-                "CameraOn", "CaptureErrorImage", "SaveUserPhoto",
-                "FaceFunOn", "FaceIdentify", "FaceVerify", "CaptureFace",
-                "UploadPhoto", "TakeUserPhoto", "ShowPicture",
-                "LockFunOn", "Door1ForcePassWord", "ReaderTeacher","ParametroTrampa"
-            };
-
-            Console.WriteLine("[");
-            bool first = true;
-            foreach (string param in paramsToCheck)
-            {
-                string val = "";
-                if (axCZKEM1.GetSysOption(iMachineNumber, param, out val))
-                {
-                    if (!first) Console.WriteLine(",");
-                    Console.Write($"{{\"param\": \"{param}\", \"value\": \"{CleanString(val)}\", \"status\": \"OK\"}}");
-                    first = false;
-                }
-            }
-            Console.WriteLine("]");
-        }
-
-        static void CaptureScreenshot(int iMachineNumber, string destPath)
-        {
-            try
-            {
-                if (axCZKEM1.CaptureImage(false, 0, 0, ref map[0], destPath))
-                    Console.WriteLine($"{{\"status\": \"OK\", \"message\": \"Captura exitosa\", \"path\": \"{CleanString(destPath)}\"}}");
-                else
-                {
-                    int err = 0; axCZKEM1.GetLastError(ref err);
-                    Console.WriteLine($"{{\"error\": \"Fallo captura. ErrorCode: {err}\"}}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"{{\"error\": \"Excepción: {CleanString(ex.Message)}\"}}");
-            }
-        }
-
-        static void SetParam(int iMachineNumber, string paramName, string paramValue)
-        {
-            try
-            {
-                if (axCZKEM1.SetSysOption(iMachineNumber, paramName, paramValue))
-                {
-                    axCZKEM1.RefreshData(iMachineNumber);
-                    Console.WriteLine($"{{\"status\": \"OK\", \"message\": \"Parámetro {paramName} actualizado a {paramValue}\"}}");
-                }
-                else
-                {
-                    int err = 0; axCZKEM1.GetLastError(ref err);
-                    Console.WriteLine($"{{\"error\": \"No se pudo establecer {paramName}. Error: {err}\"}}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"{{\"error\": \"Excepción: {CleanString(ex.Message)}\"}}");
-            }
-        }
-
-        static void GetParam(int iMachineNumber, string paramName)
-        {
-            try
-            {
-                string value = "";
-                if (axCZKEM1.GetSysOption(iMachineNumber, paramName, out value))
-                {
-                    Console.WriteLine($"{{\"status\": \"OK\", \"param\": \"{paramName}\", \"value\": \"{CleanString(value)}\"}}");
-                }
-                else
-                {
-                    int err = 0; axCZKEM1.GetLastError(ref err);
-                    Console.WriteLine($"{{\"error\": \"No se pudo leer '{paramName}'. ErrorCode: {err}\"}}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"{{\"error\": \"Excepción: {CleanString(ex.Message)}\"}}");
-            }
-        }
-
-        static void DownloadPhotos(int iMachineNumber, string destFolder)
-        {
-            try
-            {
-                if (!Directory.Exists(destFolder)) Directory.CreateDirectory(destFolder);
-                axCZKEM1.SetSysOption(iMachineNumber, "UploadPhoto", "0");
-                axCZKEM1.RefreshData(iMachineNumber);
-                axCZKEM1.EnableDevice(iMachineNumber, false);
-
-                Console.WriteLine("{\"message\": \"[MODO FUERZA BRUTA] Procesando logs recientes...\"}");
-
-                string sdwEnrollNumber = "";
-                int idwVerifyMode = 0, idwInOutMode = 0, idwYear = 0, idwMonth = 0, idwDay = 0, idwHour = 0, idwMinute = 0, idwSecond = 0, idwWorkcode = 0;
-                int found = 0;
-
-                if (axCZKEM1.ReadAllGLogData(iMachineNumber))
-                {
-                    while (axCZKEM1.SSR_GetGeneralLogData(iMachineNumber, out sdwEnrollNumber, out idwVerifyMode,
-                               out idwInOutMode, out idwYear, out idwMonth, out idwDay, out idwHour, out idwMinute, out idwSecond, ref idwWorkcode))
-                    {
-                        DateTime logTime = new DateTime(idwYear, idwMonth, idwDay, idwHour, idwMinute, idwSecond);
-                        if (logTime < DateTime.Now.AddDays(-1)) continue;
-
-                        List<DateTime> timeCandidates = new List<DateTime> {
-                            logTime, logTime.AddHours(6), logTime.AddHours(5),
-                            logTime.AddHours(-6), logTime.AddHours(-5)
-                        };
-
-                        foreach (var t in timeCandidates)
-                        {
-                            string ts = $"{t.Year}{t.Month:D2}{t.Day:D2}{t.Hour:D2}{t.Minute:D2}{t.Second:D2}";
-                            string[] filenames = { $"{ts}.jpg", $"{sdwEnrollNumber}_{ts}.jpg", $"{ts}_{sdwEnrollNumber}.jpg" };
-
-                            foreach (string fname in filenames)
-                            {
-                                string localPath = Path.Combine(destFolder, fname);
-                                if (File.Exists(localPath)) continue;
-
-                                if (axCZKEM1.GetPhotoByNameToFile(iMachineNumber, fname, localPath))
-                                {
-                                    Console.WriteLine($"{{\"status\": \"found\", \"file\": \"{fname}\", \"log_time\": \"{logTime}\"}}");
-                                    found++;
-                                    goto NextLog;
-                                }
-                            }
-                        }
-                    NextLog:;
-                    }
-
-                    Console.WriteLine(found > 0
-                        ? $"{{\"status\": \"OK\", \"message\": \"¡ÉXITO! Se recuperaron {found} fotos.\", \"path\": \"{CleanString(destFolder)}\"}}"
-                        : "{\"status\": \"OK\", \"message\": \"0 fotos encontradas en logs recientes.\", \"count\": 0}");
-                }
-                else
-                {
-                    int err = 0; axCZKEM1.GetLastError(ref err);
-                    Console.WriteLine($"{{\"error\": \"Fallo al leer logs. ErrorCode: {err}\"}}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"{{\"error\": \"Error Critico: {CleanString(ex.Message)}\"}}");
-            }
-            finally
-            {
-                axCZKEM1.EnableDevice(iMachineNumber, true);
-            }
-        }
-static void UploadFingerprintsFromFile(int iMachineNumber, string filePath)
-        {
-            if (!File.Exists(filePath)) { Console.WriteLine("{\"error\": \"Archivo no encontrado\"}"); return; }
-
-            axCZKEM1.EnableDevice(iMachineNumber, false);
-            int success = 0, fail = 0;
-            
-            // Formato esperado: UID|Index:Template|Index:Template...
-            foreach (string line in File.ReadAllLines(filePath))
-            {
-                if (string.IsNullOrWhiteSpace(line)) continue;
-                try
-                {
-                    string[] parts = line.Split('|');
-                    if (parts.Length < 2) continue;
-
-                    string uid = parts[0];
-                    bool userSuccess = true;
-
-                    for (int i = 1; i < parts.Length; i++)
-                    {
-                        if (string.IsNullOrEmpty(parts[i])) continue;
-                        string[] fingerData = parts[i].Split(':');
-                        if (fingerData.Length == 2)
-                        {
-                            int idx = int.Parse(fingerData[0]);
-                            string tmp = fingerData[1];
-                            // 1 = Flag válido
-                            if (!axCZKEM1.SetUserTmpExStr(iMachineNumber, uid, idx, 1, tmp))
-                            {
-                                userSuccess = false;
-                            }
-                        }
-                    }
-
-                    if (userSuccess) success++;
-                    else fail++;
-                }
-                catch { fail++; }
-            }
-
-            axCZKEM1.RefreshData(iMachineNumber);
-            axCZKEM1.EnableDevice(iMachineNumber, true);
-            Console.WriteLine($"{{\"status\": \"OK\", \"success\": {success}, \"failed\": {fail}}}");
-            Console.Out.Flush();
-        }
-        static void UploadUser(int iMachineNumber, string dataString)
-        {
-            string[] parts = dataString.Split('|');
-            if (parts.Length < 4) { Console.WriteLine("{\"error\": \"Invalid data format\"}"); return; }
-
-            string uid = parts[0];
-            string name = parts[1];
-            int privilege = int.Parse(parts[2]);
-            string password = parts[3];
-            string faceTmp = (parts.Length > 4 && parts[4] != "null") ? parts[4] : "";
-
-            axCZKEM1.EnableDevice(iMachineNumber, false);
-
-            if (axCZKEM1.SSR_SetUserInfo(iMachineNumber, uid, name, password, privilege, true))
-            {
-                if (!string.IsNullOrEmpty(faceTmp))
-                {
-                    axCZKEM1.DelUserFace(iMachineNumber, uid, 50);
-
-                    bool faceUploaded = axCZKEM1.SetUserFaceStr(iMachineNumber, uid, 50, faceTmp, faceTmp.Length);
-                    if (!faceUploaded)
-                    {
-                        try
-                        {
-                            byte[] faceBytes = Convert.FromBase64String(faceTmp);
-                            axCZKEM1.SetUserFace(iMachineNumber, uid, 50, ref faceBytes[0], faceBytes.Length);
-                        }
-                        catch { }
-                    }
-                }
-
-                for (int i = 5; i < parts.Length; i++)
-                {
-                    if (string.IsNullOrEmpty(parts[i])) continue;
-                    string[] fingerData = parts[i].Split(':');
-                    if (fingerData.Length == 2)
-                    {
-                        int idx = int.Parse(fingerData[0]);
-                        string tmp = fingerData[1];
-                        axCZKEM1.SetUserTmpExStr(iMachineNumber, uid, idx, 1, tmp);
-                    }
-                }
-
-                axCZKEM1.RefreshData(iMachineNumber);
-                Console.WriteLine("{\"status\": \"OK\", \"message\": \"User uploaded\"}");
-            }
-            else
-            {
-                int err = 0; axCZKEM1.GetLastError(ref err);
-                Console.WriteLine($"{{\"error\": \"Failed to set user info. Error: {err}\"}}");
-            }
-
-            axCZKEM1.EnableDevice(iMachineNumber, true);
-        }
-
-        static void DeleteUser(int iMachineNumber, string uid)
-        {
-            axCZKEM1.EnableDevice(iMachineNumber, false);
-            if (axCZKEM1.SSR_DeleteEnrollData(iMachineNumber, uid, 12))
-            {
-                axCZKEM1.RefreshData(iMachineNumber);
-                Console.WriteLine("{\"status\": \"OK\"}");
-            }
-            else
-            {
-                Console.WriteLine("{\"error\": \"Fail\"}");
-            }
-            axCZKEM1.EnableDevice(iMachineNumber, true);
-        }
-
-        static void ClearFaces(int iMachineNumber)
-        {
-            axCZKEM1.EnableDevice(iMachineNumber, false);
-            axCZKEM1.ReadAllUserID(iMachineNumber);
-
-            string sEnrollNumber = "", sName = "", sPassword = "";
-            int iPrivilege = 0;
-            bool bEnabled = false;
-            int count = 0;
-
-            // Iteramos todos los usuarios y borramos su rostro (Index 50)
-            while (axCZKEM1.SSR_GetAllUserInfo(iMachineNumber, out sEnrollNumber, out sName, out sPassword, out iPrivilege, out bEnabled))
-            {
-                if (axCZKEM1.DelUserFace(iMachineNumber, sEnrollNumber, 50))
-                    count++;
-            }
-
-            axCZKEM1.RefreshData(iMachineNumber);
-            axCZKEM1.EnableDevice(iMachineNumber, true);
-            Console.WriteLine($"{{\"status\": \"OK\", \"deleted\": {count}}}");
-            Console.Out.Flush();
-        }
-
-        static void ClearFingerprints(int iMachineNumber)
-        {
-            axCZKEM1.EnableDevice(iMachineNumber, false);
-            // ClearData(2) borra todas las plantillas de huellas
-            if (axCZKEM1.ClearData(iMachineNumber, 2))
-            {
-                axCZKEM1.RefreshData(iMachineNumber);
-                Console.WriteLine("{\"status\": \"OK\"}");
-            }
-            else
-            {
-                int err = 0; axCZKEM1.GetLastError(ref err);
-                Console.WriteLine($"{{\"error\": \"Fallo ClearData(2). Code: {err}\"}}");
-            }
-            axCZKEM1.EnableDevice(iMachineNumber, true);
-            Console.Out.Flush();
-        }
-
-        static void ClearAllData(int iMachineNumber)
-        {
-            axCZKEM1.EnableDevice(iMachineNumber, false);
-            // ClearData(5) borra toda la información de usuarios (Huellas, Rostros, Passwords, Tarjetas)
-            if (axCZKEM1.ClearData(iMachineNumber, 5))
-            {
-                axCZKEM1.RefreshData(iMachineNumber);
-                Console.WriteLine("{\"status\": \"OK\"}");
-            }
-            else
-            {
-                int err = 0; axCZKEM1.GetLastError(ref err);
-                Console.WriteLine($"{{\"error\": \"Fallo ClearData(5). Code: {err}\"}}");
-            }
-            axCZKEM1.EnableDevice(iMachineNumber, true);
-            Console.Out.Flush();
-        }
-
-        static string CleanString(string s)
-        {
-            if (string.IsNullOrEmpty(s)) return "";
-            return s.Replace("\"", "'").Replace("\\", "/").Trim();
+            try { AdminpaqSdk.fCierraEmpresa(); } catch { }
+            try { AdminpaqSdk.fTerminaSDK(); } catch { }
         }
     }
+
+    // ========================================================================
+    // Helpers SQL, SDK y Lógica de Negocio 
+    // ========================================================================
+    static Tuple<Encabezado, List<Detalle>> ObtenerFacturaCompleta(string connString, int id)
+    {
+        var enc = new Encabezado();
+        var dets = new List<Detalle>();
+
+        using (var cn = new SqlConnection(connString))
+        {
+            cn.Open();
+            using (var cmd = new SqlCommand("sp_com_ObtenerDatosFacturaPorID", cn))
+            {
+                cmd.CommandType = CommandType.StoredProcedure;
+                cmd.Parameters.Add("@ID", SqlDbType.Int).Value = id;
+
+                using (var rd = cmd.ExecuteReader())
+                {
+                    if (!rd.Read()) throw new ApplicationException("No se encontró encabezado para ese ID.");
+
+                    enc.CodigoConcepto = rd["CodigoConcepto"] as string ?? "";
+                    enc.Serie = rd["Serie"] as string;
+                    enc.FechaEmision = (DateTime)rd["FechaEmision"];
+                    enc.HoraEmision = rd["HoraEmision"] as string;
+                    enc.Email = rd["Email"] as string;
+                    enc.RFC = rd["RFC"] as string;
+                    enc.RazonSocial = rd["RazonSocial"] as string;
+                    enc.Total = Convert.ToDouble(rd["Total"]);
+                    enc.Referencia = rd["Referencia"] as string;
+                    enc.MetodoPago = rd["MetodoPago"] as string;
+                    enc.FormaPago = rd["FormaPago"] as string;
+                    try { enc.UsoCFDI = rd["UsoCFDI"] as string; } catch { }
+                    try { enc.CondicionPago = rd["CondicionPago"] as string; } catch { }
+                    enc.Observaciones = rd["Observaciones"] as string;
+                    enc.Subtotal = Convert.ToDouble(rd["Subtotal"]);
+                    enc.DesctoImp = Convert.ToDouble(rd["DesctoImp"]);
+                    enc.Moneda = Convert.ToInt32(rd["Moneda"]);
+                    enc.TipoCambio = Convert.ToDouble(rd["TipoCambio"]);
+                    enc.Impuesto1 = Convert.ToDouble(rd["Impuesto1"]);
+                    enc.Impuesto2 = Convert.ToDouble(rd["Impuesto2"]);
+                    enc.Pendiente = rd["Pendiente"] as string;
+                    enc.CodigoCliente = rd["CodigoCliente"] as string;
+
+                    try { enc.TipoDocumento = Convert.ToInt32(rd["TipoDocumento"]); } catch { enc.TipoDocumento = 1; }
+                    try { enc.TipoRelacion = rd["TipoRelacion"] as string; } catch { }
+
+                    if (rd.NextResult())
+                    {
+                        while (rd.Read())
+                        {
+                            var det = new Detalle
+                            {
+                                Renglon = Convert.ToInt32(rd["Renglon"]),
+                                CodigoProducto = rd["CodigoProducto"] as string ?? "",
+                                Cantidad = Convert.ToDouble(rd["Cantidad"]),
+                                PrecioUnitario = Convert.ToDouble(rd["PrecioUnitario"]),
+                                Referencia = rd["Referencia"] as string,
+                                DesctoImp = rd["DesctoImp"] is DBNull ? (double?)null : Convert.ToDouble(rd["DesctoImp"])
+                            };
+
+                            try { if (!rd.IsDBNull(rd.GetOrdinal("FacturaOrigen_Concepto"))) det.FacturaOrigen_Concepto = rd["FacturaOrigen_Concepto"] as string; } catch { }
+                            try { if (!rd.IsDBNull(rd.GetOrdinal("FacturaOrigen_Serie"))) det.FacturaOrigen_Serie = rd["FacturaOrigen_Serie"] as string; } catch { }
+                            try { if (!rd.IsDBNull(rd.GetOrdinal("FacturaOrigen_Folio"))) det.FacturaOrigen_Folio = Convert.ToDouble(rd["FacturaOrigen_Folio"]); } catch { }
+                            try { if (!rd.IsDBNull(rd.GetOrdinal("FacturaOrigen_UUID"))) det.FacturaOrigen_UUID = rd["FacturaOrigen_UUID"] as string; } catch { }
+                            try { if (!rd.IsDBNull(rd.GetOrdinal("ImporteAplicado"))) det.ImporteAplicado = Convert.ToDouble(rd["ImporteAplicado"]); } catch { }
+
+                            dets.Add(det);
+                        }
+                    }
+                }
+            }
+        }
+        return Tuple.Create(enc, dets);
+    }
+
+    static void GarantizarCliente(string connString, string codigoCte)
+    {
+        if (AdminpaqSdk.fBuscaCteProv(codigoCte) != 0)
+        {
+            Console.WriteLine($"INFO | Cliente '{codigoCte}' no encontrado. Creando...");
+
+            DataRow datos = ObtenerDatosDesdeSQL(connString, "sp_com_GetDatosClienteParaAlta", "@CodigoClienteBMS", codigoCte);
+            if (datos == null) throw new ApplicationException($"Cliente {codigoCte} no existe en Compac ni en BMS.");
+            var nuevoCte = new tCteProv { cCodigoCliente = SafeStr(datos["Codigo"], 30), cRazonSocial = SafeStr(datos["RazonSocial"], 60), cRFC = SafeStr(datos["RFC"], 20), cFechaAlta = DateTime.Now.ToString("yyyyMMdd"), cTipoCliente = 1, cEstatus = 1, cListaPreciosCliente = 1, cNombreMoneda = "(Ninguna)" };
+            int idGenerado = 0;
+            SdkCheck(AdminpaqSdk.fAltaCteProv(ref idGenerado, ref nuevoCte), "fAltaCteProv");
+            SdkCheck(AdminpaqSdk.fBuscaCteProv(codigoCte), "fBuscaCteProv Post-Alta");
+            SdkCheck(AdminpaqSdk.fEditaCteProv(), "fEditaCteProv");
+            if (!string.IsNullOrEmpty(SafeStr(datos["RFC"], 20))) SdkCheck(AdminpaqSdk.fSetDatoCteProv("cRFC", SafeStr(datos["RFC"], 20)), "Set cRFC");
+            SdkCheck(AdminpaqSdk.fSetDatoCteProv("cregimfisc", SafeStr(datos["RegimenFiscal"], 20)), "Set cregimfisc");
+            SdkCheck(AdminpaqSdk.fGuardaCteProv(), "fGuardaCteProv");
+            var direccion = new tDireccion { cCodCteProv = nuevoCte.cCodigoCliente, cTipoCatalogo = 1, cTipoDireccion = 1, cNombreCalle = ".", cNumeroExterior = ".", cNumeroInterior = ".", cColonia = ".", cCodigoPostal = "00000", cCiudad = ".", cEstado = ".", cPais = "MEXICO" };
+            int idDir = 0;
+            AdminpaqSdk.fAltaDireccion(ref idDir, ref direccion);
+            InyectarDireccionDefinitiva(nuevoCte.cCodigoCliente, datos);
+        }
+    }
+
+    static void InyectarDireccionDefinitiva(string codigoCte, DataRow datos)
+    {
+        int foundType = -1;
+        for (int i = 0; i < 3; i++) { if (AdminpaqSdk.fBuscaDireccionCteProv(codigoCte, 0) == 0) { foundType = 0; break; } if (AdminpaqSdk.fBuscaDireccionCteProv(codigoCte, 1) == 0) { foundType = 1; break; } Thread.Sleep(500); }
+        if (foundType == -1) return;
+        SdkCheck(AdminpaqSdk.fEditaDireccion(), "fEditaDireccion");
+        string cp = SafeStr(datos["CP"], 10);
+        SdkCheck(AdminpaqSdk.fSetDatoDireccion("cnombrec01", SafeStr(datos["Calle"], 60)), "Set Calle");
+        SdkCheck(AdminpaqSdk.fSetDatoDireccion("cnumeroe01", SafeStr(datos["NumExt"], 20)), "Set NumExt");
+        SdkCheck(AdminpaqSdk.fSetDatoDireccion("ccolonia", SafeStr(datos["Colonia"], 60)), "Set Colonia");
+        if (AdminpaqSdk.fSetDatoDireccion("cCodigoPostal", cp) != 0) AdminpaqSdk.fSetDatoDireccion("ccodigop01", cp);
+        SdkCheck(AdminpaqSdk.fSetDatoDireccion("cciudad", SafeStr(datos["Ciudad"], 60)), "Set Ciudad");
+        SdkCheck(AdminpaqSdk.fSetDatoDireccion("cmunicipio", SafeStr(datos["Ciudad"], 60)), "Set Municipio");
+        SdkCheck(AdminpaqSdk.fSetDatoDireccion("cestado", SafeStr(datos["Estado"], 60)), "Set Estado");
+        SdkCheck(AdminpaqSdk.fSetDatoDireccion("cpais", SafeStr(datos["Pais"], 60)), "Set Pais");
+        SdkCheck(AdminpaqSdk.fGuardaDireccion(), "fGuardaDireccion (Inyeccion)");
+    }
+
+    static void GarantizarProducto(string connString, string codigoProd)
+    {
+        if (AdminpaqSdk.fBuscaProducto(codigoProd) != 0)
+        {
+            DataRow datos = ObtenerDatosDesdeSQL(connString, "sp_com_GetDatosProductoParaAlta", "@CodigoProductoBMS", codigoProd);
+            if (datos == null) throw new ApplicationException($"Producto {codigoProd} no existe en Compac ni BMS.");
+            string unidad = SafeStr(datos["CodigoUnidad"], 20);
+            if (LocalSdk.fBuscaUnidad(unidad) != 0) { unidad = "PZA"; if (LocalSdk.fBuscaUnidad(unidad) != 0) unidad = "H87"; }
+            var nuevoProd = new tProducto { cCodigoProducto = SafeStr(datos["Codigo"], 30), cNombreProducto = SafeStr(datos["Nombre"], 60), cDescripcionProducto = SafeStr(datos["Descripcion"], 60), cTipoProducto = 3, cFechaAltaProducto = DateTime.Now.ToString("yyyyMMdd"), cStatusProducto = 1, cMetodoCosteo = 1, cCodigoUnidadBase = unidad, cCodigoUnidadNoConvertible = "", cPrecio1 = Convert.ToDouble(datos["Precio1"]) };
+            int idGenerado = 0;
+            SdkCheck(AdminpaqSdk.fAltaProducto(ref idGenerado, ref nuevoProd), "fAltaProducto (Auto)");
+            SdkCheck(AdminpaqSdk.fBuscaProducto(codigoProd), "fBuscaProducto Post-Alta");
+            SdkCheck(AdminpaqSdk.fEditaProducto(), "fEditaProducto");
+            string claveSat = SafeStr(datos["ClaveSAT"], 20);
+            if (!string.IsNullOrEmpty(claveSat)) if (AdminpaqSdk.fSetDatoProducto("cclavesat", claveSat) != 0) AdminpaqSdk.fSetDatoProducto("CClaveSAT", claveSat);
+            SdkCheck(AdminpaqSdk.fGuardaProducto(), "fGuardaProducto");
+        }
+    }
+
+    static string SafeStr(object val, int maxLength) { if (val == null || val == DBNull.Value) return ""; string str = val.ToString().Trim(); return str.Length > maxLength ? str.Substring(0, maxLength) : str; }
+    static DataRow ObtenerDatosDesdeSQL(string connString, string spName, string paramName, string paramValue) { using (var cn = new SqlConnection(connString)) { cn.Open(); using (var cmd = new SqlCommand(spName, cn)) { cmd.CommandType = CommandType.StoredProcedure; cmd.Parameters.AddWithValue(paramName, paramValue); var dt = new DataTable(); using (var da = new SqlDataAdapter(cmd)) { da.Fill(dt); } return dt.Rows.Count > 0 ? dt.Rows[0] : null; } } }
+    static void TryEjecutarPostProc(string connString, int id, bool exito, string error, double aFolio) { if (string.IsNullOrWhiteSpace(connString)) return; try { using (var cn = new SqlConnection(connString)) { cn.Open(); using (var cmd = new SqlCommand("dbo.sp_com_FacturaPostImport", cn)) { cmd.CommandType = CommandType.StoredProcedure; cmd.Parameters.Add("@ID", SqlDbType.Int).Value = id; cmd.Parameters.Add("@Exito", SqlDbType.Bit).Value = exito; cmd.Parameters.Add("@cFolio", SqlDbType.Decimal).Value = aFolio; var pErr = cmd.Parameters.Add("@Error", SqlDbType.NVarChar, -1); if (string.IsNullOrEmpty(error)) pErr.Value = DBNull.Value; else pErr.Value = error; cmd.ExecuteNonQuery(); } } } catch (Exception ex) { Console.WriteLine($"ERROR | PostProc | {ex.Message}"); } }
+    static string FormatError(Exception ex) { return $"{ex.GetType().FullName}: {ex.Message}"; }
+    static double CalcularFolio(Encabezado e) { StringBuilder serie = new StringBuilder(e.Serie); double folio = 0; var rc = AdminpaqSdk.fSiguienteFolio(e.CodigoConcepto, serie, ref folio); if (rc != 0) return 0; return folio; }
+    static void SdkCheck(int codigoError, string contexto, string extra = null) { if (codigoError == 0) return; var msg = new StringBuilder(1024); try { AdminpaqSdk.fError(codigoError, msg, msg.Capacity); } catch { } var texto = msg.Length > 0 ? msg.ToString() : "(sin detalle)"; Console.WriteLine($"ERROR | {contexto} | [{codigoError}] {texto}{(extra != null ? " | " + extra : "")}"); throw new ApplicationException($"{contexto}: [{codigoError}] {texto}"); }
+    static void SetDatoDoc(string campo, string valor) { if (string.IsNullOrWhiteSpace(valor)) return; int rc = AdminpaqSdk.fSetDatoDocumento(campo, valor); if (rc != 0) Console.WriteLine($"WARN | fSetDatoDocumento {campo}='{valor}' falló (Err: {rc}). Se ignora."); }
+}
+
+class Encabezado
+{
+    public string CodigoConcepto { get; set; }
+    public string Serie { get; set; }
+    public DateTime FechaEmision { get; set; }
+    public string HoraEmision { get; set; }
+    public string Email { get; set; }
+    public string RFC { get; set; }
+    public string RazonSocial { get; set; }
+    public double Total { get; set; }
+    public string Referencia { get; set; }
+    public string MetodoPago { get; set; }
+    public string FormaPago { get; set; }
+    public string UsoCFDI { get; set; }
+    public string CondicionPago { get; set; }
+    public string Observaciones { get; set; }
+    public double Subtotal { get; set; }
+    public double DesctoImp { get; set; }
+    public Int32 Moneda { get; set; }
+    public double TipoCambio { get; set; }
+    public double Impuesto1 { get; set; }
+    public double Impuesto2 { get; set; }
+    public string Pendiente { get; set; }
+    public string CodigoCliente { get; set; }
+    public int TipoDocumento { get; set; }
+    public string TipoRelacion { get; set; }
+}
+
+class Detalle
+{
+    public int Renglon { get; set; }
+    public string CodigoProducto { get; set; }
+    public double Cantidad { get; set; }
+    public double PrecioUnitario { get; set; }
+    public string Referencia { get; set; }
+    public double? DesctoImp { get; set; }
+
+    // DATOS DE APLICACIÓN DE SALDO EN PARTIDAS
+    public string FacturaOrigen_Concepto { get; set; }
+    public string FacturaOrigen_Serie { get; set; }
+    public double? FacturaOrigen_Folio { get; set; }
+    public string FacturaOrigen_UUID { get; set; }
+    public double? ImporteAplicado { get; set; }
+}
+
+internal static class LocalSdk
+{
+    [DllImport("MGW_SDK.dll")]
+    public static extern int fBuscaUnidad(string aCodigoUnidad);
 }

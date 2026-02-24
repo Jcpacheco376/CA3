@@ -2,11 +2,11 @@
 import React from 'react';
 import { Permission } from '../types';
 // --- MODIFICACIÓN: Importamos todos los íconos necesarios ---
-import { 
-    Users, Settings, FileText, Folder, PlusCircle, Pencil, Trash, Eye, 
+import {
+    Users, Settings, FileText, Folder, PlusCircle, Pencil, Trash, Eye,
     Check, CheckCircle, CalendarClock, Building, Clock, Briefcase, Tag, MapPin, Lock, Unlock,
     ClipboardList, Banknote, History, LayoutDashboard,
-    BarChart3, PieChart, TrendingUp, Bell, CreditCard,Server, Map, RefreshCw, DownloadCloud, Activity
+    BarChart3, PieChart, TrendingUp, Bell, CreditCard, Server, Map, RefreshCw, DownloadCloud, Activity
 } from 'lucide-react';
 
 // --- MODIFICACIÓN: Etiquetas de Recurso actualizadas ---
@@ -54,7 +54,7 @@ const actionLabels: { [key: string]: string } = {
     'sync_logs': 'Descargar Asistencia',
     'sync_users': 'Sincronizar Personal (Full)',
     'test': 'Diagnóstico y Pruebas'
-    
+
 };
 
 // --- MODIFICACIÓN: Iconos de Recurso (para el modal de roles) ---
@@ -71,7 +71,7 @@ export const permissionIcons: { [key: string]: JSX.Element } = {
     'catalogo.establecimientos': <MapPin size={18} />,
     'reportes': <FileText size={18} />,
     'dashboard': <LayoutDashboard size={18} />,
-    'nomina': <Lock size={18} />, 
+    'nomina': <Lock size={18} />,
     'dispositivos': <Server size={18} />,
     'zonas': <Map size={18} />,
     'default': <Folder size={18} />
@@ -83,10 +83,10 @@ export const actionIcons: { [key: string]: JSX.Element } = {
     'read': <Eye size={16} />,
     'update': <Pencil size={16} />,
     'delete': <Trash size={16} />,
-    'assign': <Pencil size={16}/>, 
-    'approve': <Check size={16}/>,
+    'assign': <Pencil size={16} />,
+    'approve': <Check size={16} />,
     'manage': <Settings size={16} />,
-    'unlock': <Unlock size={16} />, 
+    'unlock': <Unlock size={16} />,
     'default': <Check size={16} />,
     'resolve': <CheckCircle size={16} />,
     // Widgets
@@ -102,8 +102,7 @@ export const actionIcons: { [key: string]: JSX.Element } = {
     'bitacora.read': <History size={16} />,
     'sync_logs': <DownloadCloud size={16} />,
     'sync_users': <RefreshCw size={16} />,
-    'test': <Activity size={16} />,
-    'default': <Check size={16} />
+    'test': <Activity size={16} />
 };
 
 const getParts = (permissionName: string) => {
@@ -162,7 +161,7 @@ export const setupPermissions = (permissions: Permission[]) => {
                 dependencies[p.NombrePermiso] = readPermission.NombrePermiso;
             }
         }
-        
+
     });
 
     return { groups, dependencies };

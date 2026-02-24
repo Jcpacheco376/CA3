@@ -3,6 +3,9 @@ import sql from 'mssql';
 import { dbConfig } from '../../config/database';
 
 export const getEmployeeProfile = async (req: any, res: Response) => {
+    const msg = `--- [DEBUG] getEmployeeProfile CALLED with ID: ${req.params.employeeId}\n`;
+    require('fs').appendFileSync(require('path').join(process.env.TEMP || 'C:\\Windows\\Temp', 'api_debug.log'), msg);
+    res.setHeader('X-API-Version', 'DEBUG-1');
     if (!req.user.permissions['usuarios.read'] &&
         !req.user.permissions['reportesAsistencia.read.own'] &&
         !req.user.permissions['horarios.read'] &&
@@ -225,3 +228,56 @@ export const deleteEmployee = async (req: any, res: Response) => {
         res.status(500).json({ message: err.message || 'Error al eliminar empleado.' });
     }
 };
+
+export const getBirthdays = async (req: Request, res: Response) => {
+    try {
+        const { months } = req.query;
+        if (!months) return res.status(400).json({ message: 'Meses no especificados.' });
+
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request()
+            .input('Months', sql.NVarChar, months.toString())
+            .execute('sp_Empleados_GetBirthdays');
+
+        res.json(result.recordset);
+    } catch (err: any) {
+        console.error('Error al obtener cumpleaños:', err);
+        res.status(500).json({ message: err.message || 'Error del servidor.' });
+    }
+};
+
+export const getAnniversaries = async (req: Request, res: Response) => {
+    const msg = `--- [DEBUG] getAnniversaries CALLED with query: ${JSON.stringify(req.query)}\n`;
+    require('fs').appendFileSync(require('path').join(process.env.TEMP || 'C:\\Windows\\Temp', 'api_debug.log'), msg);
+    try {
+        const { months } = req.query;
+        if (!months) return res.status(400).json({ message: 'Meses no especificados.' });
+
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request()
+            .input('Months', sql.NVarChar, months.toString())
+            .execute('sp_Empleados_GetAnniversaries');
+
+        res.json(result.recordset);
+    } catch (err: any) {
+        // Log error to a file for investigation (using a more accessible path)
+        const tempLogPath = require('path').join(process.env.TEMP || process.env.TMP || 'C:\\Windows\\Temp', 'error_anniv.log');
+        const errorLog = `[${new Date().toISOString()}] Error in getAnniversaries: ${err.message}\nStack: ${err.stack}\nQuery: ${JSON.stringify(req.query)}\n`;
+        require('fs').appendFileSync(tempLogPath, errorLog);
+
+        console.error('Error al obtener aniversarios:', err);
+        res.status(500).json({ message: err.message || 'Error del servidor.' });
+    }
+};
+
+export const getPermittedEmployees = async (req: any, res: Response) => {
+    try {
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request()
+            .input('UsuarioId', sql.Int, req.user.usuarioId)
+            .execute('dbo.sp_Empleados_GetPermitidos');
+        res.json(result.recordset);
+    } catch (err: any) {
+        res.status(500).json({ message: err.message || 'Error al obtener empleados permitidos.' });
+    }
+}

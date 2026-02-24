@@ -16,7 +16,8 @@ BEGIN
         t.ColorUI,
         t.Icono,
         t.EsSistema,
-        t.Activo
+        t.Activo,
+        t.esGeneral
     FROM dbo.TiposEventoCalendario t
     LEFT JOIN dbo.CatalogoEstatusAsistencia ea ON t.EstatusAsistenciaId = ea.EstatusId
     WHERE t.Activo = 1

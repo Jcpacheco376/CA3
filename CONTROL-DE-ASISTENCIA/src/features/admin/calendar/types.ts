@@ -13,6 +13,7 @@ export interface EventType {
     Icono: string;
     EsSistema: boolean;
     Activo: boolean;
+    esGeneral: boolean;
 }
 
 export interface EventFilter {
@@ -51,4 +52,25 @@ export interface DimensionFilter {
 export interface FilterGroup {
     id: string; // unique ID for React keys
     filters: DimensionFilter[];
+}
+
+export interface EmployeeBirthday {
+    EmpleadoId: number;
+    Nombres: string;
+    ApellidoPaterno: string;
+    ApellidoMaterno: string;
+    FechaNacimiento: string;
+    DiaNacimiento: number;
+    MesNacimiento: number;
+}
+
+export interface EmployeeAnniversary {
+    EmpleadoId: number;
+    Nombres: string;
+    ApellidoPaterno: string;
+    ApellidoMaterno: string;
+    FechaIngreso: string;
+    DiaAniversario: number;
+    MesAniversario: number;
+    AniosServicio: number;
 }

@@ -33,14 +33,18 @@ interface EventEditorModalProps {
     matchingCount: { total: number | null, byGroup: number[] };
     totalCount: number | null;
     handleSubmit: (e: React.FormEvent) => void;
+    onEventTypeChange: (newEventTypeId: string) => void;
+    user: any;
 }
 
 export const EventEditorModal: React.FC<EventEditorModalProps> = ({
     isOpen, onClose, editingEvent, eventTypes, formData, setFormData,
     formFilterGroups, setScopeMode, catalogs, toggleFilterValue, clearDimension,
-    addGroup, removeGroup, isCountLoading, matchingCount, totalCount, handleSubmit
+    addGroup, removeGroup, isCountLoading, matchingCount, totalCount, handleSubmit,
+    onEventTypeChange, user
 }) => {
     const selectedType = eventTypes.find(t => t.TipoEventoId === formData.TipoEventoId);
+    const forceFilters = selectedType ? !selectedType.esGeneral : false;
 
     return (
         <Modal
@@ -77,7 +81,7 @@ export const EventEditorModal: React.FC<EventEditorModalProps> = ({
                         <SmartSelect
                             value={formData.TipoEventoId}
                             options={eventTypes.map(t => ({ value: t.TipoEventoId, title: t.Nombre }))}
-                            onChange={(val: any) => setFormData(prev => ({ ...prev, TipoEventoId: val }))}
+                            onChange={(val: any) => onEventTypeChange(val)}
                             placeholder="Seleccione..."
                         />
                     </div>
@@ -99,12 +103,28 @@ export const EventEditorModal: React.FC<EventEditorModalProps> = ({
                 <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Nombre del Evento</label>
                     <input
-                        type="text" required
+                        type="text" required list="common-holidays"
                         className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-[--theme-500] transition hover:border-slate-300"
                         placeholder="Ej. Navidad, Viernes Santo"
                         value={formData.Nombre}
                         onChange={e => setFormData({ ...formData, Nombre: e.target.value })}
                     />
+                    <datalist id="common-holidays">
+                        <option value="Año Nuevo" />
+                        <option value="Día de la Constitución" />
+                        <option value="Natalicio de Benito Juárez" />
+                        <option value="Día del Trabajo" />
+                        <option value="Día de la Independencia" />
+                        <option value="Revolución Mexicana" />
+                        <option value="Navidad" />
+                        <option value="Nochebuena" />
+                        <option value="Día de Muertos" />
+                        <option value="Día de las Madres" />
+                        <option value="Día del Padre" />
+                        <option value="Día del Niño" />
+                        <option value="Día del Maestro" />
+                        <option value="Vacaciones" />
+                    </datalist>
                 </div>
 
                 {/* Description */}
@@ -129,10 +149,10 @@ export const EventEditorModal: React.FC<EventEditorModalProps> = ({
                         <button
                             type="button"
                             onClick={() => setScopeMode(true)}
+                            disabled={forceFilters}
                             className={`flex items-center gap-2 p-3 rounded-lg border-2 transition-all text-left
-                                ${formData.AplicaATodos
-                                    ? 'border-[--theme-500] bg-[--theme-50]'
-                                    : 'border-slate-200 hover:border-slate-300 bg-white'}`}
+                                ${formData.AplicaATodos ? 'border-[--theme-500] bg-[--theme-50]' : 'border-slate-200 hover:border-slate-300 bg-white'}
+                                ${forceFilters ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                             <Users size={18} className={formData.AplicaATodos ? 'text-[--theme-500]' : 'text-slate-400'} />
                             <div>
@@ -145,10 +165,10 @@ export const EventEditorModal: React.FC<EventEditorModalProps> = ({
                         <button
                             type="button"
                             onClick={() => setScopeMode(false)}
+                            disabled={forceFilters}
                             className={`flex items-center gap-2 p-3 rounded-lg border-2 transition-all text-left
-                                ${!formData.AplicaATodos
-                                    ? 'border-[--theme-500] bg-[--theme-50]'
-                                    : 'border-slate-200 hover:border-slate-300 bg-white'}`}
+                                ${!formData.AplicaATodos ? 'border-[--theme-500] bg-[--theme-50]' : 'border-slate-200 hover:border-slate-300 bg-white'}
+                                ${forceFilters ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                             <Filter size={18} className={!formData.AplicaATodos ? 'text-[--theme-500]' : 'text-slate-400'} />
                             <div>
@@ -159,6 +179,13 @@ export const EventEditorModal: React.FC<EventEditorModalProps> = ({
                             </div>
                         </button>
                     </div>
+
+                    {forceFilters && (
+                        <div className="p-2.5 rounded-lg text-xs flex items-start gap-2 bg-blue-50 border border-blue-200 text-blue-700">
+                            <Info size={15} className="mt-0.5 shrink-0" />
+                            <span>Los filtros de tu rol han sido pre-seleccionados y no se pueden quitar. El evento se aplicará a los empleados que coincidan.</span>
+                        </div>
+                    )}
 
                     {/* ═══ SENTENCE-FLOW MULTI-RULE BUILDER ═════════════════ */}
                     {!formData.AplicaATodos && (
@@ -193,7 +220,12 @@ export const EventEditorModal: React.FC<EventEditorModalProps> = ({
                                                 </div>
                                                 {formFilterGroups.length > 1 && (
                                                     <Tooltip text="Eliminar regla">
-                                                        <button type="button" onClick={() => removeGroup(group.id)} className="p-1 text-slate-400 hover:text-red-500 hover:bg-white rounded transition">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => removeGroup(group.id)}
+                                                            disabled={forceFilters}
+                                                            className="p-1 text-slate-400 hover:text-red-500 hover:bg-white rounded transition disabled:opacity-50 disabled:cursor-not-allowed"
+                                                        >
                                                             <Trash2 size={14} />
                                                         </button>
                                                     </Tooltip>
@@ -206,7 +238,32 @@ export const EventEditorModal: React.FC<EventEditorModalProps> = ({
 
                                                 {SENTENCE_FLOW.map((step, idx) => {
                                                     const dim = DIMENSIONS.find(d => d.key === step.dimKey)!;
-                                                    const items = catalogs[dim.key] || [];
+                                                    let items = catalogs[dim.key] || [];
+
+                                                    // NEW: Filtering logic based on user permissions for non-global events
+                                                    if (forceFilters) {
+                                                        const getPermittedIds = (dimKey: string): any[] => {
+                                                            const data =
+                                                                dimKey === 'DEPARTAMENTO' ? user?.Departamentos :
+                                                                    dimKey === 'GRUPO_NOMINA' ? user?.GruposNomina :
+                                                                        dimKey === 'PUESTO' ? user?.Puestos :
+                                                                            dimKey === 'ESTABLECIMIENTO' ? user?.Establecimientos : [];
+
+                                                            if (!data) return [];
+                                                            return data.map((item: any) => {
+                                                                if (typeof item === 'object') {
+                                                                    return item.DepartamentoId || item.GrupoNominaId || item.PuestoId || item.EstablecimientoId;
+                                                                }
+                                                                return item;
+                                                            });
+                                                        };
+
+                                                        const userPermittedIds = getPermittedIds(dim.key);
+                                                        if (userPermittedIds.length > 0) {
+                                                            items = items.filter(i => userPermittedIds.includes(i.id));
+                                                        }
+                                                    }
+
                                                     const stepFilter = group.filters.find(f => f.dimension === dim.key);
                                                     let selected = stepFilter ? stepFilter.valores : [];
                                                     if (items.length === 1) {
@@ -233,6 +290,7 @@ export const EventEditorModal: React.FC<EventEditorModalProps> = ({
                                                                     onToggle={(valId) => toggleFilterValue(group.id, dim.key, valId)}
                                                                     onClear={() => clearDimension(group.id, dim.key)}
                                                                     placeholder={step.placeholder}
+                                                                    readOnly={forceFilters}
                                                                 />
                                                             </div>
                                                         </div>
@@ -260,7 +318,12 @@ export const EventEditorModal: React.FC<EventEditorModalProps> = ({
 
                             {/* Add rule button */}
                             <div className="pt-2">
-                                <button type="button" onClick={addGroup} className="flex items-center gap-1.5 text-xs font-bold text-[--theme-500] hover:text-[--theme-600] px-3 py-2 rounded-lg border border-dashed border-[--theme-300] hover:border-[--theme-500] hover:bg-white shadow-sm transition w-full justify-center">
+                                <button
+                                    type="button"
+                                    onClick={addGroup}
+                                    disabled={forceFilters}
+                                    className="flex items-center gap-1.5 text-xs font-bold text-[--theme-500] hover:text-[--theme-600] px-3 py-2 rounded-lg border border-dashed border-[--theme-300] hover:border-[--theme-500] hover:bg-white shadow-sm transition w-full justify-center disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
                                     <Plus size={14} /> Agregar otra regla ("O...")
                                 </button>
                             </div>

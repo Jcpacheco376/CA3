@@ -29,8 +29,8 @@ const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
                 const permissionsResult = yield pool.request().execute('sp_Permisos_GetAll');
                 const permissions = {};
                 permissionsResult.recordset.forEach(p => { permissions[p.NombrePermiso] = [true]; }); // <-- Cambiado aquí
-                const token = jsonwebtoken_1.default.sign({ usuarioId: 0, nombreUsuario: 'admin' }, config_1.JWT_SECRET, { expiresIn: '1h' });
-                return res.json({ token, user: { UsuarioId: 0, NombreUsuario: 'admin', NombreCompleto: 'Super Administrador (Temporal)', Email: '', permissions } });
+                const token = jsonwebtoken_1.default.sign({ usuarioId: 0, empleadoId: null, nombreUsuario: 'admin' }, config_1.JWT_SECRET, { expiresIn: '1h' });
+                return res.json({ token, user: { UsuarioId: 0, EmpleadoId: null, NombreUsuario: 'admin', NombreCompleto: 'Super Administrador (Temporal)', Email: '', permissions } });
             }
         }
         catch (err) {
@@ -66,6 +66,7 @@ const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         });
         const tokenPayload = {
             usuarioId: loggedInUser.UsuarioId,
+            empleadoId: fullUserDetails.EmpleadoId,
             nombreUsuario: loggedInUser.NombreUsuario,
             tokenVersion: currentTokenVersion
         };

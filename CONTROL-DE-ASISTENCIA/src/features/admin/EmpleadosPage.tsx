@@ -66,7 +66,7 @@ export const EmpleadosPage = () => {
             const statsData = await resStats.json();
 
             // Calculate SinFoto and TotalInactivos manually from the list
-            statsData.SinFoto = list.filter((e: any) => e.Activo && !e.Imagen).length; // Only active without photo? Or all? Usually Active.
+            statsData.SinFoto = list.filter((e: any) => e.Activo && !e.TieneFoto).length; // Only active without photo? Or all? Usually Active.
             statsData.TotalInactivos = list.filter((e: any) => !e.Activo).length;
 
             setData(list);
@@ -135,16 +135,22 @@ export const EmpleadosPage = () => {
         if (activeSmartFilter) {
             switch (activeSmartFilter) {
                 case 'no_schedule':
-                    result = result.filter(item => !item.HorarioIdPredeterminado);
+                    result = result.filter(item => !item.HorarioNombre);
                     break;
                 case 'rotative':
-                    result = result.filter(item => item.HorarioIdPredeterminado === 2); // Corrected property access and value
+                    result = result.filter(item => item.EsRotativo);
                     break;
                 case 'no_device':
-                    result = result.filter(item => (!item.ZonasAsignadas || item.ZonasAsignadas === 0));
+                    result = result.filter(item => {
+                        let zoneCount = item.ZonasAsignadas || (item.Dispositivos?.length || 0);
+                        if (item.Zonas) {
+                            try { zoneCount = JSON.parse(item.Zonas).length || zoneCount; } catch (e) { }
+                        }
+                        return zoneCount === 0;
+                    });
                     break;
                 case 'no_photo':
-                    result = result.filter(item => !item.Imagen);
+                    result = result.filter(item => !item.TieneFoto);
                     break;
             }
         }

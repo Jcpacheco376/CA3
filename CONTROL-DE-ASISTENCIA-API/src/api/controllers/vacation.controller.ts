@@ -37,7 +37,14 @@ export const getRequests = async (req: any, res: Response) => {
     try {
         const pool = await sql.connect(dbConfig);
         let query = `
-            SELECT S.*, E.NombreCompleto, E.CodRef 
+            SELECT S.*, E.NombreCompleto, E.CodRef,
+            (
+                SELECT f.EstatusFirma, c.RolAprobador, f.FechaFirma 
+                FROM SolicitudesVacacionesFirmas f 
+                JOIN VacacionesAprobadoresConfig c ON f.ConfigId = c.ConfigId 
+                WHERE f.SolicitudId = S.SolicitudId 
+                FOR JSON PATH
+            ) as FirmasJSON
             FROM SolicitudesVacaciones S
             JOIN Empleados E ON S.EmpleadoId = E.EmpleadoId
             WHERE 1=1
@@ -45,25 +52,36 @@ export const getRequests = async (req: any, res: Response) => {
         const request = pool.request();
 
         if (!isManager) {
-            // Needs to be joined with users mapping if strict, but assuming req.user.usuarioId relates.
-            // In this system, user-employee relationship is usually checked before. 
-            // For now, if not manager, we can only return those where EmpleadoId matches the user's assigned employee ID.
-            // Or simplified: managers see all, others only see what they send via frontend (validation should be stricter but simplified here)
-            if (empleadoId) {
-                query += ` AND S.EmpleadoId = @EmpleadoId`;
-                request.input('EmpleadoId', sql.Int, empleadoId);
-            }
-        } else {
-            if (empleadoId) {
-                query += ` AND S.EmpleadoId = @EmpleadoId`;
-                request.input('EmpleadoId', sql.Int, empleadoId);
-            }
+            // If they are not manager, they can only see their own
+            query += ` AND S.EmpleadoId = @ReqEmpleado`;
+            request.input('ReqEmpleado', sql.Int, req.user.empleadoId);
+        }
+
+        if (empleadoId) {
+            query += ` AND S.EmpleadoId = @EmpleadoId`;
+            request.input('EmpleadoId', sql.Int, empleadoId);
         }
 
         query += ` ORDER BY S.FechaSolicitud DESC`;
 
         const result = await request.query(query);
-        res.json(result.recordset);
+
+        // Parse FirmasJSON strings back to objects
+        const records = result.recordset.map(row => {
+            if (row.FirmasJSON) {
+                try {
+                    row.Firmas = JSON.parse(row.FirmasJSON);
+                } catch (e) {
+                    row.Firmas = [];
+                }
+            } else {
+                row.Firmas = [];
+            }
+            delete row.FirmasJSON;
+            return row;
+        });
+
+        res.json(records);
     } catch (err: any) {
         res.status(500).json({ message: err.message || 'Error al obtener solicitudes.' });
     }
@@ -79,12 +97,21 @@ export const createRequest = async (req: any, res: Response) => {
 
     try {
         const pool = await sql.connect(dbConfig);
+
+        // Determine role of requester for auto-signing logic
+        let solicitanteRol = 'Empleado';
+        if (empleadoId !== req.user.empleadoId) {
+            solicitanteRol = 'RecursosHumanos';
+        }
+
         const result = await pool.request()
             .input('EmpleadoId', sql.Int, empleadoId)
             .input('FechaInicio', sql.Date, fechaInicio)
             .input('FechaFin', sql.Date, fechaFin)
             .input('DiasSolicitados', sql.Int, diasSolicitados)
             .input('Comentarios', sql.NVarChar, comentarios || '')
+            .input('UsuarioSolicitanteId', sql.Int, req.user.usuarioId)
+            .input('SolicitanteRolName', sql.VarChar, solicitanteRol)
             .execute('sp_Vacaciones_CrearSolicitud');
 
         res.status(201).json({ message: 'Solicitud creada.', id: result.recordset[0].SolicitudId });
@@ -108,13 +135,18 @@ export const respondRequest = async (req: any, res: Response) => {
 
     try {
         const pool = await sql.connect(dbConfig);
+        // By default, system users approving currently mock 'RecursosHumanos'
+        // If they had proper hierarchical roles attached to their JWT we would use that.
+        const rolAprobador = 'RecursosHumanos';
+
         await pool.request()
             .input('SolicitudId', sql.Int, id)
             .input('Estatus', sql.VarChar, estatus)
             .input('UsuarioAutorizoId', sql.Int, req.user.usuarioId)
+            .input('RolAprobador', sql.VarChar, rolAprobador)
             .execute('sp_Vacaciones_ResponderSolicitud');
 
-        res.json({ message: `Solicitud ${estatus}.` });
+        res.json({ message: `Firma de ${rolAprobador} procesada para la solicitud: ${estatus}.` });
     } catch (err: any) {
         res.status(500).json({ message: err.message || 'Error al responder solicitud.' });
     }

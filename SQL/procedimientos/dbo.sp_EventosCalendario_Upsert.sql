@@ -15,16 +15,25 @@ BEGIN
     -- ═══════════════════════════════════════════════════
     -- 1. Validar que el tipo de evento existe y está activo
     -- ═══════════════════════════════════════════════════
-    DECLARE @PermiteMultiplesMismoDia BIT, @PermiteMultiplesAnio BIT;
+    DECLARE @PermiteMultiplesMismoDia BIT, 
+            @PermiteMultiplesAnio BIT,
+            @esGeneral BIT;
 
     SELECT @PermiteMultiplesMismoDia = PermiteMultiplesMismoDia,
-           @PermiteMultiplesAnio     = PermiteMultiplesAnio
-    FROM dbo.TiposEventoCalendario
+           @PermiteMultiplesAnio     = PermiteMultiplesAnio,
+           @esGeneral = ISNULL(esGeneral, 0)
+    FROM dbo.TiposEv|entoCalendario
     WHERE TipoEventoId = @TipoEventoId AND Activo = 1;
 
     IF @PermiteMultiplesMismoDia IS NULL
     BEGIN
         THROW 50001, 'El tipo de evento especificado no existe o está inactivo.', 1;
+    END
+    
+    -- Si el tipo de evento OBLIGA a aplicar filtros, se ignora lo que mande el cliente
+    IF @AplicaFiltros = 1
+    BEGIN
+        SET @AplicaATodos = 0;
     END
 
     -- ═══════════════════════════════════════════════════
@@ -92,23 +101,42 @@ BEGIN
     -- ═══════════════════════════════════════════════════
     DELETE FROM dbo.EventosCalendarioFiltros WHERE EventoId = @ResultEventoId;
 
-    IF @AplicaATodos = 0 AND @FiltrosJSON IS NOT NULL AND LEN(@FiltrosJSON) > 2
+    IF @AplicaATodos = 0 
     BEGIN
-        INSERT INTO dbo.EventosCalendarioFiltros (EventoId, GrupoRegla, Dimension, ValorId)
-        SELECT
-            @ResultEventoId,
-            dimGroup.[grupoRegla],
-            dimGroup.[dimension],
-            valores.[value]
-        FROM OPENJSON(@FiltrosJSON)
-        WITH (
-            [grupoRegla] INT '$.grupoRegla',
-            [dimension] VARCHAR(20) '$.dimension',
-            [valores]   NVARCHAR(MAX) '$.valores' AS JSON
-        ) AS dimGroup
-        CROSS APPLY OPENJSON(dimGroup.[valores]) AS valores
-        WHERE dimGroup.[dimension] IN ('DEPARTAMENTO', 'GRUPO_NOMINA', 'PUESTO', 'ESTABLECIMIENTO')
-          AND TRY_CAST(valores.[value] AS INT) IS NOT NULL;
+        -- Si el tipo de evento fuerza filtros, se usan los del usuario, no los que vienen en el JSON
+        IF @AplicaFiltros = 1
+        BEGIN
+            INSERT INTO dbo.EventosCalendarioFiltros (EventoId, GrupoRegla, Dimension, ValorId)
+            SELECT @ResultEventoId, 1, 'DEPARTAMENTO', DepartamentoId FROM dbo.UsuariosDepartamentos WHERE UsuarioId = @UsuarioId
+            UNION ALL
+            SELECT @ResultEventoId, 1, 'GRUPO_NOMINA', GrupoNominaId FROM dbo.UsuariosGruposNomina WHERE UsuarioId = @UsuarioId
+            UNION ALL
+            SELECT @ResultEventoId, 1, 'PUESTO', PuestoId FROM dbo.UsuariosPuestos WHERE UsuarioId = @UsuarioId
+            UNION ALL
+            SELECT @ResultEventoId, 1, 'ESTABLECIMIENTO', EstablecimientoId FROM dbo.UsuariosEstablecimientos WHERE UsuarioId = @UsuarioId;
+        END
+        ELSE
+        BEGIN
+            -- Comportamiento original si el tipo de evento no fuerza filtros
+            IF @FiltrosJSON IS NOT NULL AND LEN(@FiltrosJSON) > 2
+            BEGIN
+                INSERT INTO dbo.EventosCalendarioFiltros (EventoId, GrupoRegla, Dimension, ValorId)
+                SELECT
+                    @ResultEventoId,
+                    dimGroup.[grupoRegla],
+                    dimGroup.[dimension],
+                    valores.[value]
+                FROM OPENJSON(@FiltrosJSON)
+                WITH (
+                    [grupoRegla] INT '$.grupoRegla',
+                    [dimension] VARCHAR(20) '$.dimension',
+                    [valores]   NVARCHAR(MAX) '$.valores' AS JSON
+                ) AS dimGroup
+                CROSS APPLY OPENJSON(dimGroup.[valores]) AS valores
+                WHERE dimGroup.[dimension] IN ('DEPARTAMENTO', 'GRUPO_NOMINA', 'PUESTO', 'ESTABLECIMIENTO')
+                  AND TRY_CAST(valores.[value] AS INT) IS NOT NULL;
+            END
+        END
     END
 
     SELECT @ResultEventoId AS EventoId;

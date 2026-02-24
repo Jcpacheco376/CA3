@@ -57,13 +57,14 @@ export const EmployeeProfileModal = ({ employeeId, onClose, getToken, user }: { 
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
+            if (isEditModalOpen) return;
             if (cardRef.current && !cardRef.current.contains(event.target as Node)) {
                 onClose();
             }
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [onClose]);
+    }, [onClose, isEditModalOpen]);
 
     const handleDragStart = (e: React.MouseEvent) => {
         if (cardRef.current) {

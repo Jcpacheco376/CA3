@@ -21,12 +21,12 @@ export const createUser = async (req: any, res: Response) => {
     if (!req.user.permissions['usuarios.create'] && !req.user.permissions['usuarios.update']) {
         return res.status(403).json({ message: 'Acceso denegado.' });
     }
-    
-    const { 
-        UsuarioId, NombreCompleto, NombreUsuario, Email, Password, EstaActivo, 
-        Roles, Departamentos, GruposNomina, Puestos, Establecimientos 
+
+    const {
+        UsuarioId, EmpleadoId, NombreCompleto, NombreUsuario, Email, Password, EstaActivo,
+        Roles, Departamentos, GruposNomina, Puestos, Establecimientos
     } = req.body;
-    
+
     try {
         // LÓGICA DE NEGOCIO: Procesar Roles para marcar el Principal
         // Asumimos que el Frontend envía el Rol Principal en la posición 0.
@@ -43,7 +43,8 @@ export const createUser = async (req: any, res: Response) => {
             .input('Email', sql.NVarChar, Email)
             .input('Password', sql.NVarChar, Password)
             .input('EstaActivo', sql.Bit, EstaActivo)
-            .input('RolesJSON', sql.NVarChar, JSON.stringify(rolesProcessed)) 
+            .input('EmpleadoId', sql.Int, EmpleadoId || null)
+            .input('RolesJSON', sql.NVarChar, JSON.stringify(rolesProcessed))
             .input('DepartamentosJSON', sql.NVarChar, JSON.stringify(Departamentos || []))
             .input('GruposNominaJSON', sql.NVarChar, JSON.stringify(GruposNomina || []))
             .input('PuestosJSON', sql.NVarChar, JSON.stringify(Puestos || []))
@@ -55,7 +56,7 @@ export const createUser = async (req: any, res: Response) => {
                 .input('UsuarioId', sql.Int, UsuarioId)
                 .query('UPDATE dbo.Usuarios SET TokenVersion = ISNULL(TokenVersion, 1) + 1 WHERE UsuarioId = @UsuarioId');
         }
-            
+
         res.status(200).json({ message: 'Usuario guardado correctamente.', user: result.recordset[0] });
 
     } catch (err: any) {
@@ -80,8 +81,8 @@ export const getAllUsers = async (req: any, res: Response) => {
         res.json(users); // Siempre responde con un arreglo, aunque esté vacío
     } catch (err) {
         console.error('Error en /api/users:', err);
-        res.status(500).json({ 
-            message: 'Error al obtener usuarios.', 
+        res.status(500).json({
+            message: 'Error al obtener usuarios.',
             error: (err && typeof err === 'object' && 'message' in err) ? (err as any).message : String(err)
         });
     }
@@ -116,9 +117,9 @@ export const resetPassword = async (req: any, res: Response) => {
     if (!req.user.permissions['usuarios.update']) {
         return res.status(403).json({ message: 'Acceso denegado.' });
     }
-    
+
     const { userId } = req.params;
-    
+
     // 1. Generar contraseña aleatoria segura
     const newPassword = crypto.randomBytes(6).toString('hex'); // 12 caracteres
 
@@ -129,14 +130,14 @@ export const resetPassword = async (req: any, res: Response) => {
             .input('UsuarioId', sql.Int, userId)
             .input('NuevoPassword', sql.NVarChar, newPassword)
             .execute('sp_Usuario_ActualizarPassword');
-        
+
         // 3. Enviar éxito. (Idealmente, aquí se enviaría un email)
         res.status(200).json({ message: `Contraseña restablecida con éxito. La nueva contraseña es: ${newPassword}` });
         // NOTA: Devolver la contraseña en la respuesta es opcional y depende de tu política de seguridad.
         // Podrías solo devolver un 200 OK y forzar al usuario a usar "olvidé mi contraseña".
         // Por ahora, la devuelvo para que el admin pueda copiarla.
-    } catch (err: any) { 
-        res.status(500).json({ message: err.message || 'Error al restablecer la contraseña.' }); 
+    } catch (err: any) {
+        res.status(500).json({ message: err.message || 'Error al restablecer la contraseña.' });
     }
 };
 export const getPermissionsByUserId = async (req: any, res: Response) => {
@@ -158,9 +159,9 @@ export const getPermissionsByUserId = async (req: any, res: Response) => {
 
         const permissions: { [key: string]: any[] } = {};
         permissionsResult.recordset.forEach((record: any) => {
-            permissions[record.NombrePermiso] = [true]; 
+            permissions[record.NombrePermiso] = [true];
         });
-        
+
         // 3. Obtener filtros activos
         const activeFiltersResult = await pool.request().query(`
             SELECT 
@@ -176,7 +177,7 @@ export const getPermissionsByUserId = async (req: any, res: Response) => {
                 'FiltroEstablecimientosActivo'
             )
         `);
-        
+
         // Parsear JSONs
         const updatedUser = {
             ...fullUserDetails,

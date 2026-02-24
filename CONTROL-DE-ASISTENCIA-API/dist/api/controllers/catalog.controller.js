@@ -20,7 +20,22 @@ const getDepartamentos = (req, res) => __awaiter(void 0, void 0, void 0, functio
         return res.status(403).json({ message: 'No tienes permiso para ver los departamentos.' });
     try {
         const pool = yield database_1.poolPromise;
-        const result = yield pool.request().query('SELECT DepartamentoId, Nombre FROM CatalogoDepartamentos WHERE Activo=1');
+        const result = yield pool.request()
+            .input('UsuarioId', mssql_1.default.Int, req.user.UsuarioId)
+            .query(`
+                IF (SELECT CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroDepartamentosActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT) FROM dbo.ConfiguracionSistema) = 0
+                BEGIN
+                    SELECT DepartamentoId, Nombre FROM CatalogoDepartamentos WHERE Activo=1 ORDER BY Nombre;
+                END
+                ELSE
+                BEGIN
+                    SELECT T.DepartamentoId, T.Nombre
+                    FROM CatalogoDepartamentos T
+                    JOIN UsuariosDepartamentos UT ON T.DepartamentoId = UT.DepartamentoId
+                    WHERE T.Activo = 1 AND UT.UsuarioId = @UsuarioId
+                    ORDER BY T.Nombre;
+                END
+            `);
         res.json(result.recordset);
     }
     catch (err) {
@@ -33,7 +48,22 @@ const getGruposNomina = (req, res) => __awaiter(void 0, void 0, void 0, function
         return res.status(403).json({ message: 'No tienes permiso para ver los grupos de nómina.' });
     try {
         const pool = yield database_1.poolPromise;
-        const result = yield pool.request().query('SELECT GrupoNominaId, Nombre FROM CatalogoGruposNomina WHERE Activo=1');
+        const result = yield pool.request()
+            .input('UsuarioId', mssql_1.default.Int, req.user.UsuarioId)
+            .query(`
+                IF (SELECT CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroGruposNominaActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT) FROM dbo.ConfiguracionSistema) = 0
+                BEGIN
+                    SELECT GrupoNominaId, Nombre FROM CatalogoGruposNomina WHERE Activo=1 ORDER BY Nombre;
+                END
+                ELSE
+                BEGIN
+                    SELECT T.GrupoNominaId, T.Nombre
+                    FROM CatalogoGruposNomina T
+                    JOIN UsuariosGruposNomina UT ON T.GrupoNominaId = UT.GrupoNominaId
+                    WHERE T.Activo = 1 AND UT.UsuarioId = @UsuarioId
+                    ORDER BY T.Nombre;
+                END
+            `);
         res.json(result.recordset);
     }
     catch (err) {
@@ -224,7 +254,22 @@ const getPuestos = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
         return res.status(403).json({ message: 'No tienes permiso para ver los puestos.' });
     try {
         const pool = yield database_1.poolPromise;
-        const result = yield pool.request().query('SELECT PuestoId, Nombre FROM CatalogoPuestos WHERE Activo=1');
+        const result = yield pool.request()
+            .input('UsuarioId', mssql_1.default.Int, req.user.UsuarioId)
+            .query(`
+                IF (SELECT CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroPuestosActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT) FROM dbo.ConfiguracionSistema) = 0
+                BEGIN
+                    SELECT PuestoId, Nombre FROM CatalogoPuestos WHERE Activo=1 ORDER BY Nombre;
+                END
+                ELSE
+                BEGIN
+                    SELECT T.PuestoId, T.Nombre
+                    FROM CatalogoPuestos T
+                    JOIN UsuariosPuestos UT ON T.PuestoId = UT.PuestoId
+                    WHERE T.Activo = 1 AND UT.UsuarioId = @UsuarioId
+                    ORDER BY T.Nombre;
+                END
+            `);
         res.json(result.recordset);
     }
     catch (err) {
@@ -271,7 +316,22 @@ const getEstablecimientos = (req, res) => __awaiter(void 0, void 0, void 0, func
         return res.status(403).json({ message: 'No tienes permiso para ver los establecimientos.' });
     try {
         const pool = yield database_1.poolPromise;
-        const result = yield pool.request().query('SELECT EstablecimientoId, Nombre FROM CatalogoEstablecimientos WHERE Activo=1');
+        const result = yield pool.request()
+            .input('UsuarioId', mssql_1.default.Int, req.user.UsuarioId)
+            .query(`
+                IF (SELECT CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroEstablecimientosActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT) FROM dbo.ConfiguracionSistema) = 0
+                BEGIN
+                    SELECT EstablecimientoId, Nombre FROM CatalogoEstablecimientos WHERE Activo=1 ORDER BY Nombre;
+                END
+                ELSE
+                BEGIN
+                    SELECT T.EstablecimientoId, T.Nombre
+                    FROM CatalogoEstablecimientos T
+                    JOIN UsuariosEstablecimientos UT ON T.EstablecimientoId = UT.EstablecimientoId
+                    WHERE T.Activo = 1 AND UT.UsuarioId = @UsuarioId
+                    ORDER BY T.Nombre;
+                END
+            `);
         res.json(result.recordset);
     }
     catch (err) {

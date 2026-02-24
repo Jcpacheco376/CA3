@@ -9,7 +9,8 @@ router.use(authMiddleware);
 router.get('/types', getEventTypes);           // Catálogo de tipos de evento
 router.post('/count-employees', countMatchingEmployees); // Conteo de empleados por filtros
 router.get('/', getAllEvents);
-router.post('/', upsertEvent);                 // Upsert handles both create and update
+router.post('/', upsertEvent);                 // Create
+router.put('/:id', upsertEvent);                 // Update
 router.delete('/:id', deleteEvent);
 
 export default router;

@@ -78,6 +78,33 @@ export const Tooltip = ({
         setVisible(false);
     };
 
+    // Robust cleanup to prevent stuck tooltips (e.g. on scroll, click, or tab switch)
+    useEffect(() => {
+        if (!visible) return;
+
+        const hideTooltip = () => {
+            setVisible(false);
+            if (timerRef.current) {
+                clearTimeout(timerRef.current);
+                timerRef.current = null;
+            }
+        };
+
+        window.addEventListener('scroll', hideTooltip, { capture: true, passive: true });
+        window.addEventListener('mousedown', hideTooltip, { capture: true, passive: true });
+        window.addEventListener('touchstart', hideTooltip, { capture: true, passive: true });
+        window.addEventListener('wheel', hideTooltip, { capture: true, passive: true });
+        window.addEventListener('blur', hideTooltip);
+
+        return () => {
+            window.removeEventListener('scroll', hideTooltip, { capture: true });
+            window.removeEventListener('mousedown', hideTooltip, { capture: true });
+            window.removeEventListener('touchstart', hideTooltip, { capture: true });
+            window.removeEventListener('wheel', hideTooltip, { capture: true });
+            window.removeEventListener('blur', hideTooltip);
+        };
+    }, [visible]);
+
     const getTooltipPositionClasses = () => {
         switch (placement) {
             case 'top': return 'transform -translate-x-1/2 -translate-y-full';
@@ -101,7 +128,7 @@ export const Tooltip = ({
     }
 
     const target = (
-        <span ref={targetRef} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} className={triggerClassName}>
+        <span ref={targetRef} onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave} onClick={handleMouseLeave} className={triggerClassName}>
             {children}
         </span>
     );

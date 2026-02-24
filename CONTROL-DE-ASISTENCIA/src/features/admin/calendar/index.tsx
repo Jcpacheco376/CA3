@@ -1,20 +1,55 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAuth } from '../../auth/AuthContext';
 import { useNotification } from '../../../context/NotificationContext';
-import { CalendarEvent, EventType, FilterGroup, CatalogItem, DimensionFilter } from './types';
+import { CalendarEvent, EventType, FilterGroup, CatalogItem, DimensionFilter, EmployeeBirthday, EmployeeAnniversary } from './types';
 import { DIMENSIONS, toDateKey, parseDateKey } from './utils';
 import { CalendarGrid } from './CalendarGrid';
 import { DayDetailPanel } from './DayDetailPanel';
 import { AnnualOverview } from './AnnualOverview';
 import { EventEditorModal } from './EventEditorModal';
 import { ImportHolidaysModal } from './ImportHolidaysModal';
-import { CloudDownload } from 'lucide-react';
-import { Button } from '../../../components/ui/Modal';
+
 import { API_BASE_URL } from '../../../config/api';
 
 export const CalendarEventsPage = () => {
-    const { getToken } = useAuth();
+    const { getToken, user } = useAuth();
     const { addNotification } = useNotification();
+
+    // ── Resizable panels ────────────────────────────────────────────────────
+    const [panoramaHeight, setPanoramaHeight] = useState<number>(() =>
+        parseInt(localStorage.getItem('cal-panorama-h') || '160'));
+    const [detailWidth, setDetailWidth] = useState<number>(() =>
+        parseInt(localStorage.getItem('cal-detail-w') || '260'));
+
+    useEffect(() => { localStorage.setItem('cal-panorama-h', String(panoramaHeight)); }, [panoramaHeight]);
+    useEffect(() => { localStorage.setItem('cal-detail-w', String(detailWidth)); }, [detailWidth]);
+
+    const startPanoramaResize = useCallback((e: React.MouseEvent) => {
+        e.preventDefault();
+        const startY = e.clientY;
+        const startH = panoramaHeight;
+        const onMove = (ev: MouseEvent) => {
+            const newH = Math.max(90, Math.min(340, startH + (startY - ev.clientY)));
+            setPanoramaHeight(newH);
+        };
+        const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+    }, [panoramaHeight]);
+
+    const startDetailResize = useCallback((e: React.MouseEvent) => {
+        e.preventDefault();
+        const startX = e.clientX;
+        const startW = detailWidth;
+        const onMove = (ev: MouseEvent) => {
+            const newW = Math.max(160, Math.min(480, startW + (startX - ev.clientX)));
+            setDetailWidth(newW);
+        };
+        const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+    }, [detailWidth]);
+    // ────────────────────────────────────────────────────────────────────────
 
     const fetchWithAuth = useCallback(async (endpoint: string, options: RequestInit = {}) => {
         const token = getToken();
@@ -26,6 +61,8 @@ export const CalendarEventsPage = () => {
     const [events, setEvents] = useState<CalendarEvent[]>([]);
     const [eventTypes, setEventTypes] = useState<EventType[]>([]);
     const [catalogs, setCatalogs] = useState<Record<string, CatalogItem[]>>({});
+    const [birthdays, setBirthdays] = useState<EmployeeBirthday[]>([]);
+    const [anniversaries, setAnniversaries] = useState<EmployeeAnniversary[]>([]);
     const [isLoading, setIsLoading] = useState(true);
 
     const today = new Date();
@@ -59,6 +96,48 @@ export const CalendarEventsPage = () => {
     const [importTypeId, setImportTypeId] = useState('');
     const [isImporting, setIsImporting] = useState(false);
 
+    const handleEventTypeChange = (newEventTypeId: string) => {
+        const selectedType = eventTypes.find(t => t.TipoEventoId === newEventTypeId);
+        const forceFilters = selectedType ? !selectedType.esGeneral : false;
+
+        setFormData(prev => ({ ...prev, TipoEventoId: newEventTypeId, AplicaATodos: !forceFilters }));
+
+        if (forceFilters) {
+            const filters: DimensionFilter[] = [];
+            for (const dim of DIMENSIONS) {
+                const catalogItems = catalogs[dim.key] || [];
+                const getPermittedIds = (dimKey: string): any[] => {
+                    const data =
+                        dimKey === 'DEPARTAMENTO' ? user?.Departamentos :
+                            dimKey === 'GRUPO_NOMINA' ? user?.GruposNomina :
+                                dimKey === 'PUESTO' ? user?.Puestos :
+                                    dimKey === 'ESTABLECIMIENTO' ? user?.Establecimientos : [];
+
+                    if (!data) return [];
+                    return data.map((item: any) => {
+                        if (typeof item === 'object') {
+                            return item.DepartamentoId || item.GrupoNominaId || item.PuestoId || item.EstablecimientoId;
+                        }
+                        return item;
+                    });
+                };
+
+                const userPermitted = getPermittedIds(dim.key);
+
+                if (userPermitted.length > 0) {
+                    filters.push({
+                        dimension: dim.key,
+                        valores: userPermitted
+                    });
+                }
+            }
+            setFormFilterGroups([{ id: 'g1', filters: filters }]);
+        } else {
+            // When switching to a non-restrictive type, reset filters.
+            setFormFilterGroups([{ id: 'g1', filters: [] }]);
+        }
+    };
+
     const fetchData = async () => {
         try {
             setIsLoading(true);
@@ -72,9 +151,19 @@ export const CalendarEventsPage = () => {
                 setEventTypes(types);
                 if (types.length > 0) setImportTypeId(types[0].TipoEventoId);
             }
-            const catRes = await Promise.all(DIMENSIONS.map(d => fetchWithAuth(d.endpoint).then(r => r.ok ? r.json() : [])));
-            const newCats: Record<string, CatalogItem[]> = {};
-            DIMENSIONS.forEach((d, i) => { newCats[d.key] = catRes[i].map((item: any) => ({ id: item[d.idField], nombre: item[d.nameField] })); });
+            const catalogPromises = DIMENSIONS.map(d =>
+                fetchWithAuth(d.endpoint)
+                    .then(r => (r.ok ? r.json() : []))
+                    .then(data => ({
+                        key: d.key,
+                        items: data.map((item: any) => ({ id: item[d.idField], nombre: item[d.nameField] }))
+                    }))
+            );
+            const resolvedCatalogs = await Promise.all(catalogPromises);
+            const newCats = resolvedCatalogs.reduce((acc, cat) => {
+                acc[cat.key] = cat.items;
+                return acc;
+            }, {} as Record<string, CatalogItem[]>);
             setCatalogs(newCats);
         } catch (error) {
             addNotification('Error', 'Error al cargar datos del calendario', 'error');
@@ -84,6 +173,44 @@ export const CalendarEventsPage = () => {
     };
 
     useEffect(() => { fetchData(); }, []);
+
+    // Fetch birthdays dynamically based on viewMonth
+    useEffect(() => {
+        const fetchBirthdays = async () => {
+            const m = viewMonth + 1; // JS months are 0-11, DB expects 1-12
+            const prevM = m === 1 ? 12 : m - 1;
+            const nextM = m === 12 ? 1 : m + 1;
+            try {
+                const res = await fetchWithAuth(`/employees/birthdays?months=${prevM},${m},${nextM}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    setBirthdays(data);
+                }
+            } catch (error) {
+                console.error('Error fetching birthdays', error);
+            }
+        };
+        fetchBirthdays();
+    }, [viewMonth, fetchWithAuth]);
+
+    // Fetch anniversaries dynamically based on viewMonth
+    useEffect(() => {
+        const fetchAnniversaries = async () => {
+            const m = viewMonth + 1;
+            const prevM = m === 1 ? 12 : m - 1;
+            const nextM = m === 12 ? 1 : m + 1;
+            try {
+                const res = await fetchWithAuth(`/employees/anniversaries?months=${prevM},${m},${nextM}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    setAnniversaries(data);
+                }
+            } catch (error) {
+                console.error('Error fetching anniversaries', error);
+            }
+        };
+        fetchAnniversaries();
+    }, [viewMonth, fetchWithAuth]);
 
     // Derived calendar setup
     const firstDay = new Date(viewYear, viewMonth, 1);
@@ -142,7 +269,10 @@ export const CalendarEventsPage = () => {
                 if (tr.ok) setTotalCount((await tr.json()).total);
             }
             const allFilters = groups.map(g => getEffectiveFilters(g.filters));
-            const cr = await fetchWithAuth('/calendar-events/count-employees', { method: 'POST', body: JSON.stringify({ filters: allFilters }) });
+            const cr = await fetchWithAuth('/calendar-events/count-employees', {
+                method: 'POST',
+                body: JSON.stringify({ filterGroups: allFilters, aplicaATodos: false })
+            });
             if (cr.ok) {
                 const data = await cr.json();
                 setMatchingCount({ total: data.total, byGroup: data.byGroup || [] });
@@ -182,15 +312,66 @@ export const CalendarEventsPage = () => {
 
     const openCreateModal = (dateStr?: string) => {
         setEditingEvent(null);
-        setFormData({ Fecha: dateStr || selectedDate || toDateKey(today), Nombre: '', Descripcion: '', TipoEventoId: eventTypes.length > 0 ? eventTypes[0].TipoEventoId : '', AplicaATodos: true });
-        setFormFilterGroups([{ id: 'g1', filters: [] }]);
+        const initialDate = dateStr || selectedDate || toDateKey(today);
+        const initialType = eventTypes.length > 0 ? eventTypes[0].TipoEventoId : '';
+
+        const selectedType = eventTypes.find(t => t.TipoEventoId === initialType);
+        const forceFilters = selectedType ? !selectedType.esGeneral : false;
+
+        setFormData({
+            Fecha: initialDate,
+            Nombre: '',
+            Descripcion: '',
+            TipoEventoId: initialType,
+            AplicaATodos: !forceFilters
+        });
+
+        if (forceFilters) {
+            const filters: DimensionFilter[] = [];
+            for (const dim of DIMENSIONS) {
+                const getPermittedIds = (dimKey: string): any[] => {
+                    const data =
+                        dimKey === 'DEPARTAMENTO' ? user?.Departamentos :
+                            dimKey === 'GRUPO_NOMINA' ? user?.GruposNomina :
+                                dimKey === 'PUESTO' ? user?.Puestos :
+                                    dimKey === 'ESTABLECIMIENTO' ? user?.Establecimientos : [];
+
+                    if (!data) return [];
+                    return data.map((item: any) => {
+                        if (typeof item === 'object') {
+                            return item.DepartamentoId || item.GrupoNominaId || item.PuestoId || item.EstablecimientoId;
+                        }
+                        return item;
+                    });
+                };
+
+                const userPermittedIds = getPermittedIds(dim.key);
+                if (userPermittedIds.length > 0) {
+                    filters.push({
+                        dimension: dim.key,
+                        valores: userPermittedIds
+                    });
+                }
+            }
+            setFormFilterGroups([{ id: 'g1', filters: filters }]);
+        } else {
+            setFormFilterGroups([{ id: 'g1', filters: [] }]);
+        }
+
         setIsModalOpen(true);
     };
 
     const openEditModal = (ev: CalendarEvent) => {
         setEditingEvent(ev);
+        const eventType = eventTypes.find(t => t.TipoEventoId === ev.TipoEventoId);
+        const isRestrictive = eventType ? !eventType.esGeneral : false;
+
         setFormData({ Fecha: ev.Fecha.split('T')[0], Nombre: ev.Nombre, Descripcion: ev.Descripcion || '', TipoEventoId: ev.TipoEventoId, AplicaATodos: ev.AplicaATodos });
-        if (ev.AplicaATodos || ev.Filtros.length === 0) {
+
+        if (isRestrictive) {
+            // If the type is restrictive, let the handler set the filters from the user's role
+            handleEventTypeChange(ev.TipoEventoId);
+        } else if (ev.AplicaATodos || ev.Filtros.length === 0) {
             setFormFilterGroups([{ id: 'g1', filters: [] }]);
         } else {
             const groupMap: Record<number, DimensionFilter[]> = {};
@@ -211,11 +392,38 @@ export const CalendarEventsPage = () => {
         e.preventDefault();
         try {
             const isUpdate = !!editingEvent;
-            const finalFilters = formData.AplicaATodos ? null : formFilterGroups.map(g => getEffectiveFilters(g.filters));
-            const payload = { ...formData, filtros: finalFilters };
 
-            const response = await fetchWithAuth(isUpdate ? `/calendar-events/${editingEvent.EventoId}` : '/calendar-events', {
-                method: isUpdate ? 'PUT' : 'POST',
+            // Flatten filters: transform array of groups -> flat array with grupoRegla
+            // Original: [ { filters: [{dim, vals}, ...] }, ... ]
+            // Payload: [ { grupoRegla: index, dimension, valores }, ... ]
+            let finalFilters = null;
+            if (!formData.AplicaATodos) {
+                const flattened: any[] = [];
+                formFilterGroups.forEach((group, groupIdx) => {
+                    const groupEffective = getEffectiveFilters(group.filters);
+                    groupEffective.forEach((f: any) => {
+                        flattened.push({
+                            grupoRegla: groupIdx,
+                            dimension: f.dimension,
+                            valores: f.valores
+                        });
+                    });
+                });
+                finalFilters = flattened;
+            }
+
+            const payload = {
+                eventoId: isUpdate ? editingEvent.EventoId : undefined,
+                fecha: formData.Fecha,
+                nombre: formData.Nombre,
+                descripcion: formData.Descripcion,
+                tipoEventoId: formData.TipoEventoId,
+                aplicaATodos: formData.AplicaATodos,
+                filtros: finalFilters
+            };
+
+            const response = await fetchWithAuth('/calendar-events', {
+                method: 'POST',
                 body: JSON.stringify(payload)
             });
 
@@ -281,53 +489,85 @@ export const CalendarEventsPage = () => {
         return groups;
     }, [yearEvents]);
 
+    const birthdaysByMonth = useMemo(() => {
+        const counts: Record<number, number> = {};
+        birthdays.forEach(b => {
+            const m = b.MesNacimiento - 1; // 0-based month index
+            counts[m] = (counts[m] || 0) + 1;
+        });
+        return counts;
+    }, [birthdays]);
+
     if (isLoading) {
         return <div className="p-6 text-center text-slate-500">Cargando calendario...</div>;
     }
 
     return (
-        <div className="p-6 w-full h-full flex flex-col overflow-hidden">
-            <div className="flex justify-between items-start mb-6 shrink-0">
-                <div>
-                    <h2 className="text-2xl font-bold text-slate-800">Eventos y Días Especiales</h2>
-                    <p className="text-slate-500 text-sm">Configura días feriados y eventos que afectan la asistencia general.</p>
-                </div>
-                <Button variant="secondary" onClick={() => { setImportYear(yearTimelineYear); setImportTypeId(''); setIsImportModalOpen(true); }} className="text-sm shadow-sm border border-slate-200">
-                    <CloudDownload size={16} /> Importar Anual
-                </Button>
+        <div className="px-3 pt-3 pb-2 w-full flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 128px)' }}>
+            <div className="mb-2">
+                <h2 className="text-xl font-bold text-slate-800 leading-none">Eventos y Días Especiales</h2>
+                <p className="text-slate-400 text-xs mt-0.5">Configura días feriados y eventos que afectan la asistencia general.</p>
             </div>
 
-            <div className="flex gap-6 flex-1 min-h-0 mb-6">
+            <div className="flex gap-4 flex-1 min-h-0 mb-2">
                 <CalendarGrid
                     viewMonth={viewMonth} viewYear={viewYear} todayKey={toDateKey(today)}
                     selectedDate={selectedDate} calendarDays={calendarDays} eventsByDate={eventsByDate}
+                    birthdays={birthdays}
+                    anniversaries={anniversaries}
                     prevMonth={() => { setViewMonth(m => m === 0 ? 11 : m - 1); setViewYear(y => viewMonth === 0 ? y - 1 : y); }}
                     nextMonth={() => { setViewMonth(m => m === 11 ? 0 : m + 1); setViewYear(y => viewMonth === 11 ? y + 1 : y); }}
                     goToToday={() => { setViewMonth(today.getMonth()); setViewYear(today.getFullYear()); setSelectedDate(toDateKey(today)); }}
                     handleDayClick={(d, m) => { setSelectedDate(d); if (!m) { const target = parseDateKey(d); setViewMonth(target.getMonth()); setViewYear(target.getFullYear()); } }}
                     openCreateModal={openCreateModal} openEditModal={openEditModal}
                 />
+                {/* Detail panel resize handle */}
+                <div
+                    onMouseDown={startDetailResize}
+                    className="w-1.5 cursor-col-resize flex items-center justify-center group shrink-0 self-stretch rounded hover:bg-[--theme-100] transition-colors"
+                    title="Arrastrar para redimensionar"
+                >
+                    <div className="w-0.5 h-8 rounded-full bg-slate-300 group-hover:bg-[--theme-400] transition-colors" />
+                </div>
                 <DayDetailPanel
                     selectedDate={selectedDate} selectedDayEvents={selectedDate ? (eventsByDate[selectedDate] || []) : []}
                     openCreateModal={openCreateModal} openEditModal={openEditModal} handleDelete={handleDelete}
+                    birthdays={birthdays}
+                    anniversaries={anniversaries}
+                    style={{ width: detailWidth, minWidth: detailWidth, maxWidth: detailWidth }}
                 />
             </div>
 
-            <AnnualOverview
-                yearTimelineYear={yearTimelineYear} setYearTimelineYear={setYearTimelineYear}
-                yearEvents={yearEvents} yearMonthGroups={yearMonthGroups}
-                setViewMonth={setViewMonth} setViewYear={setViewYear} today={today}
-            />
+            {/* Panorama resize handle */}
+            <div
+                onMouseDown={startPanoramaResize}
+                className="h-2 cursor-row-resize flex items-center justify-center group shrink-0"
+                title="Arrastrar para redimensionar panorama"
+            >
+                <div className="w-20 h-1 rounded-full bg-slate-200 group-hover:bg-[--theme-400] transition-colors" />
+            </div>
+            <div style={{ height: panoramaHeight }} className="shrink-0 overflow-hidden flex flex-col">
+
+                <AnnualOverview
+                    yearTimelineYear={yearTimelineYear} setYearTimelineYear={setYearTimelineYear}
+                    yearEvents={yearEvents} yearMonthGroups={yearMonthGroups}
+                    setViewMonth={setViewMonth} setViewYear={setViewYear} today={today}
+                    birthdaysByMonth={birthdaysByMonth}
+                    onImport={() => { setImportYear(yearTimelineYear); setImportTypeId(''); setIsImportModalOpen(true); }}
+                />
+            </div>
 
             <EventEditorModal
                 isOpen={isModalOpen} onClose={() => setIsModalOpen(false)}
                 editingEvent={editingEvent} eventTypes={eventTypes}
                 formData={formData} setFormData={setFormData}
+                onEventTypeChange={handleEventTypeChange}
                 formFilterGroups={formFilterGroups} setScopeMode={setScopeMode}
                 catalogs={catalogs} toggleFilterValue={toggleFilterValue} clearDimension={clearDimension}
                 addGroup={addGroup} removeGroup={removeGroup}
                 isCountLoading={isCountLoading} matchingCount={matchingCount} totalCount={totalCount}
                 handleSubmit={handleSubmit}
+                user={user}
             />
 
             <ImportHolidaysModal
