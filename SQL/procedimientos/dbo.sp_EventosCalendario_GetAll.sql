@@ -1,3 +1,11 @@
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_EventosCalendario_GetAll]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
 CREATE OR ALTER PROCEDURE [dbo].[sp_EventosCalendario_GetAll]
 AS
 BEGIN
@@ -17,7 +25,7 @@ BEGIN
         ec.AplicaATodos,
         ec.Activo
     FROM dbo.EventosCalendario ec
-    INNER JOIN dbo.TiposEventoCalendario t ON ec.TipoEventoId = t.TipoEventoId
+    INNER JOIN dbo.SISTiposEventoCalendario t ON ec.TipoEventoId = t.TipoEventoId
     ORDER BY ec.Fecha DESC;
 
     -- Recordset 2: Filtros de todos los eventos
@@ -40,3 +48,4 @@ BEGIN
     LEFT JOIN dbo.CatalogoEstablecimientos e ON f.Dimension = 'ESTABLECIMIENTO' AND f.ValorId = e.EstablecimientoId
     ORDER BY f.EventoId, f.Dimension;
 END
+GO

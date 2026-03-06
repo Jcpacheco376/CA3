@@ -1,5 +1,11 @@
-IF OBJECT_ID('dbo.sp_Nomina_PrevisualizarCierre') IS NOT NULL      DROP PROCEDURE dbo.sp_Nomina_PrevisualizarCierre;
-GO
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Nomina_PrevisualizarCierre]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
 /*
 SET DATEFORMAT DMY;
 
@@ -7,7 +13,7 @@ EXECUTE [sp_Nomina_PrevisualizarCierre] 2,'16-12-2025','31-12-2025',NULL,NULL,NU
 
 */
 
-CREATE PROCEDURE [dbo].[sp_Nomina_PrevisualizarCierre]
+CREATE OR ALTER PROCEDURE [dbo].[sp_Nomina_PrevisualizarCierre]
     @GrupoNominaId INT = 1,
     @FechaInicio DATE,
     @FechaFin DATE,
@@ -77,7 +83,7 @@ BEGIN
     WHERE e.GrupoNominaId = @GrupoNominaId
       AND f.Fecha BETWEEN @FechaInicio AND @FechaFin;
 
-    -- 3. Resultado final: combinar ambos res�menes
+    -- 3. Resultado final: combinar ambos res�menes
     SELECT 
         ISNULL(f.TotalFichas, 0) AS TotalFichas,
         ISNULL(f.ListasParaCierre, 0) AS ListasParaCierre,
@@ -95,6 +101,4 @@ BEGIN
     DROP TABLE #ResumenFiltrado;
     DROP TABLE #ResumenGrupo;
 END
-
-
-
+GO

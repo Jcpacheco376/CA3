@@ -1,19 +1,25 @@
-IF OBJECT_ID('dbo.sp_Usuarios_GetGestoresParaIncidencia') IS NOT NULL      DROP PROCEDURE dbo.sp_Usuarios_GetGestoresParaIncidencia;
-GO
-CREATE PROCEDURE [dbo].[sp_Usuarios_GetGestoresParaIncidencia]
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Usuarios_GetGestoresParaIncidencia]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE [dbo].[sp_Usuarios_GetGestoresParaIncidencia]
     @IncidenciaId INT
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- 1. OBTENER CONFIGURACI�N
+    -- 1. OBTENER CONFIGURACI�N
     DECLARE @FiltroDepts BIT, @FiltroGrupos BIT, @FiltroPuestos BIT, @FiltroEstabs BIT;
     SELECT 
         @FiltroDepts = CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroDepartamentosActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT),
         @FiltroGrupos = CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroGruposNominaActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT),
         @FiltroPuestos = CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroPuestosActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT),
         @FiltroEstabs = CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroEstablecimientosActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT)
-    FROM dbo.ConfiguracionSistema;
+    FROM dbo.SISConfiguracion;
 
     -- 2. DATOS EMPLEADO
     DECLARE @EmpDepto INT, @EmpGrupo INT, @EmpPuesto INT, @EmpEstab INT;
@@ -36,7 +42,7 @@ BEGIN
     FROM dbo.Usuarios u
     WHERE u.EstaActivo = 1
       AND EXISTS (
-          SELECT 1 FROM dbo.UsuariosRoles ur JOIN dbo.Roles r ON ur.RoleId = r.RoleId JOIN dbo.RolesPermisos rp ON r.RoleId = rp.RoleId JOIN dbo.Permisos p ON rp.PermisoId = p.PermisoId
+          SELECT 1 FROM dbo.UsuariosRoles ur JOIN dbo.Roles r ON ur.RoleId = r.RoleId JOIN dbo.RolesPermisos rp ON r.RoleId = rp.RoleId JOIN dbo.SISPermisos p ON rp.PermisoId = p.PermisoId
           WHERE ur.UsuarioId = u.UsuarioId AND p.NombrePermiso IN ('incidencias.resolve', 'incidencias.manage') AND p.Activo = 1
       )
       AND (
@@ -50,5 +56,4 @@ BEGIN
       )
     ORDER BY NombreCompleto;
 END
-
-
+GO

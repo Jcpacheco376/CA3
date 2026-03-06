@@ -1,24 +1,23 @@
-USE [CA]
-GO
-/****** Object:  StoredProcedure [dbo].[sp_SyncFromBMS]    Script Date: 17/10/2024 12:44:40 p. m. ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_SyncFromBMS]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
 CREATE OR ALTER PROCEDURE [dbo].[sp_SyncFromBMS]
     @SourceDB varchar(100) = NULL -- Opcional, si es NULL lee de Config
 AS
 BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
-
     -- Leer configuración si no se pasa parámetro
     IF @SourceDB IS NULL OR @SourceDB = ''
     BEGIN
         SELECT TOP 1 @SourceDB = ConfigValue 
-        FROM dbo.ConfiguracionSistema 
+        FROM dbo.SISConfiguracion 
         WHERE ConfigKey = 'DBENTRADA';
-
         IF @SourceDB IS NULL OR @SourceDB = ''
         BEGIN
             PRINT 'Error: No se especificó @SourceDB y no existe configuración para DBENTRADA.';
@@ -30,14 +29,11 @@ BEGIN
     BEGIN
         PRINT 'Usando Base de Datos Origen desde Parámetro: ' + @SourceDB;
     END
-
     DECLARE @SQL NVARCHAR(MAX);
-
     BEGIN TRY
         BEGIN TRANSACTION;
-
         -- 1. Sincronización de CatalogoDepartamentos
-        IF (SELECT ConfigValue FROM dbo.ConfiguracionSistema WHERE ConfigKey = 'SyncDepartamentos') = 'true'
+        IF (SELECT ConfigValue FROM dbo.SISConfiguracion WHERE ConfigKey = 'SyncDepartamentos') = 'true'
         BEGIN
             PRINT 'Sincronizando CatalogoDepartamentos...';
             SET @SQL = '
@@ -56,9 +52,8 @@ BEGIN
             
             EXEC sp_executesql @SQL;
         END
-
         -- 2. Sincronización de CatalogoGruposNomina
-        IF (SELECT ConfigValue FROM dbo.ConfiguracionSistema WHERE ConfigKey = 'SyncGruposNomina') = 'true'
+        IF (SELECT ConfigValue FROM dbo.SISConfiguracion WHERE ConfigKey = 'SyncGruposNomina') = 'true'
         BEGIN
             PRINT 'Sincronizando CatalogoGruposNomina...';
             SET @SQL = '
@@ -74,12 +69,10 @@ BEGIN
                 VALUES (Source.grupo_nomina, Source.nombre, (CASE WHEN Source.status = ''V'' THEN 1 ELSE 0 END))
             WHEN NOT MATCHED BY SOURCE THEN
                 UPDATE SET Target.Activo = 0;';
-
             EXEC sp_executesql @SQL;
         END
-
         -- 3. Sincronización de CatalogoPuestos
-        IF (SELECT ConfigValue FROM dbo.ConfiguracionSistema WHERE ConfigKey = 'SyncPuestos') = 'true'
+        IF (SELECT ConfigValue FROM dbo.SISConfiguracion WHERE ConfigKey = 'SyncPuestos') = 'true'
         BEGIN
             PRINT 'Sincronizando CatalogoPuestos...';
             SET @SQL = '
@@ -95,15 +88,12 @@ BEGIN
                 VALUES (Source.puesto, Source.nombre, (CASE WHEN Source.status = ''V'' THEN 1 ELSE 0 END))
             WHEN NOT MATCHED BY SOURCE THEN
                 UPDATE SET Target.Activo = 0;';
-
             EXEC sp_executesql @SQL;
         END
-
         -- 4. Sincronización de CatalogoHorarios (Cabeceras y Detalles)
-        IF (SELECT ConfigValue FROM dbo.ConfiguracionSistema WHERE ConfigKey = 'SyncHorarios') = 'true'
+        IF (SELECT ConfigValue FROM dbo.SISConfiguracion WHERE ConfigKey = 'SyncHorarios') = 'true'
         BEGIN
             PRINT 'Sincronizando CatalogoHorarios (Cabeceras)...';
-
             SET @SQL = '
             MERGE dbo.CatalogoHorarios AS Target
             USING (
@@ -115,11 +105,8 @@ BEGIN
             WHEN NOT MATCHED BY TARGET THEN
                 INSERT (CodRef, Abreviatura, Nombre, MinutosTolerancia, Activo)
                 VALUES (Source.horario, '''', Source.nombre, Source.minutos_tolerancia, (CASE WHEN Source.status = ''V'' THEN 1 ELSE 0 END));';
-
             EXEC sp_executesql @SQL;
-
             PRINT 'Sincronizando CatalogoHorariosDetalle (Detalles de días)...';
-
             SET @SQL = '
             MERGE dbo.CatalogoHorariosDetalle AS Target
             USING (
@@ -151,21 +138,15 @@ BEGIN
             WHEN NOT MATCHED BY TARGET THEN
                 INSERT (HorarioId, DiaSemana, EsDiaLaboral, HoraEntrada, HoraSalida, HoraInicioComida, HoraFinComida)
                 VALUES (Source.HorarioId, Source.DiaSemana, Source.EsDiaLaboral, Source.HoraEntrada, Source.HoraSalida, Source.HoraInicioComida, Source.HoraFinComida);';
-
             EXEC sp_executesql @SQL;
         END
-
         -- 5. Sincronización de Empleados
         PRINT 'Sincronizando Empleados (con todos los campos)...';
-
-        IF (SELECT ConfigValue FROM dbo.ConfiguracionSistema WHERE ConfigKey = 'SyncEmpleados') = 'true'
+        IF (SELECT ConfigValue FROM dbo.SISConfiguracion WHERE ConfigKey = 'SyncEmpleados') = 'true'
         BEGIN
             SET @SQL = '
             ;WITH ImagenesUnicas AS (
-                SELECT
-                    folio,
-                    imagen,
-                    ROW_NUMBER() OVER(PARTITION BY folio ORDER BY (SELECT NULL)) AS rn
+                SELECT folio,imagen, ROW_NUMBER() OVER(PARTITION BY folio ORDER BY (SELECT NULL)) AS rn
                 FROM ' + QUOTENAME(@SourceDB) + '.dbo.imagenes
                 WHERE transaccion = ''9'' AND tipo_imagen = ''2''
             )
@@ -174,7 +155,7 @@ BEGIN
                 SELECT
                     RTRIM(e.empleado) AS empleado,
                     RTRIM(e.nombre_completo) AS nombre_completo,
-                    RTRIM(e.nombres) AS nombres,
+                    RTRIM(e.nombre) AS nombres,
                     RTRIM(e.ap_paterno) AS apellido_paterno,
                     RTRIM(e.ap_materno) AS apellido_materno,
                     e.fecha_nacimiento,
@@ -230,18 +211,16 @@ BEGIN
                 )
             WHEN NOT MATCHED BY SOURCE THEN
                 UPDATE SET Target.Activo = 0;';
-
             EXEC sp_executesql @SQL;
         END
-
         COMMIT TRANSACTION;
         PRINT 'Proceso de sincronización completado con éxito.';
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0
             ROLLBACK TRANSACTION;
-
         PRINT 'Error durante la sincronización: ' + ERROR_MESSAGE();
         THROW;
     END CATCH
 END
+GO

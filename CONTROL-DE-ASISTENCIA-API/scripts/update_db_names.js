@@ -34,19 +34,19 @@ async function runMigration() {
 
         // 2. Add Configuration for Name Format
         console.log('Checking/Adding FormatoNombre Configuration...');
-        // Check if column exists in ConfiguracionSistema, if not add it (assuming it's a single row table or has a key)
+        // Check if column exists in SISConfiguracion, if not add it (assuming it's a single row table or has a key)
         // Based on previous knowledge, it seems to be a single row table.
         // Let's check columns first to be safe, or just try to update/insert.
         // Strategy: Add 'FormatoNombre' Int column if not exists.
         await pool.query(`
-            IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'ConfiguracionSistema' AND COLUMN_NAME = 'FormatoNombre')
+            IF NOT EXISTS (SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'SISConfiguracion' AND COLUMN_NAME = 'FormatoNombre')
             BEGIN
-                ALTER TABLE ConfiguracionSistema ADD FormatoNombre INT DEFAULT 1; 
-                PRINT 'Column FormatoNombre added to ConfiguracionSistema.';
+                ALTER TABLE SISConfiguracion ADD FormatoNombre INT DEFAULT 1; 
+                PRINT 'Column FormatoNombre added to SISConfiguracion.';
             END
         `);
         // Ensure default value is set
-        await pool.query(`UPDATE ConfiguracionSistema SET FormatoNombre = 1 WHERE FormatoNombre IS NULL`);
+        await pool.query(`UPDATE SISConfiguracion SET FormatoNombre = 1 WHERE FormatoNombre IS NULL`);
 
 
         // 3. Migrate Existing Data (The hard part)
@@ -124,7 +124,7 @@ async function runMigration() {
 
                 -- Calculate NombreCompleto based on Config
                 DECLARE @FormatoNombre INT;
-                SELECT TOP 1 @FormatoNombre = ISNULL(FormatoNombre, 1) FROM ConfiguracionSistema;
+                SELECT TOP 1 @FormatoNombre = ISNULL(FormatoNombre, 1) FROM SISConfiguracion;
                 
                 DECLARE @NombreCompleto NVARCHAR(300);
                 IF @FormatoNombre = 2 -- Apellidos Nombres
@@ -174,7 +174,7 @@ async function runMigration() {
                 SET NOCOUNT ON;
 
                 DECLARE @FormatoNombre INT;
-                SELECT TOP 1 @FormatoNombre = ISNULL(FormatoNombre, 1) FROM ConfiguracionSistema;
+                SELECT TOP 1 @FormatoNombre = ISNULL(FormatoNombre, 1) FROM SISConfiguracion;
                 
                 DECLARE @NombreCompleto NVARCHAR(300);
                 IF @FormatoNombre = 2

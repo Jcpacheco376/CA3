@@ -1,16 +1,27 @@
-CREATE TABLE [dbo].[Usuarios] (
+-- ──────────────────────────────────────────────────────────────────────
+-- Tabla: [dbo].[Usuarios]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 
-[UsuarioId] int NOT NULL,
-[NombreUsuario] nvarchar(100) NOT NULL,
-[PasswordHash] varbinary NOT NULL,
-[NombreCompleto] nvarchar(200) NULL,
-[Email] nvarchar(200) NULL,
-[EstaActivo] bit DEFAULT ((1)) NOT NULL,
-[FechaCreacion] datetime DEFAULT (getdate()) NOT NULL,
-[Theme] nvarchar(100) NULL,
-[AnimationsEnabled] bit DEFAULT ((1)) NOT NULL,
-[DebeCambiarPassword] bit DEFAULT ((0)) NOT NULL,
-[TokenVersion] int DEFAULT ((1)) NOT NULL,
-CONSTRAINT [PK__Usuarios__2B3DE7B818448526] PRIMARY KEY CLUSTERED ([UsuarioId] ASC) WITH (PAD_INDEX = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY],
-CONSTRAINT [UQ__Usuarios__6B0F5AE0D39B3F06] UNIQUE NONCLUSTERED ([NombreUsuario] ASC) WITH (PAD_INDEX = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY]
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name='Usuarios' AND schema_id=SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[Usuarios] (
+    [UsuarioId] int NOT NULL,
+    [NombreUsuario] nvarchar(50) NOT NULL,
+    [PasswordHash] varbinary(MAX) NOT NULL,
+    [NombreCompleto] nvarchar(100) NULL,
+    [Email] nvarchar(100) NULL,
+    [EstaActivo] bit NOT NULL CONSTRAINT [DF__Usuarios__EstaAc__76619304] DEFAULT ((1)),
+    [FechaCreacion] datetime NOT NULL CONSTRAINT [DF__Usuarios__FechaC__7755B73D] DEFAULT (getdate()),
+    [Theme] nvarchar(50) NULL,
+    [AnimationsEnabled] bit NOT NULL CONSTRAINT [DF__Usuarios__Animat__7849DB76] DEFAULT ((1)),
+    [DebeCambiarPassword] bit NOT NULL CONSTRAINT [DF__Usuarios__DebeCa__793DFFAF] DEFAULT ((0)),
+    [TokenVersion] int NOT NULL CONSTRAINT [DF__Usuarios__TokenV__4DB4832C] DEFAULT ((1)),
+    [EmpleadoId] int NULL,
+    CONSTRAINT [PK__Usuarios__2B3DE7B818448526] PRIMARY KEY CLUSTERED ([UsuarioId])
+    );
+END
+GO

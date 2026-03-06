@@ -1,3 +1,11 @@
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_TiposEventoCalendario_GetAll]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
 CREATE OR ALTER PROCEDURE [dbo].[sp_TiposEventoCalendario_GetAll]
 AS
 BEGIN
@@ -23,3 +31,4 @@ BEGIN
     WHERE t.Activo = 1
     ORDER BY t.Nombre;
 END
+GO

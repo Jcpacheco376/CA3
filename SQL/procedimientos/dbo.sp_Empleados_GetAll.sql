@@ -1,7 +1,12 @@
-IF OBJECT_ID('dbo.sp_Empleados_GetAll') IS NOT NULL      DROP PROCEDURE dbo.sp_Empleados_GetAll;
-GO
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Empleados_GetAll]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 
-            CREATE   PROCEDURE [dbo].[sp_Empleados_GetAll]
+CREATE OR ALTER PROCEDURE [dbo].[sp_Empleados_GetAll]
                 @IncluirInactivos BIT = 0
             AS
             BEGIN
@@ -36,4 +41,4 @@ GO
 
                 ORDER BY e.NombreCompleto;
             END
-        
+GO

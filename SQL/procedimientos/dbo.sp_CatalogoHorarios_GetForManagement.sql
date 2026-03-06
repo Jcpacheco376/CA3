@@ -1,7 +1,12 @@
-IF OBJECT_ID('dbo.sp_CatalogoHorarios_GetForManagement') IS NOT NULL      DROP PROCEDURE dbo.sp_CatalogoHorarios_GetForManagement;
-GO
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_CatalogoHorarios_GetForManagement]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 
-CREATE PROCEDURE [dbo].[sp_CatalogoHorarios_GetForManagement]
+CREATE OR ALTER PROCEDURE [dbo].[sp_CatalogoHorarios_GetForManagement]
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -21,5 +26,4 @@ BEGIN
     FROM dbo.CatalogoHorarios h
     ORDER BY h.Nombre;
 END
-
-
+GO

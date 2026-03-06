@@ -1,6 +1,12 @@
-IF OBJECT_ID('dbo.sp_FichasAsistencia_SaveManual') IS NOT NULL      DROP PROCEDURE dbo.sp_FichasAsistencia_SaveManual;
-GO
-CREATE  PROCEDURE [dbo].[sp_FichasAsistencia_SaveManual]
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_FichasAsistencia_SaveManual]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE [dbo].[sp_FichasAsistencia_SaveManual]
     @EmpleadoId INT,
     @Fecha DATE,
     @EstatusManualAbrev NVARCHAR(10) = NULL,
@@ -12,7 +18,7 @@ BEGIN
 
     DECLARE @EstatusId INT = NULL;
 
-    -- 1. VALIDAR ESTATUS (solo si se est� asignando uno)
+    -- 1. VALIDAR ESTATUS (solo si se est� asignando uno)
     IF @EstatusManualAbrev IS NOT NULL
     BEGIN
         SELECT @EstatusId = EstatusId 
@@ -21,12 +27,12 @@ BEGIN
 
         IF @EstatusId IS NULL 
         BEGIN
-            RAISERROR('Estatus inv�lido.', 16, 1);
+            RAISERROR('Estatus inv�lido.', 16, 1);
             RETURN;
         END
     END
 
-    -- 2. VALIDAR QUE NO EST� BLOQUEADO
+    -- 2. VALIDAR QUE NO EST� BLOQUEADO
     IF EXISTS (
         SELECT 1 
         FROM dbo.FichaAsistencia 
@@ -56,7 +62,7 @@ BEGIN
         INSERT (EmpleadoId, Fecha, EstatusManualId, Comentarios, ModificadoPorUsuarioId, FechaModificacion, Estado)
         VALUES (@EmpleadoId, @Fecha, @EstatusId, @Comentarios, @UsuarioId, GETDATE(), 'VALIDADO');
 
-    -- 4. AN�LISIS AUTOM�TICO DE INCIDENCIAS (SIEMPRE SE EJECUTA)
+    -- 4. AN�LISIS AUTOM�TICO DE INCIDENCIAS (SIEMPRE SE EJECUTA)
     EXEC [dbo].[sp_Incidencias_Analizar]
         @FechaInicio = @Fecha,
         @FechaFin = @Fecha,
@@ -78,5 +84,4 @@ BEGIN
     WHERE f.EmpleadoId = @EmpleadoId 
       AND f.Fecha = @Fecha;
 END
-
-
+GO

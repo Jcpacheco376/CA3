@@ -18,7 +18,7 @@ export const startSyncScheduler = () => {
             // --- CORRECCIÓN: Usamos tus campos reales ---
             const configResult = await pool.request()
                 .input('Key', sql.NVarChar, 'SyncChecadorMinutos') // <--- Tu llave correcta
-                .query("SELECT ConfigValue FROM ConfiguracionSistema WHERE ConfigKey = @Key");
+                .query("SELECT ConfigValue FROM SISConfiguracion WHERE ConfigKey = @Key");
 
             const valorConfig = configResult.recordset[0]?.ConfigValue || '0'; // <--- Tu campo correcto
             const intervaloMinutos = parseInt(valorConfig, 10);

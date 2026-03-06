@@ -1,10 +1,12 @@
-IF OBJECT_ID('dbo.sp_Usuario_ActualizarPassword') IS NOT NULL      DROP PROCEDURE dbo.sp_Usuario_ActualizarPassword;
-GO
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Usuario_ActualizarPassword]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 
-
--- Modificar sp_Usuario_ActualizarPassword para desmarcar el cambio de contrase�a.
--- Esto se usa cuando el propio usuario establece su nueva contrase�a.
-CREATE PROCEDURE [dbo].[sp_Usuario_ActualizarPassword]
+CREATE OR ALTER PROCEDURE [dbo].[sp_Usuario_ActualizarPassword]
     @UsuarioId INT,
     @NuevoPassword NVARCHAR(100)
 AS
@@ -20,4 +22,4 @@ BEGIN
         WHERE UsuarioId = @UsuarioId;
     END
 END
-
+GO

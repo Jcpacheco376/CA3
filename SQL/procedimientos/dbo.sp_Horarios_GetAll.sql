@@ -1,11 +1,17 @@
-IF OBJECT_ID('dbo.sp_Horarios_GetAll') IS NOT NULL      DROP PROCEDURE dbo.sp_Horarios_GetAll;
-GO
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Horarios_GetAll]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
 /*
 Este SP corrige el 'sp_Horarios_GetAll'
 Se elimina la referencia a la columna 'Activo'
 en la tabla de detalles, ya que fue eliminada.
 */
-CREATE PROCEDURE [dbo].[sp_Horarios_GetAll]
+CREATE OR ALTER PROCEDURE [dbo].[sp_Horarios_GetAll]
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -33,11 +39,11 @@ BEGIN
                 END AS TieneComida
             FROM dbo.CatalogoHorariosDetalle d
             WHERE d.HorarioId = h.HorarioId
-            -- AND d.Activo = 1 -- �FIX! Se elimina esta l�nea
+            -- AND d.Activo = 1 -- �FIX! Se elimina esta l�nea
             FOR JSON PATH
         ) AS Turnos
     FROM dbo.CatalogoHorarios h
     WHERE h.Activo = 1 
     ORDER BY h.Nombre;
 END
-
+GO

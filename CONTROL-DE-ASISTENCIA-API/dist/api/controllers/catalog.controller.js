@@ -16,57 +16,25 @@ exports.upsertPayrollConcept = exports.getPayrollConcepts = exports.getCalculati
 const mssql_1 = __importDefault(require("mssql"));
 const database_1 = require("../../config/database");
 const getDepartamentos = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    if (!req.user.permissions['catalogo.departamentos.read'])
-        return res.status(403).json({ message: 'No tienes permiso para ver los departamentos.' });
     try {
         const pool = yield database_1.poolPromise;
-        const result = yield pool.request()
-            .input('UsuarioId', mssql_1.default.Int, req.user.UsuarioId)
-            .query(`
-                IF (SELECT CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroDepartamentosActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT) FROM dbo.ConfiguracionSistema) = 0
-                BEGIN
-                    SELECT DepartamentoId, Nombre FROM CatalogoDepartamentos WHERE Activo=1 ORDER BY Nombre;
-                END
-                ELSE
-                BEGIN
-                    SELECT T.DepartamentoId, T.Nombre
-                    FROM CatalogoDepartamentos T
-                    JOIN UsuariosDepartamentos UT ON T.DepartamentoId = UT.DepartamentoId
-                    WHERE T.Activo = 1 AND UT.UsuarioId = @UsuarioId
-                    ORDER BY T.Nombre;
-                END
-            `);
+        const result = yield pool.request().execute('sp_Departamentos_GetAllManagement');
         res.json(result.recordset);
     }
     catch (err) {
+        console.error('[getDepartamentos] Error:', err);
         res.status(500).json({ message: 'Error al obtener departamentos.' });
     }
 });
 exports.getDepartamentos = getDepartamentos;
 const getGruposNomina = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    if (!req.user.permissions['catalogo.gruposNomina.read'])
-        return res.status(403).json({ message: 'No tienes permiso para ver los grupos de nómina.' });
     try {
         const pool = yield database_1.poolPromise;
-        const result = yield pool.request()
-            .input('UsuarioId', mssql_1.default.Int, req.user.UsuarioId)
-            .query(`
-                IF (SELECT CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroGruposNominaActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT) FROM dbo.ConfiguracionSistema) = 0
-                BEGIN
-                    SELECT GrupoNominaId, Nombre FROM CatalogoGruposNomina WHERE Activo=1 ORDER BY Nombre;
-                END
-                ELSE
-                BEGIN
-                    SELECT T.GrupoNominaId, T.Nombre
-                    FROM CatalogoGruposNomina T
-                    JOIN UsuariosGruposNomina UT ON T.GrupoNominaId = UT.GrupoNominaId
-                    WHERE T.Activo = 1 AND UT.UsuarioId = @UsuarioId
-                    ORDER BY T.Nombre;
-                END
-            `);
+        const result = yield pool.request().execute('sp_GruposNomina_GetAllManagement');
         res.json(result.recordset);
     }
     catch (err) {
+        console.error('[getGruposNomina] Error:', err);
         res.status(500).json({ message: 'Error al obtener grupos de nómina.' });
     }
 });
@@ -160,7 +128,7 @@ const upsertAttendanceStatus = (req, res) => __awaiter(void 0, void 0, void 0, f
         return res.status(403).json({ message: 'No tienes permiso para gestionar este catálogo.' });
     }
     const { EstatusId, Abreviatura, 
-    //CodRef, 
+    //CodRef,
     Descripcion, ColorUI, ValorNomina, VisibleSupervisor, Activo, TipoCalculoId, DiasRegistroFuturo, PermiteComentario, ConceptoNominaId } = req.body;
     try {
         const pool = yield database_1.poolPromise;
@@ -250,29 +218,13 @@ const deleteScheduleCatalog = (req, res) => __awaiter(void 0, void 0, void 0, fu
 });
 exports.deleteScheduleCatalog = deleteScheduleCatalog;
 const getPuestos = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    if (!req.user.permissions['catalogo.puestos.read'])
-        return res.status(403).json({ message: 'No tienes permiso para ver los puestos.' });
     try {
         const pool = yield database_1.poolPromise;
-        const result = yield pool.request()
-            .input('UsuarioId', mssql_1.default.Int, req.user.UsuarioId)
-            .query(`
-                IF (SELECT CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroPuestosActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT) FROM dbo.ConfiguracionSistema) = 0
-                BEGIN
-                    SELECT PuestoId, Nombre FROM CatalogoPuestos WHERE Activo=1 ORDER BY Nombre;
-                END
-                ELSE
-                BEGIN
-                    SELECT T.PuestoId, T.Nombre
-                    FROM CatalogoPuestos T
-                    JOIN UsuariosPuestos UT ON T.PuestoId = UT.PuestoId
-                    WHERE T.Activo = 1 AND UT.UsuarioId = @UsuarioId
-                    ORDER BY T.Nombre;
-                END
-            `);
+        const result = yield pool.request().execute('sp_Puestos_GetAllManagement');
         res.json(result.recordset);
     }
     catch (err) {
+        console.error('[getPuestos] Error:', err);
         res.status(500).json({ message: 'Error al obtener puestos.' });
     }
 });
@@ -312,29 +264,13 @@ const savePuesto = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
 });
 exports.savePuesto = savePuesto;
 const getEstablecimientos = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    if (!req.user.permissions['catalogo.establecimientos.read'])
-        return res.status(403).json({ message: 'No tienes permiso para ver los establecimientos.' });
     try {
         const pool = yield database_1.poolPromise;
-        const result = yield pool.request()
-            .input('UsuarioId', mssql_1.default.Int, req.user.UsuarioId)
-            .query(`
-                IF (SELECT CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroEstablecimientosActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT) FROM dbo.ConfiguracionSistema) = 0
-                BEGIN
-                    SELECT EstablecimientoId, Nombre FROM CatalogoEstablecimientos WHERE Activo=1 ORDER BY Nombre;
-                END
-                ELSE
-                BEGIN
-                    SELECT T.EstablecimientoId, T.Nombre
-                    FROM CatalogoEstablecimientos T
-                    JOIN UsuariosEstablecimientos UT ON T.EstablecimientoId = UT.EstablecimientoId
-                    WHERE T.Activo = 1 AND UT.UsuarioId = @UsuarioId
-                    ORDER BY T.Nombre;
-                END
-            `);
+        const result = yield pool.request().execute('sp_Establecimientos_GetAllManagement');
         res.json(result.recordset);
     }
     catch (err) {
+        console.error('[getEstablecimientos] Error:', err);
         res.status(500).json({ message: 'Error al obtener establecimientos.' });
     }
 });
@@ -378,7 +314,7 @@ const getSystemConfig = (req, res) => __awaiter(void 0, void 0, void 0, function
     try {
         const pool = yield database_1.poolPromise;
         // Traemos toda la config para tenerla disponible, o filtramos por keys específicas
-        const result = yield pool.request().query("SELECT ConfigKey, ConfigValue FROM ConfiguracionSistema");
+        const result = yield pool.request().query("SELECT ConfigKey, ConfigValue FROM SISConfiguracion");
         const configObject = result.recordset.reduce((acc, curr) => {
             acc[curr.ConfigKey] = curr.ConfigValue;
             return acc;
@@ -397,7 +333,7 @@ const getCalculationTypes = (req, res) => __awaiter(void 0, void 0, void 0, func
     try {
         const pool = yield database_1.poolPromise;
         // Consultamos la tabla maestra que creamos en el paso de BD
-        const result = yield pool.request().query('SELECT TipoCalculoId, Descripcion FROM dbo.SistemaTiposCalculo ORDER BY Descripcion');
+        const result = yield pool.request().query('SELECT TipoCalculoId, Descripcion FROM dbo.SISTiposCalculo ORDER BY Descripcion');
         console.log(`✅ Datos obtenidos de types: ${result.recordset.length} registros`);
         res.json(result.recordset);
     }

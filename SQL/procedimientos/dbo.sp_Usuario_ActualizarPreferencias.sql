@@ -1,7 +1,12 @@
-IF OBJECT_ID('dbo.sp_Usuario_ActualizarPreferencias') IS NOT NULL      DROP PROCEDURE dbo.sp_Usuario_ActualizarPreferencias;
-GO
--- Crea un nuevo procedimiento almacenado para actualizar las preferencias de un usuario espec�fico.
-CREATE PROCEDURE [dbo].[sp_Usuario_ActualizarPreferencias]
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Usuario_ActualizarPreferencias]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE [dbo].[sp_Usuario_ActualizarPreferencias]
     @UsuarioId INT,
     @Theme NVARCHAR(50),
     @AnimationsEnabled BIT
@@ -16,4 +21,4 @@ BEGIN
     WHERE 
         UsuarioId = @UsuarioId;
 END
-
+GO

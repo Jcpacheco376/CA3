@@ -1,10 +1,12 @@
-IF OBJECT_ID('dbo.sp_Usuario_ActualizarDepartamentos') IS NOT NULL      DROP PROCEDURE dbo.sp_Usuario_ActualizarDepartamentos;
-GO
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Usuario_ActualizarDepartamentos]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 
--- ------------------------------------------------------------------
--- sp_Usuario_ActualizarDepartamentos (Sin cambios)
--- ------------------------------------------------------------------
-CREATE PROCEDURE dbo.sp_Usuario_ActualizarDepartamentos
+CREATE OR ALTER PROCEDURE dbo.sp_Usuario_ActualizarDepartamentos
     @UsuarioId INT,
     @DepartamentosJSON NVARCHAR(MAX)
 AS
@@ -14,4 +16,4 @@ BEGIN
     SELECT @UsuarioId, DepartamentoId
     FROM OPENJSON(@DepartamentosJSON) WITH (DepartamentoId INT '$');
 END
-
+GO

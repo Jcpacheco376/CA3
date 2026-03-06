@@ -1,16 +1,25 @@
-CREATE TABLE [dbo].[CatalogoHorariosDetalle] (
+-- ──────────────────────────────────────────────────────────────────────
+-- Tabla: [dbo].[CatalogoHorariosDetalle]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 
-[HorarioDetalleId] int IDENTITY(1,1) NOT NULL,
-[HorarioId] int NOT NULL,
-[DiaSemana] int NOT NULL,
-[EsDiaLaboral] bit DEFAULT ((0)) NOT NULL,
-[HoraEntrada] time NULL,
-[HoraSalida] time NULL,
-[HoraInicioComida] time NULL,
-[HoraFinComida] time NULL,
-[MinutosAntesEntrada] int DEFAULT ((120)) NOT NULL,
-[MinutosDespuesSalida] int DEFAULT ((240)) NOT NULL,
-CONSTRAINT [PK__HorarioD__3A5CF92BAE676948] PRIMARY KEY CLUSTERED ([HorarioDetalleId] ASC) WITH (PAD_INDEX = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY],
-CONSTRAINT [UQ_Horario_DiaSemana] UNIQUE NONCLUSTERED ([HorarioId] ASC, [DiaSemana] ASC) WITH (PAD_INDEX = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY]
-ALTER TABLE [dbo].[CatalogoHorariosDetalle] ADD CONSTRAINT [FK__HorarioDe__Horar__2AA05119] FOREIGN KEY([HorarioId]) REFERENCES [dbo].[CatalogoHorarios]([HorarioId]);
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name='CatalogoHorariosDetalle' AND schema_id=SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[CatalogoHorariosDetalle] (
+    [HorarioDetalleId] int IDENTITY(1,1) NOT NULL,
+    [HorarioId] int NOT NULL,
+    [DiaSemana] int NOT NULL,
+    [EsDiaLaboral] bit NOT NULL CONSTRAINT [DF__HorarioDe__EsDia__2B947552] DEFAULT ((0)),
+    [HoraEntrada] time NULL,
+    [HoraSalida] time NULL,
+    [HoraInicioComida] time NULL,
+    [HoraFinComida] time NULL,
+    [MinutosAntesEntrada] int NOT NULL CONSTRAINT [DF__CatalogoH__Minut__5E4ADDA8] DEFAULT ((120)),
+    [MinutosDespuesSalida] int NOT NULL CONSTRAINT [DF__CatalogoH__Minut__5F3F01E1] DEFAULT ((240)),
+    CONSTRAINT [PK__HorarioD__3A5CF92BAE676948] PRIMARY KEY CLUSTERED ([HorarioDetalleId])
+    );
+END
+GO

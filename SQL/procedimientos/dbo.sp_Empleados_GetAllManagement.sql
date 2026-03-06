@@ -1,9 +1,11 @@
-USE [CA]
-GO
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Empleados_GetAllManagement]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
 CREATE OR ALTER PROCEDURE [dbo].[sp_Empleados_GetAllManagement]
     @IncluirInactivos BIT = 0
 AS
@@ -49,3 +51,4 @@ BEGIN
 
     ORDER BY e.NombreCompleto;
 END
+GO

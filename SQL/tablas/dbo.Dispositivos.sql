@@ -1,25 +1,35 @@
-CREATE TABLE [dbo].[Dispositivos] (
+-- ──────────────────────────────────────────────────────────────────────
+-- Tabla: [dbo].[Dispositivos]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 
-[DispositivoId] int IDENTITY(1,1) NOT NULL,
-[Nombre] nvarchar(200) NOT NULL,
-[IpAddress] nvarchar(100) NULL,
-[Puerto] int DEFAULT ((4370)) NULL,
-[ZonaId] int NULL,
-[TipoConexion] nvarchar(40) DEFAULT ('SDK') NULL,
-[NumeroSerie] nvarchar(200) NULL,
-[UltimaSincronizacion] datetime NULL,
-[Estado] nvarchar(40) DEFAULT ('Desconectado') NULL,
-[Activo] bit DEFAULT ((1)) NULL,
-[PasswordCom] nvarchar(40) NULL,
-[Firmware] nvarchar(100) NULL,
-[Plataforma] nvarchar(100) NULL,
-[TotalUsuarios] int DEFAULT ((0)) NULL,
-[TotalHuellas] int DEFAULT ((0)) NULL,
-[TotalRostros] int DEFAULT ((0)) NULL,
-[TotalRegistros] int DEFAULT ((0)) NULL,
-[DireccionADMS] nvarchar(200) NULL,
-[HoraDispositivo] datetime NULL,
-[BorrarChecadas] bit DEFAULT ((0)) NOT NULL,
-CONSTRAINT [PK__Disposit__724C27A11D3462C5] PRIMARY KEY CLUSTERED ([DispositivoId] ASC) WITH (PAD_INDEX = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY]
-ALTER TABLE [dbo].[Dispositivos] ADD CONSTRAINT [FK__Dispositi__ZonaI__6908633D] FOREIGN KEY([ZonaId]) REFERENCES [dbo].[Zonas]([ZonaId]);
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name='Dispositivos' AND schema_id=SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[Dispositivos] (
+    [DispositivoId] int IDENTITY(1,1) NOT NULL,
+    [Nombre] nvarchar(100) NOT NULL,
+    [IpAddress] nvarchar(50) NULL,
+    [Puerto] int NULL CONSTRAINT [DF__Dispositi__Puert__68143F04] DEFAULT ((4370)),
+    [ZonaId] int NULL,
+    [TipoConexion] nvarchar(20) NULL CONSTRAINT [DF__Dispositi__TipoC__69FC8776] DEFAULT ('SDK'),
+    [NumeroSerie] nvarchar(100) NULL,
+    [UltimaSincronizacion] datetime NULL,
+    [Estado] nvarchar(20) NULL CONSTRAINT [DF__Dispositi__Estad__6AF0ABAF] DEFAULT ('Desconectado'),
+    [Activo] bit NULL CONSTRAINT [DF__Dispositi__Activ__6BE4CFE8] DEFAULT ((1)),
+    [PasswordCom] nvarchar(20) NULL,
+    [Firmware] nvarchar(50) NULL,
+    [Plataforma] nvarchar(50) NULL,
+    [TotalUsuarios] int NULL CONSTRAINT [DF__Dispositi__Total__756E3A22] DEFAULT ((0)),
+    [TotalHuellas] int NULL CONSTRAINT [DF__Dispositi__Total__76625E5B] DEFAULT ((0)),
+    [TotalRostros] int NULL CONSTRAINT [DF__Dispositi__Total__77568294] DEFAULT ((0)),
+    [TotalRegistros] int NULL CONSTRAINT [DF__Dispositi__Total__784AA6CD] DEFAULT ((0)),
+    [DireccionADMS] nvarchar(100) NULL,
+    [HoraDispositivo] datetime NULL,
+    [BorrarChecadas] bit NOT NULL CONSTRAINT [DF__Dispositi__Borra__7A32EF3F] DEFAULT ((0)),
+    CONSTRAINT [PK__Disposit__724C27A11D3462C5] PRIMARY KEY CLUSTERED ([DispositivoId])
+    );
+END
+GO

@@ -1,7 +1,12 @@
-IF OBJECT_ID('dbo.sp_Empleados_GetDatos') IS NOT NULL      DROP PROCEDURE dbo.sp_Empleados_GetDatos;
-GO
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Empleados_GetDatos]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 
-            CREATE   PROCEDURE [dbo].[sp_Empleados_GetDatos]
+CREATE OR ALTER PROCEDURE [dbo].[sp_Empleados_GetDatos]
                 @EmpleadoId INT
             AS
             BEGIN
@@ -20,4 +25,4 @@ GO
                 FROM Empleados e
                 WHERE e.EmpleadoId = @EmpleadoId;
             END
-        
+GO

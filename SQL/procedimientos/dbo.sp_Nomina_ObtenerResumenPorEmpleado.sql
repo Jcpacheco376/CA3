@@ -1,7 +1,12 @@
-IF OBJECT_ID('dbo.sp_Nomina_ObtenerResumenPorEmpleado') IS NOT NULL      DROP PROCEDURE dbo.sp_Nomina_ObtenerResumenPorEmpleado;
-GO
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Nomina_ObtenerResumenPorEmpleado]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 
-CREATE   PROCEDURE [dbo].[sp_Nomina_ObtenerResumenPorEmpleado]
+CREATE OR ALTER PROCEDURE [dbo].[sp_Nomina_ObtenerResumenPorEmpleado]
     @GrupoNominaId INT,
     @FechaInicio DATE,
     @FechaFin DATE,
@@ -57,4 +62,4 @@ BEGIN
     GROUP BY e.EmpleadoId, e.CodRef, e.NombreCompleto, p.Nombre, d.Nombre
     ORDER BY e.NombreCompleto;
 END
-
+GO

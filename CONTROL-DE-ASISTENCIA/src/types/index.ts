@@ -59,7 +59,7 @@ export interface Role {
     RoleId: number;
     NombreRol: string;
     Descripcion?: string;
-    Permisos?: Permission[];
+    SISPermisos?: Permission[];
     EsPrincipal?: boolean;
 
 }

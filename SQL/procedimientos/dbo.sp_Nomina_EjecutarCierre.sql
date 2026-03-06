@@ -1,6 +1,12 @@
-IF OBJECT_ID('dbo.sp_Nomina_EjecutarCierre') IS NOT NULL      DROP PROCEDURE dbo.sp_Nomina_EjecutarCierre;
-GO
-CREATE   PROCEDURE [dbo].[sp_Nomina_EjecutarCierre]
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Nomina_EjecutarCierre]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE [dbo].[sp_Nomina_EjecutarCierre]
     @GrupoNominaId INT,
     @FechaInicio DATE,
     @FechaFin DATE,
@@ -15,7 +21,7 @@ BEGIN
 
     IF @FechaFin > CAST(GETDATE() AS DATE)
     BEGIN
-        THROW 51000, 'No es posible cerrar un periodo que a�n no ha concluido (Fecha Fin es futura).', 1;
+        THROW 51000, 'No es posible cerrar un periodo que a�n no ha concluido (Fecha Fin es futura).', 1;
         RETURN;
     END
 
@@ -55,7 +61,7 @@ BEGIN
 
         DECLARE @FilasAfectadas INT = @@ROWCOUNT;
 
-        -- Pendientes en el �mbito filtrado + permisos
+        -- Pendientes en el �mbito filtrado + permisos
         DECLARE @Pendientes INT;
         SELECT @Pendientes = COUNT(*)
         FROM [dbo].[FichaAsistencia] f
@@ -89,5 +95,4 @@ BEGIN
         THROW;
     END CATCH
 END
-
-
+GO

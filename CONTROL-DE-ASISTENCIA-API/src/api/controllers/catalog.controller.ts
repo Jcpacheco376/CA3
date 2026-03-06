@@ -273,7 +273,7 @@ export const getSystemConfig = async (req: any, res: Response) => {
     try {
         const pool = await poolPromise;
         // Traemos toda la config para tenerla disponible, o filtramos por keys específicas
-        const result = await pool.request().query("SELECT ConfigKey, ConfigValue FROM ConfiguracionSistema");
+        const result = await pool.request().query("SELECT ConfigKey, ConfigValue FROM SISConfiguracion");
 
 
         const configObject = result.recordset.reduce((acc: any, curr: any) => {
@@ -295,7 +295,7 @@ export const getCalculationTypes = async (req: any, res: Response) => {
     try {
         const pool = await poolPromise;
         // Consultamos la tabla maestra que creamos en el paso de BD
-        const result = await pool.request().query('SELECT TipoCalculoId, Descripcion FROM dbo.SistemaTiposCalculo ORDER BY Descripcion');
+        const result = await pool.request().query('SELECT TipoCalculoId, Descripcion FROM dbo.SISTiposCalculo ORDER BY Descripcion');
         console.log(`✅ Datos obtenidos de types: ${result.recordset.length} registros`);
         res.json(result.recordset);
     } catch (err) {

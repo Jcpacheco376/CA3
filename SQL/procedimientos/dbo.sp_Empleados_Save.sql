@@ -1,9 +1,11 @@
-USE [CA]
-GO
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Empleados_Save]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
 CREATE OR ALTER PROCEDURE [dbo].[sp_Empleados_Save]
     @EmpleadoId INT = NULL OUTPUT,
     @CodRef NVARCHAR(50),
@@ -29,20 +31,17 @@ AS
 BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
-
     BEGIN TRY
         BEGIN TRANSACTION;
-
         -- Calcular NombreCompleto basado en Configuración
         DECLARE @FormatoNombre INT;
-        SELECT TOP 1 @FormatoNombre = ISNULL(FormatoNombre, 1) FROM ConfiguracionSistema;
+        SELECT TOP 1 @FormatoNombre = ISNULL(FormatoNombre, 1) FROM SISConfiguracion;
         
         DECLARE @NombreCompleto NVARCHAR(300);
         IF @FormatoNombre = 2 -- Apellidos Nombres
             SET @NombreCompleto = TRIM(@ApellidoPaterno + ' ' + ISNULL(@ApellidoMaterno, '') + ' ' + @Nombres);
         ELSE -- Nombres Apellidos (Default)
             SET @NombreCompleto = TRIM(@Nombres + ' ' + @ApellidoPaterno + ' ' + ISNULL(@ApellidoMaterno, ''));
-
         -- Verificación básica de duplicados de CodRef si es necesario
         IF @EmpleadoId IS NULL OR @EmpleadoId = 0
         BEGIN
@@ -53,7 +52,6 @@ BEGIN
                 ROLLBACK TRANSACTION;
                 RETURN;
             END
-
             INSERT INTO Empleados (
                 CodRef, Pim, Nombres, ApellidoPaterno, ApellidoMaterno, NombreCompleto,
                 FechaNacimiento, FechaIngreso, DepartamentoId, PuestoId, HorarioIdPredeterminado,
@@ -63,7 +61,6 @@ BEGIN
                 @FechaNacimiento, @FechaIngreso, @DepartamentoId, @PuestoId, @HorarioIdPredeterminado,
                 @GrupoNominaId, @EstablecimientoId, @Sexo, @NSS, @CURP, @RFC, @Imagen, @Activo
             );
-
             SET @EmpleadoId = SCOPE_IDENTITY();
         END
         ELSE
@@ -75,7 +72,6 @@ BEGIN
                 ROLLBACK TRANSACTION;
                 RETURN;
             END
-
             UPDATE Empleados SET 
                 CodRef = @CodRef,
                 Pim = @Pim,
@@ -98,20 +94,17 @@ BEGIN
                 Activo = @Activo
             WHERE EmpleadoId = @EmpleadoId;
         END
-
         COMMIT TRANSACTION;
         PRINT 'Guardado local completado.';
         
         -- Sincronización Push a Sistema Externo (BMS)
-        IF (SELECT ConfigValue FROM dbo.ConfiguracionSistema WHERE ConfigKey = 'SyncEmpleados') = 'true'
+        IF (SELECT ConfigValue FROM dbo.SISConfiguracion WHERE ConfigKey = 'SyncEmpleados') = 'true'
         BEGIN
             PRINT 'Sincronización (PUSH) habilitada. Enviando a BMS...';
             
-            DECLARE @StatusChar CHAR(1) = CASE WHEN @Activo = 1 THEN '1' ELSE '2' END;
-
+            DECLARE @StatusChar CHAR(1) = CASE WHEN @Activo = 1 THEN '1' ELSE '2' END; -- Asumiendo 1=Alta, 2=Baja/Otro
             EXEC [dbo].[sp_SyncToExternal_Empleado]
                 @CodRef = @CodRef,
-                @NombreCompleto = @NombreCompleto, -- Pasamos el nombre calculado
                 @Nombres = @Nombres,
                 @ApellidoPaterno = @ApellidoPaterno,
                 @ApellidoMaterno = @ApellidoMaterno,
@@ -130,7 +123,6 @@ BEGIN
                 
             PRINT 'Sincronización completada.';
         END
-
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0
@@ -140,3 +132,4 @@ BEGIN
         THROW;
     END CATCH
 END
+GO

@@ -1,7 +1,12 @@
-IF OBJECT_ID('dbo.sp_Empleados_Insert') IS NOT NULL      DROP PROCEDURE dbo.sp_Empleados_Insert;
-GO
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Empleados_Insert]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 
-            CREATE   PROCEDURE [dbo].[sp_Empleados_Insert]
+CREATE OR ALTER PROCEDURE [dbo].[sp_Empleados_Insert]
                 @CodRef NVARCHAR(50),
                 @Pim NVARCHAR(50) = NULL,
                 @Nombres NVARCHAR(100),
@@ -27,7 +32,7 @@ GO
 
                 -- Calculate NombreCompleto based on Config
                 DECLARE @FormatoNombre INT;
-                SELECT TOP 1 @FormatoNombre = ISNULL(FormatoNombre, 1) FROM ConfiguracionSistema;
+                SELECT TOP 1 @FormatoNombre = ISNULL(FormatoNombre, 1) FROM SISConfiguracion;
                 
                 DECLARE @NombreCompleto NVARCHAR(300);
                 IF @FormatoNombre = 2 -- Apellidos Nombres
@@ -47,4 +52,4 @@ GO
 
                 SET @NewId = SCOPE_IDENTITY();
             END
-        
+GO

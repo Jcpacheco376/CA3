@@ -20,7 +20,7 @@ const dbConfig = {
 async function test() {
     try {
         const pool = await sql.connect(dbConfig);
-        const result = await pool.request().query("SELECT ConfigKey, ConfigValue FROM ConfiguracionSistema WHERE ConfigKey LIKE 'Filtro%Activo'");
+        const result = await pool.request().query("SELECT ConfigKey, ConfigValue FROM SISConfiguracion WHERE ConfigKey LIKE 'Filtro%Activo'");
         console.log('Filter Config:', JSON.stringify(result.recordset, null, 2));
         await pool.close();
     } catch (err) {

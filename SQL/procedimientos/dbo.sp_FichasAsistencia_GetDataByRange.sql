@@ -1,7 +1,12 @@
-IF OBJECT_ID('dbo.sp_FichasAsistencia_GetDataByRange') IS NOT NULL      DROP PROCEDURE dbo.sp_FichasAsistencia_GetDataByRange;
-GO
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_FichasAsistencia_GetDataByRange]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 
-CREATE PROCEDURE [dbo].[sp_FichasAsistencia_GetDataByRange]
+CREATE OR ALTER PROCEDURE [dbo].[sp_FichasAsistencia_GetDataByRange]
     @UsuarioId INT,
     @FechaInicio DATE,
     @FechaFin DATE,
@@ -14,7 +19,7 @@ BEGIN
     SET NOCOUNT ON;
     SET DATEFIRST 1; -- Lunes = 1
 		
-		-- 1. Auto-Generaci�n inteligente 
+		-- 1. Auto-Generaci�n inteligente 
 		IF NOT EXISTS (SELECT 1 FROM dbo.FichaAsistencia WHERE Fecha BETWEEN @FechaInicio AND @FechaFin)
         begin 
 			EXEC [dbo].[sp_FichasAsistencia_ProcesarChecadas] @FechaInicio, @FechaFin, @UsuarioId;
@@ -38,14 +43,14 @@ BEGIN
 				)
 
 				BEGIN
-					-- Procesar solo este d�a faltante
+					-- Procesar solo este d�a faltante
 					EXEC [dbo].[sp_FichasAsistencia_ProcesarChecadas] 
 						@CurrentDate, 
 						@CurrentDate, 
 						@UsuarioId; 
 				END
 
-				-- Avanzar al siguiente d�a
+				-- Avanzar al siguiente d�a
 				SET @CurrentDate = DATEADD(DAY, 1, @CurrentDate);
 			END
 	  end
@@ -87,7 +92,7 @@ BEGIN
                 fa.IncidenciaActivaId,
                 fa.Estado,
                 
-                -- C�lculo de Minutos de Comida
+                -- C�lculo de Minutos de Comida
                 ISNULL((
                     SELECT DATEDIFF(MINUTE, hd.HoraInicioComida, hd.HoraFinComida)
                     FROM dbo.CatalogoHorariosDetalle hd
@@ -103,7 +108,7 @@ BEGIN
                 estMan.Abreviatura as EstatusManualAbrev,
                 estMan.ColorUI as EstatusSupervisorColor,
                 -- -----------------------------------------------------------
-                -- L�GICA ACTUALIZADA: Usando TipoCalculoId
+                -- L�GICA ACTUALIZADA: Usando TipoCalculoId
                 -- -----------------------------------------------------------
                 CASE 
                     WHEN ISNULL(estMan.TipoCalculoId, estChec.TipoCalculoId) = 'FALTA'       THEN 'F'
@@ -120,7 +125,7 @@ BEGIN
                 'Pendiente' as EstatusAutorizacion
 
             FROM dbo.FichaAsistencia fa
-            -- Seguridad a nivel de fila tambi�n en las fichas
+            -- Seguridad a nivel de fila tambi�n en las fichas
             INNER JOIN dbo.fn_Seguridad_GetEmpleadosPermitidos(@UsuarioId) perm ON e.EmpleadoId = perm.EmpleadoId
             LEFT JOIN dbo.CatalogoEstatusAsistencia estMan ON fa.EstatusManualId = estMan.EstatusId
             LEFT JOIN dbo.CatalogoEstatusAsistencia estChec ON fa.EstatusChecadorId = estChec.EstatusId
@@ -138,5 +143,4 @@ BEGIN
       AND ((SELECT COUNT(*) FROM @Estabs) = 0 OR e.EstablecimientoId IN (SELECT Id FROM @Estabs))
     ORDER BY e.NombreCompleto;
 END
-
-
+GO

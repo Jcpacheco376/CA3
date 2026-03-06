@@ -1,6 +1,12 @@
-IF OBJECT_ID('dbo.sp_CatalogoHorarios_Upsert') IS NOT NULL      DROP PROCEDURE dbo.sp_CatalogoHorarios_Upsert;
-GO
-CREATE PROCEDURE [dbo].[sp_CatalogoHorarios_Upsert]
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_CatalogoHorarios_Upsert]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE [dbo].[sp_CatalogoHorarios_Upsert]
     @HorarioId INT,
     @Abreviatura NVARCHAR(10),
     @Nombre NVARCHAR(100),
@@ -17,7 +23,7 @@ BEGIN
     BEGIN TRY
         BEGIN TRANSACTION;
         
-        -- 1. Validaci�n de duplicados
+        -- 1. Validaci�n de duplicados
         IF EXISTS (
             SELECT 1 
             FROM dbo.CatalogoHorarios 
@@ -29,7 +35,7 @@ BEGIN
         BEGIN
             PRINT 'ERROR: Conflicto de abreviatura encontrada.';
             ROLLBACK;
-            RAISERROR ('La abreviatura del horario ya est� en uso por otro horario activo.', 16, 1);
+            RAISERROR ('La abreviatura del horario ya est� en uso por otro horario activo.', 16, 1);
             RETURN;
         END
 
@@ -52,7 +58,7 @@ BEGIN
             SET @HorarioId = SCOPE_IDENTITY();
         END
 
-        -- 3. Actualizaci�n de Detalles Locales
+        -- 3. Actualizaci�n de Detalles Locales
         DELETE FROM dbo.CatalogoHorariosDetalle WHERE HorarioId = @HorarioId;
             
         INSERT INTO dbo.CatalogoHorariosDetalle (HorarioId, DiaSemana, EsDiaLaboral, HoraEntrada, HoraSalida, HoraInicioComida, HoraFinComida) 
@@ -75,7 +81,7 @@ BEGIN
             HoraFinComida TIME '$.HoraFinComida'
         ) AS j;
 
-        -- 4. C�lculo de Turno Autom�tico
+        -- 4. C�lculo de Turno Autom�tico
         SET @CalculatedTurno = NULL;
         DECLARE @DistinctTurnos INT = 0;
         
@@ -108,16 +114,16 @@ BEGIN
         UPDATE dbo.CatalogoHorarios SET turno = @CalculatedTurno WHERE HorarioId = @HorarioId;
 
         -- =========================================================================
-        -- 5. SINCRONIZACI�N (NUEVA INTEGRACI�N)
+        -- 5. SINCRONIZACI�N (NUEVA INTEGRACI�N)
         -- =========================================================================
-        IF (SELECT ConfigValue FROM dbo.ConfiguracionSistema WHERE ConfigKey = 'SyncHorarios') = 'true'
+        IF (SELECT ConfigValue FROM dbo.SISConfiguracion WHERE ConfigKey = 'SyncHorarios') = 'true'
         BEGIN
-            PRINT 'Paso Sync: Sincronizaci�n (PUSH) de Horario habilitada.';
+            PRINT 'Paso Sync: Sincronizaci�n (PUSH) de Horario habilitada.';
             EXEC [dbo].[sp_SyncToExternal_Horario] @HorarioId = @HorarioId;
         END
         ELSE
         BEGIN
-             PRINT 'Paso Sync: Sincronizaci�n (PUSH) deshabilitada.';
+             PRINT 'Paso Sync: Sincronizaci�n (PUSH) deshabilitada.';
         END
 
         COMMIT TRANSACTION;
@@ -140,3 +146,4 @@ BEGIN
         THROW; 
     END CATCH
 END
+GO

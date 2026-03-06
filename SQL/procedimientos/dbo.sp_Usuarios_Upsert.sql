@@ -1,7 +1,12 @@
-IF OBJECT_ID('dbo.sp_Usuarios_Upsert') IS NOT NULL      DROP PROCEDURE dbo.sp_Usuarios_Upsert;
-GO
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Usuarios_Upsert]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 
-CREATE PROCEDURE [dbo].[sp_Usuarios_Upsert]
+CREATE OR ALTER PROCEDURE [dbo].[sp_Usuarios_Upsert]
     @UsuarioId INT,
     @NombreCompleto NVARCHAR(100),
     @NombreUsuario NVARCHAR(50),
@@ -17,10 +22,10 @@ AS
 BEGIN
     SET NOCOUNT ON;
     
-    -- 1. Validaciones de Usuario �nico
+    -- 1. Validaciones de Usuario �nico
     IF EXISTS (SELECT 1 FROM dbo.Usuarios WHERE NombreUsuario = @NombreUsuario AND UsuarioId != @UsuarioId)
     BEGIN
-        RAISERROR ('El nombre de usuario ''%s'' ya est� en uso.', 16, 1, @NombreUsuario);
+        RAISERROR ('El nombre de usuario ''%s'' ya est� en uso.', 16, 1, @NombreUsuario);
         RETURN;
     END
 
@@ -42,14 +47,14 @@ BEGIN
         VALUES (@UsuarioId, @NombreUsuario, PWDENCRYPT(@Password), @NombreCompleto, @Email, @EstaActivo);
     END
    
-    -- 3. Actualizaci�n de Relaciones (Aqu� el cambio importante)
+    -- 3. Actualizaci�n de Relaciones (Aqu� el cambio importante)
     DELETE FROM dbo.UsuariosRoles WHERE UsuarioId = @UsuarioId;
     
     INSERT INTO dbo.UsuariosRoles (UsuarioId, RoleId, EsPrincipal) 
     SELECT 
         @UsuarioId, 
         RoleId, 
-        ISNULL(EsPrincipal, 0) -- Leemos la propiedad expl�cita
+        ISNULL(EsPrincipal, 0) -- Leemos la propiedad expl�cita
     FROM OPENJSON(@RolesJSON) 
     WITH (
         RoleId INT '$.RoleId', 
@@ -71,3 +76,4 @@ BEGIN
     
     SELECT UsuarioId, NombreCompleto FROM dbo.Usuarios WHERE UsuarioId = @UsuarioId;
 END
+GO

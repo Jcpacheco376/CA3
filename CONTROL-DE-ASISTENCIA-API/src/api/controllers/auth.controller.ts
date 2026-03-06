@@ -108,7 +108,7 @@ const getActiveFilters = async (pool: sql.ConnectionPool): Promise<any> => {
                 CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroGruposNominaActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT) AS gruposNomina,
                 CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroPuestosActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT) AS puestos,
                 CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroEstablecimientosActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT) AS establecimientos
-            FROM dbo.ConfiguracionSistema
+            FROM dbo.SISConfiguracion
             WHERE ConfigKey IN (
                 'FiltroDepartamentosActivo', 
                 'FiltroGruposNominaActivo', 

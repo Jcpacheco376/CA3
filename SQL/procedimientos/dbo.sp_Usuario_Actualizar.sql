@@ -1,6 +1,12 @@
-IF OBJECT_ID('dbo.sp_Usuario_Actualizar') IS NOT NULL      DROP PROCEDURE dbo.sp_Usuario_Actualizar;
-GO
-CREATE PROCEDURE sp_Usuario_Actualizar
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Usuario_Actualizar]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE sp_Usuario_Actualizar
     @UsuarioId INT,
     @NombreCompleto NVARCHAR(100),
     @Email NVARCHAR(100),
@@ -16,4 +22,4 @@ BEGIN
     WHERE
         UsuarioId = @UsuarioId;
 END
-
+GO

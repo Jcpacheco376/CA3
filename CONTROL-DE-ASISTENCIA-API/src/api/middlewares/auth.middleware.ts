@@ -62,7 +62,7 @@ export const authMiddleware = async (req: any, res: Response, next: NextFunction
                         (SELECT EstablecimientoId FROM UsuariosEstablecimientos WHERE UsuarioId = @UsuarioId FOR JSON PATH) as Establecimientos
                 `),
             pool.request().query(`
-                SELECT ConfigKey, ConfigValue FROM ConfiguracionSistema 
+                SELECT ConfigKey, ConfigValue FROM SISConfiguracion 
                 WHERE ConfigKey IN ('FiltroDepartamentosActivo', 'FiltroGruposNominaActivo', 'FiltroPuestosActivo', 'FiltroEstablecimientosActivo')
             `)
         ]);

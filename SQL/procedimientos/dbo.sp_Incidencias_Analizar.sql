@@ -1,19 +1,25 @@
-IF OBJECT_ID('dbo.sp_Incidencias_Analizar') IS NOT NULL      DROP PROCEDURE dbo.sp_Incidencias_Analizar;
-GO
-CREATE PROCEDURE [dbo].[sp_Incidencias_Analizar]
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Incidencias_Analizar]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE [dbo].[sp_Incidencias_Analizar]
     @FechaInicio DATE = NULL,
     @FechaFin DATE = NULL,
     @EmpleadoId INT = NULL,
     @UsuarioId INT,
     @SinRetorno BIT = 0,
     @IncidenciaId INT = NULL,
-    @OrigenExec NVARCHAR(50) = 'Sistema' -- << NUEVO PAR�METRO DE CONTROL ('Sistema' o 'Manual')
+    @OrigenExec NVARCHAR(50) = 'Sistema' -- << NUEVO PAR�METRO DE CONTROL ('Sistema' o 'Manual')
 AS
 BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
 
-    -- 0. PRE-CONFIGURACI�N
+    -- 0. PRE-CONFIGURACI�N
     IF @IncidenciaId IS NOT NULL
     BEGIN
         SELECT @FechaInicio = Fecha, @FechaFin = Fecha, @EmpleadoId = EmpleadoId
@@ -30,7 +36,7 @@ BEGIN
     IF @IdFalta IS NULL SET @IdFalta = 1;
 
     -------------------------------------------------------------------------
-    -- FASE 1: AUTO-RESOLUCI�N
+    -- FASE 1: AUTO-RESOLUCI�N
     -------------------------------------------------------------------------
     DECLARE @AutoResueltas TABLE (
         IncidenciaId INT, 
@@ -75,7 +81,7 @@ BEGIN
     FROM dbo.Incidencias i
     JOIN @AutoResueltas ar ON i.IncidenciaId = ar.IncidenciaId;
 
-    -- BIT�CORA CON DECISI�N DE ORIGEN
+    -- BIT�CORA CON DECISI�N DE ORIGEN
     INSERT INTO dbo.IncidenciasBitacora (
         IncidenciaId, UsuarioId, FechaMovimiento, Accion, Comentario, EstadoNuevo,
         EstatusManualId_Anterior, EstatusManualId_Nuevo,
@@ -88,7 +94,7 @@ BEGIN
         -- LOGICA DE ETIQUETADO PRECISO:
         CASE 
             WHEN @OrigenExec = 'Manual' THEN 'ResolucionManual' -- Forzado por el usuario (Modal/Grid)
-            WHEN ISNULL(Checador_Ant, -1) <> ISNULL(Checador_New, -1) THEN 'Sincronizacion' -- Cambi� el reloj
+            WHEN ISNULL(Checador_Ant, -1) <> ISNULL(Checador_New, -1) THEN 'Sincronizacion' -- Cambi� el reloj
             ELSE 'AutoResolucion' -- Cierre por regla de negocio pura
         END,
         'Incidencia resuelta. Estatus final: ' + EstatusFinal,
@@ -101,7 +107,7 @@ BEGIN
     FROM dbo.FichaAsistencia f JOIN @AutoResueltas ar ON f.IncidenciaActivaId = ar.IncidenciaId;
 
     -------------------------------------------------------------------------
-    -- FASE 2: DETECCI�N Y EVOLUCI�N (Sin cambios)
+    -- FASE 2: DETECCI�N Y EVOLUCI�N (Sin cambios)
     -------------------------------------------------------------------------
     DECLARE @Candidatas TABLE (
         EmpleadoId INT NOT NULL, Fecha DATE NOT NULL,
@@ -128,7 +134,7 @@ BEGIN
         SELECT TOP (1) ci.* FROM dbo.ConfiguracionIncidencias ci
         WHERE ci.Activo = 1 AND ci.CodigoRegla = 'CRUCE_ESTATUS'
           AND ci.EstatusSistemaId = fx.EstatusSistemaEf AND ci.EstatusManualId = fx.EstatusManualId
-        ORDER BY CASE ci.NivelSeveridad WHEN 'Cr�tica' THEN 1 WHEN 'Advertencia' THEN 2 ELSE 3 END, ci.ConfigId ASC
+        ORDER BY CASE ci.NivelSeveridad WHEN 'Cr�tica' THEN 1 WHEN 'Advertencia' THEN 2 ELSE 3 END, ci.ConfigId ASC
     ) ci
     WHERE ci.ConfigId IS NOT NULL;
 
@@ -214,7 +220,7 @@ BEGIN
         FROM dbo.FichaAsistencia f JOIN @Expediente e ON e.EmpleadoId = f.EmpleadoId AND e.Fecha = f.Fecha
         WHERE f.Fecha BETWEEN @FechaInicio AND @FechaFin AND (@EmpleadoId IS NULL OR f.EmpleadoId = @EmpleadoId);
 
-        -- 2.5 BIT�CORAS
+        -- 2.5 BIT�CORAS
         
         INSERT INTO dbo.IncidenciasBitacora (IncidenciaId, UsuarioId, FechaMovimiento, Accion, Comentario, EstadoNuevo)
         SELECT IncidenciaId, @UsuarioId, @Ahora, 'CreacionAutomatica', MensajeError, 'Nueva' FROM @Insertadas;
@@ -225,7 +231,7 @@ BEGIN
         )
         SELECT 
             IncidenciaId, @UsuarioId, @Ahora, 'ReaperturaAutomatica', 
-            ISNULL(MensajeError, N'Reabierta autom�ticamente.'), EstadoNuevo, EstadoAnterior,
+            ISNULL(MensajeError, N'Reabierta autom�ticamente.'), EstadoNuevo, EstadoAnterior,
             EstatusManualId_Anterior, EstatusManualId_Nuevo, EstatusChecadorId_Anterior, EstatusChecadorId_Nuevo
         FROM @Actualizadas WHERE EstadoAnterior IN ('Resuelta','Cancelada') AND EstadoNuevo = 'Nueva';
 
@@ -266,4 +272,4 @@ BEGIN
                AND (TipoIncidenciaId_Anterior <> TipoIncidenciaId_Nuevo OR ISNULL(EstatusChecadorId_Anterior,-1) <> ISNULL(EstatusChecadorId_Nuevo,-1) OR ISNULL(EstatusManualId_Anterior,-1) <> ISNULL(EstatusManualId_Nuevo,-1) OR ISNULL(NivelSeveridad_Anterior,'') <> ISNULL(NivelSeveridad_Nuevo,'') OR ISNULL(RequiereAutorizacion_Anterior,0) <> ISNULL(RequiereAutorizacion_Nuevo,0))) AS MotivosActualizados;
     END
 END
-
+GO

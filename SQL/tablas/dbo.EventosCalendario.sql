@@ -1,23 +1,24 @@
-CREATE TABLE [dbo].[EventosCalendario](
-	[EventoId] [int] IDENTITY(1,1) NOT NULL,
-	[Fecha] [date] NOT NULL,
-	[Nombre] [nvarchar](100) NOT NULL,
-	[Descripcion] [nvarchar](500) NULL,
-	[TipoEventoId] [varchar](30) NOT NULL,
-	[AplicaATodos] [bit] NOT NULL DEFAULT(1),
-	[Activo] [bit] NOT NULL DEFAULT ((1)),
-    [CreadoPorUsuarioId] [int] NULL,
-    [FechaCreacion] [datetime] DEFAULT (getdate()),
- CONSTRAINT [PK_EventosCalendario] PRIMARY KEY CLUSTERED 
-(
-	[EventoId] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY]
-GO
+-- ──────────────────────────────────────────────────────────────────────
+-- Tabla: [dbo].[EventosCalendario]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 
-ALTER TABLE [dbo].[EventosCalendario] WITH CHECK ADD CONSTRAINT [FK_EventosCalendario_TipoEvento]
-    FOREIGN KEY([TipoEventoId]) REFERENCES [dbo].[TiposEventoCalendario]([TipoEventoId]);
-GO
-
-ALTER TABLE [dbo].[EventosCalendario] CHECK CONSTRAINT [FK_EventosCalendario_TipoEvento]
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name='EventosCalendario' AND schema_id=SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[EventosCalendario] (
+    [EventoId] int IDENTITY(1,1) NOT NULL,
+    [Fecha] date NOT NULL,
+    [Nombre] nvarchar(100) NOT NULL,
+    [Descripcion] nvarchar(500) NULL,
+    [TipoEventoId] varchar(30) NOT NULL,
+    [AplicaATodos] bit NOT NULL CONSTRAINT [DF__EventosCa__Aplic__094028A5] DEFAULT ((1)),
+    [Activo] bit NOT NULL CONSTRAINT [DF__EventosCa__Activ__0A344CDE] DEFAULT ((1)),
+    [CreadoPorUsuarioId] int NULL,
+    [FechaCreacion] datetime NULL CONSTRAINT [DF__EventosCa__Fecha__0B287117] DEFAULT (getdate()),
+    CONSTRAINT [PK_EventosCalendario] PRIMARY KEY CLUSTERED ([EventoId])
+    );
+END
 GO

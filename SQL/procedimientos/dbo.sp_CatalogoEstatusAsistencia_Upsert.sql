@@ -1,6 +1,12 @@
-IF OBJECT_ID('dbo.sp_CatalogoEstatusAsistencia_Upsert') IS NOT NULL      DROP PROCEDURE dbo.sp_CatalogoEstatusAsistencia_Upsert;
-GO
-CREATE PROCEDURE [dbo].[sp_CatalogoEstatusAsistencia_Upsert]
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_CatalogoEstatusAsistencia_Upsert]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE [dbo].[sp_CatalogoEstatusAsistencia_Upsert]
     @EstatusId INT = NULL,
     @Abreviatura NVARCHAR(20),
     @Descripcion NVARCHAR(200),
@@ -20,14 +26,14 @@ BEGIN
     -- Validar que TipoCalculoId sea obligatorio
     IF @TipoCalculoId IS NULL OR LTRIM(RTRIM(@TipoCalculoId)) = ''
     BEGIN
-        RAISERROR('El Tipo de C�lculo es obligatorio.', 16, 1);
+        RAISERROR('El Tipo de C�lculo es obligatorio.', 16, 1);
         RETURN;
     END
 
-    -- Validar que el tipo de c�lculo exista en la tabla de referencia
-    IF NOT EXISTS (SELECT 1 FROM SistemaTiposCalculo WHERE TipoCalculoId = @TipoCalculoId)
+    -- Validar que el tipo de c�lculo exista en la tabla de referencia
+    IF NOT EXISTS (SELECT 1 FROM SISTiposCalculo WHERE TipoCalculoId = @TipoCalculoId)
     BEGIN
-        RAISERROR('El tipo de c�lculo especificado (%s) no existe en el sistema.', 16, 1, @TipoCalculoId);
+        RAISERROR('El tipo de c�lculo especificado (%s) no existe en el sistema.', 16, 1, @TipoCalculoId);
         RETURN;
     END
 
@@ -67,7 +73,7 @@ BEGIN
 			@ConceptoNominaId
         );
     END
-    -- UPDATE (edici�n de registro existente)
+    -- UPDATE (edici�n de registro existente)
     ELSE
     BEGIN
         UPDATE CatalogoEstatusAsistencia
@@ -85,7 +91,4 @@ BEGIN
         WHERE EstatusId = @EstatusId;
     END
 END
-
-
-
-
+GO

@@ -1,7 +1,12 @@
-IF OBJECT_ID('dbo.sp_Usuario_AsignarRol') IS NOT NULL      DROP PROCEDURE dbo.sp_Usuario_AsignarRol;
-GO
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Usuario_AsignarRol]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 
-CREATE PROCEDURE [dbo].[sp_Usuario_AsignarRol]
+CREATE OR ALTER PROCEDURE [dbo].[sp_Usuario_AsignarRol]
     @UsuarioId INT,
     @RoleId INT,
     @EsPrincipal BIT
@@ -11,7 +16,7 @@ BEGIN
     BEGIN TRY
         BEGIN TRANSACTION;
 
-        -- 1. Si este ser� el principal, desmarcar cualquier otro principal existente
+        -- 1. Si este ser� el principal, desmarcar cualquier otro principal existente
         IF @EsPrincipal = 1
         BEGIN
             UPDATE dbo.UsuariosRoles 
@@ -19,7 +24,7 @@ BEGIN
             WHERE UsuarioId = @UsuarioId;
         END
 
-        -- 2. Insertar o Actualizar la relaci�n (MERGE)
+        -- 2. Insertar o Actualizar la relaci�n (MERGE)
         MERGE dbo.UsuariosRoles AS target
         USING (SELECT @UsuarioId, @RoleId) AS source (UsuarioId, RoleId)
         ON (target.UsuarioId = source.UsuarioId AND target.RoleId = source.RoleId)
@@ -31,8 +36,8 @@ BEGIN
             INSERT (UsuarioId, RoleId, EsPrincipal)
             VALUES (@UsuarioId, @RoleId, @EsPrincipal);
 
-        -- 3. Validaci�n de Seguridad (Self-Healing)
-        -- Si el usuario no tiene ning�n principal (ej. se insert� como false), forzar uno.
+        -- 3. Validaci�n de Seguridad (Self-Healing)
+        -- Si el usuario no tiene ning�n principal (ej. se insert� como false), forzar uno.
         IF NOT EXISTS (SELECT 1 FROM dbo.UsuariosRoles WHERE UsuarioId = @UsuarioId AND EsPrincipal = 1)
         BEGIN
             UPDATE TOP (1) dbo.UsuariosRoles 
@@ -47,4 +52,4 @@ BEGIN
         THROW;
     END CATCH
 END
-
+GO

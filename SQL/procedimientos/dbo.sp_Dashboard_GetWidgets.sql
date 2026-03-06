@@ -1,6 +1,12 @@
-IF OBJECT_ID('dbo.sp_Dashboard_GetWidgets') IS NOT NULL      DROP PROCEDURE dbo.sp_Dashboard_GetWidgets;
-GO
-CREATE   PROCEDURE [dbo].[sp_Dashboard_GetWidgets]
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Dashboard_GetWidgets]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE [dbo].[sp_Dashboard_GetWidgets]
     @UsuarioId INT,
     @TipoWidget VARCHAR(50) -- 'STATS', 'TRENDS', 'ACTIONS', 'PAYROLL'
 AS
@@ -13,7 +19,7 @@ BEGIN
     SELECT EmpleadoId FROM dbo.fn_Seguridad_GetEmpleadosPermitidos(@UsuarioId);
 
     -- =================================================================================
-    -- WIDGET: ESTAD�STICAS DEL D�A (DailyStats & Distribution)
+    -- WIDGET: ESTAD�STICAS DEL D�A (DailyStats & Distribution)
     -- =================================================================================
     IF @TipoWidget = 'STATS'
     BEGIN
@@ -45,7 +51,7 @@ BEGIN
             (SELECT COUNT(*) FROM Empleados WHERE Activo = 1) AS TotalPlantilla,            
             -- Presentes: Tienen entrada Y el estatus es de tipo ASISTENCIA o RETARDO
             SUM(CASE WHEN FA.HoraEntrada IS NOT NULL AND (CEA.TipoCalculoId IN ('ASISTENCIA', 'RETARDO')) THEN 1 ELSE 0 END) AS Presentes,          
-            -- Retardos: Espec�ficamente tipo RETARDO
+            -- Retardos: Espec�ficamente tipo RETARDO
             SUM(CASE WHEN CEA.TipoCalculoId = 'RETARDO' THEN 1 ELSE 0 END) AS Retardos,          
             -- Ausencias: Tipo FALTA
             SUM(CASE WHEN CEA.TipoCalculoId = 'FALTA' THEN 1 ELSE 0 END) AS Ausencias,          
@@ -105,7 +111,7 @@ BEGIN
     END
 
     -- =================================================================================
-    -- WIDGET: CENTRO DE ACCI�N (ActionCenter)
+    -- WIDGET: CENTRO DE ACCI�N (ActionCenter)
     -- =================================================================================
     ELSE IF @TipoWidget = 'ACTIONS'
     BEGIN
@@ -129,7 +135,7 @@ BEGIN
     END
 
     -- =================================================================================
-    -- WIDGET: ESTATUS N�MINA (PayrollStatus)
+    -- WIDGET: ESTATUS N�MINA (PayrollStatus)
     -- =================================================================================
     ELSE IF @TipoWidget = 'PAYROLL'
     BEGIN
@@ -147,7 +153,7 @@ BEGIN
             FichasListas INT DEFAULT 0
         );
 
-        -- 1. Identificar Grupos de N�mina visibles para el usuario (seg�n sus empleados permitidos)
+        -- 1. Identificar Grupos de N�mina visibles para el usuario (seg�n sus empleados permitidos)
         INSERT INTO #PayrollStatus (GrupoNominaId, NombreGrupo, PeriodoConfig)
         SELECT DISTINCT 
             GN.GrupoNominaId, 
@@ -158,28 +164,28 @@ BEGIN
         INNER JOIN @EmpleadosPermitidos P ON E.EmpleadoId = P.EmpleadoId
         WHERE GN.Activo = 1;
 
-        -- 2. Calcular Fechas de Periodo Din�micamente seg�n el tipo de n�mina
+        -- 2. Calcular Fechas de Periodo Din�micamente seg�n el tipo de n�mina
         UPDATE #PayrollStatus
         SET InicioPeriodo = CASE 
                 WHEN PeriodoConfig = 'SEMANAL' THEN 
-                    -- L�gica Semanal: Lunes de la semana actual
+                    -- L�gica Semanal: Lunes de la semana actual
                     DATEADD(week, DATEDIFF(week, 0, @Hoy), 0)
                 ELSE 
-                    -- L�gica Quincenal (Por defecto)
+                    -- L�gica Quincenal (Por defecto)
                     CASE WHEN DAY(@Hoy) <= 15 THEN DATEFROMPARTS(YEAR(@Hoy), MONTH(@Hoy), 1)
                          ELSE DATEFROMPARTS(YEAR(@Hoy), MONTH(@Hoy), 16) END
             END,
             FinPeriodo = CASE 
                 WHEN PeriodoConfig = 'SEMANAL' THEN 
-                    -- L�gica Semanal: Domingo de la semana actual
+                    -- L�gica Semanal: Domingo de la semana actual
                     DATEADD(week, DATEDIFF(week, 0, @Hoy), 6)
                 ELSE 
-                    -- L�gica Quincenal
+                    -- L�gica Quincenal
                     CASE WHEN DAY(@Hoy) <= 15 THEN DATEFROMPARTS(YEAR(@Hoy), MONTH(@Hoy), 15)
                          ELSE EOMONTH(@Hoy) END
             END;
 
-        -- 3. Calcular M�tricas de Progreso (La parte pesada)
+        -- 3. Calcular M�tricas de Progreso (La parte pesada)
         -- Usamos un cursor o un update basado en set para contar
         
         -- A) Contar Empleados por Grupo (dentro de los permitidos)
@@ -192,7 +198,7 @@ BEGIN
         )
         FROM #PayrollStatus PS;
 
-        -- B) Calcular Fichas Esperadas (D�as en periodo * Empleados)
+        -- B) Calcular Fichas Esperadas (D�as en periodo * Empleados)
         UPDATE #PayrollStatus
         SET TotalFichasEsperadas = TotalEmpleados * (DATEDIFF(DAY, InicioPeriodo, FinPeriodo) + 1);
 
@@ -221,11 +227,11 @@ BEGIN
             FinPeriodo,
             DATEDIFF(DAY, @Hoy, FinPeriodo) AS DiasRestantes,
             
-            -- Progreso de Tiempo (Cu�nto del periodo ha pasado hoy)
+            -- Progreso de Tiempo (Cu�nto del periodo ha pasado hoy)
             ROUND((CAST(DATEDIFF(DAY, InicioPeriodo, @Hoy) AS FLOAT) / 
              NULLIF(DATEDIFF(DAY, InicioPeriodo, FinPeriodo) + 1, 0)) * 100, 1) AS ProgresoTiempo,
 
-            -- Progreso de Captura (Cu�nto trabajo real est� terminado)
+            -- Progreso de Captura (Cu�nto trabajo real est� terminado)
             CASE 
                 WHEN TotalFichasEsperadas = 0 THEN 0
                 ELSE ROUND((CAST(FichasListas AS FLOAT) / TotalFichasEsperadas) * 100, 1)
@@ -238,3 +244,4 @@ BEGIN
     END
 
 END
+GO

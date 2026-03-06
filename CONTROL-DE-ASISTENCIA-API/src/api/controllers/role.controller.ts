@@ -7,14 +7,14 @@ export const getAllRoles = async (req: any, res: Response) => {
     try {
         const pool = await sql.connect(dbConfig);
         const result = await pool.request().execute('sp_Roles_GetAll');
-        res.json(result.recordset.map(role => ({ ...role, Permisos: role.Permisos ? JSON.parse(role.Permisos) : [] })));
+        res.json(result.recordset.map(role => ({ ...role, SISPermisos: role.SISPermisos ? JSON.parse(role.SISPermisos) : [] })));
     } catch (err) { res.status(500).json({ message: 'Error al obtener roles.' }); }
 };
 
 export const upsertRole = async (req: any, res: Response) => {
     if (!req.user.permissions['roles.manage']) return res.status(403).json({ message: 'Acceso denegado.' }); // Corregido a 'manage'
     
-    const { RoleId, NombreRol, Descripcion, Permisos } = req.body;
+    const { RoleId, NombreRol, Descripcion, SISPermisos } = req.body;
     
     let pool: sql.ConnectionPool | undefined;
 
@@ -26,7 +26,7 @@ export const upsertRole = async (req: any, res: Response) => {
             .input('RoleId', sql.Int, RoleId || 0)
             .input('NombreRol', sql.NVarChar, NombreRol)
             .input('Descripcion', sql.NVarChar, Descripcion)
-            .input('PermisosJSON', sql.NVarChar, JSON.stringify(Permisos || []))
+            .input('PermisosJSON', sql.NVarChar, JSON.stringify(SISPermisos || []))
             .execute('sp_Roles_Upsert');
         
         const savedRole = { RoleId: result.recordset[0].RoleId, NombreRol };

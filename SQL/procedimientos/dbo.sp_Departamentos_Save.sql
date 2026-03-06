@@ -1,6 +1,12 @@
-IF OBJECT_ID('dbo.sp_Departamentos_Save') IS NOT NULL      DROP PROCEDURE dbo.sp_Departamentos_Save;
-GO
-CREATE PROCEDURE [dbo].[sp_Departamentos_Save]
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Departamentos_Save]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE [dbo].[sp_Departamentos_Save]
     @DepartamentoId NVARCHAR(50), 
     @CodRef NVARCHAR(50),
     @Nombre NVARCHAR(100),
@@ -29,9 +35,9 @@ BEGIN
         
         PRINT 'Paso 1: Guardado local completado.';
 
-        IF (SELECT ConfigValue FROM dbo.ConfiguracionSistema WHERE ConfigKey = 'SyncDepartamentos') = 'true'
+        IF (SELECT ConfigValue FROM dbo.SISConfiguracion WHERE ConfigKey = 'SyncDepartamentos') = 'true'
         BEGIN
-            PRINT 'Paso 2: Sincronizaci�n (PUSH) habilitada. Intentando...';
+            PRINT 'Paso 2: Sincronizaci�n (PUSH) habilitada. Intentando...';
                         
             DECLARE @Status CHAR(1) = CASE WHEN @Activo = 1 THEN 'V' ELSE 'B' END;
             
@@ -45,9 +51,9 @@ BEGIN
         END
         ELSE
         BEGIN
-            PRINT 'Paso 2: Sincronizaci�n (PUSH) deshabilitada. Omitiendo.';
+            PRINT 'Paso 2: Sincronizaci�n (PUSH) deshabilitada. Omitiendo.';
         END
-        PRINT 'Transacci�n local completada (COMMIT).';
+        PRINT 'Transacci�n local completada (COMMIT).';
 
     END TRY
     BEGIN CATCH
@@ -56,3 +62,4 @@ BEGIN
         THROW; 
     END CATCH
 END
+GO

@@ -1,0 +1,17 @@
+[
+  {
+    "ConfigId": 1,
+    "RoleId": 3,
+    "NivelSeveridad": "Advertencia"
+  },
+  {
+    "ConfigId": 2,
+    "RoleId": 3,
+    "NivelSeveridad": "Critica"
+  },
+  {
+    "ConfigId": 3,
+    "RoleId": 1,
+    "NivelSeveridad": "Critica"
+  }
+]

@@ -1,6 +1,12 @@
-IF OBJECT_ID('dbo.sp_Incidencias_CancelarSolicitud') IS NOT NULL      DROP PROCEDURE dbo.sp_Incidencias_CancelarSolicitud;
-GO
-CREATE   PROCEDURE [dbo].[sp_Incidencias_CancelarSolicitud]
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Incidencias_CancelarSolicitud]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE [dbo].[sp_Incidencias_CancelarSolicitud]
     @IncidenciaId INT,
     @Comentario NVARCHAR(255),
     @UsuarioAccionId INT,
@@ -44,7 +50,7 @@ BEGIN
             RequiereAutorizacion = 0 
         WHERE IncidenciaId = @IncidenciaId;
 
-        -- 3. Bit�cora (Cierre del Ciclo)
+        -- 3. Bit�cora (Cierre del Ciclo)
         INSERT INTO dbo.IncidenciasBitacora (
             IncidenciaId, UsuarioId, Accion, Comentario, 
             EstadoNuevo, EstadoAnterior,
@@ -57,7 +63,7 @@ BEGIN
             @IncidenciaId, 
             @UsuarioAccionId, 
             'CancelarSolicitud', 
-            ISNULL(@Comentario, 'Cancelaci�n de solicitud por el usuario.'), 
+            ISNULL(@Comentario, 'Cancelaci�n de solicitud por el usuario.'), 
             'Asignada', 
             @EstadoAnterior,
             @EstatusManualId, @EstatusManualId,
@@ -74,4 +80,4 @@ BEGIN
         THROW 51000, @Msg, 1;
     END CATCH
 END
-
+GO

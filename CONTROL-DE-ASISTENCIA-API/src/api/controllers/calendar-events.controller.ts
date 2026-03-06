@@ -6,7 +6,7 @@ export const getEventTypes = async (req: any, res: Response) => {
     try {
         const pool = await sql.connect(dbConfig);
         const result = await pool.request()
-            .execute('sp_TiposEventoCalendario_GetAll');
+            .execute('sp_SISTiposEventoCalendario_GetAll');
 
         res.json(result.recordset);
     } catch (err: any) {
@@ -72,7 +72,7 @@ export const upsertEvent = async (req: any, res: Response) => {
         // Validar permisos si el evento no es general
         const typeResult = await pool.request()
             .input('TipoEventoId', sql.VarChar, tipoEventoId)
-            .query('SELECT esGeneral FROM dbo.TiposEventoCalendario WHERE TipoEventoId = @TipoEventoId');
+            .query('SELECT esGeneral FROM dbo.SISTiposEventoCalendario WHERE TipoEventoId = @TipoEventoId');
 
         const isGeneral = typeResult.recordset?.[0]?.esGeneral ?? true;
 

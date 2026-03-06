@@ -1,6 +1,12 @@
-IF OBJECT_ID('dbo.sp_Incidencias_Votar') IS NOT NULL      DROP PROCEDURE dbo.sp_Incidencias_Votar;
-GO
-CREATE PROCEDURE [dbo].[sp_Incidencias_Votar]
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Incidencias_Votar]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE [dbo].[sp_Incidencias_Votar]
     @IncidenciaId INT,
     @AutorizacionId INT,
     @Veredicto NVARCHAR(20), -- 'Aprobado' | 'Rechazado'
@@ -17,7 +23,7 @@ BEGIN
 
     IF @EstatusActual IS NULL 
     BEGIN
-        -- Intento de recuperaci�n: buscar por Incidencia y Rol si el ID de autorizaci�n vino mal
+        -- Intento de recuperaci�n: buscar por Incidencia y Rol si el ID de autorizaci�n vino mal
         SELECT TOP 1 @AutorizacionId = AutorizacionId, @EstatusActual = Estatus
         FROM dbo.IncidenciasAutorizaciones 
         WHERE IncidenciaId = @IncidenciaId AND Estatus = 'Pendiente';
@@ -25,14 +31,14 @@ BEGIN
 
     IF @EstatusActual <> 'Pendiente' 
     BEGIN
-        RAISERROR('Esta solicitud ya fue procesada o no es v�lida.', 16, 1);
+        RAISERROR('Esta solicitud ya fue procesada o no es v�lida.', 16, 1);
         RETURN;
     END
 
-    -- Validar Permisos (Seguridad)
+    -- Validar SISPermisos (Seguridad)
     IF @EsAdmin = 0 AND NOT EXISTS (SELECT 1 FROM dbo.UsuariosRoles WHERE UsuarioId = @UsuarioAccionId AND RoleId = @RolRequeridoId)
     BEGIN
-        RAISERROR('No tienes el rol necesario para firmar esta autorizaci�n.', 16, 1);
+        RAISERROR('No tienes el rol necesario para firmar esta autorizaci�n.', 16, 1);
         RETURN;
     END
 
@@ -59,16 +65,16 @@ BEGIN
         -- CASO B: APROBADO (Verificar si faltan firmas)
         ELSE
         BEGIN
-            -- �Quedan pendientes?
+            -- �Quedan pendientes?
             IF NOT EXISTS (SELECT 1 FROM dbo.IncidenciasAutorizaciones WHERE IncidenciaId = @IncidenciaId AND Estatus = 'Pendiente')
             BEGIN
-                -- �TODOS APROBARON! -> CONCEDER PERMISO
+                -- �TODOS APROBARON! -> CONCEDER PERMISO
                 
                 DECLARE @Emp INT, @Fec DATE, @NombreAutorizador NVARCHAR(100);
                 SELECT @Emp = EmpleadoId, @Fec = Fecha FROM dbo.Incidencias WHERE IncidenciaId = @IncidenciaId;
                 SELECT @NombreAutorizador = NombreCompleto FROM dbo.Usuarios WHERE UsuarioId = @UsuarioAccionId;
 
-                -- 1. Liberar Ficha (Quitar el flag de incidencia para que pase a N�mina)
+                -- 1. Liberar Ficha (Quitar el flag de incidencia para que pase a N�mina)
                 UPDATE dbo.FichaAsistencia 
                 SET IncidenciaActivaId = NULL,
                     Comentarios = ISNULL(Comentarios, '') + ' [Autorizado por: ' + @NombreAutorizador + ']'
@@ -81,15 +87,15 @@ BEGIN
                     ResueltoPorUsuarioId = @UsuarioAccionId 
                 WHERE IncidenciaId = @IncidenciaId;
 
-                -- 3. Bit�cora Final
+                -- 3. Bit�cora Final
                 INSERT INTO dbo.IncidenciasBitacora (IncidenciaId, UsuarioId, Accion, Comentario, EstadoNuevo, FechaMovimiento)
-                VALUES (@IncidenciaId, @UsuarioAccionId, 'AutorizacionTotal', 'Excepci�n autorizada y aplicada. ' + ISNULL(@Comentario,''), 'Resuelta', GETDATE());
+                VALUES (@IncidenciaId, @UsuarioAccionId, 'AutorizacionTotal', 'Excepci�n autorizada y aplicada. ' + ISNULL(@Comentario,''), 'Resuelta', GETDATE());
             END
             ELSE
             BEGIN
-                -- A�n faltan firmas de otros roles
+                -- A�n faltan firmas de otros roles
                 INSERT INTO dbo.IncidenciasBitacora (IncidenciaId, UsuarioId, Accion, Comentario, EstadoNuevo, FechaMovimiento)
-                VALUES (@IncidenciaId, @UsuarioAccionId, 'VotoPositivo', 'Voto aprobado. Esperando m�s firmas...', 'PorAutorizar', GETDATE());
+                VALUES (@IncidenciaId, @UsuarioAccionId, 'VotoPositivo', 'Voto aprobado. Esperando m�s firmas...', 'PorAutorizar', GETDATE());
             END
         END
 
@@ -100,3 +106,4 @@ BEGIN
         THROW;
     END CATCH
 END
+GO

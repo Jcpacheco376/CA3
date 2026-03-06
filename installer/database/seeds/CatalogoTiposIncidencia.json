@@ -1,0 +1,51 @@
+[
+  {
+    "TipoIncidenciaId": 1,
+    "Nombre": "Falta Injustificada",
+    "Descripcion": "El empleado no se presentó y no tiene justificación.",
+    "Activo": true,
+    "Codigo": "FALTA"
+  },
+  {
+    "TipoIncidenciaId": 2,
+    "Nombre": "Retardo Mayor",
+    "Descripcion": "Retardo superior a la tolerancia permitida.",
+    "Activo": true,
+    "Codigo": "RETARDO"
+  },
+  {
+    "TipoIncidenciaId": 3,
+    "Nombre": "Checada Impar",
+    "Descripcion": "Falta una entrada o una salida (E/S Incompleta).",
+    "Activo": true,
+    "Codigo": "CHECADA_INC"
+  },
+  {
+    "TipoIncidenciaId": 4,
+    "Nombre": "Salida Anticipada",
+    "Descripcion": "Salió antes de su horario sin permiso.",
+    "Activo": true,
+    "Codigo": "SALIDA_ANT"
+  },
+  {
+    "TipoIncidenciaId": 5,
+    "Nombre": "Tiempo Extra",
+    "Descripcion": "Tiempo laborado fuera de horario (requiere validación).",
+    "Activo": true,
+    "Codigo": "TIEMPO_EXTRA"
+  },
+  {
+    "TipoIncidenciaId": 6,
+    "Nombre": "Discrepancia Checador/Supervisor",
+    "Descripcion": "Conflicto entre registro automático y manual.",
+    "Activo": true,
+    "Codigo": "DISCREPANCIA"
+  },
+  {
+    "TipoIncidenciaId": 7,
+    "Nombre": "Omisión de Checada",
+    "Descripcion": "Falta una entrada o salida.",
+    "Activo": true,
+    "Codigo": "OMISION"
+  }
+]

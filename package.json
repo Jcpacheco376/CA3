@@ -11,7 +11,8 @@
     "deploy:local2": "npm run build:all && deploy_CA.bat",
     "build:api": "tsc -p CONTROL-DE-ASISTENCIA-API/tsconfig.json",
     "build": "npm run build --workspace=CONTROL-DE-ASISTENCIA",
-    "deploy:lame": "node scripts/packager.js",
+    "export:sql": "node scripts/export-sql.js",
+    "deploy:installer": "node scripts/export-sql.js && node scripts/extract-seeds.js && node scripts/increment-version.js && npm run build:all && node scripts/packager.js",
     "deploy:prod": "echo 'Despliegue a producción (Render) se maneja automáticamente al hacer push a la rama main.'",
     "build:all": "npm run build --workspaces"
   },

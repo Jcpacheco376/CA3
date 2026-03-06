@@ -1,6 +1,12 @@
-IF OBJECT_ID('dbo.sp_Incidencias_GetByPeriodo') IS NOT NULL      DROP PROCEDURE dbo.sp_Incidencias_GetByPeriodo;
-GO
-CREATE   PROCEDURE [dbo].[sp_Incidencias_GetByPeriodo]
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Incidencias_GetByPeriodo]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE [dbo].[sp_Incidencias_GetByPeriodo]
     @UsuarioId INT,
     @FechaInicio DATE,
     @FechaFin DATE
@@ -51,4 +57,4 @@ BEGIN
         END ASC, 
         i.Fecha DESC;
 END
-
+GO

@@ -1,0 +1,26 @@
+[
+  {
+    "RoleId": 1,
+    "NombreRol": "Administrador",
+    "Descripcion": "Tiene acceso completo a todas las funcionalidades del sistema.",
+    "FechaCreacion": "2025-10-04T11:51:08.420Z"
+  },
+  {
+    "RoleId": 2,
+    "NombreRol": "Jefe de área",
+    "Descripcion": "Puede gestionar la asistencia y horarios de los empleados a su cargo.",
+    "FechaCreacion": "2025-10-04T11:51:08.420Z"
+  },
+  {
+    "RoleId": 3,
+    "NombreRol": "Recursos Humanos",
+    "Descripcion": "Administra las personas de la planta",
+    "FechaCreacion": "2025-11-11T11:43:19.360Z"
+  },
+  {
+    "RoleId": 4,
+    "NombreRol": "Programador de Horarios",
+    "Descripcion": "Permite programar horarios",
+    "FechaCreacion": "2025-12-16T16:10:05.473Z"
+  }
+]

@@ -1,8 +1,13 @@
-IF OBJECT_ID('dbo.sp_Usuario_ActualizarEstablecimientos') IS NOT NULL      DROP PROCEDURE dbo.sp_Usuario_ActualizarEstablecimientos;
-GO
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Usuario_ActualizarEstablecimientos]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 
-/* --- 7. SP para ACTUALIZAR Permisos de Establecimientos (Nuevo) --- */
-CREATE PROCEDURE [dbo].[sp_Usuario_ActualizarEstablecimientos]
+/* --- 7. SP para ACTUALIZAR SISPermisos de Establecimientos (Nuevo) --- */
+CREATE OR ALTER PROCEDURE [dbo].[sp_Usuario_ActualizarEstablecimientos]
     @UsuarioId INT,
     @EstablecimientosJSON NVARCHAR(MAX)
 AS
@@ -13,4 +18,4 @@ BEGIN
     SELECT @UsuarioId, EstablecimientoId
     FROM OPENJSON(@EstablecimientosJSON) WITH (EstablecimientoId INT '$.EstablecimientoId'); 
 END
-
+GO

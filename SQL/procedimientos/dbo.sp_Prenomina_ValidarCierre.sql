@@ -1,6 +1,12 @@
-IF OBJECT_ID('dbo.sp_Prenomina_ValidarCierre') IS NOT NULL      DROP PROCEDURE dbo.sp_Prenomina_ValidarCierre;
-GO
-CREATE PROCEDURE [dbo].sp_Prenomina_ValidarCierre
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Prenomina_ValidarCierre]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE [dbo].sp_Prenomina_ValidarCierre
     @FechaInicio DATE,
     @FechaFin DATE,
     @UsuarioId INT,
@@ -9,7 +15,7 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- Variables para la l�gica
+    -- Variables para la l�gica
     DECLARE @PeriodoCerrado BIT = 0;
 	DECLARE @ReporteGenerado BIT = 0;
     DECLARE @FichasTotal INT = 0;
@@ -37,7 +43,7 @@ BEGIN
     FROM Prenomina 
     WHERE GrupoNominaId = @GrupoNominaId AND FechaInicio = @FechaInicio AND FechaFin = @FechaFin;
 
-    -- 2. M�tricas de Fichas (Total, Sin Validar, Sin Horario)
+    -- 2. M�tricas de Fichas (Total, Sin Validar, Sin Horario)
     SELECT 
         @FichasTotal = COUNT(*),
 		@IncidenciasCriticas = SUM(CASE WHEN f.IncidenciaActivaId is not null THEN 1 ELSE 0 END),
@@ -50,7 +56,7 @@ BEGIN
 	AND e.GrupoNominaId = @GrupoNominaId 
 	AND e.Activo=1
 
-    -- 3. Calcular Sem�foro y Mensaje (L�gica de Negocio)
+    -- 3. Calcular Sem�foro y Mensaje (L�gica de Negocio)
     IF @PeriodoCerrado = 0
     BEGIN
         SET @EstadoSemaforo = 'ROJO';
@@ -80,6 +86,4 @@ BEGIN
 		@ReporteGenerado AS ReportExists,
 		@FechaGeneracion AS LastGenerated
 END
-
-
-
+GO

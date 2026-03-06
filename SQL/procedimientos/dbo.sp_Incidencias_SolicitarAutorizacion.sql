@@ -1,6 +1,12 @@
-IF OBJECT_ID('dbo.sp_Incidencias_SolicitarAutorizacion') IS NOT NULL      DROP PROCEDURE dbo.sp_Incidencias_SolicitarAutorizacion;
-GO
-CREATE   PROCEDURE [dbo].[sp_Incidencias_SolicitarAutorizacion]
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Incidencias_SolicitarAutorizacion]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE [dbo].[sp_Incidencias_SolicitarAutorizacion]
     @IncidenciaId INT,
     @Comentario NVARCHAR(255),
     @UsuarioAccionId INT
@@ -47,7 +53,7 @@ BEGIN
         SET Estado = 'PorAutorizar', RequiereAutorizacion = 1 
         WHERE IncidenciaId = @IncidenciaId;
 
-        -- 6. Bit�cora 
+        -- 6. Bit�cora 
         INSERT INTO dbo.IncidenciasBitacora (
             IncidenciaId, UsuarioId, Accion, Comentario, 
             EstadoNuevo, ApelacionId, FechaMovimiento
@@ -64,4 +70,4 @@ BEGIN
         THROW;
     END CATCH
 END
-
+GO

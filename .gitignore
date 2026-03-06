@@ -3,6 +3,7 @@ Ignorar el archivo de variables de entorno de la API.
 La barra al inicio asegura que la ruta es relativa a la raíz del proyecto.
 
 .env.deploy
+.env.dev
 
 /CONTROL-DE-ASISTENCIA/.env
 /CONTROL-DE-ASISTENCIA/.env.production

@@ -1,6 +1,12 @@
-IF OBJECT_ID('dbo.sp_HorariosTemporales_Upsert') IS NOT NULL      DROP PROCEDURE dbo.sp_HorariosTemporales_Upsert;
-GO
-CREATE PROCEDURE [dbo].[sp_HorariosTemporales_Upsert]
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_HorariosTemporales_Upsert]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE [dbo].[sp_HorariosTemporales_Upsert]
     @EmpleadoId INT,
     @Fecha DATE,
     @UsuarioId INT,
@@ -15,8 +21,8 @@ BEGIN
     BEGIN TRY
         BEGIN TRANSACTION;
 
-        -- 1. VALIDACI�N DE SEGURIDAD (SOLO BLOQUEADO)
-        -- Regla inquebrantable: Si ya se pag�/cerr�, no se toca.
+        -- 1. VALIDACI�N DE SEGURIDAD (SOLO BLOQUEADO)
+        -- Regla inquebrantable: Si ya se pag�/cerr�, no se toca.
         DECLARE @EstadoFicha VARCHAR(20);
         SELECT @EstadoFicha = Estado FROM dbo.FichaAsistencia WHERE EmpleadoId = @EmpleadoId AND Fecha = @Fecha;
 
@@ -48,9 +54,9 @@ BEGIN
                 VALUES (@EmpleadoId, @Fecha, @TipoAsignacion, @HorarioId, @HorarioDetalleId, @UsuarioId, GETDATE());
         END
 
-        -- 3. PREPARACI�N DE LA FICHA (Reset a BORRADOR)
-        -- No calculamos nada. Solo le decimos a la ficha: "Tus datos actuales son viejos, prep�rate para rec�lculo".
-        -- Al ponerla en BORRADOR, el procesador (sp_FichasAsistencia_ProcesarChecadas) tendr� permiso para sobrescribirla.
+        -- 3. PREPARACI�N DE LA FICHA (Reset a BORRADOR)
+        -- No calculamos nada. Solo le decimos a la ficha: "Tus datos actuales son viejos, prep�rate para rec�lculo".
+        -- Al ponerla en BORRADOR, el procesador (sp_FichasAsistencia_ProcesarChecadas) tendr� permiso para sobrescribirla.
         
         MERGE dbo.FichaAsistencia AS target
         USING (SELECT @EmpleadoId, @Fecha) AS source (EmpleadoId, Fecha)
@@ -80,9 +86,9 @@ BEGIN
 				@UsuarioId = @UsuarioId,
 				@SinRetorno = 1;
 
-        -- 4. DISPARAR EL C�LCULO REAL
-        -- Este SP leer� la tabla HorariosTemporales (que acabamos de actualizar en el paso 2),
-        -- calcular� las ventanas exactas y llenar� la ficha correctamente.
+        -- 4. DISPARAR EL C�LCULO REAL
+        -- Este SP leer� la tabla HorariosTemporales (que acabamos de actualizar en el paso 2),
+        -- calcular� las ventanas exactas y llenar� la ficha correctamente.
 		
         EXEC dbo.sp_FichasAsistencia_ProcesarChecadas 
             @EmpleadoId = @EmpleadoId, 
@@ -98,7 +104,4 @@ BEGIN
         THROW;
     END CATCH
 END
-
-
-
-
+GO

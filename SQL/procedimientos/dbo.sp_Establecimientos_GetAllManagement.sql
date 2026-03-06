@@ -1,10 +1,16 @@
-IF OBJECT_ID('dbo.sp_Establecimientos_GetAllManagement') IS NOT NULL      DROP PROCEDURE dbo.sp_Establecimientos_GetAllManagement;
-GO
-CREATE PROCEDURE [dbo].[sp_Establecimientos_GetAllManagement]
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Establecimientos_GetAllManagement]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE [dbo].[sp_Establecimientos_GetAllManagement]
 AS
 BEGIN
     SET NOCOUNT ON;
-    -- Seleccionamos todos los campos necesarios para la p�gina de gesti�n
+    -- Seleccionamos todos los campos necesarios para la p�gina de gesti�n
     SELECT 
         EstablecimientoId,
         CodRef,
@@ -16,3 +22,4 @@ BEGIN
     ORDER BY 
         Nombre;
 END
+GO

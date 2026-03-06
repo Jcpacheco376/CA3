@@ -1,17 +1,12 @@
-USE [CA]
-GO
-/****** Object:  StoredProcedure [dbo].[sp_Empleados_GetAnniversaries]    Script Date: 2026-02-24 ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
--- =============================================
--- Author:      Antigravity
--- Create date: 2026-02-24
--- Description: Gets active employees whose work anniversary falls in the specified months.
---              @Months is a comma-separated string, e.g., '1,2,12'
--- =============================================
-CREATE PROCEDURE [dbo].[sp_Empleados_GetAnniversaries]
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Empleados_GetAnniversaries]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE [dbo].[sp_Empleados_GetAnniversaries]
     @Months NVARCHAR(50) -- Example: '1,2,12'
 AS
 BEGIN

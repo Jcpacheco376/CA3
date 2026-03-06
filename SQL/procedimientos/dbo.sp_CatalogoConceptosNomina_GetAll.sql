@@ -1,7 +1,12 @@
-IF OBJECT_ID('dbo.sp_CatalogoConceptosNomina_GetAll') IS NOT NULL      DROP PROCEDURE dbo.sp_CatalogoConceptosNomina_GetAll;
-GO
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_CatalogoConceptosNomina_GetAll]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 
-CREATE PROCEDURE [dbo].[sp_CatalogoConceptosNomina_GetAll]
+CREATE OR ALTER PROCEDURE [dbo].[sp_CatalogoConceptosNomina_GetAll]
 AS
 BEGIN
     SELECT ConceptoId, Nombre,Abreviatura, CodRef, Activo 
@@ -9,4 +14,4 @@ BEGIN
     WHERE Activo = 1 
     ORDER BY Nombre;
 END
-
+GO

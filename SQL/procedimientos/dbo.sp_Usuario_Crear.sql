@@ -1,6 +1,12 @@
-IF OBJECT_ID('dbo.sp_Usuario_Crear') IS NOT NULL      DROP PROCEDURE dbo.sp_Usuario_Crear;
-GO
-CREATE PROCEDURE sp_Usuario_Crear
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Usuario_Crear]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE sp_Usuario_Crear
     @NombreUsuario NVARCHAR(50),
     @Password NVARCHAR(100),
     @NombreCompleto NVARCHAR(100),
@@ -20,15 +26,15 @@ BEGIN
     -- Validar que el email no exista
     IF EXISTS (SELECT 1 FROM Usuarios WHERE Email = @Email)
     BEGIN
-        RAISERROR ('El correo electr�nico ya est� en uso.', 16, 1);
+        RAISERROR ('El correo electr�nico ya est� en uso.', 16, 1);
         RETURN;
     END
 
-    -- Insertar el nuevo usuario con la contrase�a encriptada
+    -- Insertar el nuevo usuario con la contrase�a encriptada
     INSERT INTO Usuarios (NombreUsuario, PasswordHash, NombreCompleto, Email)
     VALUES (@NombreUsuario, PWDENCRYPT(@Password), @NombreCompleto, @Email);
 
-    -- Devolver el ID del usuario reci�n creado
+    -- Devolver el ID del usuario reci�n creado
     SET @NuevoUsuarioId = SCOPE_IDENTITY();
 END
-
+GO

@@ -1,13 +1,23 @@
-CREATE TABLE [dbo].[CierresNomina] (
+-- ──────────────────────────────────────────────────────────────────────
+-- Tabla: [dbo].[CierresNomina]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 
-[CierreId] int IDENTITY(1,1) NOT NULL,
-[FechaInicio] date NOT NULL,
-[FechaFin] date NOT NULL,
-[FechaCierre] datetime DEFAULT (getdate()) NULL,
-[UsuarioId] int NOT NULL,
-[Comentarios] nvarchar(510) NULL,
-[Estado] varchar(20) DEFAULT ('Cerrado') NULL,
-[GrupoNominaId] int DEFAULT ((1)) NOT NULL,
-CONSTRAINT [PK__CierresN__0BAD3FBAA06FC761] PRIMARY KEY CLUSTERED ([CierreId] ASC) WITH (PAD_INDEX = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY]
-ALTER TABLE [dbo].[CierresNomina] ADD CONSTRAINT [FK_Cierres_GrupoNomina] FOREIGN KEY([GrupoNominaId]) REFERENCES [dbo].[CatalogoGruposNomina]([GrupoNominaId]);
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name='CierresNomina' AND schema_id=SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[CierresNomina] (
+    [CierreId] int IDENTITY(1,1) NOT NULL,
+    [FechaInicio] date NOT NULL,
+    [FechaFin] date NOT NULL,
+    [FechaCierre] datetime NULL CONSTRAINT [DF__CierresNo__Fecha__5EDF0F2E] DEFAULT (getdate()),
+    [UsuarioId] int NOT NULL,
+    [Comentarios] nvarchar(255) NULL,
+    [Estado] varchar(20) NULL CONSTRAINT [DF__CierresNo__Estad__5FD33367] DEFAULT ('Cerrado'),
+    [GrupoNominaId] int NOT NULL CONSTRAINT [DF__CierresNo__Grupo__3C6AC6F0] DEFAULT ((1)),
+    CONSTRAINT [PK__CierresN__0BAD3FBAA06FC761] PRIMARY KEY CLUSTERED ([CierreId])
+    );
+END
+GO

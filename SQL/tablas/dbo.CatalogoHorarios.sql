@@ -1,14 +1,24 @@
-CREATE TABLE [dbo].[CatalogoHorarios] (
+-- ──────────────────────────────────────────────────────────────────────
+-- Tabla: [dbo].[CatalogoHorarios]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 
-[HorarioId] int IDENTITY(1,1) NOT NULL,
-[CodRef] nvarchar(20) NULL,
-[Abreviatura] nvarchar(20) NOT NULL,
-[Nombre] nvarchar(200) NOT NULL,
-[MinutosTolerancia] int DEFAULT ((0)) NOT NULL,
-[ColorUI] nvarchar(100) DEFAULT ('slate') NOT NULL,
-[Activo] bit DEFAULT ((1)) NOT NULL,
-[EsRotativo] bit DEFAULT ((0)) NOT NULL,
-[Turno] char(1) DEFAULT ('') NULL,
-CONSTRAINT [PK__Catalogo__BB881B7EFA5F410B] PRIMARY KEY CLUSTERED ([HorarioId] ASC) WITH (PAD_INDEX = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY],
-CONSTRAINT [UQ__Catalogo__84823DEF251EDF4B] UNIQUE NONCLUSTERED ([CodRef] ASC) WITH (PAD_INDEX = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY]
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name='CatalogoHorarios' AND schema_id=SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[CatalogoHorarios] (
+    [HorarioId] int IDENTITY(1,1) NOT NULL,
+    [CodRef] nvarchar(10) NULL,
+    [Abreviatura] nvarchar(10) NOT NULL,
+    [Nombre] nvarchar(100) NOT NULL,
+    [MinutosTolerancia] int NOT NULL CONSTRAINT [DF__CatalogoH__Minut__1D4655FB] DEFAULT ((0)),
+    [ColorUI] nvarchar(50) NOT NULL CONSTRAINT [DF__CatalogoH__Color__1E3A7A34] DEFAULT ('slate'),
+    [Activo] bit NOT NULL CONSTRAINT [DF__CatalogoH__Activ__1F2E9E6D] DEFAULT ((1)),
+    [EsRotativo] bit NOT NULL CONSTRAINT [DF__CatalogoH__EsRot__58671BC9] DEFAULT ((0)),
+    [Turno] char(1) NULL CONSTRAINT [DF__CatalogoH__Turno__60FC61CA] DEFAULT (''),
+    CONSTRAINT [PK__Catalogo__BB881B7EFA5F410B] PRIMARY KEY CLUSTERED ([HorarioId])
+    );
+END
+GO

@@ -1,116 +1,176 @@
-USE [CA]
-GO
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_SyncChecadas]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
 CREATE OR ALTER PROCEDURE [dbo].[sp_SyncChecadas]
-    @FechaInicio DATE = NULL,
-    @FechaFin DATE = NULL,
-    @Modo VARCHAR(20) = 'BMS_LOCAL' -- 'BMS_LOCAL', 'BMS_REMOTE', 'ZKT_LOCAL', 'ZKT_REMOTE'
+(
+    @FechaInicio      DATE          = NULL,   -- si NULL => hoy - 7 días
+    @FechaFin         DATE          = NULL,   -- si NULL => hoy
+    @EmpleadoCodRef   NVARCHAR(20)  = NULL    -- opcional (BMS: empleado / ZKT: emp_pin)
+)
 AS
 BEGIN
     SET NOCOUNT ON;
-    
-    DECLARE @FI DATETIME = ISNULL(@FechaInicio, CAST(GETDATE() AS DATE));
-    DECLARE @FF DATETIME = ISNULL(@FechaFin, CAST(GETDATE() AS DATE));
-    -- Ajustar fin del día para @FF
-    SET @FF = DATEADD(SECOND, -1, DATEADD(DAY, 1, @FF));
 
+    /* === AJUSTA AQUÍ EL ORIGEN === */
+    -- Opciones: 'BMS_LOCAL', 'BMS_REMOTE', 'ZKT_LOCAL', 'ZKT_REMOTE'
+    DECLARE @Modo NVARCHAR(20) = N'ZKT_LOCAL';  
+    
+    -- Servidor vinculado (solo se usa para los modos 'REMOTE')
+    DECLARE @LinkedServer NVARCHAR(300) = N'[192.168.0.141,9000]'; 
+
+    /* Fechas efectivas */
+    DECLARE @FI DATE = ISNULL(@FechaInicio, CONVERT(date, DATEADD(DAY, -7, GETDATE())));
+    DECLARE @FF DATE = ISNULL(@FechaFin,    CONVERT(date, GETDATE()));
+    -- Rango semiabierto: [FI, FF+1d)
+    DECLARE @FF_NEXTDAY DATETIME = DATEADD(DAY, 1, CAST(@FF AS DATETIME)); 
+    
     DECLARE @RowsInserted INT = 0;
-    DECLARE @DynamicSQL NVARCHAR(MAX);
-    DECLARE @TargetDB NVARCHAR(100);
 
-    -- Obtener Nombre de BD de Entrada desde Configuración
-    SELECT TOP 1 @TargetDB = ConfigValue FROM dbo.ConfiguracionSistema WHERE ConfigKey = 'DBENTRADA';
-    
-    IF @TargetDB IS NULL OR @TargetDB = ''
-    BEGIN
-        SET @TargetDB = 'BMSJS'; 
-        PRINT 'Advertencia: Configuración DBENTRADA no encontrada, usando default: ' + @TargetDB;
-    END
+    /* ==================================================================
+       MODOS LOCALES (Consultas directas)
+       ================================================================== */
 
-    /* ======================================================================
-       MODO: BMS_LOCAL
-       ====================================================================== */
+    -- MODO 1: BMS LOCAL
     IF @Modo = 'BMS_LOCAL'
     BEGIN
-        SET @DynamicSQL = N'
-        INSERT INTO dbo.Checadas (EmpleadoId, FechaHora, Tipo, Origen, FechaSincronizacion)
+        PRINT 'Modo LOCAL: Sincronizando desde bmsjs...';
+        
+        INSERT INTO dbo.Checadas(EmpleadoId, FechaHora,  Checador)
         SELECT 
-            E.EmpleadoId,
-            A.fecha_hora,
-            CASE WHEN A.tipo = 0 THEN ''E'' ELSE ''S'' END,
-            ''BMS'',
-            GETDATE()
-        FROM ' + QUOTENAME(@TargetDB) + N'.dbo.asistencia A
-        INNER JOIN dbo.Empleados E ON RTRIM(A.empleado) = E.CodRef
-        WHERE A.fecha_hora BETWEEN @FI AND @FF
-          AND NOT EXISTS (
-              SELECT 1 
-              FROM dbo.Checadas C 
-              WHERE C.EmpleadoId = E.EmpleadoId 
-                AND C.FechaHora = A.fecha_hora
-          );';
-
-        EXEC sp_executesql @DynamicSQL, N'@FI DATETIME, @FF DATETIME', @FI, @FF;
+            E.EmpleadoId,               -- ID Local Traducido
+            S.fecha AS FechaHora,
+            S.equipo_BMS AS Checador
+        FROM bmsjs.dbo.entradas_salidas_empleados AS S WITH (NOLOCK)
+        -- JOIN PARA TRADUCIR CODREF A ID LOCAL
+        INNER JOIN dbo.Empleados E ON RTRIM(S.empleado) = E.CodRef
+        WHERE 
+            S.fecha >= @FI AND S.fecha < @FF_NEXTDAY
+            AND (@EmpleadoCodRef IS NULL OR S.empleado = @EmpleadoCodRef)
+            AND NOT EXISTS (
+                SELECT 1 FROM dbo.Checadas C WITH (NOLOCK)
+                WHERE C.EmpleadoId = E.EmpleadoId -- Comparación rápida por ID
+                  AND C.FechaHora  = S.fecha
+            );
+        
         SET @RowsInserted = @@ROWCOUNT;
     END
 
-    /* ======================================================================
-       MODO: BMS_REMOTE
-       ====================================================================== */
-    ELSE IF @Modo = 'BMS_REMOTE'
+    -- MODO 2: ZKT LOCAL
+    ELSE IF @Modo = 'ZKT_LOCAL'
     BEGIN
-        -- Usar LinkedServer 'bmsjs' hardcoded o quizas de config si se requiere a futuro.
-        -- Por ahora, user solo pidio leer DB name de parametro 'DBENTRADA'.
-        DECLARE @LinkedServer NVARCHAR(100) = 'bmsjs'; 
+        PRINT 'Modo LOCAL: Sincronizando desde ZKTimeNet...';
         
-        -- Construir query remoto usando @TargetDB
-        DECLARE @RemoteQuery NVARCHAR(MAX);
-        SET @RemoteQuery = N'SELECT RTRIM(empleado) as CodRefExterno, fecha_hora, tipo 
-                             FROM ' + QUOTENAME(@TargetDB) + N'.dbo.asistencia 
-                             WHERE fecha_hora BETWEEN ''' + CONVERT(VARCHAR, @FI, 120) + ''' AND ''' + CONVERT(VARCHAR, @FF, 120) + '''';
-        
-        -- Ejecutar OPENQUERY con SQL dinámico
-        SET @DynamicSQL = N'
-        INSERT INTO dbo.Checadas (EmpleadoId, FechaHora, Tipo, Origen, FechaSincronizacion)
+        INSERT INTO dbo.Checadas(EmpleadoId, FechaHora,  Checador)
         SELECT 
-            E.EmpleadoId,
-            Q.fecha_hora,
-            CASE WHEN Q.tipo = 0 THEN ''E'' ELSE ''S'' END,
-            ''BMS_REMOTE'',
-            GETDATE()
-        FROM OPENQUERY(' + QUOTENAME(@LinkedServer) + N', ''' + @RemoteQuery + ''') AS Q
-        INNER JOIN dbo.Empleados E ON Q.CodRefExterno = E.CodRef
-        WHERE NOT EXISTS (
-            SELECT 1 
-            FROM dbo.Checadas C 
-            WHERE C.EmpleadoId = E.EmpleadoId 
-              AND C.FechaHora = Q.fecha_hora
-        );';
-
-        -- Nota: Pasar variables dentro de string para OPENQUERY es tricky. 
-        -- Arriba convertí fechas a string Y120 para inyectar en @RemoteQuery.
-        -- REPLACE ' por '' no es necesario si @RemoteQuery no tiene comillas internas extras.
+            EmpLocal.EmpleadoId,        -- ID Local Traducido
+            a.punch_time AS FechaHora,
+            t.terminal_name AS Checador
+        FROM ZKTimeNet.dbo.att_punches a WITH (NOLOCK)
+        JOIN ZKTimeNet.dbo.hr_employee e WITH (NOLOCK) ON a.employee_id = e.id
+        JOIN ZKTimeNet.dbo.att_terminal t WITH (NOLOCK) ON a.terminal_id = t.id
+        -- JOIN PARA TRADUCIR CODREF A ID LOCAL
+        INNER JOIN dbo.Empleados EmpLocal ON RTRIM(e.emp_pin) = EmpLocal.CodRef
+        WHERE 
+            a.punch_time >= @FI AND a.punch_time < @FF_NEXTDAY
+            AND (@EmpleadoCodRef IS NULL OR e.emp_pin = @EmpleadoCodRef)
+            AND NOT EXISTS (
+                SELECT 1 FROM dbo.Checadas C WITH (NOLOCK)
+                WHERE C.EmpleadoId = EmpLocal.EmpleadoId -- Comparación rápida por ID
+                  AND C.FechaHora  = a.punch_time
+            );
         
-        EXEC sp_executesql @DynamicSQL;
         SET @RowsInserted = @@ROWCOUNT;
     END
 
-    ELSE IF @Modo LIKE 'ZKT_%'
+    /* ==================================================================
+       MODOS REMOTOS (OPENQUERY con SQL Dinámico)
+       ================================================================== */
+
+    -- MODO 3 y 4: BMS_REMOTE o ZKT_REMOTE
+    ELSE IF @Modo = 'BMS_REMOTE' OR @Modo = 'ZKT_REMOTE'
     BEGIN
-        PRINT 'Sincronización ZKT no refactorizada.';
+        PRINT 'Modo REMOTO: Preparando consulta para ' + @Modo;
+        
+        -- Variables para SQL dinámico
+        DECLARE @remoteSql  NVARCHAR(MAX);
+        DECLARE @EmpFilter  NVARCHAR(200) = N'';
+        DECLARE @FI_ISO     NVARCHAR(23) = CONVERT(NVARCHAR(23), CAST(@FI AS DATETIME), 121);
+        DECLARE @FF_ISO     NVARCHAR(23) = CONVERT(NVARCHAR(23), @FF_NEXTDAY, 121);
+
+        -- Construir la consulta remota específica
+        IF @Modo = 'BMS_REMOTE'
+        BEGIN
+            IF @EmpleadoCodRef IS NOT NULL
+                SET @EmpFilter = N' AND empleado = ''' + REPLACE(@EmpleadoCodRef, '''', '''''') + N''' ';
+
+            SET @remoteSql = 
+                N'SELECT ' +
+                N' RTRIM(empleado) AS CodRefExterno,' + 
+                N' fecha           AS FechaHora,' +
+                N' equipo_BMS      AS Checador ' +
+                N'FROM bmsjs.dbo.entradas_salidas_empleados WITH (NOLOCK) ' +
+                N'WHERE fecha >= ''' + @FI_ISO + N''' AND fecha < ''' + @FF_ISO + N''' ' +
+                @EmpFilter + N';';
+        END
+        ELSE -- @Modo = 'ZKT_REMOTE'
+        BEGIN
+            IF @EmpleadoCodRef IS NOT NULL
+                SET @EmpFilter = N' AND e.emp_pin = ''' + REPLACE(@EmpleadoCodRef, '''', '''''') + N''' ';
+
+            SET @remoteSql = 
+                N'SELECT ' +
+                N' RTRIM(e.emp_pin)   AS CodRefExterno,' + 
+                N' a.punch_time       AS FechaHora,' +
+                N' t.terminal_name    AS Checador ' +
+                N'FROM ZKTimeNet.dbo.att_punches a WITH (NOLOCK) ' +
+                N'JOIN ZKTimeNet.dbo.hr_employee e  WITH (NOLOCK) ON a.employee_id = e.id ' +
+                N'JOIN ZKTimeNet.dbo.att_terminal t WITH (NOLOCK) ON a.terminal_id = t.id ' +
+                N'WHERE a.punch_time >= ''' + @FI_ISO + N''' AND a.punch_time < ''' + @FF_ISO + N''' ' +
+                @EmpFilter + N';';
+        END
+
+        -- Ejecución del comando OPENQUERY con TRADUCCIÓN LOCAL
+        DECLARE @remoteSqlEsc NVARCHAR(MAX) = REPLACE(@remoteSql, '''', '''''');
+        
+        -- Nota: 'RemoteSync' es un origen genérico para diferenciar
+        DECLARE @cmd NVARCHAR(MAX) = N'
+            INSERT INTO dbo.Checadas(EmpleadoId, FechaHora, Checador)
+            SELECT 
+                E.EmpleadoId,      
+                S.FechaHora, 
+                S.Checador
+            FROM OPENQUERY(' + @LinkedServer + N', ''' + @remoteSqlEsc + N''') AS S
+            INNER JOIN dbo.Empleados E ON S.CodRefExterno = E.CodRef
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM dbo.Checadas C WITH (NOLOCK)
+                WHERE C.EmpleadoId = E.EmpleadoId
+                  AND C.FechaHora  = S.FechaHora            
+            );';
+        
+        EXEC sys.sp_executesql @cmd;
+        SET @RowsInserted = @@ROWCOUNT;
     END
+    
+    /* ==================================================================
+       ERROR
+       ================================================================== */
     ELSE
     BEGIN
-        RAISERROR('Valor de @Modo inválido.', 16, 1);
+        RAISERROR('Valor de @Modo inválido. Use ''BMS_LOCAL'', ''BMS_REMOTE'', ''ZKT_LOCAL'' o ''ZKT_REMOTE''.', 16, 1);
         RETURN;
     END
 
-    SELECT
+    /* Resultado */
+    SELECT 
         Fuente           = @Modo,
         Insertados       = @RowsInserted,
         FechaInicioUsada = @FI,
         FechaFinUsada    = @FF;
 END
+GO

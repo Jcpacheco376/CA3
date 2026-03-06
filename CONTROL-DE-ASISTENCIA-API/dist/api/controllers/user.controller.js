@@ -173,7 +173,7 @@ const getPermissionsByUserId = (req, res) => __awaiter(void 0, void 0, void 0, f
                 CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroGruposNominaActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT) AS gruposNomina,
                 CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroPuestosActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT) AS puestos,
                 CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroEstablecimientosActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT) AS establecimientos
-            FROM dbo.ConfiguracionSistema
+            FROM dbo.SISConfiguracion
             WHERE ConfigKey IN (
                 'FiltroDepartamentosActivo', 
                 'FiltroGruposNominaActivo', 

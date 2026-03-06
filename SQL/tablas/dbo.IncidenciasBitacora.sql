@@ -1,19 +1,29 @@
-CREATE TABLE [dbo].[IncidenciasBitacora] (
+-- ──────────────────────────────────────────────────────────────────────
+-- Tabla: [dbo].[IncidenciasBitacora]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 
-[BitacoraId] int IDENTITY(1,1) NOT NULL,
-[IncidenciaId] int NOT NULL,
-[UsuarioId] int NOT NULL,
-[FechaMovimiento] datetime DEFAULT (getdate()) NULL,
-[Accion] varchar(50) NOT NULL,
-[Comentario] nvarchar NULL,
-[EstadoNuevo] varchar(20) NULL,
-[AsignadoA_Nuevo] int NULL,
-[EstadoAnterior] varchar(20) NULL,
-[EstatusManualId_Anterior] int NULL,
-[EstatusManualId_Nuevo] int NULL,
-[EstatusChecadorId_Anterior] int NULL,
-[EstatusChecadorId_Nuevo] int NULL,
-[ApelacionId] int NULL,
-CONSTRAINT [PK__Incidenc__7ACF9B38C05AF45D] PRIMARY KEY CLUSTERED ([BitacoraId] ASC) WITH (PAD_INDEX = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY]
-ALTER TABLE [dbo].[IncidenciasBitacora] ADD CONSTRAINT [FK_Bitacora_Incidencia] FOREIGN KEY([IncidenciaId]) REFERENCES [dbo].[Incidencias]([IncidenciaId]);
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name='IncidenciasBitacora' AND schema_id=SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[IncidenciasBitacora] (
+    [BitacoraId] int IDENTITY(1,1) NOT NULL,
+    [IncidenciaId] int NOT NULL,
+    [UsuarioId] int NOT NULL,
+    [FechaMovimiento] datetime NULL CONSTRAINT [DF__Incidenci__Fecha__2FCFE5E1] DEFAULT (getdate()),
+    [Accion] varchar(50) NOT NULL,
+    [Comentario] nvarchar(MAX) NULL,
+    [EstadoNuevo] varchar(20) NULL,
+    [AsignadoA_Nuevo] int NULL,
+    [EstadoAnterior] varchar(20) NULL,
+    [EstatusManualId_Anterior] int NULL,
+    [EstatusManualId_Nuevo] int NULL,
+    [EstatusChecadorId_Anterior] int NULL,
+    [EstatusChecadorId_Nuevo] int NULL,
+    [ApelacionId] int NULL,
+    CONSTRAINT [PK__Incidenc__7ACF9B38C05AF45D] PRIMARY KEY CLUSTERED ([BitacoraId])
+    );
+END
+GO

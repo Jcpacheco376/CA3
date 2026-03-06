@@ -1,9 +1,19 @@
-CREATE TABLE [dbo].[Roles] (
+-- ──────────────────────────────────────────────────────────────────────
+-- Tabla: [dbo].[Roles]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 
-[RoleId] int IDENTITY(1,1) NOT NULL,
-[NombreRol] nvarchar(100) NOT NULL,
-[Descripcion] nvarchar(510) NULL,
-[FechaCreacion] datetime DEFAULT (getdate()) NULL,
-CONSTRAINT [PK__Roles__8AFACE1A619C55FA] PRIMARY KEY CLUSTERED ([RoleId] ASC) WITH (PAD_INDEX = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY],
-CONSTRAINT [UQ__Roles__4F0B537F43A3B8D4] UNIQUE NONCLUSTERED ([NombreRol] ASC) WITH (PAD_INDEX = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY]
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name='Roles' AND schema_id=SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[Roles] (
+    [RoleId] int IDENTITY(1,1) NOT NULL,
+    [NombreRol] nvarchar(50) NOT NULL,
+    [Descripcion] nvarchar(255) NULL,
+    [FechaCreacion] datetime NULL CONSTRAINT [DF__Roles__FechaCrea__7720AD13] DEFAULT (getdate()),
+    CONSTRAINT [PK__Roles__8AFACE1A619C55FA] PRIMARY KEY CLUSTERED ([RoleId])
+    );
+END
+GO

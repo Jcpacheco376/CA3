@@ -1,6 +1,12 @@
-IF OBJECT_ID('dbo.sp_Usuario_ObtenerPermisos') IS NOT NULL      DROP PROCEDURE dbo.sp_Usuario_ObtenerPermisos;
-GO
-CREATE  PROCEDURE [dbo].[sp_Usuario_ObtenerPermisos]
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Usuario_ObtenerPermisos]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE [dbo].[sp_Usuario_ObtenerPermisos]
     @UsuarioId INT
 AS
 BEGIN
@@ -13,9 +19,9 @@ BEGIN
     JOIN dbo.UsuariosRoles ur ON u.UsuarioId = ur.UsuarioId
     JOIN dbo.Roles r ON ur.RoleId = r.RoleId
     JOIN dbo.RolesPermisos rp ON r.RoleId = rp.RoleId
-    JOIN dbo.Permisos p ON rp.PermisoId = p.PermisoId
+    JOIN dbo.SISPermisos p ON rp.PermisoId = p.PermisoId
     WHERE u.UsuarioId = @UsuarioId
 	AND P.ACTIVO= 1;
 	
 END
-
+GO

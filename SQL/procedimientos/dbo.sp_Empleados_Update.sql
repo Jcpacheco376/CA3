@@ -1,7 +1,12 @@
-IF OBJECT_ID('dbo.sp_Empleados_Update') IS NOT NULL      DROP PROCEDURE dbo.sp_Empleados_Update;
-GO
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Empleados_Update]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 
-            CREATE   PROCEDURE [dbo].[sp_Empleados_Update]
+CREATE OR ALTER PROCEDURE [dbo].[sp_Empleados_Update]
                 @EmpleadoId INT,
                 @CodRef NVARCHAR(50),
                 @Pim NVARCHAR(50) = NULL,
@@ -27,7 +32,7 @@ GO
                 SET NOCOUNT ON;
 
                 DECLARE @FormatoNombre INT;
-                SELECT TOP 1 @FormatoNombre = ISNULL(FormatoNombre, 1) FROM ConfiguracionSistema;
+                SELECT TOP 1 @FormatoNombre = ISNULL(FormatoNombre, 1) FROM SISConfiguracion;
                 
                 DECLARE @NombreCompleto NVARCHAR(300);
                 IF @FormatoNombre = 2
@@ -57,4 +62,4 @@ GO
                     Activo = @Activo
                 WHERE EmpleadoId = @EmpleadoId;
             END
-        
+GO

@@ -1,6 +1,12 @@
-IF OBJECT_ID('dbo.sp_Rol_Crear') IS NOT NULL      DROP PROCEDURE dbo.sp_Rol_Crear;
-GO
-CREATE PROCEDURE sp_Rol_Crear
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Rol_Crear]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE sp_Rol_Crear
     @NombreRol NVARCHAR(50),
     @Descripcion NVARCHAR(255)
 AS
@@ -17,4 +23,4 @@ BEGIN
         RETURN;
     END
 END
-
+GO

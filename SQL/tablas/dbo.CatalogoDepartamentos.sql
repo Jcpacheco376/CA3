@@ -1,10 +1,20 @@
-CREATE TABLE [dbo].[CatalogoDepartamentos] (
+-- ──────────────────────────────────────────────────────────────────────
+-- Tabla: [dbo].[CatalogoDepartamentos]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 
-[DepartamentoId] int IDENTITY(1,1) NOT NULL,
-[CodRef] nvarchar(20) NULL,
-[Nombre] nvarchar(200) NOT NULL,
-[Abreviatura] nvarchar(20) NULL,
-[Activo] bit DEFAULT ((1)) NOT NULL,
-CONSTRAINT [PK__Catalogo__66BB0E3E7076A78A] PRIMARY KEY CLUSTERED ([DepartamentoId] ASC) WITH (PAD_INDEX = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY],
-CONSTRAINT [UQ__Catalogo__84823DEFB2F98238] UNIQUE NONCLUSTERED ([CodRef] ASC) WITH (PAD_INDEX = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY]
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name='CatalogoDepartamentos' AND schema_id=SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[CatalogoDepartamentos] (
+    [DepartamentoId] int IDENTITY(1,1) NOT NULL,
+    [CodRef] nvarchar(10) NULL,
+    [Nombre] nvarchar(100) NOT NULL,
+    [Abreviatura] nvarchar(10) NULL,
+    [Activo] bit NOT NULL CONSTRAINT [DF__CatalogoD__Activ__10E07F16] DEFAULT ((1)),
+    CONSTRAINT [PK__Catalogo__66BB0E3E7076A78A] PRIMARY KEY CLUSTERED ([DepartamentoId])
+    );
+END
+GO

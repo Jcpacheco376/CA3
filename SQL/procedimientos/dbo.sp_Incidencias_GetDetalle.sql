@@ -1,12 +1,18 @@
-IF OBJECT_ID('dbo.sp_Incidencias_GetDetalle') IS NOT NULL      DROP PROCEDURE dbo.sp_Incidencias_GetDetalle;
-GO
-CREATE  PROCEDURE [dbo].[sp_Incidencias_GetDetalle]
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Incidencias_GetDetalle]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE [dbo].[sp_Incidencias_GetDetalle]
     @IncidenciaId INT
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- RESULTSET 1: HEADER (Sin cambios, tu l�gica es correcta)
+    -- RESULTSET 1: HEADER (Sin cambios, tu l�gica es correcta)
     SELECT 
         i.IncidenciaId, i.EmpleadoId, i.Fecha, i.Estado, i.AsignadoAUsuarioId,
         i.NivelSeveridad AS NivelCriticidad, i.RequiereAutorizacion,
@@ -47,7 +53,7 @@ BEGIN
         b.Comentario,
         b.EstadoNuevo,
         
-        -- IDs de Auditor�a T�cnica (Agregados para completar la refactorizaci�n)
+        -- IDs de Auditor�a T�cnica (Agregados para completar la refactorizaci�n)
         b.EstatusManualId_Anterior,
         b.EstatusManualId_Nuevo,
         b.EstatusChecadorId_Anterior,
@@ -60,7 +66,7 @@ BEGIN
     LEFT JOIN dbo.Usuarios u ON b.UsuarioId = u.UsuarioId
     LEFT JOIN dbo.Usuarios u_target ON b.AsignadoA_Nuevo = u_target.UsuarioId
     WHERE b.IncidenciaId = @IncidenciaId
-    ORDER BY b.FechaMovimiento ASC; -- Orden cronol�gico para leer la historia
+    ORDER BY b.FechaMovimiento ASC; -- Orden cronol�gico para leer la historia
 
     -- RESULTSET 3: AUTORIZACIONES 
     SELECT 
@@ -77,5 +83,4 @@ BEGIN
     WHERE ia.IncidenciaId = @IncidenciaId
 	AND ia.Activo = 1;
 END
-
-
+GO

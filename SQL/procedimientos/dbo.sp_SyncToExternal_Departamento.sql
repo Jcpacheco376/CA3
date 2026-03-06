@@ -1,9 +1,11 @@
-USE [CA]
-GO
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_SyncToExternal_Departamento]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
 CREATE OR ALTER PROCEDURE [dbo].[sp_SyncToExternal_Departamento]
     @CodRef NVARCHAR(50),
     @Nombre NVARCHAR(100),
@@ -14,14 +16,13 @@ BEGIN
     SET NOCOUNT ON;
     
     DECLARE @TargetDB NVARCHAR(100);
-    SELECT TOP 1 @TargetDB = ConfigValue FROM dbo.ConfiguracionSistema WHERE ConfigKey = 'DBENTRADA';
+    SELECT TOP 1 @TargetDB = ConfigValue FROM dbo.SISConfiguracion WHERE ConfigKey = 'DBENTRADA';
     
     IF @TargetDB IS NULL OR @TargetDB = ''
     BEGIN
         PRINT 'Configuración DBENTRADA no encontrada. Omitiendo PUSH.';
         RETURN;
     END
-
     DECLARE @SQL NVARCHAR(MAX);
     
     SET @SQL = '
@@ -40,7 +41,6 @@ BEGIN
     WHEN NOT MATCHED BY TARGET THEN
         INSERT (departamento, nombre, abreviatura, status)
         VALUES (Source.departamento, Source.nombre, Source.abreviatura, Source.status);';
-
     BEGIN TRY
         EXEC sp_executesql @SQL, 
             N'@CodRef NVARCHAR(50), @Nombre NVARCHAR(100), @Abreviatura NVARCHAR(50), @Status CHAR(1)',
@@ -50,3 +50,4 @@ BEGIN
         PRINT 'Error en sp_SyncToExternal_Departamento: ' + ERROR_MESSAGE();
     END CATCH
 END
+GO

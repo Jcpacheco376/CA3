@@ -1,7 +1,12 @@
-IF OBJECT_ID('dbo.sp_Usuario_ValidarLogin') IS NOT NULL      DROP PROCEDURE dbo.sp_Usuario_ValidarLogin;
-GO
--- Modifica el procedimiento de login para que acepte tanto UsuarioId como NombreUsuario
-CREATE PROCEDURE [dbo].[sp_Usuario_ValidarLogin]
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Usuario_ValidarLogin]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE [dbo].[sp_Usuario_ValidarLogin]
     @Identificador NVARCHAR(50),
     @Password NVARCHAR(100)
 AS
@@ -32,4 +37,4 @@ BEGIN
         RETURN;
     END
 END
-
+GO

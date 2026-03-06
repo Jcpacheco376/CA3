@@ -1,7 +1,12 @@
-IF OBJECT_ID('dbo.sp_Exportar_NominaExterna') IS NOT NULL      DROP PROCEDURE dbo.sp_Exportar_NominaExterna;
-GO
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Exportar_NominaExterna]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 
-CREATE   PROCEDURE [dbo].[sp_Exportar_NominaExterna]
+CREATE OR ALTER PROCEDURE [dbo].[sp_Exportar_NominaExterna]
     @FechaInicio DATE,
     @FechaFin DATE,
     @GrupoNominaId INT
@@ -34,15 +39,15 @@ BEGIN
         WHERE @FechaInicio BETWEEN p.fechainicio AND p.fechafin;
     END
 		print @IdPeriodo 
-    -- Validaci�n
+    -- Validaci�n
     IF @IdPeriodo IS NULL
     BEGIN
-        RAISERROR('ERROR DE DEBUG: No se encontr� el periodo en la tabla [ctA].[dbo].[nom10002] para las fechas dadas.', 16, 1);
+        RAISERROR('ERROR DE DEBUG: No se encontr� el periodo en la tabla [ctA].[dbo].[nom10002] para las fechas dadas.', 16, 1);
         RETURN;
     END
 
     -- ------------------------------------------------------------------------------------------
-    -- 2. INSERCI�N MASIVA EN TABLA DE MOVIMIENTOS (nom10010)
+    -- 2. INSERCI�N MASIVA EN TABLA DE MOVIMIENTOS (nom10010)
     -- ------------------------------------------------------------------------------------------
     
     INSERT INTO ctA.dbo.nom10010 (
@@ -88,4 +93,4 @@ BEGIN
     -- ------------------------------------------------------------------------------------------
     SELECT @@ROWCOUNT AS RegistrosExportados;
 END
-
+GO

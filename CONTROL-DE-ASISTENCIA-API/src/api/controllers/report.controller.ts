@@ -64,7 +64,7 @@ export const getAttendanceListReport = async (req: any, res: Response) => {
 
         // 1. Leer Configuración de la Empresa
         const configRes = await pool.request().query(`
-            SELECT ConfigKey, ConfigValue FROM ConfiguracionSistema 
+            SELECT ConfigKey, ConfigValue FROM SISConfiguracion 
             WHERE ConfigKey IN ('Nomina_ModoCalculo', 'Nomina_ToleranciaRedondeo')
         `);
 
@@ -204,7 +204,7 @@ const calculateNetHours = (
 
 
 export const getPrenominaReport = async (req: any, res: Response) => {
-    // 1. Verificación de Permisos
+    // 1. Verificación de SISPermisos
     if (!req.user.permissions['reportes.prenomina.read']) {
         return res.status(403).json({ message: 'Acceso denegado.' });
     }

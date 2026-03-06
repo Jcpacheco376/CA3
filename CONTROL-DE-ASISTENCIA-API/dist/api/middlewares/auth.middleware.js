@@ -53,14 +53,45 @@ const authMiddleware = (req, res, next) => __awaiter(void 0, void 0, void 0, fun
         if (tokenVersion < currentDbVersion) {
             return res.status(401).json({ message: 'Sesión expirada. Los permisos han cambiado. Por favor inicie sesión nuevamente.', code: 'TOKEN_EXPIRED' });
         }
-        const permissionsResult = yield pool.request()
-            .input('UsuarioId', mssql_1.default.Int, decoded.usuarioId)
-            .execute('sp_Usuario_ObtenerPermisos');
+        const [permissionsResult, dimensionsResult, activeFiltersResult] = yield Promise.all([
+            pool.request()
+                .input('UsuarioId', mssql_1.default.Int, decoded.usuarioId)
+                .execute('sp_Usuario_ObtenerPermisos'),
+            pool.request()
+                .input('UsuarioId', mssql_1.default.Int, decoded.usuarioId)
+                .query(`
+                    SELECT 
+                        (SELECT DepartamentoId FROM UsuariosDepartamentos WHERE UsuarioId = @UsuarioId FOR JSON PATH) as Departamentos,
+                        (SELECT GrupoNominaId FROM UsuariosGruposNomina WHERE UsuarioId = @UsuarioId FOR JSON PATH) as GruposNomina,
+                        (SELECT PuestoId FROM UsuariosPuestos WHERE UsuarioId = @UsuarioId FOR JSON PATH) as Puestos,
+                        (SELECT EstablecimientoId FROM UsuariosEstablecimientos WHERE UsuarioId = @UsuarioId FOR JSON PATH) as Establecimientos
+                `),
+            pool.request().query(`
+                SELECT ConfigKey, ConfigValue FROM SISConfiguracion 
+                WHERE ConfigKey IN ('FiltroDepartamentosActivo', 'FiltroGruposNominaActivo', 'FiltroPuestosActivo', 'FiltroEstablecimientosActivo')
+            `)
+        ]);
         const permissions = {};
-        permissionsResult.recordset.forEach(record => {
-            permissions[record.NombrePermiso] = [true];
+        permissionsResult.recordset.forEach((row) => {
+            permissions[row.NombrePermiso] = true;
         });
-        req.user = { usuarioId: decoded.usuarioId, permissions };
+        const activeFilters = {
+            departamentos: activeFiltersResult.recordset.some(r => r.ConfigKey === 'FiltroDepartamentosActivo' && (r.ConfigValue === '1' || r.ConfigValue === 'true')),
+            gruposNomina: activeFiltersResult.recordset.some(r => r.ConfigKey === 'FiltroGruposNominaActivo' && (r.ConfigValue === '1' || r.ConfigValue === 'true')),
+            puestos: activeFiltersResult.recordset.some(r => r.ConfigKey === 'FiltroPuestosActivo' && (r.ConfigValue === '1' || r.ConfigValue === 'true')),
+            establecimientos: activeFiltersResult.recordset.some(r => r.ConfigKey === 'FiltroEstablecimientosActivo' && (r.ConfigValue === '1' || r.ConfigValue === 'true'))
+        };
+        const dims = dimensionsResult.recordset[0];
+        req.user = {
+            usuarioId: decoded.usuarioId,
+            UsuarioId: decoded.usuarioId,
+            permissions,
+            activeFilters,
+            Departamentos: dims.Departamentos ? JSON.parse(dims.Departamentos) : [],
+            GruposNomina: dims.GruposNomina ? JSON.parse(dims.GruposNomina) : [],
+            Puestos: dims.Puestos ? JSON.parse(dims.Puestos) : [],
+            Establecimientos: dims.Establecimientos ? JSON.parse(dims.Establecimientos) : []
+        };
         next();
     }
     catch (err) {

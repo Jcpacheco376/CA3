@@ -1,30 +1,20 @@
-CREATE TABLE [dbo].[EventosCalendarioFiltros] (
-    [FiltroId]     INT          IDENTITY(1,1) NOT NULL,
-    [EventoId]     INT          NOT NULL,
-    [GrupoRegla]   INT          NOT NULL DEFAULT 0,  -- Grupo de regla (0, 1, 2...) para OR entre grupos
-    [Dimension]    VARCHAR(20)  NOT NULL,  -- DEPARTAMENTO, GRUPO_NOMINA, PUESTO, ESTABLECIMIENTO
-    [ValorId]      INT          NOT NULL,
-    CONSTRAINT [PK_EventosCalendarioFiltros] PRIMARY KEY CLUSTERED ([FiltroId] ASC),
-    CONSTRAINT [FK_EventosFiltros_Evento] FOREIGN KEY ([EventoId])
-        REFERENCES [dbo].[EventosCalendario]([EventoId]) ON DELETE CASCADE,
-    CONSTRAINT [CK_EventosFiltros_Dimension]
-        CHECK ([Dimension] IN ('DEPARTAMENTO', 'GRUPO_NOMINA', 'PUESTO', 'ESTABLECIMIENTO'))
-) ON [PRIMARY]
-GO
+-- ──────────────────────────────────────────────────────────────────────
+-- Tabla: [dbo].[EventosCalendarioFiltros]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 
--- Índice para búsqueda rápida por evento
-CREATE NONCLUSTERED INDEX [IX_EventosFiltros_EventoId]
-    ON [dbo].[EventosCalendarioFiltros]([EventoId])
-    INCLUDE ([GrupoRegla], [Dimension], [ValorId]);
-GO
-
--- Evitar duplicados: mismo evento + grupo + dimensión + valor
-CREATE UNIQUE NONCLUSTERED INDEX [UQ_EventosFiltros_EventoGrupoDimValor]
-    ON [dbo].[EventosCalendarioFiltros]([EventoId], [GrupoRegla], [Dimension], [ValorId]);
-GO
-
--- Migration for existing data:
--- ALTER TABLE dbo.EventosCalendarioFiltros ADD GrupoRegla INT NOT NULL DEFAULT 0;
--- DROP INDEX UQ_EventosFiltros_EventoDimValor ON dbo.EventosCalendarioFiltros;
--- CREATE UNIQUE NONCLUSTERED INDEX UQ_EventosFiltros_EventoGrupoDimValor ON dbo.EventosCalendarioFiltros(EventoId, GrupoRegla, Dimension, ValorId);
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name='EventosCalendarioFiltros' AND schema_id=SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[EventosCalendarioFiltros] (
+    [FiltroId] int IDENTITY(1,1) NOT NULL,
+    [EventoId] int NOT NULL,
+    [Dimension] varchar(20) NOT NULL,
+    [ValorId] int NOT NULL,
+    [GrupoRegla] int NOT NULL CONSTRAINT [DF__EventosCa__Grupo__0D10B989] DEFAULT ((0)),
+    CONSTRAINT [PK_EventosCalendarioFiltros] PRIMARY KEY CLUSTERED ([FiltroId])
+    );
+END
 GO

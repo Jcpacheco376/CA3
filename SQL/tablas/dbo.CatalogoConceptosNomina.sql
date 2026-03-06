@@ -1,10 +1,20 @@
-CREATE TABLE [dbo].[CatalogoConceptosNomina] (
+-- ──────────────────────────────────────────────────────────────────────
+-- Tabla: [dbo].[CatalogoConceptosNomina]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 
-[ConceptoId] int IDENTITY(1,1) NOT NULL,
-[Nombre] nvarchar(200) NOT NULL,
-[Abreviatura] char(6) NULL,
-[CodRef] nvarchar(100) NOT NULL,
-[Activo] bit DEFAULT ((1)) NULL,
-CONSTRAINT [PK_CatalogoConceptosNomina] PRIMARY KEY CLUSTERED ([ConceptoId] ASC) WITH (PAD_INDEX = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY],
-CONSTRAINT [UQ_CatalogoConceptosNomina_CodRef] UNIQUE NONCLUSTERED ([CodRef] ASC) WITH (PAD_INDEX = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY]
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name='CatalogoConceptosNomina' AND schema_id=SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[CatalogoConceptosNomina] (
+    [ConceptoId] int IDENTITY(1,1) NOT NULL,
+    [Nombre] nvarchar(100) NOT NULL,
+    [Abreviatura] char(6) NULL,
+    [CodRef] nvarchar(50) NOT NULL,
+    [Activo] bit NULL CONSTRAINT [DF__CatalogoC__Activ__625B65AE] DEFAULT ((1)),
+    CONSTRAINT [PK_CatalogoConceptosNomina] PRIMARY KEY CLUSTERED ([ConceptoId])
+    );
+END
+GO

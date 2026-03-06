@@ -1,6 +1,12 @@
-IF OBJECT_ID('dbo.sp_HorariosTemporales_GetByPeriodo') IS NOT NULL      DROP PROCEDURE dbo.sp_HorariosTemporales_GetByPeriodo;
-GO
-CREATE PROCEDURE [dbo].[sp_HorariosTemporales_GetByPeriodo]
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_HorariosTemporales_GetByPeriodo]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE [dbo].[sp_HorariosTemporales_GetByPeriodo]
     @UsuarioId INT,
     @FechaInicio DATE,
     @FechaFin DATE,
@@ -12,17 +18,17 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- 1. LEER CONFIGURACI�N DE SEGURIDAD
+    -- 1. LEER CONFIGURACI�N DE SEGURIDAD
     DECLARE @SeguridadDepts BIT, @SeguridadGrupos BIT, @SeguridadPuestos BIT, @SeguridadEstabs BIT;
     SELECT 
         @SeguridadDepts = CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroDepartamentosActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT),
         @SeguridadGrupos = CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroGruposNominaActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT),
         @SeguridadPuestos = CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroPuestosActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT),
         @SeguridadEstabs = CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroEstablecimientosActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT)
-    FROM dbo.ConfiguracionSistema;
+    FROM dbo.SISConfiguracion;
 
     -- ---------------------------------------------------------
-    -- CTE: NORMALIZACI�N DE IDs
+    -- CTE: NORMALIZACI�N DE IDs
     -- ---------------------------------------------------------
     ;WITH EmpleadosNormalizados AS (
         SELECT 
@@ -108,3 +114,4 @@ BEGIN
 
     ORDER BY e.NombreCompleto;
 END
+GO

@@ -1,7 +1,18 @@
-CREATE TABLE [dbo].[UsuariosRoles] (
+-- ──────────────────────────────────────────────────────────────────────
+-- Tabla: [dbo].[UsuariosRoles]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 
-[UsuarioId] int NOT NULL,
-[RoleId] int NOT NULL,
-[EsPrincipal] bit DEFAULT ((0)) NOT NULL,
-CONSTRAINT [PK__Usuarios__93924B593806F1F0] PRIMARY KEY CLUSTERED ([UsuarioId] ASC, [RoleId] ASC) WITH (PAD_INDEX = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY]
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name='UsuariosRoles' AND schema_id=SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[UsuariosRoles] (
+    [UsuarioId] int NOT NULL,
+    [RoleId] int NOT NULL,
+    [EsPrincipal] bit NOT NULL CONSTRAINT [DF__UsuariosR__EsPri__1D2725C1] DEFAULT ((0)),
+    CONSTRAINT [PK__Usuarios__93924B593806F1F0] PRIMARY KEY CLUSTERED ([UsuarioId], [RoleId])
+    );
+END
+GO

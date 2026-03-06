@@ -20,7 +20,7 @@ async function checkSchema() {
         const tables = [
             'CatalogoConceptosNomina',
             'CatalogoEstatusAsistencia',
-            'SistemaTiposCalculo',
+            'SISTiposCalculo',
             'Prenomina',
             'PrenominaDetalle'
         ];

@@ -1,7 +1,12 @@
-IF OBJECT_ID('dbo.sp_Horarios_ValidarSolapamiento') IS NOT NULL      DROP PROCEDURE dbo.sp_Horarios_ValidarSolapamiento;
-GO
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Horarios_ValidarSolapamiento]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 
-CREATE PROCEDURE [dbo].[sp_Horarios_ValidarSolapamiento]
+CREATE OR ALTER PROCEDURE [dbo].[sp_Horarios_ValidarSolapamiento]
     @EmpleadoId INT,
     @Fecha DATE,
     @NuevoHorarioId INT
@@ -22,14 +27,14 @@ BEGIN
     FROM dbo.CatalogoHorariosDetalle
     WHERE HorarioId = @NuevoHorarioId AND DiaSemana = @DiaSemana;
 
-    IF @NuevoInicio IS NULL RETURN; -- No hay horario ese d�a, no hay conflicto.
+    IF @NuevoInicio IS NULL RETURN; -- No hay horario ese d�a, no hay conflicto.
 
     -- 2. Buscar conflictos con fichas YA existentes (calculadas)
     -- Si ya existe una ficha cuya ventana se traslape con la propuesta
     IF EXISTS (
         SELECT 1 FROM dbo.FichaAsistencia
         WHERE EmpleadoId = @EmpleadoId
-          AND Fecha <> @Fecha -- Ignorar el mismo d�a si estamos reemplazando
+          AND Fecha <> @Fecha -- Ignorar el mismo d�a si estamos reemplazando
           AND VentanaInicio IS NOT NULL
           AND (
               (@NuevoInicio BETWEEN VentanaInicio AND VentanaFin) OR
@@ -41,4 +46,4 @@ BEGIN
         RAISERROR ('El horario asignado provoca un solapamiento con un turno adyacente existente.', 16, 1);
     END
 END
-
+GO

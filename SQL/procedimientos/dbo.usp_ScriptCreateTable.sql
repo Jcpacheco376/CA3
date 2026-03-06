@@ -1,6 +1,12 @@
-IF OBJECT_ID('dbo.usp_ScriptCreateTable') IS NOT NULL      DROP PROCEDURE dbo.usp_ScriptCreateTable;
-GO
-CREATE PROCEDURE dbo.usp_ScriptCreateTable
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[usp_ScriptCreateTable]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE dbo.usp_ScriptCreateTable
     @SchemaName sysname,
     @TableName  sysname
 AS
@@ -59,4 +65,4 @@ BEGIN
     
     SELECT @ddl;
 END
-
+GO

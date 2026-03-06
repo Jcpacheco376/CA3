@@ -1,6 +1,12 @@
-IF OBJECT_ID('dbo.sp_Incidencias_Resolver') IS NOT NULL      DROP PROCEDURE dbo.sp_Incidencias_Resolver;
-GO
-CREATE   PROCEDURE [dbo].[sp_Incidencias_Resolver]
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Incidencias_Resolver]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE [dbo].[sp_Incidencias_Resolver]
     @IncidenciaId INT,
     @NuevoEstatusAbrev NVARCHAR(10),
     @Comentario NVARCHAR(255),
@@ -33,7 +39,7 @@ BEGIN
             THROW 51000, 'La incidencia especificada no existe.', 1;
         END
 
-        -- 2. BIT�CORA DE CONTEXTO (INTENCI�N)
+        -- 2. BIT�CORA DE CONTEXTO (INTENCI�N)
         INSERT INTO dbo.IncidenciasBitacora (
             IncidenciaId, UsuarioId, Accion, Comentario, 
             EstadoNuevo, EstadoAnterior,
@@ -45,7 +51,7 @@ BEGIN
             @IncidenciaId, 
             @UsuarioAccionId, 
             'CorreccionManual', 
-            'Se aplic� correcci�n desde el panel de incidencias: ' + ISNULL(@NuevoEstatusAbrev, 'Limpiar') + '. ' + ISNULL(@Comentario, ''), 
+            'Se aplic� correcci�n desde el panel de incidencias: ' + ISNULL(@NuevoEstatusAbrev, 'Limpiar') + '. ' + ISNULL(@Comentario, ''), 
             @EstadoActual, 
             @EstadoActual,
             @EstatusManualIdActual,
@@ -53,9 +59,9 @@ BEGIN
             GETDATE()
         );
 
-        -- 3. DELEGAR AL N�CLEO CENTRAL
-        -- Esto actualizar� la ficha y disparar� sp_Incidencias_Analizar, 
-        -- el cual insertar� OTRO registro en la bit�cora si los datos cambian.
+        -- 3. DELEGAR AL N�CLEO CENTRAL
+        -- Esto actualizar� la ficha y disparar� sp_Incidencias_Analizar, 
+        -- el cual insertar� OTRO registro en la bit�cora si los datos cambian.
         EXEC [dbo].[sp_FichasAsistencia_SaveManual]
             @EmpleadoId = @EmpleadoId,
             @Fecha = @Fecha,
@@ -65,7 +71,7 @@ BEGIN
 
         COMMIT TRANSACTION;
         
-        SELECT 'Correcci�n aplicada y re-an�lisis ejecutado.' as Mensaje;
+        SELECT 'Correcci�n aplicada y re-an�lisis ejecutado.' as Mensaje;
 
     END TRY
     BEGIN CATCH
@@ -74,4 +80,4 @@ BEGIN
         THROW 51000, @Msg, 1;
     END CATCH
 END
-
+GO

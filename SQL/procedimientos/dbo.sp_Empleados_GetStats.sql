@@ -1,6 +1,12 @@
-IF OBJECT_ID('dbo.sp_Empleados_GetStats') IS NOT NULL      DROP PROCEDURE dbo.sp_Empleados_GetStats;
-GO
-CREATE   PROCEDURE [dbo].[sp_Empleados_GetStats]
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Empleados_GetStats]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE [dbo].[sp_Empleados_GetStats]
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -24,4 +30,4 @@ BEGIN
          WHERE e.Activo = 1 
          AND NOT EXISTS (SELECT 1 FROM EmpleadosZonas ez WHERE ez.EmpleadoId = e.EmpleadoId)) as SinDispositivo
 END
-
+GO

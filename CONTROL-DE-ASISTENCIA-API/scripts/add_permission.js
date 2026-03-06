@@ -19,12 +19,12 @@ async function addPermission() {
 
         // Ensure "vacaciones.manage" exists
         await pool.request().query(`
-            IF NOT EXISTS (SELECT 1 FROM Permisos WHERE NombrePermiso = 'vacaciones.manage')
+            IF NOT EXISTS (SELECT 1 FROM SISPermisos WHERE NombrePermiso = 'vacaciones.manage')
             BEGIN
                 DECLARE @NewId INT;
-                SELECT @NewId = ISNULL(MAX(PermisoId), 0) + 1 FROM Permisos;
+                SELECT @NewId = ISNULL(MAX(PermisoId), 0) + 1 FROM SISPermisos;
                 
-                INSERT INTO Permisos (PermisoId, NombrePermiso, Descripcion, Activo) 
+                INSERT INTO SISPermisos (PermisoId, NombrePermiso, Descripcion, Activo) 
                 VALUES (@NewId, 'vacaciones.manage', 'Administrar solicitudes y saldos de vacaciones', 1)
             END
         `);

@@ -1,9 +1,11 @@
-USE [CA]
-GO
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_SyncToExternal_Empleado]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
 CREATE OR ALTER PROCEDURE [dbo].[sp_SyncToExternal_Empleado]
     @CodRef NVARCHAR(50),
     @NombreCompleto NVARCHAR(300),
@@ -28,14 +30,13 @@ BEGIN
     
     -- Obtener Nombre de BD Externa de Configuracion
     DECLARE @TargetDB NVARCHAR(100);
-    SELECT TOP 1 @TargetDB = ConfigValue FROM dbo.ConfiguracionSistema WHERE ConfigKey = 'DBENTRADA';
+    SELECT TOP 1 @TargetDB = ConfigValue FROM dbo.SISConfiguracion WHERE ConfigKey = 'DBENTRADA';
     
     IF @TargetDB IS NULL OR @TargetDB = ''
     BEGIN
         PRINT 'Configuración DBENTRADA no encontrada. Omitiendo PUSH.';
         RETURN;
     END
-
     -- Verificar servidor vinculado si es necesario, o asumir que la BD está en el mismo server
     -- El código original verificaba 'bmsjs' en sys.servers. 
     -- Si @TargetDB es solo el nombre de la BD (e.g., 'BMSJS'), asumimos mismo server o que el nombre incluye server (e.g. 'LINKEDSERVER.DB').
@@ -47,13 +48,11 @@ BEGIN
     
     -- Obtener CodRefs de los catálogos relacionales
     DECLARE @DeptoCod NVARCHAR(50), @PuestoCod NVARCHAR(50), @HorarioCod NVARCHAR(50), @GrupoCod NVARCHAR(50), @EstabCod NVARCHAR(50);
-
     SELECT @DeptoCod = CodRef FROM CatalogoDepartamentos WHERE DepartamentoId = @DepartamentoId;
     SELECT @PuestoCod = CodRef FROM CatalogoPuestos WHERE PuestoId = @PuestoId;
     SELECT @HorarioCod = CodRef FROM CatalogoHorarios WHERE HorarioId = @HorarioIdPredeterminado;
     SELECT @GrupoCod = CodRef FROM CatalogoGruposNomina WHERE GrupoNominaId = @GrupoNominaId;
     SELECT @EstabCod = CodRef FROM CatalogoEstablecimientos WHERE EstablecimientoId = @EstablecimientoId;
-
     DECLARE @SQL NVARCHAR(MAX);
     
     -- Construir SQL Dinámico
@@ -113,7 +112,6 @@ BEGIN
             Source.fecha_nacimiento, Source.fecha_ingreso, Source.sexo, Source.reg_imss, Source.curp, Source.rfc,
             Source.departamento, Source.puesto, Source.horario, Source.grupo_nomina, Source.cod_estab, Source.status_empleado
         );';
-
     BEGIN TRY
         EXEC sp_executesql @SQL, 
             N'@CodRef NVARCHAR(50), @NombreCompleto NVARCHAR(300), @Nombres NVARCHAR(100), @ApellidoPaterno NVARCHAR(100), @ApellidoMaterno NVARCHAR(100),
@@ -122,9 +120,9 @@ BEGIN
             @CodRef, @NombreCompleto, @Nombres, @ApellidoPaterno, @ApellidoMaterno,
             @FechaNacimiento, @FechaIngreso, @Sexo, @NSS, @CURP, @RFC,
             @DeptoCod, @PuestoCod, @HorarioCod, @GrupoCod, @EstabCod, @Status;
-
     END TRY
     BEGIN CATCH
         PRINT 'Error en sp_SyncToExternal_Empleado: ' + ERROR_MESSAGE();
     END CATCH
 END
+GO

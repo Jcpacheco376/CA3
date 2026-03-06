@@ -1,6 +1,12 @@
-IF OBJECT_ID('dbo.sp_CatalogoConceptosNomina_Upsert') IS NOT NULL      DROP PROCEDURE dbo.sp_CatalogoConceptosNomina_Upsert;
-GO
-CREATE   PROCEDURE [dbo].[sp_CatalogoConceptosNomina_Upsert]
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_CatalogoConceptosNomina_Upsert]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE [dbo].[sp_CatalogoConceptosNomina_Upsert]
     @ConceptoId INT = NULL,
     @Nombre NVARCHAR(100),
     @CodRef NVARCHAR(50),
@@ -11,7 +17,7 @@ BEGIN
 
     IF EXISTS (SELECT 1 FROM CatalogoConceptosNomina WHERE CodRef = @CodRef AND (@ConceptoId IS NULL OR ConceptoId <> @ConceptoId))
     BEGIN
-        RAISERROR('Ya existe un concepto con el c�digo de referencia %s.', 16, 1, @CodRef);
+        RAISERROR('Ya existe un concepto con el c�digo de referencia %s.', 16, 1, @CodRef);
         RETURN;
     END
 
@@ -27,4 +33,4 @@ BEGIN
         WHERE ConceptoId = @ConceptoId;
     END
 END
-
+GO

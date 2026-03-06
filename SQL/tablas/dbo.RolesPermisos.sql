@@ -1,5 +1,16 @@
-CREATE TABLE [dbo].[RolesPermisos] (
+-- ──────────────────────────────────────────────────────────────────────
+-- Tabla: [dbo].[RolesPermisos]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 
-[RoleId] int NULL,
-[PermisoId] int NULL
-) ON [PRIMARY]
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name='RolesPermisos' AND schema_id=SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[RolesPermisos] (
+    [RoleId] int NULL,
+    [PermisoId] int NULL
+    );
+END
+GO

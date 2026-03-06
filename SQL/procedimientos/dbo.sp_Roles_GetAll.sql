@@ -1,6 +1,12 @@
-IF OBJECT_ID('dbo.sp_Roles_GetAll') IS NOT NULL      DROP PROCEDURE dbo.sp_Roles_GetAll;
-GO
-CREATE PROCEDURE sp_Roles_GetAll
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Roles_GetAll]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE sp_Roles_GetAll
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -12,14 +18,13 @@ BEGIN
             SELECT 
                 p.PermisoId, 
                 p.NombrePermiso, 
-                p.Descripcion -- <-- LA L�NEA QUE FALTABA
-            FROM Permisos p
+                p.Descripcion -- <-- LA L�NEA QUE FALTABA
+            FROM SISPermisos p
             INNER JOIN RolesPermisos rp ON p.PermisoId = rp.PermisoId
             WHERE rp.RoleId = r.RoleId
 			and p.activo= 1
             FOR JSON PATH
-        ) AS Permisos
+        ) AS SISPermisos
     FROM Roles r;
 END
-
-
+GO

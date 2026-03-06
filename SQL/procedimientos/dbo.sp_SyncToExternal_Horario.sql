@@ -1,9 +1,11 @@
-USE [CA]
-GO
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_SyncToExternal_Horario]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
 CREATE OR ALTER PROCEDURE [dbo].[sp_SyncToExternal_Horario]
     @CodRef NVARCHAR(50),
     @Nombre NVARCHAR(100),
@@ -15,17 +17,15 @@ BEGIN
     SET NOCOUNT ON;
     
     DECLARE @TargetDB NVARCHAR(100);
-    SELECT TOP 1 @TargetDB = ConfigValue FROM dbo.ConfiguracionSistema WHERE ConfigKey = 'DBENTRADA';
+    SELECT TOP 1 @TargetDB = ConfigValue FROM dbo.SISConfiguracion WHERE ConfigKey = 'DBENTRADA';
     
     IF @TargetDB IS NULL OR @TargetDB = ''
     BEGIN
         PRINT 'Configuración DBENTRADA no encontrada. Omitiendo PUSH.';
         RETURN;
     END
-
     DECLARE @SQLHeader NVARCHAR(MAX);
     DECLARE @SQLDetails NVARCHAR(MAX);
-
     -- 1. Sync Header (Horarios)
     SET @SQLHeader = '
     MERGE INTO ' + QUOTENAME(@TargetDB) + '.[dbo].[horarios] AS Target
@@ -43,7 +43,6 @@ BEGIN
     WHEN NOT MATCHED BY TARGET THEN
         INSERT (horario, nombre, minutos_tolerancia, status)
         VALUES (Source.horario, Source.nombre, Source.minutos_tolerancia, Source.status);';
-
     BEGIN TRY
         EXEC sp_executesql @SQLHeader, 
             N'@CodRef NVARCHAR(50), @Nombre NVARCHAR(100), @MinutosTolerancia INT, @Status CHAR(1)',
@@ -53,14 +52,12 @@ BEGIN
         PRINT 'Error en sp_SyncToExternal_Horario Header: ' + ERROR_MESSAGE();
         RETURN; -- Si falla header, no intentar detalles
     END CATCH
-
     -- 2. Sync Details (mhorarios)
     -- Asumimos que @Detalles tiene la estructura: [{DiaSemana, EsDiaLaboral, HoraEntrada, ...}]
     
     BEGIN TRY
         SET @SQLDetails = '
         DELETE FROM ' + QUOTENAME(@TargetDB) + '.[dbo].[mhorarios] WHERE horario = @CodRef;
-
         INSERT INTO ' + QUOTENAME(@TargetDB) + '.[dbo].[mhorarios] (
             horario, dia_semana,
             horas_entrada1, minutos_entrada1,
@@ -98,10 +95,10 @@ BEGIN
             HoraFinComida DATETIME
         )
         WHERE EsDiaLaboral = 1;';
-
         EXEC sp_executesql @SQLDetails, N'@CodRef NVARCHAR(50), @Detalles NVARCHAR(MAX)', @CodRef, @Detalles;
     END TRY
     BEGIN CATCH
         PRINT 'Error en sp_SyncToExternal_Horario Details: ' + ERROR_MESSAGE();
     END CATCH
 END
+GO

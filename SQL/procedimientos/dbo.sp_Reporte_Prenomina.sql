@@ -1,17 +1,23 @@
-IF OBJECT_ID('dbo.sp_Reporte_Prenomina') IS NOT NULL      DROP PROCEDURE dbo.sp_Reporte_Prenomina;
-GO
-CREATE PROCEDURE [dbo].[sp_Reporte_Prenomina]
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Reporte_Prenomina]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE [dbo].[sp_Reporte_Prenomina]
     @FechaInicio DATE,
     @FechaFin DATE,
     @UsuarioId INT,
     @GrupoNominaId INT,
-    @Regenerar BIT = 0  -- 1 = forzar regeneraci�n (borra existente y recalcula), 0 = comportamiento original
+    @Regenerar BIT = 0  -- 1 = forzar regeneraci�n (borra existente y recalcula), 0 = comportamiento original
 AS
 BEGIN
     SET NOCOUNT ON;
 
     -- ========================================================================
-    -- 1. Si se solicita regeneraci�n, borrar el reporte existente de forma segura
+    -- 1. Si se solicita regeneraci�n, borrar el reporte existente de forma segura
     -- ========================================================================
     IF @Regenerar = 1
     BEGIN
@@ -44,7 +50,7 @@ BEGIN
     -- ========================================================================
     IF NOT EXISTS (SELECT 1 FROM Prenomina WHERE GrupoNominaId = @GrupoNominaId AND FechaInicio = @FechaInicio AND FechaFin = @FechaFin)
     BEGIN
-        -- Tabla temporal de c�lculo
+        -- Tabla temporal de c�lculo
         CREATE TABLE #CalculoTemp (
             EmpleadoId INT,
             DepartamentoId INT,
@@ -72,7 +78,7 @@ BEGIN
           AND e.Activo = 1
           AND ea.ConceptoNominaId IS NOT NULL;
 
-        -- Transacci�n de guardado
+        -- Transacci�n de guardado
         BEGIN TRANSACTION;
         BEGIN TRY
             DECLARE @MapaIds TABLE (EmpleadoId INT, NuevoCabeceraId INT);
@@ -140,3 +146,4 @@ BEGIN
       AND p.FechaFin = @FechaFin
     ORDER BY e.NombreCompleto;
 END
+GO

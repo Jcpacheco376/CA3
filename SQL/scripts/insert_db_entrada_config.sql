@@ -1,8 +1,8 @@
 USE [CA]
 GO
-IF NOT EXISTS (SELECT 1 FROM ConfiguracionSistema WHERE ConfigKey = 'DBENTRADA')
+IF NOT EXISTS (SELECT 1 FROM SISConfiguracion WHERE ConfigKey = 'DBENTRADA')
 BEGIN
-    INSERT INTO ConfiguracionSistema (ConfigKey, ConfigValue, Descripcion)
+    INSERT INTO SISConfiguracion (ConfigKey, ConfigValue, Descripcion)
     VALUES ('DBENTRADA', 'BMS', 'Nombre de la BD Externa para interfaz DE ENTRADA');
     PRINT 'Configuracion DBENTRADA agregada.';
 END

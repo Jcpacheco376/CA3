@@ -1,7 +1,17 @@
-CREATE TABLE [dbo].[UsuariosDepartamentos] (
+-- ──────────────────────────────────────────────────────────────────────
+-- Tabla: [dbo].[UsuariosDepartamentos]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 
-[UsuarioId] int NOT NULL,
-[DepartamentoId] char(5) NOT NULL,
-CONSTRAINT [PK__Usuarios__DD56575B9E26A88A] PRIMARY KEY CLUSTERED ([UsuarioId] ASC, [DepartamentoId] ASC) WITH (PAD_INDEX = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON) ON [PRIMARY]
-) ON [PRIMARY]
-ALTER TABLE [dbo].[UsuariosDepartamentos] ADD CONSTRAINT [FK__UsuariosD__Usuar__11158940] FOREIGN KEY([UsuarioId]) REFERENCES [dbo].[Usuarios]([UsuarioId]);
+IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name='UsuariosDepartamentos' AND schema_id=SCHEMA_ID('dbo'))
+BEGIN
+    CREATE TABLE [dbo].[UsuariosDepartamentos] (
+    [UsuarioId] int NOT NULL,
+    [DepartamentoId] char(5) NOT NULL,
+    CONSTRAINT [PK__Usuarios__DD56575B9E26A88A] PRIMARY KEY CLUSTERED ([UsuarioId], [DepartamentoId])
+    );
+END
+GO

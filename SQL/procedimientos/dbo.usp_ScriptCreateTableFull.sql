@@ -1,7 +1,12 @@
-IF OBJECT_ID('dbo.usp_ScriptCreateTableFull') IS NOT NULL      DROP PROCEDURE dbo.usp_ScriptCreateTableFull;
-GO
------------------------HELPER-
-CREATE   PROCEDURE dbo.usp_ScriptCreateTableFull
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[usp_ScriptCreateTableFull]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE dbo.usp_ScriptCreateTableFull
     @SchemaName sysname,
     @TableName  sysname
 AS
@@ -89,5 +94,4 @@ BEGIN
 
     SELECT @sql;
 END
-
-
+GO

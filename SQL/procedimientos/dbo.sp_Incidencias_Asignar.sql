@@ -1,6 +1,12 @@
-IF OBJECT_ID('dbo.sp_Incidencias_Asignar') IS NOT NULL      DROP PROCEDURE dbo.sp_Incidencias_Asignar;
-GO
-CREATE   PROCEDURE [dbo].[sp_Incidencias_Asignar]
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Incidencias_Asignar]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE [dbo].[sp_Incidencias_Asignar]
     @IncidenciaId INT,
     @UsuarioAsignadoId INT,
     @Comentario NVARCHAR(255),
@@ -37,7 +43,7 @@ BEGIN
             Estado = 'Asignada'
         WHERE IncidenciaId = @IncidenciaId;
 
-        -- 3. REGISTRAR EN BIT�CORA (FOTO COMPLETA)
+        -- 3. REGISTRAR EN BIT�CORA (FOTO COMPLETA)
         INSERT INTO dbo.IncidenciasBitacora (
             IncidenciaId, UsuarioId, Accion, Comentario, 
             AsignadoA_Nuevo, 
@@ -63,4 +69,4 @@ BEGIN
         THROW 51000, @ErrorMessage, 1;
     END CATCH
 END
-
+GO

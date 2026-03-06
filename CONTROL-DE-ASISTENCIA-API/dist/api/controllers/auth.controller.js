@@ -59,7 +59,7 @@ const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
             return res.status(404).json({ message: 'No se encontró el perfil completo del usuario.' });
         }
         // Parsear los campos JSON del perfil completo
-        fullUserDetails = Object.assign(Object.assign({}, fullUserDetails), { Roles: fullUserDetails.Roles ? JSON.parse(fullUserDetails.Roles) : [], Departamentos: activeFilters.departamentos && fullUserDetails.Departamentos ? JSON.parse(fullUserDetails.Departamentos) : [], GruposNomina: activeFilters.gruposNomina && fullUserDetails.GruposNomina ? JSON.parse(fullUserDetails.GruposNomina) : [], Puestos: activeFilters.puestos && fullUserDetails.Puestos ? JSON.parse(fullUserDetails.Puestos) : [], Establecimientos: activeFilters.establecimientos && fullUserDetails.Establecimientos ? JSON.parse(fullUserDetails.Establecimientos) : [] });
+        fullUserDetails = Object.assign(Object.assign({}, fullUserDetails), { Roles: fullUserDetails.Roles ? JSON.parse(fullUserDetails.Roles) : [], Departamentos: fullUserDetails.Departamentos ? JSON.parse(fullUserDetails.Departamentos) : [], GruposNomina: fullUserDetails.GruposNomina ? JSON.parse(fullUserDetails.GruposNomina) : [], Puestos: fullUserDetails.Puestos ? JSON.parse(fullUserDetails.Puestos) : [], Establecimientos: fullUserDetails.Establecimientos ? JSON.parse(fullUserDetails.Establecimientos) : [] });
         const permissions = {};
         permissionsResult.recordset.forEach(record => {
             permissions[record.NombrePermiso] = [true];
@@ -74,7 +74,9 @@ const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         res.json({
             token,
             user: Object.assign(Object.assign({}, fullUserDetails), { DebeCambiarPassword: loggedInUser.DebeCambiarPassword, permissions,
-                activeFilters })
+                activeFilters, 
+                // Devolvemos las dimensiones como objetos completos para que el frontend pueda compararlos correctamente
+                Departamentos: fullUserDetails.Departamentos ? (typeof fullUserDetails.Departamentos === 'string' ? JSON.parse(fullUserDetails.Departamentos) : fullUserDetails.Departamentos) : [], GruposNomina: fullUserDetails.GruposNomina ? (typeof fullUserDetails.GruposNomina === 'string' ? JSON.parse(fullUserDetails.GruposNomina) : fullUserDetails.GruposNomina) : [], Puestos: fullUserDetails.Puestos ? (typeof fullUserDetails.Puestos === 'string' ? JSON.parse(fullUserDetails.Puestos) : fullUserDetails.Puestos) : [], Establecimientos: fullUserDetails.Establecimientos ? (typeof fullUserDetails.Establecimientos === 'string' ? JSON.parse(fullUserDetails.Establecimientos) : fullUserDetails.Establecimientos) : [] })
         });
     }
     catch (err) {
@@ -91,7 +93,7 @@ const getActiveFilters = (pool) => __awaiter(void 0, void 0, void 0, function* (
                 CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroGruposNominaActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT) AS gruposNomina,
                 CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroPuestosActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT) AS puestos,
                 CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroEstablecimientosActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT) AS establecimientos
-            FROM dbo.ConfiguracionSistema
+            FROM dbo.SISConfiguracion
             WHERE ConfigKey IN (
                 'FiltroDepartamentosActivo', 
                 'FiltroGruposNominaActivo', 

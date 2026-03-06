@@ -1,6 +1,12 @@
-IF OBJECT_ID('dbo.sp_FichasAsistencia_ProcesarChecadas') IS NOT NULL      DROP PROCEDURE dbo.sp_FichasAsistencia_ProcesarChecadas;
-GO
-CREATE PROCEDURE [dbo].[sp_FichasAsistencia_ProcesarChecadas]
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_FichasAsistencia_ProcesarChecadas]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.47
+-- Compilado:           06/03/2026, 16:41:33
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE [dbo].[sp_FichasAsistencia_ProcesarChecadas]
     @FechaInicio DATE,
     @FechaFin DATE,
     @UsuarioId INT = NULL,
@@ -8,7 +14,7 @@ CREATE PROCEDURE [dbo].[sp_FichasAsistencia_ProcesarChecadas]
 AS
 BEGIN
     SET NOCOUNT ON;
-    SET DATEFIRST 1; -- Lunes es el primer d�a de la semana
+    SET DATEFIRST 1; -- Lunes es el primer d�a de la semana
 
     DECLARE @Reintentos TINYINT = 0;
     DECLARE @MaxReintentos TINYINT = 3;
@@ -43,7 +49,7 @@ BEGIN
     IF @IdSinHorario IS NULL SET @IdSinHorario = @IdFalta;
 
     -------------------------------------------------------------------
-    -- 4. C�LCULO CON ARITM�TICA SEGURA (DATEADD)
+    -- 4. C�LCULO CON ARITM�TICA SEGURA (DATEADD)
     -------------------------------------------------------------------
     ;WITH 
     FechasDelRango AS (
@@ -67,7 +73,7 @@ BEGIN
         LEFT JOIN dbo.HorariosTemporales ht ON e.EmpleadoId = ht.EmpleadoId AND fr.Fecha = ht.Fecha
     ),
 
-    -- B. Ventanas Calculadas (CORRECCI�N CR�TICA AQU�)
+    -- B. Ventanas Calculadas (CORRECCI�N CR�TICA AQU�)
     VentanasCalculadas AS (
         SELECT
             hb.EmpleadoId, hb.Fecha, hb.CodRef, hb.HorarioId,
@@ -81,15 +87,15 @@ BEGIN
                 ELSE 0 
             END as EsSinHorario,
 
-            -- CORRECCI�N 1: Usar DATEADD en lugar de CAST + CAST para Entrada
+            -- CORRECCI�N 1: Usar DATEADD en lugar de CAST + CAST para Entrada
             CASE WHEN hd.HoraEntrada IS NOT NULL 
                  THEN DATEADD(day, DATEDIFF(day, '19000101', hb.Fecha), CAST(hd.HoraEntrada AS DATETIME))
                  ELSE NULL END AS Turno_Entrada,
             
-            -- CORRECCI�N 2: Usar DATEADD para Salida
+            -- CORRECCI�N 2: Usar DATEADD para Salida
             CASE WHEN hd.HoraSalida IS NOT NULL THEN
                     CASE WHEN hd.HoraSalida < hd.HoraEntrada 
-                         -- Si cruza medianoche, sumamos 1 d�a a la Fecha base
+                         -- Si cruza medianoche, sumamos 1 d�a a la Fecha base
                          THEN DATEADD(day, DATEDIFF(day, '19000101', DATEADD(DAY, 1, hb.Fecha)), CAST(hd.HoraSalida AS DATETIME))
                          ELSE DATEADD(day, DATEDIFF(day, '19000101', hb.Fecha), CAST(hd.HoraSalida AS DATETIME))
                     END
@@ -179,8 +185,8 @@ BEGIN
 
             CASE 
                 WHEN df.EsSinHorario = 1 THEN 'SIN_HORARIO'
-                -- Si la ventana ya cerr�, no podemos dejarlo en proceso, debemos cerrarlo como BORRADOR (o VALIDADO si quisieras auto-aprobar)
-                -- Aqu� mantengo BORRADOR para que se revise manualmente si qued� incompleto.
+                -- Si la ventana ya cerr�, no podemos dejarlo en proceso, debemos cerrarlo como BORRADOR (o VALIDADO si quisieras auto-aprobar)
+                -- Aqu� mantengo BORRADOR para que se revise manualmente si qued� incompleto.
                 WHEN df.EsDiaLaboral = 1 AND df.Ventana_Fin IS NOT NULL AND @Ahora <= df.Ventana_Fin THEN 'EN_PROCESO'
                 ELSE 'BORRADOR'
             END AS EstadoCalculado,
@@ -240,3 +246,4 @@ BEGIN
 
     DROP TABLE #SourceData;
 END
+GO
