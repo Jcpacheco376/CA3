@@ -1,0 +1,7 @@
+{
+  "apiDir": "C:\\TEST\\api-asistencia",
+  "apiPort": "3001",
+  "autoRestart": true,
+  "maxRestarts": 5,
+  "restartDelay": 3000
+}

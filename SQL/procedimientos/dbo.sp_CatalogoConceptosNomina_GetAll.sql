@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_CatalogoConceptosNomina_GetAll]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.47
--- Compilado:           06/03/2026, 16:41:33
+-- Versión de Paquete:  v1.3.51
+-- Compilado:           09/03/2026, 09:30:57
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 

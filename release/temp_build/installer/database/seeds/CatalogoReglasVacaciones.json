@@ -1,0 +1,392 @@
+[
+  {
+    "ReglaId": 1,
+    "Esquema": "Pre-2023",
+    "AniosAntiguedad": 1,
+    "DiasOtorgados": 6
+  },
+  {
+    "ReglaId": 2,
+    "Esquema": "Pre-2023",
+    "AniosAntiguedad": 2,
+    "DiasOtorgados": 8
+  },
+  {
+    "ReglaId": 3,
+    "Esquema": "Pre-2023",
+    "AniosAntiguedad": 3,
+    "DiasOtorgados": 10
+  },
+  {
+    "ReglaId": 4,
+    "Esquema": "Pre-2023",
+    "AniosAntiguedad": 4,
+    "DiasOtorgados": 12
+  },
+  {
+    "ReglaId": 5,
+    "Esquema": "Pre-2023",
+    "AniosAntiguedad": 5,
+    "DiasOtorgados": 14
+  },
+  {
+    "ReglaId": 6,
+    "Esquema": "Pre-2023",
+    "AniosAntiguedad": 6,
+    "DiasOtorgados": 14
+  },
+  {
+    "ReglaId": 7,
+    "Esquema": "Pre-2023",
+    "AniosAntiguedad": 7,
+    "DiasOtorgados": 14
+  },
+  {
+    "ReglaId": 8,
+    "Esquema": "Pre-2023",
+    "AniosAntiguedad": 8,
+    "DiasOtorgados": 14
+  },
+  {
+    "ReglaId": 9,
+    "Esquema": "Pre-2023",
+    "AniosAntiguedad": 9,
+    "DiasOtorgados": 14
+  },
+  {
+    "ReglaId": 10,
+    "Esquema": "Pre-2023",
+    "AniosAntiguedad": 10,
+    "DiasOtorgados": 16
+  },
+  {
+    "ReglaId": 11,
+    "Esquema": "Pre-2023",
+    "AniosAntiguedad": 11,
+    "DiasOtorgados": 16
+  },
+  {
+    "ReglaId": 12,
+    "Esquema": "Pre-2023",
+    "AniosAntiguedad": 12,
+    "DiasOtorgados": 16
+  },
+  {
+    "ReglaId": 13,
+    "Esquema": "Pre-2023",
+    "AniosAntiguedad": 13,
+    "DiasOtorgados": 16
+  },
+  {
+    "ReglaId": 14,
+    "Esquema": "Pre-2023",
+    "AniosAntiguedad": 14,
+    "DiasOtorgados": 16
+  },
+  {
+    "ReglaId": 15,
+    "Esquema": "Pre-2023",
+    "AniosAntiguedad": 15,
+    "DiasOtorgados": 18
+  },
+  {
+    "ReglaId": 16,
+    "Esquema": "Pre-2023",
+    "AniosAntiguedad": 16,
+    "DiasOtorgados": 18
+  },
+  {
+    "ReglaId": 17,
+    "Esquema": "Pre-2023",
+    "AniosAntiguedad": 17,
+    "DiasOtorgados": 18
+  },
+  {
+    "ReglaId": 18,
+    "Esquema": "Pre-2023",
+    "AniosAntiguedad": 18,
+    "DiasOtorgados": 18
+  },
+  {
+    "ReglaId": 19,
+    "Esquema": "Pre-2023",
+    "AniosAntiguedad": 19,
+    "DiasOtorgados": 18
+  },
+  {
+    "ReglaId": 20,
+    "Esquema": "Pre-2023",
+    "AniosAntiguedad": 20,
+    "DiasOtorgados": 20
+  },
+  {
+    "ReglaId": 21,
+    "Esquema": "Pre-2023",
+    "AniosAntiguedad": 21,
+    "DiasOtorgados": 20
+  },
+  {
+    "ReglaId": 22,
+    "Esquema": "Pre-2023",
+    "AniosAntiguedad": 22,
+    "DiasOtorgados": 20
+  },
+  {
+    "ReglaId": 23,
+    "Esquema": "Pre-2023",
+    "AniosAntiguedad": 23,
+    "DiasOtorgados": 20
+  },
+  {
+    "ReglaId": 24,
+    "Esquema": "Pre-2023",
+    "AniosAntiguedad": 24,
+    "DiasOtorgados": 20
+  },
+  {
+    "ReglaId": 25,
+    "Esquema": "Pre-2023",
+    "AniosAntiguedad": 25,
+    "DiasOtorgados": 22
+  },
+  {
+    "ReglaId": 26,
+    "Esquema": "Pre-2023",
+    "AniosAntiguedad": 26,
+    "DiasOtorgados": 22
+  },
+  {
+    "ReglaId": 27,
+    "Esquema": "Pre-2023",
+    "AniosAntiguedad": 27,
+    "DiasOtorgados": 22
+  },
+  {
+    "ReglaId": 28,
+    "Esquema": "Pre-2023",
+    "AniosAntiguedad": 28,
+    "DiasOtorgados": 22
+  },
+  {
+    "ReglaId": 29,
+    "Esquema": "Pre-2023",
+    "AniosAntiguedad": 29,
+    "DiasOtorgados": 22
+  },
+  {
+    "ReglaId": 30,
+    "Esquema": "Pre-2023",
+    "AniosAntiguedad": 30,
+    "DiasOtorgados": 24
+  },
+  {
+    "ReglaId": 31,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 1,
+    "DiasOtorgados": 12
+  },
+  {
+    "ReglaId": 32,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 2,
+    "DiasOtorgados": 14
+  },
+  {
+    "ReglaId": 33,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 3,
+    "DiasOtorgados": 16
+  },
+  {
+    "ReglaId": 34,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 4,
+    "DiasOtorgados": 18
+  },
+  {
+    "ReglaId": 35,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 5,
+    "DiasOtorgados": 20
+  },
+  {
+    "ReglaId": 36,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 6,
+    "DiasOtorgados": 22
+  },
+  {
+    "ReglaId": 37,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 7,
+    "DiasOtorgados": 22
+  },
+  {
+    "ReglaId": 38,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 8,
+    "DiasOtorgados": 22
+  },
+  {
+    "ReglaId": 39,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 9,
+    "DiasOtorgados": 22
+  },
+  {
+    "ReglaId": 40,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 10,
+    "DiasOtorgados": 22
+  },
+  {
+    "ReglaId": 41,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 11,
+    "DiasOtorgados": 24
+  },
+  {
+    "ReglaId": 42,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 12,
+    "DiasOtorgados": 24
+  },
+  {
+    "ReglaId": 43,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 13,
+    "DiasOtorgados": 24
+  },
+  {
+    "ReglaId": 44,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 14,
+    "DiasOtorgados": 24
+  },
+  {
+    "ReglaId": 45,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 15,
+    "DiasOtorgados": 24
+  },
+  {
+    "ReglaId": 46,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 16,
+    "DiasOtorgados": 26
+  },
+  {
+    "ReglaId": 47,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 17,
+    "DiasOtorgados": 26
+  },
+  {
+    "ReglaId": 48,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 18,
+    "DiasOtorgados": 26
+  },
+  {
+    "ReglaId": 49,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 19,
+    "DiasOtorgados": 26
+  },
+  {
+    "ReglaId": 50,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 20,
+    "DiasOtorgados": 26
+  },
+  {
+    "ReglaId": 51,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 21,
+    "DiasOtorgados": 28
+  },
+  {
+    "ReglaId": 52,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 22,
+    "DiasOtorgados": 28
+  },
+  {
+    "ReglaId": 53,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 23,
+    "DiasOtorgados": 28
+  },
+  {
+    "ReglaId": 54,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 24,
+    "DiasOtorgados": 28
+  },
+  {
+    "ReglaId": 55,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 25,
+    "DiasOtorgados": 28
+  },
+  {
+    "ReglaId": 56,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 26,
+    "DiasOtorgados": 30
+  },
+  {
+    "ReglaId": 57,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 27,
+    "DiasOtorgados": 30
+  },
+  {
+    "ReglaId": 58,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 28,
+    "DiasOtorgados": 30
+  },
+  {
+    "ReglaId": 59,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 29,
+    "DiasOtorgados": 30
+  },
+  {
+    "ReglaId": 60,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 30,
+    "DiasOtorgados": 30
+  },
+  {
+    "ReglaId": 61,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 31,
+    "DiasOtorgados": 32
+  },
+  {
+    "ReglaId": 62,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 32,
+    "DiasOtorgados": 32
+  },
+  {
+    "ReglaId": 63,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 33,
+    "DiasOtorgados": 32
+  },
+  {
+    "ReglaId": 64,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 34,
+    "DiasOtorgados": 32
+  },
+  {
+    "ReglaId": 65,
+    "Esquema": "Ley-2023",
+    "AniosAntiguedad": 35,
+    "DiasOtorgados": 32
+  }
+]

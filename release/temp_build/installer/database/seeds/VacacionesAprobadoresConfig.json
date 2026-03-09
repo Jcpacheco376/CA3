@@ -1,0 +1,20 @@
+[
+  {
+    "ConfigId": 1,
+    "Orden": 1,
+    "RolAprobador": "JefeDirecto",
+    "EsObligatorio": true
+  },
+  {
+    "ConfigId": 2,
+    "Orden": 2,
+    "RolAprobador": "RecursosHumanos",
+    "EsObligatorio": true
+  },
+  {
+    "ConfigId": 3,
+    "Orden": 3,
+    "RolAprobador": "Gerencia",
+    "EsObligatorio": true
+  }
+]

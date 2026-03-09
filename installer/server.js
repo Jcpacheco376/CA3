@@ -5,7 +5,9 @@
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
-const { execSync, exec } = require('child_process');
+const { execSync, exec, spawn } = require('child_process');
+const util = require('util');
+const execAsync = util.promisify(exec);
 const os = require('os');
 
 const PORT = 19876; // Puerto fijo para el wizard
@@ -338,10 +340,9 @@ async function handleAPI(req, res) {
                     log('== PASO 2/4: Instalando archivos de la aplicación ==');
                     await installFiles(appConfig, __dirname, log, (p) => { installState.progress = 40 + p * 0.3; });
 
-                    log('== PASO 3/4: Instalando dependencias de Node ==');
-                    execSync('npm install --production', {
-                        cwd: path.join(__dirname, '..', 'app', 'api-asistencia'),
-                        stdio: ['ignore', 'ignore', 'ignore']
+                    log('== PASO 3/4: Instalando dependencias del servidor (puede tardar un momento) ==');
+                    await execAsync('npm install --omit=dev', {
+                        cwd: path.join(__dirname, '..', 'app', 'api-asistencia')
                     });
                     installState.progress = 75;
 
@@ -373,11 +374,24 @@ async function handleAPI(req, res) {
             const launcherVbs = path.join(installBase, 'api-asistencia', 'launcher', 'CA3-Launcher.vbs');
             if (fs.existsSync(launcherVbs)) {
                 log('Empezando Launcher silenciosamente...');
-                exec(`wscript.exe "${launcherVbs}"`);
+                // detached: true y unref() para que subprocess no bloquee a Node
+                const subprocess = spawn('wscript.exe', [`"${launcherVbs}"`], {
+                    detached: true,
+                    stdio: 'ignore',
+                    windowsVerbatimArguments: true
+                });
+                subprocess.unref();
             } else {
-                const port = installState.appConfig?.API_PORT || 3001;
-                exec(`start http://localhost:${port}`);
+                log('⚠️ No se pudo iniciar el launcher automáticamente.');
             }
+            res.writeHead(200);
+            return res.end(JSON.stringify({ ok: true }));
+        }
+
+        // ── POST /api/open-url ────────────────────────────────────────────────
+        if (endpoint === '/api/open-url' && req.method === 'POST') {
+            const port = installState.appConfig?.API_PORT || 3001;
+            exec(`start http://localhost:${port}`);
             res.writeHead(200);
             return res.end(JSON.stringify({ ok: true }));
         }

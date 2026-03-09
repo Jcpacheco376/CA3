@@ -17,6 +17,24 @@ const fs = require('fs');
 const { spawn, exec, execSync } = require('child_process');
 const net = require('net');
 
+// ── Single Instance Check ──────────────────────────────────────────────────
+// Matar procesos anteriores del launcher (excepto este) para evitar íconos duplicados
+try {
+    const list = execSync('wmic process where "name=\'node.exe\'" get commandline,processid', { stdio: ['ignore', 'pipe', 'ignore'] }).toString();
+    const lines = list.split('\n');
+    for (const line of lines) {
+        if (line.includes('ca3-launcher.js')) {
+            const parts = line.trim().split(/\s+/);
+            const pid = parseInt(parts[parts.length - 1], 10);
+            if (pid && !isNaN(pid) && pid !== process.pid) {
+                try {
+                    execSync(`taskkill /PID ${pid} /F`, { stdio: 'ignore' });
+                } catch (_) { }
+            }
+        }
+    }
+} catch (_) { }
+
 // ── Configuración ──────────────────────────────────────────────────────────
 const CONFIG_FILE = path.join(__dirname, 'launcher-config.json');
 let config = {
@@ -148,37 +166,6 @@ async function startAPI() {
     }
 }
 
-// ── Solucion Multi-Instancia (Singleton Lock) ───────────────────────────────
-
-const http = require('http');
-const LOCK_PORT = config.apiPort + 11000;
-
-async function killPreviousInstance() {
-    return new Promise(resolve => {
-        const req = http.get(`http://127.0.0.1:${LOCK_PORT}/kill`, (res) => {
-            appendLog('Se envio la señal de cierre a la instancia anterior.');
-            setTimeout(resolve, 1500); // Give it time to close
-        }).on('error', () => {
-            resolve(); // No previous instance running on lock port
-        });
-        req.setTimeout(1000, () => resolve());
-    });
-}
-
-function startLockServer() {
-    const srv = http.createServer((req, res) => {
-        if (req.url === '/kill') {
-            res.writeHead(200);
-            res.end('ok');
-            appendLog('Me pidieron cerrarme (nueva instancia detectada)...');
-            stopAPI();
-            if (systray) systray.kill(false);
-            setTimeout(() => process.exit(0), 500);
-        }
-    });
-    srv.listen(LOCK_PORT, '127.0.0.1').on('error', () => { /* ignore */ });
-}
-
 function stopAPI() {
     manualStop = true;
     if (!apiProcess) return;
@@ -289,16 +276,10 @@ function buildMenu() {
 appendLog('=== Iniciando CA3 Launcher ===');
 
 try {
-    killPreviousInstance().then(() => {
-        startLockServer();
-        buildMenu();
-    }).catch(err => {
-        appendLog(`systray2 fallo: ${err.message}. Iniciando en modo consola.`);
-        startLockServer();
-        startAPI();
-    });
+    buildMenu();
 } catch (err) {
-    appendLog(`Fallo general: ${err.message}.`);
+    appendLog(`systray2 no disponible (${err.message}). Iniciando en modo consola.`);
+    appendLog(`El servidor seguira corriendo; cierre esta ventana para detenerlo.`);
     startAPI();
 }
 

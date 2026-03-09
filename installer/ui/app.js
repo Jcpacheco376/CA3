@@ -115,6 +115,7 @@
 
         // Acciones automáticas por pantalla
         if (currentScreen === 3) runAnalysis();
+        if (currentScreen === 7) api('POST', '/api/start-launcher');
 
         const content = document.querySelector('.wizard-content');
         if (content) content.scrollTop = 0;
@@ -198,9 +199,11 @@
                 break;
             case 4: goTo(5); break;
             case 5: await stepInstall(); break;
+            case 6: goTo(7); break;
             case 7:
                 btnNext.disabled = true;
                 btnNext.innerHTML = '<span class="spinner"></span>&nbsp; Finalizando...';
+                await api('POST', '/api/open-url');
                 await api('POST', '/api/finish');
                 setTimeout(() => window.close(), 500);
                 break;
@@ -647,23 +650,16 @@
                 clearInterval(pollTimer);
                 document.getElementById('progress-fill').style.width = '100%';
                 document.getElementById('progress-pct').textContent = '100%';
-                document.getElementById('progress-step-label').textContent = '✅ Instalación completada';
+                document.getElementById('progress-step-label').textContent = '✅ Instalación completada correctamente';
                 const port = appConfig.API_PORT || 3001;
                 const url = `http://localhost:${port}`;
                 document.getElementById('app-url-text').textContent = url;
                 document.getElementById('app-url-chip').onclick = async () => {
-                    await api('POST', '/api/start-launcher');
-                    // Solo lanza el sistema silenciosamente sin cerrar el instalador
+                    await api('POST', '/api/open-url');
                 };
 
-                btnNext.textContent = 'Finalizar';
+                btnNext.textContent = 'Siguiente';
                 btnNext.disabled = false;
-                btnNext.onclick = async () => {
-                    btnNext.disabled = true;
-                    btnNext.innerHTML = '<span class="spinner"></span> Cerrando...';
-                    await api('POST', '/api/finish');
-                    setTimeout(() => window.close(), 1000);
-                };
             } else if (state.step === 'error') {
                 clearInterval(pollTimer);
                 appendLogLine('La instalación terminó con errores. Revise la carpeta logs/.');

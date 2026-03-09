@@ -1,0 +1,58 @@
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_SyncToExternal_Establecimiento]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.46
+-- Compilado:           06/03/2026, 16:18:09
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_SyncToExternal_Establecimiento]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.44
+-- Compilado:           06/03/2026, 15:57:03
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE [dbo].[sp_SyncToExternal_Establecimiento]
+    @CodRef NVARCHAR(50),
+    @Nombre NVARCHAR(100),
+    @Status CHAR(1)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    DECLARE @TargetDB NVARCHAR(100);
+    SELECT TOP 1 @TargetDB = ConfigValue FROM dbo.SISConfiguracion WHERE ConfigKey = 'DBENTRADA';
+    
+    IF @TargetDB IS NULL OR @TargetDB = ''
+    BEGIN
+        PRINT 'Configuración DBENTRADA no encontrada. Omitiendo PUSH.';
+        RETURN;
+    END
+    DECLARE @SQL NVARCHAR(MAX);
+    
+    SET @SQL = '
+    MERGE INTO ' + QUOTENAME(@TargetDB) + '.[dbo].[catalogo_establecimientos] AS Target
+    USING (SELECT @CodRef AS cod_estab, @Nombre AS nombre, @Status AS status) AS Source 
+    ON RTRIM(Target.cod_estab) = Source.cod_estab
+    WHEN MATCHED AND (
+        RTRIM(Target.nombre) <> Source.nombre OR 
+        Target.status <> Source.status
+    ) THEN
+        UPDATE SET 
+            Target.nombre = Source.nombre,
+            Target.status = Source.status
+    WHEN NOT MATCHED BY TARGET THEN
+        INSERT (cod_estab, nombre, status)
+        VALUES (Source.cod_estab, Source.nombre, Source.status);';
+    BEGIN TRY
+        EXEC sp_executesql @SQL, 
+            N'@CodRef NVARCHAR(50), @Nombre NVARCHAR(100), @Status CHAR(1)',
+            @CodRef, @Nombre, @Status;
+    END TRY
+    BEGIN CATCH
+        PRINT 'Error en sp_SyncToExternal_Establecimiento: ' + ERROR_MESSAGE();
+    END CATCH
+END
+GO

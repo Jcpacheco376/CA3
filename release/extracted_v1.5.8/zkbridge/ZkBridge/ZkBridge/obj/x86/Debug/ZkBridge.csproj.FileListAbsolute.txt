@@ -1,0 +1,4 @@
+C:\Users\SISTEMAS\Documents\VSC-PROJECTS\CA3\ZkBridge\ZkBridge\ZkBridge\obj\x86\Debug\ZkBridge.csproj.AssemblyReference.cache
+C:\Users\SISTEMAS\Documents\VSC-PROJECTS\CA3\ZkBridge\ZkBridge\ZkBridge\obj\x86\Debug\Interop.zkemkeeper.dll
+C:\Users\SISTEMAS\Documents\VSC-PROJECTS\CA3\ZkBridge\ZkBridge\ZkBridge\obj\x86\Debug\ZkBridge.csproj.ResolveComReference.cache
+C:\Users\SISTEMAS\Documents\VSC-PROJECTS\CA3\ZkBridge\ZkBridge\ZkBridge\obj\x86\Debug\ZkBridge.csproj.CoreCompileInputs.cache
