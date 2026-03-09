@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Usuario_AsignarRol]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.58
--- Compilado:           09/03/2026, 14:09:33
+-- Versión de Paquete:  v1.3.66
+-- Compilado:           09/03/2026, 15:34:05
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 

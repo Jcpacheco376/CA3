@@ -50,7 +50,8 @@ try {
     }
 } catch (_) { }
 
-const API_MAIN = path.join(config.apiDir, 'ca3-api.exe');
+const API_EXE = path.join(config.apiDir, 'ca3-api.exe');
+const API_SCRIPT = path.join(config.apiDir, 'dist', 'index.js');
 const LOG_FILE = path.join(config.apiDir, 'logs', 'ca3-api.log');
 const ICO_FILE = path.join(__dirname, 'ca3.ico');
 const APP_URL = `http://localhost:${config.apiPort}`;
@@ -110,8 +111,15 @@ function isRunning() { return apiProcess !== null; }
 async function startAPI() {
     if (apiProcess) return;
 
-    if (!fs.existsSync(API_MAIN)) {
-        appendLog(`Error: no se encontro el servidor en: ${API_MAIN}`);
+    let command, args;
+    if (fs.existsSync(API_EXE)) {
+        command = API_EXE;
+        args = [];
+    } else if (fs.existsSync(API_SCRIPT)) {
+        command = 'node';
+        args = [API_SCRIPT];
+    } else {
+        appendLog(`Error: no se encontro el servidor en: ${config.apiDir}`);
         appendLog('Verifique que la instalacion este completa.');
         return;
     }
@@ -125,7 +133,7 @@ async function startAPI() {
     let logFd = 'ignore';
     try { logFd = fs.openSync(LOG_FILE, 'a'); } catch (_) { }
 
-    apiProcess = spawn(API_MAIN, [], {
+    apiProcess = spawn(command, args, {
         cwd: config.apiDir,
         detached: false,
         stdio: ['ignore', logFd, logFd],

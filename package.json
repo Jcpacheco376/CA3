@@ -13,6 +13,7 @@
     "build": "npm run build --workspace=CONTROL-DE-ASISTENCIA",
     "export:sql": "node scripts/export-sql.js",
     "deploy:installer": "node scripts/export-sql.js && node scripts/extract-seeds.js && node scripts/increment-version.js && npm run build:all && node scripts/packager.js",
+    "deploy:installer:exe": "node scripts/export-sql.js && node scripts/extract-seeds.js && node scripts/increment-version.js && npm run build:all && node scripts/packager.js --exe",
     "deploy:prod": "echo 'Despliegue a producción (Render) se maneja automáticamente al hacer push a la rama main.'",
     "build:all": "npm run build --workspaces"
   },
