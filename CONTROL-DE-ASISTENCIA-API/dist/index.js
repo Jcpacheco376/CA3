@@ -39,9 +39,14 @@ app.use('/api', routes_1.default);
 // =================================================================
 // 2. SERVIR FRONTEND (Lógica Inteligente)
 // =================================================================
-// Opción A: Ruta en el Paquete de Instalación (Cliente)
-const prodPath = path_1.default.join(__dirname, '../../frontend-asistencia');
-// Opción B: Ruta en tu Entorno Local (Desarrollo)
+const isPkg = process.pkg;
+// Opción 1: Ruta en el Paquete de Instalación (Modo EXE / PKG)
+// Si es EXE, baseDir es la carpeta donde está el .exe (app/api-asistencia/)
+// El frontend está en app/frontend-asistencia/, por lo tanto es '../frontend-asistencia'
+const prodPath = isPkg
+    ? path_1.default.join(path_1.default.dirname(process.execPath), '../frontend-asistencia')
+    : path_1.default.join(__dirname, '../../frontend-asistencia');
+// Opción 2: Ruta en tu Entorno Local (Desarrollo)
 const devPath = path_1.default.join(__dirname, '../../CONTROL-DE-ASISTENCIA/dist');
 let frontendPath = null;
 if (fs_1.default.existsSync(prodPath)) {
@@ -58,7 +63,13 @@ if (frontendPath) {
     // Catch-all: Cualquier ruta que no sea API devuelve el index.html
     app.get('*', (req, res) => {
         if (!req.path.startsWith('/api')) {
-            res.sendFile(path_1.default.join(frontendPath, 'index.html'));
+            const indexPath = path_1.default.join(frontendPath, 'index.html');
+            if (fs_1.default.existsSync(indexPath)) {
+                res.sendFile(indexPath);
+            }
+            else {
+                res.status(404).send('Frontend index.html not found');
+            }
         }
     });
 }

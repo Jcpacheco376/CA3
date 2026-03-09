@@ -1,0 +1,40 @@
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Usuario_Crear]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.3.56
+-- Compilado:           09/03/2026, 12:05:29
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+CREATE OR ALTER PROCEDURE sp_Usuario_Crear
+    @NombreUsuario NVARCHAR(50),
+    @Password NVARCHAR(100),
+    @NombreCompleto NVARCHAR(100),
+    @Email NVARCHAR(100),
+    @NuevoUsuarioId INT OUTPUT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    -- Validar que el nombre de usuario no exista
+    IF EXISTS (SELECT 1 FROM Usuarios WHERE NombreUsuario = @NombreUsuario)
+    BEGIN
+        RAISERROR ('El nombre de usuario ya existe.', 16, 1);
+        RETURN;
+    END
+
+    -- Validar que el email no exista
+    IF EXISTS (SELECT 1 FROM Usuarios WHERE Email = @Email)
+    BEGIN
+        RAISERROR ('El correo electr�nico ya est� en uso.', 16, 1);
+        RETURN;
+    END
+
+    -- Insertar el nuevo usuario con la contrase�a encriptada
+    INSERT INTO Usuarios (NombreUsuario, PasswordHash, NombreCompleto, Email)
+    VALUES (@NombreUsuario, PWDENCRYPT(@Password), @NombreCompleto, @Email);
+
+    -- Devolver el ID del usuario reci�n creado
+    SET @NuevoUsuarioId = SCOPE_IDENTITY();
+END
+GO

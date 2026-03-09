@@ -57,8 +57,14 @@ if (!fs.existsSync(OUTPUT_DIR)) {
 try {
     console.log('🔨 Compilando Frontend...');
     execSync('npm run build --workspace=CONTROL-DE-ASISTENCIA', { stdio: 'inherit', cwd: REPO_ROOT });
-    console.log('🔨 Compilando Backend...');
+    console.log('🔨 Compilando Backend (TypeScript)...');
     execSync('tsc', { stdio: 'inherit', cwd: BACKEND_WS });
+    console.log('📦 Empaquetando Backend como Ejecutable (pkg)...');
+    execSync('npx pkg . --targets node18-win-x64 --output dist/ca3-api.exe', { stdio: 'inherit', cwd: BACKEND_WS });
+
+    const installerPath = path.join(REPO_ROOT, 'installer');
+    console.log('📦 Empaquetando Instalador como Ejecutable (pkg)...');
+    execSync('npx pkg . --targets node18-win-x64 --output instalar.exe', { stdio: 'inherit', cwd: installerPath });
 } catch (e) {
     console.error('❌ Error compilando. Revisa los logs.');
     process.exit(1);
@@ -90,12 +96,12 @@ if (fs.existsSync(FRONT_DIST)) {
 }
 
 // ── B. Backend → app/api-asistencia/ ────────────────────────────────────
-if (fs.existsSync(BACK_DIST)) {
-    archive.directory(BACK_DIST, 'app/api-asistencia/dist');
-    archive.file(path.join(BACKEND_WS, 'package.json'), { name: 'app/api-asistencia/package.json' });
-    console.log('✅ Backend incluido.');
+const apiExe = path.join(BACK_DIST, 'ca3-api.exe');
+if (fs.existsSync(apiExe)) {
+    archive.file(apiExe, { name: 'app/api-asistencia/ca3-api.exe' });
+    console.log('✅ Backend (EXE) incluido.');
 } else {
-    throw new Error('No se encontró la carpeta dist del backend.');
+    throw new Error('No se encontró el ejecutable del backend (ca3-api.exe).');
 }
 
 // ── C. web.config (si existe) ────────────────────────────────────────────
@@ -119,13 +125,13 @@ if (fs.existsSync(exclusionsFile)) {
     archive.file(exclusionsFile, { name: 'database/sp-exclusions.json' });
 }
 
-// ── F. Wizard de instalación → installer/ ───────────────────────────────
-const installerDir = path.join(REPO_ROOT, 'installer');
-if (fs.existsSync(installerDir)) {
-    archive.directory(installerDir, 'installer');
-    console.log('✅ Wizard de instalación incluido (installer/).');
+// ── F. Wizard de instalación (EXE) ──────────────────────────────────────
+const installerExe = path.join(REPO_ROOT, 'installer', 'instalar.exe');
+if (fs.existsSync(installerExe)) {
+    archive.file(installerExe, { name: 'instalar.exe' });
+    console.log('✅ Wizard de instalación incluido (EXE).');
 } else {
-    console.warn('⚠️  Carpeta installer/ no encontrada.');
+    console.warn('⚠️  No se encontró el ejecutable del instalador.');
 }
 
 // ── G. Systray launcher → launcher/ (con node_modules pre-instalados) ────

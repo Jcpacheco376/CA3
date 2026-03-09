@@ -5,18 +5,19 @@
 const fs = require('fs');
 const path = require('path');
 const sql = require('mssql');
+const { execSync } = require('child_process');
 
 /**
  * Lee la versión del paquete instalador (inyectada por packager.js en database/version.json).
  */
-function readPackageVersion(installerDir) {
-    const candidates = [
-        path.join(installerDir, '..', 'database', 'version.json'),
-    ];
-    for (const p of candidates) {
-        if (fs.existsSync(p)) {
-            try { return JSON.parse(fs.readFileSync(p, 'utf8')).version || '0.0.0'; } catch (_) { }
-        }
+function readPackageVersion(baseDir) {
+    // baseDir puede ser la raíz del paquete o la carpeta installer/
+    const vFile = fs.existsSync(path.join(baseDir, 'database'))
+        ? path.join(baseDir, 'database', 'version.json')
+        : path.join(baseDir, '..', 'database', 'version.json');
+
+    if (fs.existsSync(vFile)) {
+        try { return JSON.parse(fs.readFileSync(vFile, 'utf8')).version || '0.0.0'; } catch (_) { }
     }
     return '0.0.0';
 }
@@ -53,17 +54,30 @@ async function testConnection(cfg) {
 }
 
 /**
+ * Verifica si Node.js está instalado (necesario para el launcher).
+ */
+async function checkSystemRequirements() {
+    try {
+        execSync('node -v', { stdio: 'ignore' });
+        return { ok: true };
+    } catch (_) {
+        return { ok: false, message: 'Node.js no está instalado o no se encuentra en el PATH. El gestor de servicio (launcher) no funcionará correctamente. Se recomienda instalar Node.js compatible.' };
+    }
+}
+
+/**
  * Analiza la BD destino:
  *  - tablesToCreate: tablas que no existen en destino (tienen script en /database/sql/tablas/)
  *  - columnsToAdd:   columnas faltantes en tablas existentes
  *  - spsToApply:     todos los SPs del paquete (excepto exclusiones)
  *  - isFirstInstall: true si la BD está vacía / no tiene tablas del sistema
  */
-async function analyzeDatabase(cfg, installerDir) {
-    const dbDir = path.join(installerDir, '..', 'database', 'sql');
+async function analyzeDatabase(cfg, baseDir) {
+    const pkgRoot = fs.existsSync(path.join(baseDir, 'database')) ? baseDir : path.join(baseDir, '..');
+    const dbDir = path.join(pkgRoot, 'database', 'sql');
     const tablasDir = path.join(dbDir, 'tablas');
     const procsDir = path.join(dbDir, 'procedimientos');
-    const exclusions = loadExclusions(installerDir);
+    const exclusions = loadExclusions(pkgRoot);
 
     let pool;
     try {
@@ -142,7 +156,7 @@ async function analyzeDatabase(cfg, installerDir) {
         const isFirstInstall = destTables.size === 0;
 
         // ── Leer versión instalada en BD usando Propiedades Extendidas (Nativo) ──
-        const pkgVersion = readPackageVersion(installerDir);
+        const pkgVersion = readPackageVersion(baseDir);
         let installedVersion = null;
 
         try {
@@ -216,16 +230,12 @@ function buildSqlConfig(cfg) {
     };
 }
 
-function loadExclusions(installerDir) {
-    // Busca sp-exclusions.json en el paquete
-    const candidates = [
-        path.join(installerDir, '..', 'database', 'sp-exclusions.json'),
-        path.join(installerDir, '..', 'scripts', 'sp-exclusions.json'),
-    ];
-    for (const p of candidates) {
-        if (fs.existsSync(p)) {
-            try { return JSON.parse(fs.readFileSync(p, 'utf8')).excluded || []; } catch (_) { }
-        }
+function loadExclusions(baseDir) {
+    const pkgRoot = fs.existsSync(path.join(baseDir, 'database')) ? baseDir : path.join(baseDir, '..');
+    const exclusionsFile = path.join(pkgRoot, 'database', 'sp-exclusions.json');
+
+    if (fs.existsSync(exclusionsFile)) {
+        try { return JSON.parse(fs.readFileSync(exclusionsFile, 'utf8')).excluded || []; } catch (_) { }
     }
     return [];
 }
@@ -255,4 +265,4 @@ function extractColumnsFromCreateSQL(sqlText) {
     return cols;
 }
 
-module.exports = { testConnection, analyzeDatabase };
+module.exports = { testConnection, analyzeDatabase, checkSystemRequirements };

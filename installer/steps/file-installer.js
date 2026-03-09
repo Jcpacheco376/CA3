@@ -15,9 +15,11 @@ const os = require('os');
 const { execSync } = require('child_process');
 
 // Raíz del paquete instalador (donde están las carpetas app/, sdk/, zkbridge/)
-const PKG_ROOT = path.join(__dirname, '..', '..');
+const PKG_ROOT = (process.pkg)
+    ? path.dirname(process.execPath)
+    : path.join(__dirname, '..', '..');
 
-async function installFiles(appConfig, installerDir, log, onProgress) {
+async function installFiles(appConfig, baseDir, log, onProgress) {
     // ── Resolver rutas ───────────────────────────────────────────────────
     // INSTALL_DIR es la carpeta que el usuario eligió en el wizard
     const installBase = (appConfig.INSTALL_DIR && appConfig.INSTALL_DIR.trim())
@@ -55,23 +57,9 @@ async function installFiles(appConfig, installerDir, log, onProgress) {
         copyDirSync(srcApiDir, destApiDir);
         log(`✅ Servidor copiado a: ${destApiDir}`);
 
-        // Instalar dependencias del servidor en el destino
-        log('Instalando dependencias del servidor...');
-        const apiNodeModules = path.join(destApiDir, 'node_modules');
-        if (!fs.existsSync(apiNodeModules)) {
-            try {
-                execSync('npm install --production', { cwd: destApiDir, stdio: ['ignore', 'ignore', 'ignore'] });
-                log('✅ Dependencias del servidor instaladas.');
-            } catch (err) {
-                log(`⚠️  Error instalando dependencias del servidor: ${err.message}`);
-                log('   El servidor no funcionará correctamente. Intente ejecutar npm install manualmente.');
-            }
-        } else {
-            log('✅ Dependencias del servidor ya incluidas en el paquete.');
-        }
-
+        log('✅ Servidor (EXE) copiado.');
     } else {
-        log('⚠️  No se encontró la carpeta de la API en el paquete.');
+        log('⚠️ No se encontró la carpeta de la API en el paquete.');
     }
     onProgress(0.45);
 

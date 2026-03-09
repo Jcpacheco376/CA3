@@ -2,7 +2,6 @@
 import { Request, Response } from 'express';
 import sql from 'mssql';
 import { dbConfig } from '../../config/database';
-import { console } from 'inspector';
 
 // Helper para convertir arrays a JSON string
 const toJSONString = (arr: number[] | undefined) => {
@@ -208,12 +207,12 @@ export const getPrenominaReport = async (req: any, res: Response) => {
     if (!req.user.permissions['reportes.prenomina.read']) {
         return res.status(403).json({ message: 'Acceso denegado.' });
     }
-    
+
     const { startDate, endDate, grupoNominaId, Regenerar } = req.body;
 
     try {
         const pool = await sql.connect(dbConfig);
-        
+
         // 2. Ejecutar el Stored Procedure
         const result = await pool.request()
             .input('UsuarioId', sql.Int, req.user.usuarioId)
@@ -237,10 +236,10 @@ export const getPrenominaReport = async (req: any, res: Response) => {
                 detalle = [];
             }
 
-            return { 
-                ...row, 
-                DetalleNomina: detalle, 
-                ConceptosCalculados: undefined 
+            return {
+                ...row,
+                DetalleNomina: detalle,
+                ConceptosCalculados: undefined
             };
         });
 
@@ -284,29 +283,29 @@ export const exportPayrollToExternal = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'Faltan parámetros requeridos.' });
         }
 
-         const pool = await sql.connect(dbConfig);
+        const pool = await sql.connect(dbConfig);
         const result = await pool.request()
             .input('FechaInicio', sql.Date, fechaInicio)
             .input('FechaFin', sql.Date, fechaFin)
             .input('GrupoNominaId', sql.Int, grupoNominaId)
             // Llamamos al SP con nombre genérico
-            .execute('sp_Exportar_NominaExterna'); 
+            .execute('sp_Exportar_NominaExterna');
 
-        const count = result.recordset && result.recordset.length > 0 
-                      ? result.recordset[0].RegistrosExportados 
-                      : 0;
+        const count = result.recordset && result.recordset.length > 0
+            ? result.recordset[0].RegistrosExportados
+            : 0;
 
         if (count === 0) {
-             return res.status(300).json({ 
-                success: true, 
-                message: 'Proceso completado, pero no hubo conceptos para exportar o los códigos no coincidieron.' 
+            return res.status(300).json({
+                success: true,
+                message: 'Proceso completado, pero no hubo conceptos para exportar o los códigos no coincidieron.'
             });
         }
 
-        res.json({ 
-            success: true, 
+        res.json({
+            success: true,
             message: `Exportación exitosa: ${count} registros enviados al sistema de nómina.`,
-            count 
+            count
         });
 
     } catch (error: any) {

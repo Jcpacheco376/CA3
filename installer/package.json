@@ -3,6 +3,12 @@
     "version": "1.0.0",
     "description": "Instalador visual del Sistema de Control de Asistencia",
     "main": "server.js",
+    "bin": "server.js",
+    "pkg": {
+        "assets": [
+            "ui/**/*"
+        ]
+    },
     "scripts": {
         "start": "node server.js"
     },

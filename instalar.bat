@@ -16,38 +16,12 @@ powershell -NoProfile -Command ^
 exit /b
 
 :ADMIN_OK
-:: ── Verificar Node.js ─────────────────────────────────────────────────
-node -v >nul 2>&1
-if %errorlevel% neq 0 (
-  echo.
-  echo ============================================
-  echo  ATENCION: Node.js no está instalado
-  echo ============================================
-  echo.
-  echo  Para instalar el sistema necesita Node.js.
-  echo  Se abrirá la página de descarga en su
-  echo  navegador. Instale Node.js y luego vuelva
-  echo  a ejecutar este archivo.
-  echo.
+:: ── Lanzar wizard EXE protegigo ───────────────────────────────────────
+echo Iniciando asistente de instalacion...
+if exist instalar.exe (
+  start "" instalar.exe
+) else (
+  echo [ERROR] No se encontro instalar.exe. Verifique su paquete.
   pause
-  start https://nodejs.org/es/download
-  exit /b 1
 )
-
-:: ── Instalar dependencias del wizard ──────────────────────────────────
-echo.
-echo Preparando el asistente de instalacion...
-cd /d "%~dp0installer"
-if not exist node_modules (
-  call npm install --production --silent
-  if %errorlevel% neq 0 (
-    echo [ERROR] No se pudieron instalar las dependencias del instalador.
-    pause
-    exit /b 1
-  )
-)
-
-:: ── Lanzar wizard en background y abrir browser ───────────────────────
-echo Iniciando asistente visual...
-start "" /B node server.js
 exit /b 0

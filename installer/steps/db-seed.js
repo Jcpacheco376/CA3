@@ -2,7 +2,9 @@ const fs = require('fs');
 const path = require('path');
 const mssql = require('mssql');
 
-async function seedDatabase(dbConfig, log) {
+async function seedDatabase(dbConfig, baseDir, log) {
+    const pkgRoot = fs.existsSync(path.join(baseDir, 'database')) ? baseDir : path.join(baseDir, '..');
+
     const config = {
         user: dbConfig.DB_USER,
         password: dbConfig.DB_PASSWORD,
@@ -16,7 +18,7 @@ async function seedDatabase(dbConfig, log) {
         }
     };
 
-    const seedsDir = path.join(__dirname, '..', 'database', 'seeds');
+    const seedsDir = path.join(pkgRoot, 'database', 'seeds');
     if (!fs.existsSync(seedsDir)) {
         log('No se encontraron archivos semilla (seeds). Saltando seeder.');
         return;

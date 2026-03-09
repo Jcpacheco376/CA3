@@ -1,18 +1,16 @@
 /**
  * launcher-setup.js — Configura el systray launcher para iniciar con Windows.
- *
- * Copia el launcher a INSTALL_DIR/api-asistencia/launcher/ y lo registra
- * en el Registro de Windows usando un .bat wrapper (evita el error de WSH
- * que ocurre cuando Windows ejecuta .js con wscript en vez de node).
  */
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
 
 // Raíz del paquete instalador
-const PKG_ROOT = path.join(__dirname, '..', '..');
+const PKG_ROOT = (process.pkg)
+    ? path.dirname(process.execPath)
+    : path.join(__dirname, '..', '..');
 
-async function setupLauncher(appConfig, installerDir, log) {
+async function setupLauncher(appConfig, baseDir, log) {
     // Respetar INSTALL_DIR igual que file-installer
     const installBase = (appConfig.INSTALL_DIR && appConfig.INSTALL_DIR.trim())
         ? appConfig.INSTALL_DIR.trim()
@@ -24,7 +22,7 @@ async function setupLauncher(appConfig, installerDir, log) {
 
     // ── Copiar archivos del launcher ─────────────────────────────────────
     if (!fs.existsSync(launcherSrc)) {
-        log('⚠️  Carpeta launcher/ no encontrada en el paquete. El inicio automático no se configurará.');
+        log('⚠️ Carpeta launcher/ no encontrada en el paquete. El inicio automático no se configurará.');
         return;
     }
 
@@ -32,8 +30,6 @@ async function setupLauncher(appConfig, installerDir, log) {
     log('✅ Gestor de servicio copiado.');
 
     // ── Instalar dependencias del launcher ────────────────────────────────
-    // Los node_modules vienen pre-bundleados por packager.js.
-    // Solo intentamos npm install si por alguna razón no están presentes.
     const launcherNodeModules = path.join(launcherDst, 'node_modules');
     if (!fs.existsSync(launcherNodeModules)) {
         try {
@@ -41,8 +37,7 @@ async function setupLauncher(appConfig, installerDir, log) {
             execSync('npm install --production', { cwd: launcherDst, stdio: ['ignore', 'ignore', 'ignore'] });
             log('✅ Dependencias instaladas.');
         } catch (err) {
-            log(`⚠️  No se pudieron instalar las dependencias del gestor: ${err.message}`);
-            log('   El gestor puede no funcionar correctamente. Verifique la instalación.');
+            log(`⚠️ No se pudieron instalar las dependencias del gestor: ${err.message}`);
         }
     } else {
         log('✅ Dependencias del gestor ya incluidas en el paquete.');
@@ -64,20 +59,31 @@ async function setupLauncher(appConfig, installerDir, log) {
     log('✅ Configuración del gestor guardada.');
 
     // ── Crear .vbs wrapper para evitar ventana de CMD ───────────────────────
-    const nodeExe = process.execPath;   // Ruta al node.exe actual
+    // IMPORTANTE: Si corremos como instalar.exe (pkg), process.execPath es el instalador.
+    // El launcher (como es un .js) requiere un node.exe real. Intentamos encontrarlo.
+    let nodeEngine = 'node';
+    try {
+        const found = execSync('where node', { encoding: 'utf8' }).split('\r\n')[0].trim();
+        if (found && fs.existsSync(found)) {
+            nodeEngine = found;
+        }
+    } catch (_) {
+        // Si 'where' falla, confiamos en 'node' global (si está en PATH)
+    }
+
     const launcherJs = path.join(launcherDst, 'ca3-launcher.js');
     const launcherVbs = path.join(launcherDst, 'CA3-Launcher.vbs');
 
     // Un VBScript permite ejecutar un comando completamente oculto (WindowStyle 0)
     const vbsContent = [
         'Set oShell = CreateObject("WScript.Shell")',
-        `oShell.Run """" & "${nodeExe}" & """ """ & "${launcherJs}" & """", 0, False`
+        `oShell.Run """" & "${nodeEngine}" & """ """ & "${launcherJs}" & """", 0, False`
     ].join('\r\n');
 
     fs.writeFileSync(launcherVbs, vbsContent, 'utf8');
     log('✅ Acceso directo de inicio silencioso creado (CA3-Launcher.vbs).');
 
-    // Mantenemos un .bat también por compatibilidad / uso manual
+    // Mantenemos un .bat también por compatibilidad
     const launcherBat = path.join(launcherDst, 'CA3-Launcher.bat');
     const launcherBatContent = [
         '@echo off',
@@ -93,11 +99,10 @@ async function setupLauncher(appConfig, installerDir, log) {
         execSync(regCmd, { stdio: 'ignore' });
         log('✅ Inicio automático con Windows configurado.');
     } catch (err) {
-        log(`⚠️  No se pudo configurar el inicio automático: ${err.message}`);
-        log('   Puede configurarlo manualmente: ejecute CA3-Launcher.bat al iniciar sesión.');
+        log(`⚠️ No se pudo configurar el inicio automático: ${err.message}`);
     }
 
-    log(`ℹ️  Para iniciar manualmente: ${launcherBat}`);
+    log(`ℹ️ Para iniciar manualmente: ${launcherBat}`);
 }
 
 function copyDirSync(src, dest) {

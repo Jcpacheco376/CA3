@@ -10,7 +10,8 @@ const fs = require('fs');
 const path = require('path');
 const sql = require('mssql');
 
-async function applyDatabase(cfg, analysis, installerDir, log, onProgress) {
+async function applyDatabase(cfg, analysis, baseDir, log, onProgress) {
+    const pkgRoot = fs.existsSync(path.join(baseDir, 'database')) ? baseDir : path.join(baseDir, '..');
     const { tablesToCreate, columnsToAdd, spsToApply } = analysis;
     const total = tablesToCreate.length + columnsToAdd.length + spsToApply.length || 1;
     let done = 0;
@@ -74,7 +75,7 @@ async function applyDatabase(cfg, analysis, installerDir, log, onProgress) {
         try {
             // Leer versión del paquete
             let pkgVersion = '0.0.0';
-            const vFile = path.join(installerDir, '..', 'database', 'version.json');
+            const vFile = path.join(pkgRoot, 'database', 'version.json');
             if (fs.existsSync(vFile)) {
                 try { pkgVersion = JSON.parse(fs.readFileSync(vFile, 'utf8')).version || '0.0.0'; } catch (_) { }
             }
@@ -100,7 +101,7 @@ async function applyDatabase(cfg, analysis, installerDir, log, onProgress) {
 
         // ── Guardar log de errores si los hay ────────────────────────────────
         if (errors.length > 0) {
-            const logDir = path.join(installerDir, '..', 'logs');
+            const logDir = path.join(pkgRoot, 'logs');
             if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
             const logFile = path.join(logDir, `db-errors-${Date.now()}.log`);
             fs.writeFileSync(logFile, errors.join('\n'), 'utf8');

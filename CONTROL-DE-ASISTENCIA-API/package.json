@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "API para el sistema de control de asistencia",
   "main": "dist/index.js",
+  "bin": "dist/index.js",
   "scripts": {
     "start": "node dist/index.js",
     "dev": "nodemon src/index.ts",

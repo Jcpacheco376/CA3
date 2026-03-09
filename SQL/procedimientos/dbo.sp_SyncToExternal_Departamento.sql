@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_SyncToExternal_Departamento]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.51
--- Compilado:           09/03/2026, 09:30:57
+-- Versión de Paquete:  v1.3.58
+-- Compilado:           09/03/2026, 14:09:33
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 

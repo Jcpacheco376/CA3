@@ -13,6 +13,9 @@ const os = require('os');
 const PORT = 19876; // Puerto fijo para el wizard
 const UI_DIR = path.join(__dirname, 'ui');
 
+// Raíz externa del paquete (donde están app/, database/, etc.)
+const ROOT_DIR = process.pkg ? path.dirname(process.execPath) : path.join(__dirname, '..');
+
 // ── Silenciar errores EIO de stdout/stderr ──────────────────────────────────
 // En Windows 8.1/Server 2012, el pipe del console colapsa al escribir muchos
 // mensajes rápido (e.g. durante aplicación de 94 SPs). Sin esto, Node crashea.
@@ -83,7 +86,7 @@ async function handleAPI(req, res) {
         // ── GET /api/version ──────────────────────────────────────────────────
         if (endpoint === '/api/version' && req.method === 'GET') {
             let version = '0.0.0';
-            const vFile = path.join(__dirname, '..', 'database', 'version.json');
+            const vFile = path.join(ROOT_DIR, 'database', 'version.json');
             if (fs.existsSync(vFile)) {
                 try { version = JSON.parse(fs.readFileSync(vFile, 'utf8')).version || '0.0.0'; } catch (_) { }
             }
@@ -305,8 +308,12 @@ async function handleAPI(req, res) {
             installState.dbConfig = cfg;
             installState.step = 'analyzing';
             log('Iniciando análisis de base de datos...');
-            const { analyzeDatabase } = require('./steps/db-analyzer');
-            const analysis = await analyzeDatabase(cfg, __dirname);
+            const { analyzeDatabase, checkSystemRequirements } = require('./steps/db-analyzer');
+
+            const sysReq = await checkSystemRequirements();
+            if (!sysReq.ok) log(`⚠️ AVISO: ${sysReq.message}`);
+
+            const analysis = await analyzeDatabase(cfg, ROOT_DIR);
             installState.analysis = analysis;
             installState.step = 'analyzed';
             log(`Análisis completo: ${analysis.tablesToCreate.length} tablas, ${analysis.columnsToAdd.length} columnas, ${analysis.spsToApply.length} procedimientos.`);
@@ -331,23 +338,20 @@ async function handleAPI(req, res) {
                     const { setupLauncher } = require('./steps/launcher-setup');
 
                     log('== PASO 1/4: Aplicando estructura de base de datos ==');
-                    await applyDatabase(installState.dbConfig, installState.analysis, __dirname, log, (p) => { installState.progress = p * 0.3; });
+                    await applyDatabase(installState.dbConfig, installState.analysis, ROOT_DIR, log, (p) => { installState.progress = p * 0.3; });
 
                     log('== PASO 1.5/4: Sembrando datos iniciales (Data Seeder) ==');
-                    await seedDatabase(installState.dbConfig, log);
+                    await seedDatabase(installState.dbConfig, ROOT_DIR, log);
                     installState.progress = 40;
 
                     log('== PASO 2/4: Instalando archivos de la aplicación ==');
-                    await installFiles(appConfig, __dirname, log, (p) => { installState.progress = 40 + p * 0.3; });
+                    await installFiles(appConfig, ROOT_DIR, log, (p) => { installState.progress = 40 + p * 0.3; });
 
-                    log('== PASO 3/4: Instalando dependencias del servidor (puede tardar un momento) ==');
-                    await execAsync('npm install --omit=dev', {
-                        cwd: path.join(__dirname, '..', 'app', 'api-asistencia')
-                    });
+                    log('== PASO 3/4: Entorno API autoconfigurable ==');
                     installState.progress = 75;
 
                     log('== PASO 4/4: Configurando inicio automático ==');
-                    await setupLauncher(appConfig, __dirname, log);
+                    await setupLauncher(appConfig, ROOT_DIR, log);
                     installState.progress = 100;
                     installState.step = 'done';
                     log('✅ INSTALACIÓN COMPLETADA');
@@ -356,7 +360,7 @@ async function handleAPI(req, res) {
                     installState.error = err.message;
                     log(`❌ ERROR: ${err.message}`);
                     // Escribir log de error
-                    const logDir = path.join(__dirname, '..', 'logs');
+                    const logDir = path.join(ROOT_DIR, 'logs');
                     if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true });
                     const logFile = path.join(logDir, `install-${Date.now()}.log`);
                     fs.writeFileSync(logFile, installState.logs.join('\n'), 'utf8');
@@ -370,7 +374,7 @@ async function handleAPI(req, res) {
 
         // ── POST /api/start-launcher ──────────────────────────────────────────
         if (endpoint === '/api/start-launcher' && req.method === 'POST') {
-            const installBase = (installState.appConfig?.INSTALL_DIR || path.join(__dirname, '..', 'app')).trim();
+            const installBase = (installState.appConfig?.INSTALL_DIR || path.join(ROOT_DIR, 'app')).trim();
             const launcherVbs = path.join(installBase, 'api-asistencia', 'launcher', 'CA3-Launcher.vbs');
             if (fs.existsSync(launcherVbs)) {
                 log('Empezando Launcher silenciosamente...');

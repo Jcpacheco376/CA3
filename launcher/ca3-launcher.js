@@ -50,7 +50,7 @@ try {
     }
 } catch (_) { }
 
-const API_MAIN = path.join(config.apiDir, 'dist', 'index.js');
+const API_MAIN = path.join(config.apiDir, 'ca3-api.exe');
 const LOG_FILE = path.join(config.apiDir, 'logs', 'ca3-api.log');
 const ICO_FILE = path.join(__dirname, 'ca3.ico');
 const APP_URL = `http://localhost:${config.apiPort}`;
@@ -125,7 +125,7 @@ async function startAPI() {
     let logFd = 'ignore';
     try { logFd = fs.openSync(LOG_FILE, 'a'); } catch (_) { }
 
-    apiProcess = spawn(process.execPath, [API_MAIN], {
+    apiProcess = spawn(API_MAIN, [], {
         cwd: config.apiDir,
         detached: false,
         stdio: ['ignore', logFd, logFd],
