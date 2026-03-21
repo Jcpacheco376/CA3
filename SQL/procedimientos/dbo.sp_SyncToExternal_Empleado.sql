@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_SyncToExternal_Empleado]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -37,15 +37,7 @@ BEGIN
         PRINT 'Configuración DBENTRADA no encontrada. Omitiendo PUSH.';
         RETURN;
     END
-    -- Verificar servidor vinculado si es necesario, o asumir que la BD está en el mismo server
-    -- El código original verificaba 'bmsjs' en sys.servers. 
-    -- Si @TargetDB es solo el nombre de la BD (e.g., 'BMSJS'), asumimos mismo server o que el nombre incluye server (e.g. 'LINKEDSERVER.DB').
-    -- Para mantener compatibilidad con el código anterior que buscaba 'bmsjs', podríamos checar si 'bmsjs' existe, 
-    -- pero ahora la BD es dinámica.
-    -- Si la config es 'BMSJS', el código dinámico hará [BMSJS].[dbo].[empleados].
-    -- Si es remoto, la config debería ser 'LINKEDSERVER.BMSJS' o similar, pero QUOTENAME lo rompería si es string completo.
-    -- Asumamos que ConfigKey 'DBENTRADA' contiene solo el nombre de la Base de Datos en el servidor local o accesible.
-    
+
     -- Obtener CodRefs de los catálogos relacionales
     DECLARE @DeptoCod NVARCHAR(50), @PuestoCod NVARCHAR(50), @HorarioCod NVARCHAR(50), @GrupoCod NVARCHAR(50), @EstabCod NVARCHAR(50);
     SELECT @DeptoCod = CodRef FROM CatalogoDepartamentos WHERE DepartamentoId = @DepartamentoId;

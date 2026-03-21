@@ -301,8 +301,44 @@
   },
   {
     "PermisoId": 51,
+    "NombrePermiso": "vacaciones.read",
+    "Descripcion": "Permite ver sus propias solicitudes y saldos de vacaciones",
+    "Activo": true
+  },
+  {
+    "PermisoId": 52,
     "NombrePermiso": "vacaciones.manage",
-    "Descripcion": "Administrar solicitudes y saldos de vacaciones",
+    "Descripcion": "Permite crear y gestionar solicitudes de vacaciones",
+    "Activo": true
+  },
+  {
+    "PermisoId": 53,
+    "NombrePermiso": "vacaciones.approve",
+    "Descripcion": "Permite autorizar o rechazar solicitudes de vacaciones",
+    "Activo": true
+  },
+  {
+    "PermisoId": 54,
+    "NombrePermiso": "calendario.read",
+    "Descripcion": "Permite ver el calendario de eventos y feriados",
+    "Activo": true
+  },
+  {
+    "PermisoId": 55,
+    "NombrePermiso": "calendario.manage",
+    "Descripcion": "Permite gestionar (crear, editar, eliminar) eventos del calendario",
+    "Activo": true
+  },
+  {
+    "PermisoId": 56,
+    "NombrePermiso": "asistencia.auditar",
+    "Descripcion": "Aceso al panel de auditoria de checadas en el timeline",
+    "Activo": true
+  },
+  {
+    "PermisoId": 57,
+    "NombrePermiso": "asistencia.regenerar",
+    "Descripcion": "Capacidad de regenerar fichas de asistencia desde la auditoria",
     "Activo": true
   }
 ]

@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_GruposNomina_Save]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -40,7 +40,7 @@ BEGIN
 
         IF (SELECT ConfigValue FROM dbo.SISConfiguracion WHERE ConfigKey = 'SyncGruposNomina') = 'true'
         BEGIN
-            PRINT 'Paso 2: Sincronizaci�n (PUSH) habilitada. Intentando...';
+            PRINT 'Paso 2: Sincronizacion (PUSH) habilitada. Intentando...';
             
             DECLARE @Status CHAR(1) = CASE WHEN @Activo = 1 THEN 'V' ELSE 'C' END;
             
@@ -54,10 +54,10 @@ BEGIN
         END
         ELSE
         BEGIN
-            PRINT 'Paso 2: Sincronizaci�n (PUSH) deshabilitada. Omitiendo.';
+            PRINT 'Paso 2: Sincronizacion (PUSH) deshabilitada. Omitiendo.';
         END
         COMMIT TRANSACTION;
-        PRINT 'Transacci�n local completada (COMMIT).';
+        PRINT 'Transaccion local completada (COMMIT).';
 
     END TRY
     BEGIN CATCH

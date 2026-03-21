@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Incidencias_Resolver]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -39,7 +39,7 @@ BEGIN
             THROW 51000, 'La incidencia especificada no existe.', 1;
         END
 
-        -- 2. BIT�CORA DE CONTEXTO (INTENCI�N)
+        -- 2. BIT�CORA DE CONTEXTO 
         INSERT INTO dbo.IncidenciasBitacora (
             IncidenciaId, UsuarioId, Accion, Comentario, 
             EstadoNuevo, EstadoAnterior,
@@ -51,7 +51,7 @@ BEGIN
             @IncidenciaId, 
             @UsuarioAccionId, 
             'CorreccionManual', 
-            'Se aplic� correcci�n desde el panel de incidencias: ' + ISNULL(@NuevoEstatusAbrev, 'Limpiar') + '. ' + ISNULL(@Comentario, ''), 
+            'Se aplico correccion desde el panel de incidencias: ' + ISNULL(@NuevoEstatusAbrev, 'Limpiar') + '. ' + ISNULL(@Comentario, ''), 
             @EstadoActual, 
             @EstadoActual,
             @EstatusManualIdActual,
@@ -60,8 +60,6 @@ BEGIN
         );
 
         -- 3. DELEGAR AL N�CLEO CENTRAL
-        -- Esto actualizar� la ficha y disparar� sp_Incidencias_Analizar, 
-        -- el cual insertar� OTRO registro en la bit�cora si los datos cambian.
         EXEC [dbo].[sp_FichasAsistencia_SaveManual]
             @EmpleadoId = @EmpleadoId,
             @Fecha = @Fecha,
@@ -71,7 +69,7 @@ BEGIN
 
         COMMIT TRANSACTION;
         
-        SELECT 'Correcci�n aplicada y re-an�lisis ejecutado.' as Mensaje;
+        SELECT 'Correccion aplicada y re-analisis ejecutado.' as Mensaje;
 
     END TRY
     BEGIN CATCH

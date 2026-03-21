@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Tabla: [dbo].[CatalogoReglasVacaciones]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -13,6 +13,7 @@ BEGIN
     [Esquema] varchar(50) NOT NULL,
     [AniosAntiguedad] int NOT NULL,
     [DiasOtorgados] int NOT NULL,
+    [FechaVigencia] date NOT NULL CONSTRAINT [DF_CatalogoReglasVacaciones_FechaVigencia] DEFAULT ('1970-01-01'),
     CONSTRAINT [PK_CatalogoReglasVacaciones] PRIMARY KEY CLUSTERED ([ReglaId])
     );
 END

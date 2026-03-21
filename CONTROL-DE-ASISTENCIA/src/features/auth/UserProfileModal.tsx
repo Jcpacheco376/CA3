@@ -1,18 +1,14 @@
 // src/features/auth/UserProfileModal.tsx
 import React, { useState, useEffect } from 'react';
 import { User } from '../../types';
-import { Zap, ZapOff, CheckCircle2, AlertCircle, Eye, EyeOff, Mail, User as UserIcon, Shield } from 'lucide-react';
+import { Zap, ZapOff, CheckCircle2, AlertCircle, Eye, EyeOff, Mail, User as UserIcon, Shield, UserCheck } from 'lucide-react';
 import { Modal, Button } from '../../components/ui/Modal.tsx';
 import { useAppContext } from '../../context/AppContext.tsx';
 import { themes } from '../../config/theme.ts';
 import { useAuth, APP_DATA_VERSION } from './AuthContext.tsx';
 import { API_BASE_URL } from '../../config/api.ts';
 
-const AnimationToggle = ({ enabled, onChange }: { enabled: boolean, onChange: (enabled: boolean) => void }) => (
-    <button onClick={() => onChange(!enabled)} className="p-2 rounded-full hover:bg-gray-200 text-gray-600" title={enabled ? 'Deshabilitar animaciones' : 'Habilitar animaciones'}>
-        {enabled ? <ZapOff size={20} /> : <Zap size={20} />}
-    </button>
-);
+// AnimationToggle removed as per user request
 
 const ThemeSwitcher = ({ currentTheme, onChange }: { currentTheme: string, onChange: (theme: string) => void }) => (
     <div className="flex items-center gap-2 flex-wrap">
@@ -39,11 +35,25 @@ const UserProfileModalContent = ({ user, preferences, setPreferences, passwordDa
     return (
         <div className="space-y-6">
             <div className="flex flex-col items-center text-center">
-                <img src={`https://placehold.co/80x80/${themeColors[100].substring(1)}/${themeColors[900].substring(1)}?text=${avatarInitial}`} alt="Avatar" className="w-20 h-20 rounded-full mb-3" />
+                <img src={`https://placehold.co/80x80/${themeColors[100].substring(1)}/${themeColors[900].substring(1)}?text=${avatarInitial}`} alt="Avatar" className="w-20 h-20 rounded-full mb-3 shadow-md" />
                 <h3 className="text-xl font-bold text-slate-800">{fullName}</h3>
-                <p className="text-slate-500">{roles}</p>
+                <div className="flex flex-col gap-1">
+                    <p className="text-slate-500 font-medium">{roles}</p>
+                    <p className="text-slate-400 text-[11px] font-medium flex items-center justify-center gap-1 mt-1 uppercase tracking-wider">
+                        {user?.EmpleadoId ? (
+                            <>
+                                <UserCheck size={12} className="text-emerald-500/70" />
+                                Vinculado a Nómina (#{user.EmpleadoId})
+                            </>
+                        ) : (
+                            <>
+                                <ZapOff size={11} className="opacity-50" /> Sin vínculo a nómina
+                            </>
+                        )}
+                    </p>
+                </div>
             </div>
-            
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
                 <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg">
                     <UserIcon size={18} className="text-slate-400 shrink-0" />
@@ -60,35 +70,29 @@ const UserProfileModalContent = ({ user, preferences, setPreferences, passwordDa
             <div>
                 <h4 className="font-semibold text-slate-700 mb-3 flex items-center gap-2"><Shield size={18} /> Seguridad</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                     <div className="space-y-2 relative">
+                    <div className="space-y-2 relative">
                         <label className="block text-sm font-medium text-slate-600">Nueva Contraseña</label>
-                        <input type={isPasswordVisible ? 'text' : 'password'} name="newPassword" value={passwordData.newPassword} onChange={handlePasswordChange} placeholder="Mínimo 6 caracteres" className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-1 ${passwordData.error ? 'border-red-500 ring-red-500' : 'border-gray-300 focus:ring-[--theme-500]'}`}/>
-                         <button type="button" onClick={() => setIsPasswordVisible(!isPasswordVisible)} className="absolute bottom-2 right-3 text-slate-400 hover:text-slate-600">
+                        <input type={isPasswordVisible ? 'text' : 'password'} name="newPassword" value={passwordData.newPassword} onChange={handlePasswordChange} placeholder="Mínimo 6 caracteres" className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-1 ${passwordData.error ? 'border-red-500 ring-red-500' : 'border-gray-300 focus:ring-[--theme-500]'}`} />
+                        <button type="button" onClick={() => setIsPasswordVisible(!isPasswordVisible)} className="absolute bottom-2 right-3 text-slate-400 hover:text-slate-600">
                             {isPasswordVisible ? <EyeOff size={20} /> : <Eye size={20} />}
                         </button>
                     </div>
                     <div className="space-y-2">
                         <label className="block text-sm font-medium text-slate-600">Confirmar Contraseña</label>
-                        <input type={isPasswordVisible ? 'text' : 'password'} name="confirmPassword" value={passwordData.confirmPassword} onChange={handlePasswordChange} onPaste={(e) => e.preventDefault()} placeholder="Repetir contraseña" className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-1 ${passwordData.error ? 'border-red-500 ring-red-500' : 'border-gray-300 focus:ring-[--theme-500]'}`}/>
+                        <input type={isPasswordVisible ? 'text' : 'password'} name="confirmPassword" value={passwordData.confirmPassword} onChange={handlePasswordChange} onPaste={(e) => e.preventDefault()} placeholder="Repetir contraseña" className={`w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-1 ${passwordData.error ? 'border-red-500 ring-red-500' : 'border-gray-300 focus:ring-[--theme-500]'}`} />
                     </div>
                 </div>
                 {passwordData.error && <p className="text-sm text-red-600 mt-1">{passwordData.error}</p>}
             </div>
 
             <hr />
-            
+
             <div>
                 <h4 className="font-semibold text-slate-700 mb-3">Preferencias de Interfaz</h4>
                 <div className="space-y-4">
                     <div>
                         <h5 className="text-sm font-medium text-slate-600 mb-2">Tema de Color</h5>
                         <ThemeSwitcher currentTheme={preferences.theme} onChange={(theme) => setPreferences((prev: any) => ({ ...prev, theme }))} />
-                    </div>
-                     <div>
-                        <div className="flex items-center justify-between p-2 bg-slate-50 rounded-lg">
-                            <label className="text-slate-700 font-medium">Activar animaciones</label>
-                            <AnimationToggle enabled={preferences.animationsEnabled} onChange={(enabled) => setPreferences((prev: any) => ({ ...prev, animationsEnabled: enabled }))} />
-                        </div>
                     </div>
                 </div>
             </div>
@@ -105,15 +109,14 @@ const UserProfileModalContent = ({ user, preferences, setPreferences, passwordDa
 
 export const UserProfileModal = ({ isOpen, onClose, user, setTheme }: any) => {
     const { updateUserPreferences, getToken } = useAuth();
-    const { setAnimationsEnabled } = useAppContext();
-    
-    const [preferences, setPreferences] = useState({ theme: 'indigo', animationsEnabled: true });
+
+    const [preferences, setPreferences] = useState({ theme: 'indigo' });
     const [passwordData, setPasswordData] = useState({ newPassword: '', confirmPassword: '', error: '' });
     const [saveStatus, setSaveStatus] = useState<'idle' | 'success' | 'error'>('idle');
 
     useEffect(() => {
         if (isOpen) {
-            setPreferences({ theme: user.Theme || 'indigo', animationsEnabled: user.AnimationsEnabled ?? true });
+            setPreferences({ theme: user.Theme || 'indigo' });
             setPasswordData({ newPassword: '', confirmPassword: '', error: '' });
             setSaveStatus('idle');
         }
@@ -136,12 +139,12 @@ export const UserProfileModal = ({ isOpen, onClose, user, setTheme }: any) => {
         }
 
         const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` };
-        
+
         try {
             const prefPromise = fetch(`${API_BASE_URL}/users/${user.UsuarioId}/preferences`, {
                 method: 'PUT',
                 headers,
-                body: JSON.stringify({ theme: preferences.theme, animationsEnabled: preferences.animationsEnabled }),
+                body: JSON.stringify({ theme: preferences.theme }),
             });
 
             const passPromise = newPassword ? fetch(`${API_BASE_URL}/users/${user.UsuarioId}/password`, {
@@ -149,16 +152,14 @@ export const UserProfileModal = ({ isOpen, onClose, user, setTheme }: any) => {
                 headers,
                 body: JSON.stringify({ password: newPassword }),
             }) : Promise.resolve();
-            
+
             await Promise.all([prefPromise, passPromise]);
 
             updateUserPreferences({
-                Theme: preferences.theme,
-                AnimationsEnabled: preferences.animationsEnabled,
+                Theme: preferences.theme
             });
             setTheme(preferences.theme);
-            setAnimationsEnabled(preferences.animationsEnabled);
-            
+
             setSaveStatus('success');
             onClose();
 
@@ -167,7 +168,7 @@ export const UserProfileModal = ({ isOpen, onClose, user, setTheme }: any) => {
             setSaveStatus('error');
         }
     };
-    
+
     const previewThemeColors = themes[preferences.theme] || themes.indigo;
 
     const footer = (
@@ -180,7 +181,7 @@ export const UserProfileModal = ({ isOpen, onClose, user, setTheme }: any) => {
             </div>
             <div className="flex gap-3">
                 <Button variant="secondary" onClick={onClose} disabled={saveStatus === 'success'}>Cancelar</Button>
-                <Button onClick={handleSaveChanges} style={{ background: `linear-gradient(to bottom right, ${previewThemeColors[500]}, ${previewThemeColors[600]})`}} disabled={saveStatus === 'success'}>
+                <Button onClick={handleSaveChanges} style={{ background: `linear-gradient(to bottom right, ${previewThemeColors[500]}, ${previewThemeColors[600]})` }} disabled={saveStatus === 'success'}>
                     Guardar Cambios
                 </Button>
             </div>
@@ -189,8 +190,8 @@ export const UserProfileModal = ({ isOpen, onClose, user, setTheme }: any) => {
 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Perfil y Configuración" footer={footer} size="xl">
-            <UserProfileModalContent 
-                user={user} 
+            <UserProfileModalContent
+                user={user}
                 preferences={preferences}
                 setPreferences={setPreferences}
                 passwordData={passwordData}

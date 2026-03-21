@@ -15,6 +15,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.getPermissionsByUserId = exports.resetPassword = exports.updateUserPassword = exports.updateUserPreferences = exports.getAllUsers = exports.createUser = exports.getNextUserId = void 0;
 const mssql_1 = __importDefault(require("mssql"));
 const database_1 = require("../../config/database");
+const config_1 = require("../../config");
+const editions_1 = require("../utils/editions");
 const crypto_1 = __importDefault(require("crypto"));
 const getNextUserId = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     if (!req.user.permissions['usuarios.create']) {
@@ -91,11 +93,11 @@ const getAllUsers = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
 exports.getAllUsers = getAllUsers;
 const updateUserPreferences = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { userId } = req.params;
-    const { theme, animationsEnabled } = req.body;
+    const { theme } = req.body;
     try {
         const pool = yield mssql_1.default.connect(database_1.dbConfig);
         yield pool.request().input('UsuarioId', mssql_1.default.Int, userId).input('Theme', mssql_1.default.NVarChar, theme)
-            .input('AnimationsEnabled', mssql_1.default.Bit, animationsEnabled).execute('sp_Usuario_ActualizarPreferencias');
+            .execute('sp_Usuario_ActualizarPreferencias');
         res.status(200).json({ message: 'Preferencias actualizadas.' });
     }
     catch (err) {
@@ -164,7 +166,9 @@ const getPermissionsByUserId = (req, res) => __awaiter(void 0, void 0, void 0, f
             .execute('sp_Usuario_ObtenerPermisos');
         const permissions = {};
         permissionsResult.recordset.forEach((record) => {
-            permissions[record.NombrePermiso] = [true];
+            if ((0, editions_1.isPermissionAllowed)(record.NombrePermiso, record.Clasificador, config_1.APP_EDITION)) {
+                permissions[record.NombrePermiso] = [true];
+            }
         });
         // 3. Obtener filtros activos
         const activeFiltersResult = yield pool.request().query(`

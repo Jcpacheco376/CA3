@@ -3,6 +3,9 @@ import sql from 'mssql';
 import { dbConfig } from '../../config/database';
 
 export const getEventTypes = async (req: any, res: Response) => {
+    if (!req.user.permissions['calendario.read'] && !req.user.permissions['calendario.manage']) {
+        return res.status(403).json({ message: 'No tienes permiso para ver tipos de eventos.' });
+    }
     try {
         const pool = await sql.connect(dbConfig);
         const result = await pool.request()
@@ -16,6 +19,9 @@ export const getEventTypes = async (req: any, res: Response) => {
 };
 
 export const getAllEvents = async (req: any, res: Response) => {
+    if (!req.user.permissions['calendario.read'] && !req.user.permissions['calendario.manage']) {
+        return res.status(403).json({ message: 'No tienes permiso para ver el calendario.' });
+    }
     try {
         const pool = await sql.connect(dbConfig);
         const result = await pool.request()
@@ -52,6 +58,9 @@ export const getAllEvents = async (req: any, res: Response) => {
 };
 
 export const upsertEvent = async (req: any, res: Response) => {
+    if (!req.user.permissions['calendario.manage']) {
+        return res.status(403).json({ message: 'No tienes permiso para gestionar eventos.' });
+    }
     const {
         eventoId,
         fecha,
@@ -59,6 +68,7 @@ export const upsertEvent = async (req: any, res: Response) => {
         descripcion,
         tipoEventoId,
         aplicaATodos,
+        icono,
         filtros   // Array: [{ grupoRegla: 0, dimension: 'DEPARTAMENTO', valores: [1, 3] }, ...]
     } = req.body;
 
@@ -104,6 +114,7 @@ export const upsertEvent = async (req: any, res: Response) => {
             .input('AplicaATodos', sql.Bit, aplicaATodos !== undefined ? aplicaATodos : true)
             .input('Activo', sql.Bit, 1)
             .input('UsuarioId', sql.Int, req.user.usuarioId)
+            .input('Icono', sql.VarChar, icono || null)
             .input('FiltrosJSON', sql.NVarChar, filtros ? JSON.stringify(filtros) : null)
             .execute('sp_EventosCalendario_Upsert');
 
@@ -118,6 +129,9 @@ export const upsertEvent = async (req: any, res: Response) => {
 };
 
 export const deleteEvent = async (req: any, res: Response) => {
+    if (!req.user.permissions['calendario.manage']) {
+        return res.status(403).json({ message: 'No tienes permiso para eliminar eventos.' });
+    }
     const { id } = req.params;
 
     try {
@@ -135,6 +149,9 @@ export const deleteEvent = async (req: any, res: Response) => {
 
 // Cuenta empleados activos que coinciden con los grupos de filtros
 export const countMatchingEmployees = async (req: any, res: Response) => {
+    if (!req.user.permissions['calendario.manage'] && !req.user.permissions['calendario.read']) {
+        return res.status(403).json({ message: 'No tienes permiso.' });
+    }
     const { filterGroups, aplicaATodos } = req.body;
     const { usuarioId, Departamentos, GruposNomina, Puestos, Establecimientos } = req.user;
 

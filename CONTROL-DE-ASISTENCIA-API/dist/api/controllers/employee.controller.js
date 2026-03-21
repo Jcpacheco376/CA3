@@ -122,7 +122,7 @@ const createEmployee = (req, res) => __awaiter(void 0, void 0, void 0, function*
         const request = pool.request();
         // New Fields
         request.input('CodRef', mssql_1.default.NVarChar, req.body.CodRef);
-        request.input('Pim', mssql_1.default.NVarChar, req.body.Pim || null);
+        request.input('Pim', mssql_1.default.NVarChar, req.body.Pim ? String(req.body.Pim) : null);
         request.input('Nombres', mssql_1.default.NVarChar, req.body.Nombres);
         request.input('ApellidoPaterno', mssql_1.default.NVarChar, req.body.ApellidoPaterno);
         request.input('ApellidoMaterno', mssql_1.default.NVarChar, req.body.ApellidoMaterno || '');
@@ -173,7 +173,7 @@ const updateEmployee = (req, res) => __awaiter(void 0, void 0, void 0, function*
         const request = pool.request();
         request.input('EmpleadoId', mssql_1.default.Int, employeeId);
         request.input('CodRef', mssql_1.default.NVarChar, req.body.CodRef);
-        request.input('Pim', mssql_1.default.NVarChar, req.body.Pim || null);
+        request.input('Pim', mssql_1.default.NVarChar, req.body.Pim ? String(req.body.Pim) : null);
         request.input('Nombres', mssql_1.default.NVarChar, req.body.Nombres);
         request.input('ApellidoPaterno', mssql_1.default.NVarChar, req.body.ApellidoPaterno);
         request.input('ApellidoMaterno', mssql_1.default.NVarChar, req.body.ApellidoMaterno || '');

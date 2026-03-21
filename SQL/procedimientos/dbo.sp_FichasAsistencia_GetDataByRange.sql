@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_FichasAsistencia_GetDataByRange]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -107,9 +107,6 @@ BEGIN
                 estChec.ColorUI as EstatusChecadorColor,
                 estMan.Abreviatura as EstatusManualAbrev,
                 estMan.ColorUI as EstatusSupervisorColor,
-                -- -----------------------------------------------------------
-                -- L�GICA ACTUALIZADA: Usando TipoCalculoId
-                -- -----------------------------------------------------------
                 CASE 
                     WHEN ISNULL(estMan.TipoCalculoId, estChec.TipoCalculoId) = 'FALTA'       THEN 'F'
                     WHEN ISNULL(estMan.TipoCalculoId, estChec.TipoCalculoId) = 'DESCANSO'    THEN 'D'
@@ -125,7 +122,6 @@ BEGIN
                 'Pendiente' as EstatusAutorizacion
 
             FROM dbo.FichaAsistencia fa
-            -- Seguridad a nivel de fila tambi�n en las fichas
             INNER JOIN dbo.fn_Seguridad_GetEmpleadosPermitidos(@UsuarioId) perm ON e.EmpleadoId = perm.EmpleadoId
             LEFT JOIN dbo.CatalogoEstatusAsistencia estMan ON fa.EstatusManualId = estMan.EstatusId
             LEFT JOIN dbo.CatalogoEstatusAsistencia estChec ON fa.EstatusChecadorId = estChec.EstatusId

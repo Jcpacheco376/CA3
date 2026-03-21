@@ -4,7 +4,9 @@ import {
     //approveWeek,
     // ensureWeek,
     // ensureRange,
-    getDataByRange
+    getDataByRange,
+    getRawChecadas,
+    regenerateAttendance
 } from '../controllers/attendance.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 
@@ -15,5 +17,7 @@ router.post('/', authMiddleware, saveAttendance);
 // router.post('/ensure-week', authMiddleware, ensureWeek);
 // router.post('/ensure-range', authMiddleware, ensureRange);
 router.post('/data-by-range', authMiddleware, getDataByRange);
+router.post('/raw-checadas', authMiddleware, getRawChecadas);
+router.post('/regenerate', authMiddleware, regenerateAttendance);
 
 export default router;

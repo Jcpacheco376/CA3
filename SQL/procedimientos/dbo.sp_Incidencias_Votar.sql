@@ -1,15 +1,15 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Incidencias_Votar]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
 CREATE OR ALTER PROCEDURE [dbo].[sp_Incidencias_Votar]
     @IncidenciaId INT,
     @AutorizacionId INT,
-    @Veredicto NVARCHAR(20), -- 'Aprobado' | 'Rechazado'
+    @Veredicto NVARCHAR(20), 
     @Comentario NVARCHAR(255),
     @UsuarioAccionId INT,
     @EsAdmin BIT = 0
@@ -65,7 +65,7 @@ BEGIN
         -- CASO B: APROBADO (Verificar si faltan firmas)
         ELSE
         BEGIN
-            -- �Quedan pendientes?
+
             IF NOT EXISTS (SELECT 1 FROM dbo.IncidenciasAutorizaciones WHERE IncidenciaId = @IncidenciaId AND Estatus = 'Pendiente')
             BEGIN
                 -- �TODOS APROBARON! -> CONCEDER PERMISO
@@ -89,13 +89,13 @@ BEGIN
 
                 -- 3. Bit�cora Final
                 INSERT INTO dbo.IncidenciasBitacora (IncidenciaId, UsuarioId, Accion, Comentario, EstadoNuevo, FechaMovimiento)
-                VALUES (@IncidenciaId, @UsuarioAccionId, 'AutorizacionTotal', 'Excepci�n autorizada y aplicada. ' + ISNULL(@Comentario,''), 'Resuelta', GETDATE());
+                VALUES (@IncidenciaId, @UsuarioAccionId, 'AutorizacionTotal', 'Excepcion autorizada y aplicada. ' + ISNULL(@Comentario,''), 'Resuelta', GETDATE());
             END
             ELSE
             BEGIN
                 -- A�n faltan firmas de otros roles
                 INSERT INTO dbo.IncidenciasBitacora (IncidenciaId, UsuarioId, Accion, Comentario, EstadoNuevo, FechaMovimiento)
-                VALUES (@IncidenciaId, @UsuarioAccionId, 'VotoPositivo', 'Voto aprobado. Esperando m�s firmas...', 'PorAutorizar', GETDATE());
+                VALUES (@IncidenciaId, @UsuarioAccionId, 'VotoPositivo', 'Voto aprobado. Esperando mas firmas...', 'PorAutorizar', GETDATE());
             END
         END
 

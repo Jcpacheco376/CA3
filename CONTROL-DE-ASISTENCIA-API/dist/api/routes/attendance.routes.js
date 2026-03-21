@@ -9,4 +9,6 @@ router.post('/', auth_middleware_1.authMiddleware, attendance_controller_1.saveA
 // router.post('/ensure-week', authMiddleware, ensureWeek);
 // router.post('/ensure-range', authMiddleware, ensureRange);
 router.post('/data-by-range', auth_middleware_1.authMiddleware, attendance_controller_1.getDataByRange);
+router.post('/raw-checadas', auth_middleware_1.authMiddleware, attendance_controller_1.getRawChecadas);
+router.post('/regenerate', auth_middleware_1.authMiddleware, attendance_controller_1.regenerateAttendance);
 exports.default = router;

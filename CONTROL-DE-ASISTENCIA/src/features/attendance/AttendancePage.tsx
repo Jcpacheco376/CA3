@@ -10,20 +10,25 @@ import {
     isAfter, startOfToday
 } from 'date-fns';
 import { es } from 'date-fns/locale';
+import * as LucideIcons from 'lucide-react';
 import {
     Loader2, ClipboardCheck, Briefcase, Building, Cake, GripVertical,
-    Contact, CalendarOff, ListTodo, Tag, MapPin, AlertTriangle, RotateCcw, Unlock, Lock
+    Contact, CalendarOff, ListTodo, Tag, MapPin, AlertTriangle, RotateCcw, Unlock, Lock,
+    HelpCircle, Info, Star, PartyPopper, Gift, Bell, CalendarDays, ArrowUpCircle, ArrowDownCircle, ScanSearch
 } from 'lucide-react';
 import { AttendanceCell } from './AttendanceCell';
 import { Button, Modal } from '../../components/ui/Modal';
 import { AttendanceStatus, AttendanceStatusCode } from '../../types';
 import { Tooltip } from '../../components/ui/Tooltip';
 import { EmployeeProfileModal } from './EmployeeProfileModal';
-import { AttendanceToolbar, FilterConfig } from './AttendanceToolbar';
+import { AuditTimelineModal } from './AuditTimelineModal';
+import { AttendanceToolbar } from './AttendanceToolbar';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { TableSkeleton } from '../../components/ui/TableSkeleton';
 import { canAssignStatusToDate } from '../../utils/attendanceValidation';
 import { AttendanceToolbarProvider, useAttendanceToolbarContext } from './AttendanceToolbarContext';
+import { Checkbox } from '../../components/ui/xx_Checkbox';
+import { CalendarEventTag, CalendarEventList } from '../../components/CalendarEventTag';
 
 // --- Helpers ---
 const isRestDay = (horario: string, date: Date): boolean => {
@@ -65,19 +70,69 @@ const safeDate = (dateString: string) => {
     return new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
 };
 
+// getEventIcon se movió a su propio componente CalendarEventTag.tsx
+
+const Switch = ({ checked, onChange, label, id }: { checked: boolean, onChange: (val: boolean) => void, label: string, id: string }) => (
+    <div className="flex items-center gap-3 group py-1 max-w-[200px]">
+        <button
+            type="button"
+            id={id}
+            onClick={() => onChange(!checked)}
+            className={`relative inline-flex items-center h-6 rounded-full w-12 transition-colors shrink-0 ${checked ? 'bg-[--theme-500]' : 'bg-slate-200'}`}
+        >
+            <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-200 shadow-sm ${checked ? 'translate-x-7' : 'translate-x-1'}`} />
+        </button>
+        <label htmlFor={id} className="text-sm font-semibold text-slate-600 group-hover:text-slate-800 transition-colors select-none cursor-pointer leading-tight">
+            {label}
+        </label>
+    </div>
+);
+
 const ConfirmationModal = ({ confirmation, setConfirmation }: any) => {
     if (!confirmation.isOpen) return null;
     const footer = (
         <>
             <Button variant="secondary" onClick={() => setConfirmation({ isOpen: false })}>Cancelar</Button>
-            <Button onClick={() => { confirmation.onConfirm(); setConfirmation({ isOpen: false }); }}>
+            <Button onClick={() => {
+                if (confirmation.onConfirm) confirmation.onConfirm(confirmation.toggleValue);
+                setConfirmation({ isOpen: false });
+            }}>
                 {confirmation.confirmText || 'Confirmar'}
             </Button>
         </>
     );
+
+    const footerActions = confirmation.showToggle && (
+        <div className="flex-1 pr-4">
+            <Switch
+                id="skip-confirmation-toggle"
+                label={confirmation.toggleLabel || 'No volver a preguntar'}
+                checked={!!confirmation.toggleValue}
+                onChange={(val: boolean) => {
+                    if (confirmation.onToggleChange) confirmation.onToggleChange(val);
+                    setConfirmation((prev: any) => ({ ...prev, toggleValue: val }));
+                }}
+            />
+        </div>
+    );
+
     return (
-        <Modal isOpen={confirmation.isOpen} onClose={() => setConfirmation({ isOpen: false })} title={confirmation.title} footer={footer} size="lg">
-            <p className="text-slate-600 whitespace-pre-line">{confirmation.message}</p>
+        <Modal
+            isOpen={confirmation.isOpen}
+            onClose={() => setConfirmation({ isOpen: false })}
+            title={confirmation.title}
+            footer={footer}
+            footerActions={footerActions}
+            size="lg"
+        >
+            <div className="flex items-start gap-5 py-2">
+                <div className="p-3 bg-sky-50 rounded-full text-sky-600 shrink-0">
+                    <HelpCircle size={28} strokeWidth={1.5} />
+                </div>
+                <div className="flex-1 pt-1">
+                    <p className="text-slate-700 font-medium leading-relaxed">{confirmation.message}</p>
+                </div>
+            </div>
         </Modal>
     );
 };
@@ -113,6 +168,7 @@ const AttendancePageContent = () => {
     const [employees, setEmployees] = useState<any[]>([]);
     const [scheduleCatalog, setScheduleCatalog] = useState<any[]>([]);
     const [statusCatalog, setStatusCatalog] = useState<AttendanceStatus[]>([]);
+    const [calendarEvents, setCalendarEvents] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -124,8 +180,13 @@ const AttendancePageContent = () => {
     const [draggedCells, setDraggedCells] = useState<string[]>([]);
 
     const [confirmation, setConfirmation] = useState<any>({ isOpen: false });
+    const [skipApproveConfirmation, setSkipApproveConfirmation] = useState(() => {
+        return sessionStorage.getItem('skip_attendance_approve_confirmation') === 'true';
+    });
     const [openCellId, setOpenCellId] = useState<string | null>(null);
     const [viewingEmployeeId, setViewingEmployeeId] = useState<number | null>(null);
+    const [showTimeline, setShowTimeline] = useState(false);
+    const [timelineEmp, setTimelineEmp] = useState<{ EmpleadoId: number, Nombre: string, Ficha: string } | null>(null);
 
     const [employeeColumnWidth, setEmployeeColumnWidth] = useState(() => {
         try {
@@ -141,7 +202,7 @@ const AttendancePageContent = () => {
             const searchWords = filters.search.toLowerCase().split(' ').filter((word: string) => word);
             filtered = filtered.filter(emp => {
                 const targetText = (emp.NombreCompleto + ' ' + emp.EmpleadoId + ' ' + emp.CodRef).toLowerCase();
-                return searchWords.every(word => targetText.includes(word));
+                return searchWords.every((word: string) => targetText.includes(word));
             });
         }
 
@@ -171,7 +232,7 @@ const AttendancePageContent = () => {
                 if (validatableDays.length === 0) return false;
 
                 // 2. Días completados
-                const completedCount = validatableDays.filter(day => {
+                const completedCount = validatableDays.filter((day: any) => {
                     const ficha = emp.FichasSemana.find((f: any) => f.Fecha.substring(0, 10) === format(day, 'yyyy-MM-dd'));
                     return ficha && ficha.EstatusManualAbrev;
                 }).length;
@@ -181,8 +242,8 @@ const AttendancePageContent = () => {
         }
 
         if (showOnlyUnlocked) {
-            filtered = filtered.filter(emp => {
-                return dateRange.some(day => {
+            filtered = filtered.filter((emp: any) => {
+                return dateRange.some((day: any) => {
                     const dateStr = format(day, 'yyyy-MM-dd');
                     const ficha = emp.FichasSemana.find((f: any) => f.Fecha.substring(0, 10) === dateStr);
                     return !ficha || ficha.Estado !== 'BLOQUEADO';
@@ -244,10 +305,11 @@ const AttendancePageContent = () => {
 
         try {
             if (!can('reportesAsistencia.read')) throw new Error("No tienes permiso para ver este módulo.");
-            const [employeesRes, statusesRes, schedulesRes] = await Promise.all([
+            const [employeesRes, statusesRes, schedulesRes, eventsRes] = await Promise.all([
                 fetch(`${API_BASE_URL}/attendance/data-by-range`, { method: 'POST', headers, body: dataBody }),
                 fetch(`${API_BASE_URL}/catalogs/attendance-statuses`, { headers }),
-                can('horarios.read') ? fetch(`${API_BASE_URL}/schedules`, { headers }) : Promise.resolve(null)
+                can('horarios.read') ? fetch(`${API_BASE_URL}/schedules`, { headers }) : Promise.resolve(null),
+                fetch(`${API_BASE_URL}/calendar-events`, { headers })
             ]);
 
             if (!employeesRes.ok) throw new Error((await employeesRes.json()).message || `Error ${employeesRes.status}`);
@@ -256,6 +318,7 @@ const AttendancePageContent = () => {
             setEmployees(await employeesRes.json());
             setStatusCatalog(await statusesRes.json());
             if (schedulesRes && schedulesRes.ok) setScheduleCatalog(await schedulesRes.json());
+            if (eventsRes && eventsRes.ok) setCalendarEvents(await eventsRes.json());
         } catch (err: any) {
             console.error("Error en fetchData:", err);
             setError(err.message);
@@ -465,12 +528,26 @@ const AttendancePageContent = () => {
             });
         } else {
             // APROBAR SUGERENCIAS
+            if (skipApproveConfirmation) {
+                executeQuickApprove(employee);
+                return;
+            }
+
             setConfirmation({
                 isOpen: true,
                 title: 'Aprobar Semana',
                 message: `¿Deseas aceptar las sugerencias automáticas para ${employee.NombreCompleto}? Esto asignará estatus a los días que aún no tienen validación manual.`,
                 confirmText: 'Sí, Aprobar',
-                onConfirm: () => executeQuickApprove(employee),
+                showToggle: true,
+                toggleLabel: 'No volver a preguntar',
+                toggleValue: false,
+                onConfirm: (shouldSkip: boolean) => {
+                    if (shouldSkip) {
+                        sessionStorage.setItem('skip_attendance_approve_confirmation', 'true');
+                        setSkipApproveConfirmation(true);
+                    }
+                    executeQuickApprove(employee);
+                },
             });
         }
     };
@@ -614,12 +691,12 @@ const AttendancePageContent = () => {
         if (!dragInfo) return;
 
         if (draggedCells.length > 0) {
-            const draggedStatusConfig = statusCatalog.find(s => s.Abreviatura === dragInfo.status);
-            const updates = draggedCells.map(cellId => {
+            const draggedStatusConfig = statusCatalog.find((s: any) => s.Abreviatura === dragInfo.status);
+            const updates = draggedCells.map((cellId: string) => {
                 const [empIdStr, dayIdxStr] = cellId.split('-');
                 const empleadoId = parseInt(empIdStr, 10);
                 const dayIndex = parseInt(dayIdxStr, 10);
-                const employee = employees.find(e => e.EmpleadoId === empleadoId);
+                const employee = employees.find((e: any) => e.EmpleadoId === empleadoId);
 
                 if (!employee || isRestDay(employee.horario, dateRange[dayIndex])) return null;
                 const ficha = employee.FichasSemana.find((f: any) => f.Fecha.substring(0, 10) === format(dateRange[dayIndex], 'yyyy-MM-dd'));
@@ -663,7 +740,7 @@ const AttendancePageContent = () => {
 
 
     const renderContent = () => {
-        if (isLoading) return <TableSkeleton employeeColumnWidth={employeeColumnWidth} dateRange={dateRange} viewMode={viewMode} weekStartDay={weekStartDay} weekMode={weekMode} pageType="attendance" />;
+        if (isLoading) return <TableSkeleton employeeColumnWidth={employeeColumnWidth} dateRange={dateRange} viewMode={viewMode} weekStartDay={weekStartDay} weekMode={weekMode} />;
         if (error) return <div className="p-16 text-center text-red-600"><p>Error al cargar: {error}</p></div>;
         const canAssign = can('reportesAsistencia.assign');
         //const canApprove = can('reportesAsistencia.approve');
@@ -690,12 +767,24 @@ const AttendancePageContent = () => {
                                     <div onMouseDown={handleResizeMouseDown} className="absolute right-0 top-0 h-full w-2.5 cursor-col-resize group flex items-center justify-center"><GripVertical className="h-5 text-slate-300 group-hover:text-[--theme-500] transition-colors" /></div>
                                 </div>
                             </th>
-                            {dateRange.map((day, i) => (
-                                <th key={day.toISOString()} className={`px-1 py-2 font-semibold text-slate-600 min-w-[6rem] ${isTodayDateFns(day) ? 'bg-sky-100' : 'bg-slate-50'}`}>
-                                    <span className="capitalize text-base">{format(day, 'eee', { locale: es })}</span>
-                                    <span className="block text-xl font-bold text-slate-800">{format(day, 'dd')}</span>
-                                </th>
-                            ))}
+                            {dateRange.map((day, i) => {
+                                const dayStr = format(day, 'yyyy-MM-dd');
+                                const dayEvents = calendarEvents.filter((e: any) => (e.Fecha || e.fecha)?.substring(0, 10) === dayStr);
+
+                                return (
+                                    <th key={day.toISOString()} className={`px-1 py-2 font-semibold text-slate-600 min-w-[6rem] relative ${isTodayDateFns(day) ? 'bg-sky-100' : 'bg-slate-50'}`}>
+                                        <span className="capitalize text-base block">{format(day, 'eee', { locale: es })}</span>
+                                        <div className="flex items-center justify-center gap-1 relative">
+                                            <span className="block text-xl font-bold text-slate-800">{format(day, 'dd')}</span>
+                                            {dayEvents.length > 0 && (
+                                                <div className="flex items-center gap-0.5 ml-0.5">
+                                                    <CalendarEventList events={dayEvents} size={15} />
+                                                </div>
+                                            )}
+                                        </div>
+                                    </th>
+                                )
+                            })}
                         </tr>
                     </thead>
                     <tbody style={{ height: `${rowVirtualizer.getTotalSize()}px` }} className="animate-content-fade-in">
@@ -726,7 +815,7 @@ const AttendancePageContent = () => {
                                     const totalDaysInPeriod = dateRange.length;
 
                                     // 2. Progreso: Fichas en estado VALIDADO o BLOQUEADO en el período.
-                                    const completedForProgress = generatedFichas.filter(f => {
+                                    const completedForProgress = generatedFichas.filter((f: any) => {
                                         const fichaDateStr = f.Fecha.substring(0, 10);
                                         const isInPeriod = dateRange.some(d => format(d, 'yyyy-MM-dd') === fichaDateStr);
                                         return isInPeriod && (f.Estado === 'VALIDADO' || f.Estado === 'BLOQUEADO');
@@ -735,16 +824,16 @@ const AttendancePageContent = () => {
                                     const progress = totalDaysInPeriod > 0 ? (completedForProgress / totalDaysInPeriod) * 100 : 0;
 
                                     // --- Lógica para el Botón (con estado deshabilitado) ---
-                                    const generatedFichasInPeriod = generatedFichas.filter(f => {
+                                    const generatedFichasInPeriod = generatedFichas.filter((f: any) => {
                                         const fichaDateStr = f.Fecha.substring(0, 10);
                                         return dateRange.some(d => format(d, 'yyyy-MM-dd') === fichaDateStr);
                                     });
 
                                     // 1. Contar fichas "Borrador" (condición: Estado='BORRADOR' y HorarioId en la propia ficha).
-                                    const draftCount = generatedFichasInPeriod.filter(f => f.Estado === 'BORRADOR' && f.HorarioId).length;
+                                    const draftCount = generatedFichasInPeriod.filter((f: any) => f.Estado === 'BORRADOR' && f.HorarioId).length;
 
                                     // 2. Contar fichas "Procesadas" (Validadas o Bloqueadas).
-                                    const processedCount = generatedFichasInPeriod.filter(f => f.Estado === 'VALIDADO' || f.Estado === 'BLOQUEADO').length;
+                                    const processedCount = generatedFichasInPeriod.filter((f: any) => f.Estado === 'VALIDADO' || f.Estado === 'BLOQUEADO').length;
 
                                     const hasDrafts = draftCount > 0;
                                     const hasProcessed = processedCount > 0;
@@ -778,7 +867,7 @@ const AttendancePageContent = () => {
                                     if (emp.FechaNacimiento) { try { const parts = emp.FechaNacimiento.substring(0, 10).split('-'); const birthDate = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2])); const formattedBirthDate = format(birthDate, "d 'de' MMMM", { locale: es }); birthdayTooltip = `Cumpleaños: ${formattedBirthDate}`; } catch (e) { } }
 
                                     return (
-                                        <tr key={emp.EmpleadoId} ref={virtualRow.measureElement} className="group" style={{ height: `${virtualRow.size}px` }}>
+                                        <tr key={emp.EmpleadoId} ref={(virtualRow as any).measureElement} className="group" style={{ height: `${virtualRow.size}px` }}>
                                             <td className="p-2 text-left sticky left-0 bg-white group-hover:bg-slate-50 z-40 shadow-sm align-top border-b border-slate-100" style={{ width: `${employeeColumnWidth}px` }}>
                                                 <div className="w-full" style={{ minWidth: `${EMPLOYEE_CONTENT_MIN_WIDTH}px`, maxWidth: `${EMPLOYEE_CONTENT_MAX_WIDTH}px` }}>
                                                     <div className="flex items-start justify-between w-full">
@@ -795,6 +884,19 @@ const AttendancePageContent = () => {
                                                                     {isBirthdayInPeriod(emp.FechaNacimiento, dateRange) && <Tooltip text={birthdayTooltip}><Cake size={18} className="text-pink-400 shrink-0" /></Tooltip>}
                                                                 </div>
                                                                 <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-2">
+                                                                    {can('asistencia.auditar') && (
+                                                                        <Tooltip text="Auditoría de Checadas">
+                                                                            <button
+                                                                                onClick={() => {
+                                                                                    setTimelineEmp({ EmpleadoId: emp.EmpleadoId, Nombre: emp.NombreCompleto, Ficha: emp.CodRef });
+                                                                                    setShowTimeline(true);
+                                                                                }}
+                                                                                className="p-1 rounded-md text-slate-400 hover:text-indigo-500 hover:bg-indigo-50"
+                                                                            >
+                                                                                <ScanSearch size={18} />
+                                                                            </button>
+                                                                        </Tooltip>
+                                                                    )}
                                                                     <Tooltip text="Ver Ficha"><button onClick={() => setViewingEmployeeId(emp.EmpleadoId)} className="p-1 rounded-md text-slate-400 hover:text-[--theme-500] hover:bg-slate-200"><Contact size={18} /></button></Tooltip>
                                                                 </div>
                                                             </div>
@@ -838,9 +940,9 @@ const AttendancePageContent = () => {
                                                         key={cellId} cellId={cellId} isToday={isTodayDateFns(day)} isOpen={openCellId === cellId}
                                                         onToggleOpen={() => handleToggleOpen(cellId)}
                                                         ficha={ficha} viewMode={viewMode} isRestDay={isRestDay(emp.horario, day)}
-                                                        onStatusChange={(s, c) => handleStatusChange(emp.EmpleadoId, day, s, c)}
+                                                        onStatusChange={(s: any, c: any) => handleStatusChange(emp.EmpleadoId, day, s, c)}
                                                         canAssign={canAssign}
-                                                        onDragStart={(s) => handleDragStart(emp.EmpleadoId, i, s)}
+                                                        onDragStart={(s: any) => handleDragStart(emp.EmpleadoId, i, s)}
                                                         onDragEnter={() => handleDragEnter(emp.EmpleadoId, i)}
                                                         isBeingDragged={draggedCells.includes(cellId)} isAnyCellOpen={openCellId !== null}
                                                         statusCatalog={statusCatalog} fecha={day}
@@ -871,6 +973,21 @@ const AttendancePageContent = () => {
             </div>
             <ConfirmationModal confirmation={confirmation} setConfirmation={setConfirmation} />
             {viewingEmployeeId && <EmployeeProfileModal employeeId={viewingEmployeeId as any} onClose={() => setViewingEmployeeId(null)} getToken={getToken} user={user} />}
+            {showTimeline && timelineEmp && (
+                <AuditTimelineModal
+                    employeeId={timelineEmp.EmpleadoId}
+                    employeeName={timelineEmp.Nombre}
+                    employeeFicha={timelineEmp.Ficha}
+                    startDate={dateRange[0]}
+                    endDate={dateRange[dateRange.length - 1]}
+                    onClose={() => {
+                        setShowTimeline(false);
+                        setTimelineEmp(null);
+                    }}
+                    getToken={getToken}
+                    statusCatalog={statusCatalog}
+                />
+            )}
         </div>
     );
 };

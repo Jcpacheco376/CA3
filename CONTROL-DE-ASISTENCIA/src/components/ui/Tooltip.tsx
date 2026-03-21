@@ -14,7 +14,7 @@ export const Tooltip = ({
     placement = 'top',
     offset = 8,
     delay = 100,
-    zIndex = 10050, // Must be above SmartSelect dropdown (z-[9999])
+    zIndex = 20000, // Must be above almost everything else
     disabled = false,
     className,
     withArrow = false, // Nueva propiedad para la "colita"
@@ -135,7 +135,7 @@ export const Tooltip = ({
 
     const tooltipContent = (
         <div
-            className={`fixed bg-slate-800 text-white text-xs rounded-md p-2 shadow-lg z-50 ${getTooltipPositionClasses()} ${getArrowClasses()} ${className || ''}`}
+            className={`fixed bg-slate-800 text-white text-xs rounded-md p-2 shadow-lg ${getTooltipPositionClasses()} ${getArrowClasses()} ${className || ''}`}
             style={{ top: position.top, left: position.left, pointerEvents: 'none', zIndex }} // <-- zIndex aplicado aquí
         >
             {text}

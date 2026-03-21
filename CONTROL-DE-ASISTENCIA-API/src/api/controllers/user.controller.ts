@@ -1,6 +1,8 @@
 import { Request, Response } from 'express';
 import sql from 'mssql';
 import { dbConfig } from '../../config/database';
+import { APP_EDITION } from '../../config';
+import { isPermissionAllowed } from '../utils/editions';
 import crypto from 'crypto';
 
 export const getNextUserId = async (req: any, res: Response) => {
@@ -90,11 +92,11 @@ export const getAllUsers = async (req: any, res: Response) => {
 
 export const updateUserPreferences = async (req: any, res: Response) => {
     const { userId } = req.params;
-    const { theme, animationsEnabled } = req.body;
+    const { theme } = req.body;
     try {
         const pool = await sql.connect(dbConfig);
         await pool.request().input('UsuarioId', sql.Int, userId).input('Theme', sql.NVarChar, theme)
-            .input('AnimationsEnabled', sql.Bit, animationsEnabled).execute('sp_Usuario_ActualizarPreferencias');
+            .execute('sp_Usuario_ActualizarPreferencias');
         res.status(200).json({ message: 'Preferencias actualizadas.' });
     } catch (err) { res.status(500).json({ message: 'Error al guardar las preferencias.' }); }
 };
@@ -159,7 +161,9 @@ export const getPermissionsByUserId = async (req: any, res: Response) => {
 
         const permissions: { [key: string]: any[] } = {};
         permissionsResult.recordset.forEach((record: any) => {
-            permissions[record.NombrePermiso] = [true];
+            if (isPermissionAllowed(record.NombrePermiso, record.Clasificador, APP_EDITION)) {
+                permissions[record.NombrePermiso] = [true];
+            }
         });
 
         // 3. Obtener filtros activos

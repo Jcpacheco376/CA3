@@ -2,7 +2,12 @@ import { execFile } from 'child_process';
 import path from 'path';
 
 // Ruta al ejecutable compilado
-const BRIDGE_PATH = path.join(process.cwd(), 'src', 'bin', 'zk-bridge', 'ZkBridge.exe');
+const defaultBridgePath = path.join(process.cwd(), 'bin', 'ZkBridge.exe');
+const devBridgePath = path.join(process.cwd(), 'src', 'bin', 'zk-bridge', 'ZkBridge.exe');
+
+// Priorizar Variable de Entorno > Carpeta bin/ > Ruta Legacy (solo para asegurar transición)
+const BRIDGE_PATH = process.env.ZK_BRIDGE_PATH ||
+    (require('fs').existsSync(defaultBridgePath) ? defaultBridgePath : devBridgePath);
 
 export class ZkDeviceService {
 
@@ -11,7 +16,7 @@ export class ZkDeviceService {
         return new Promise((resolve, reject) => {
             const commKey = parseInt(device.PasswordCom) || 0;
             const args = [device.IpAddress, device.Puerto.toString(), commKey.toString(), command, ...extraArgs];
-            
+
             // Buffer de 10MB para soportar descargas masivas de rostros/logs y timeout de 2 min
             const options = { maxBuffer: 10 * 1024 * 1024, timeout: 120000 };
 
@@ -30,7 +35,7 @@ export class ZkDeviceService {
 
                 try {
                     const cleanOutput = stdout.trim();
-                    
+
                     // Si la respuesta está vacía, resolvemos un status genérico (común en comandos void)
                     if (!cleanOutput) return resolve({ status: 'EmptyResponse' });
 
@@ -56,13 +61,13 @@ export class ZkDeviceService {
                         if (response.error && !Array.isArray(response)) return reject(new Error(`ZK Error: ${response.error}`));
                         return resolve(response);
                     }
-                    
+
                     // Caso Especial: Si no es JSON (ej. get_biodata devuelve CSV crudo), devolvemos raw
                     resolve({ status: 'RawData', raw: cleanOutput });
 
-                } catch (e) { 
+                } catch (e) {
                     console.error(`❌ Parse Error. Raw: ${stdout.substring(0, 100)}...`);
-                    reject(new Error('Respuesta corrupta del dispositivo.')); 
+                    reject(new Error('Respuesta corrupta del dispositivo.'));
                 }
             });
         });
@@ -87,7 +92,7 @@ export class ZkDeviceService {
     static async getAllUsers(d: any) { return this.getAllUsersFromDevice(d); }
 
     // 3. Operaciones Masivas por Archivo (Batch)
-    
+
     // Sube usuarios (Nombre, Pass, Privilegio, Tarjeta, Huellas simples)
     static async uploadUsersFromFile(d: any, filePath: string) {
         return this.executeBridge(d, 'upload_users_file', [filePath]);
@@ -103,7 +108,7 @@ export class ZkDeviceService {
     static async deleteUsersBatch(d: any, filePath: string) { return this.deleteUsersFromFile(d, filePath); }
 
     // 4. Gestión Biométrica Avanzada (Tablas y Rostros)
-    
+
     // Obtiene la tabla Pers_Biotemplate cruda (para un usuario) - Cosecha Rostros
     static async getBioData(d: any, uid: string) {
         return this.executeBridge(d, 'get_biodata', [uid]);
@@ -144,7 +149,7 @@ export class ZkDeviceService {
 
     // 7. Legado / Compatibilidad (si aún se usan)
     static async deleteUser(d: any, uid: string) {
-         return this.executeBridge(d, 'delete_user', [uid]);
+        return this.executeBridge(d, 'delete_user', [uid]);
     }
     // Para uploads individuales (lento, usar batch preferiblemente)
     static async uploadUserToDevice(d: any, users: any[]) {

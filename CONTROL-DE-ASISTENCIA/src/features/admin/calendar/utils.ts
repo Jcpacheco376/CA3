@@ -37,9 +37,8 @@ export const SENTENCE_FLOW = [
     { dimKey: 'ESTABLECIMIENTO', connector: 'Establecimiento', placeholder: 'Cualquier establecimiento' },
 ];
 
-export const getSmartEventIcon = (eventName: string, defaultIcon: string): string => {
+export const suggestIconFromName = (eventName: string, defaultIcon: string): string => {
     const text = eventName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ""); // remove accents
-
     if (text.includes('navidad') || text.includes('nochebuena')) return 'TreePine';
     if (text.includes('año nuevo') || text.includes('ano nuevo')) return 'PartyPopper';
     if (text.includes('independencia') || text.includes('bandera') || text.includes('patria')) return 'Flag';

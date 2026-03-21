@@ -7,28 +7,32 @@ export const getAllRoles = async (req: any, res: Response) => {
     try {
         const pool = await sql.connect(dbConfig);
         const result = await pool.request().execute('sp_Roles_GetAll');
-        res.json(result.recordset.map(role => ({ ...role, SISPermisos: role.SISPermisos ? JSON.parse(role.SISPermisos) : [] })));
+        res.json(result.recordset.map(role => {
+            const parsedPerms = role.SISPermisos ? JSON.parse(role.SISPermisos) : [];
+            return { ...role, SISPermisos: parsedPerms, Permisos: parsedPerms };
+        }));
     } catch (err) { res.status(500).json({ message: 'Error al obtener roles.' }); }
 };
 
 export const upsertRole = async (req: any, res: Response) => {
     if (!req.user.permissions['roles.manage']) return res.status(403).json({ message: 'Acceso denegado.' }); // Corregido a 'manage'
-    
-    const { RoleId, NombreRol, Descripcion, SISPermisos } = req.body;
-    
+
+    const { RoleId, NombreRol, Descripcion, SISPermisos, Permisos } = req.body;
+    const permisosToSave = Permisos || SISPermisos || [];
+
     let pool: sql.ConnectionPool | undefined;
 
     try {
         pool = await sql.connect(dbConfig);
-        
+
         // 1. Guardar el Rol
-        const result = await pool.request() 
+        const result = await pool.request()
             .input('RoleId', sql.Int, RoleId || 0)
             .input('NombreRol', sql.NVarChar, NombreRol)
             .input('Descripcion', sql.NVarChar, Descripcion)
-            .input('PermisosJSON', sql.NVarChar, JSON.stringify(SISPermisos || []))
+            .input('PermisosJSON', sql.NVarChar, JSON.stringify(permisosToSave))
             .execute('sp_Roles_Upsert');
-        
+
         const savedRole = { RoleId: result.recordset[0].RoleId, NombreRol };
 
         // 2. --- NUEVO: Invalidar sesiones de usuarios afectados ---
@@ -42,7 +46,7 @@ export const upsertRole = async (req: any, res: Response) => {
 
         res.status(200).json({ message: 'Rol guardado correctamente.', role: savedRole });
 
-    } catch (err: any) { 
+    } catch (err: any) {
         console.error("Error al guardar rol:", err.message);
         res.status(409).json({ message: err.message });
     } finally {

@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Usuario_Crear]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -26,7 +26,7 @@ BEGIN
     -- Validar que el email no exista
     IF EXISTS (SELECT 1 FROM Usuarios WHERE Email = @Email)
     BEGIN
-        RAISERROR ('El correo electr�nico ya est� en uso.', 16, 1);
+        RAISERROR ('El correo electronico ya esta en uso.', 16, 1);
         RETURN;
     END
 

@@ -5,6 +5,8 @@ const { execSync } = require('child_process');
 
 // ── Argumentos ───────────────────────────────────────────────────────────
 const IS_EXE_MODE = process.argv.includes('--exe');
+const editionArg = process.argv.find(arg => arg.startsWith('--edition='));
+const APP_EDITION_BUILD = editionArg ? editionArg.split('=')[1].toUpperCase() : 'FULL';
 
 // Rutas del Monorepo
 const REPO_ROOT = path.join(__dirname, '../');
@@ -57,14 +59,25 @@ if (fs.existsSync(workInstExe)) fs.unlinkSync(workInstExe);
 
 // 2. Compilar proyectos
 try {
-    console.log('🔨 Compilando Frontend...');
-    execSync('npm run build --workspace=CONTROL-DE-ASISTENCIA', { stdio: 'inherit', cwd: REPO_ROOT });
+    console.log(`🔨 Compilando Frontend (Edición: ${APP_EDITION_BUILD})...`);
+    // Inyectamos la variable para Vite (VITE_ prefix es necesario)
+    const frontEnv = { ...process.env, VITE_APP_EDITION: APP_EDITION_BUILD };
+    execSync('npm run build --workspace=CONTROL-DE-ASISTENCIA', { stdio: 'inherit', cwd: REPO_ROOT, env: frontEnv });
+
     console.log('🔨 Compilando Backend (TypeScript)...');
     execSync('tsc', { stdio: 'inherit', cwd: BACKEND_WS });
 
     if (IS_EXE_MODE) {
-        console.log('📦 Empaquetando Backend como Ejecutable (pkg)...');
-        execSync('npx pkg . --targets node18-win-x64 --output dist/ca3-api.exe', { stdio: 'inherit', cwd: BACKEND_WS });
+        console.log(`📦 Empaquetando Backend como Ejecutable (pkg) (Edición: ${APP_EDITION_BUILD})...`);
+        // Para el backend, pkg no inyecta env vars en el binario de forma fácil, 
+        // pero podemos crear un .env temporal o usar cross-env si fuera necesario.
+        // Sin embargo, el código del backend lee process.env.APP_EDITION.
+        // pkg empaqueta el entorno de construcción, pero es mejor que el código sea robusto.
+        execSync('npx pkg . --targets node18-win-x64 --output dist/ca3-api.exe', {
+            stdio: 'inherit',
+            cwd: BACKEND_WS,
+            env: { ...process.env, APP_EDITION: APP_EDITION_BUILD }
+        });
 
         const installerPath = path.join(REPO_ROOT, 'installer');
         console.log('📦 Empaquetando Instalador como Ejecutable (pkg)...');
@@ -132,7 +145,7 @@ if (fs.existsSync(launcherDir)) {
 }
 
 // ── F. Otros ─────────────────────────────────────────────────────────────
-const zkBridgeExe = path.join(BACKEND_WS, 'src', 'bin', 'zk-bridge', 'ZkBridge.exe');
+const zkBridgeExe = path.join(BACKEND_WS, 'bin', 'ZkBridge.exe');
 if (fs.existsSync(zkBridgeExe)) archive.file(zkBridgeExe, { name: 'zkbridge/ZkBridge.exe' });
 
 const sdkDir = path.join(REPO_ROOT, 'sdk');
@@ -153,4 +166,9 @@ if (fs.existsSync(batTemplate)) {
 const exclusionsFile = path.join(__dirname, 'sp-exclusions.json');
 if (fs.existsSync(exclusionsFile)) archive.file(exclusionsFile, { name: 'database/sp-exclusions.json' });
 
-archive.finalize();
+// ── H. Finalizar ──────────────────────────────────────────────────────────
+async function finalizeArchive() {
+    console.log('Finalizando archivo ZIP, por favor espere...');
+    await archive.finalize();
+}
+finalizeArchive();

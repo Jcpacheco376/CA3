@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Empleados_GetStats]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -15,16 +15,13 @@ BEGIN
         -- Total Active Employees
         (SELECT COUNT(1) FROM Empleados WHERE Activo = 1) as TotalActivos,
         
-        -- Missing Schedule (Active employees with NULL schedule)
         (SELECT COUNT(1) FROM Empleados WHERE Activo = 1 AND HorarioIdPredeterminado IS NULL) as SinHorario,
         
-        -- Rotative Schedule (Active employees with Rotative schedule)
         (SELECT COUNT(1) 
          FROM Empleados e 
          JOIN CatalogoHorarios h ON e.HorarioIdPredeterminado = h.HorarioId 
          WHERE e.Activo = 1 AND h.EsRotativo = 1) as HorarioRotativo,
          
-        -- Missing Device (Active employees NOT assigned to any Zone)
         (SELECT COUNT(1) 
          FROM Empleados e 
          WHERE e.Activo = 1 

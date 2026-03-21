@@ -1,8 +1,8 @@
 // src/features/admin/calendar/DayDetailPanel.tsx
 import React from 'react';
-import { Calendar as CalendarIcon, Sparkles, Plus, Filter, Users, Pencil, Trash2, Cake, Award } from 'lucide-react';
+import { Calendar as CalendarIcon, Sparkles, Plus, Filter, Users, Pencil, Trash2, Cake, Award, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { CalendarEvent, EmployeeBirthday, EmployeeAnniversary } from './types';
-import { MONTHS_ES, parseDateKey, getColor, DynamicIcon, LOGICA_LABELS, getSmartEventIcon } from './utils';
+import { MONTHS_ES, parseDateKey, getColor, DynamicIcon, LOGICA_LABELS } from './utils';
 import { Tooltip } from '../../../components/ui/Tooltip';
 import { themes } from '../../../config/theme';
 
@@ -15,10 +15,11 @@ interface DayDetailPanelProps {
     birthdays: EmployeeBirthday[];
     anniversaries: EmployeeAnniversary[];
     style?: React.CSSProperties;
+    canManage?: boolean;
 }
 
 export const DayDetailPanel: React.FC<DayDetailPanelProps> = ({
-    selectedDate, selectedDayEvents, openCreateModal, openEditModal, handleDelete, birthdays, anniversaries, style
+    selectedDate, selectedDayEvents, openCreateModal, openEditModal, handleDelete, birthdays, anniversaries, style, canManage = true
 }) => {
     // Filter birthdays for this specific day
     const dayBirthdays = React.useMemo(() => {
@@ -153,9 +154,11 @@ export const DayDetailPanel: React.FC<DayDetailPanelProps> = ({
                     <div className="text-center py-6">
                         <CalendarIcon size={28} className="mx-auto text-slate-200 mb-2" />
                         <p className="text-xs text-slate-400 mb-2">Sin eventos</p>
-                        <button onClick={() => openCreateModal(selectedDate)} className="text-xs text-[--theme-500] font-semibold hover:underline">
-                            + Agregar evento
-                        </button>
+                        {canManage && (
+                            <button onClick={() => openCreateModal(selectedDate)} className="text-xs text-[--theme-500] font-semibold hover:underline">
+                                + Agregar evento
+                            </button>
+                        )}
                     </div>
                 )}
                 {!selectedDate && (
@@ -172,21 +175,23 @@ export const DayDetailPanel: React.FC<DayDetailPanelProps> = ({
                                 {/* Header Row: Title + Action Buttons */}
                                 <div className="flex items-start justify-between gap-2 mb-1.5">
                                     <div className="flex items-center gap-1.5 min-w-0">
-                                        <DynamicIcon name={getSmartEventIcon(ev.Nombre, ev.TipoIcono)} size={14} style={{ color: themes[ev.TipoColorUI]?.[500] }} className="shrink-0" />
+                                        <DynamicIcon name={ev.EventoIcono || ev.TipoIcono} size={14} style={{ color: themes[ev.TipoColorUI]?.[500] }} className="shrink-0" />
                                         <h4 className="font-semibold text-slate-800 text-sm truncate">{ev.Nombre}</h4>
                                     </div>
-                                    <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 -mt-0.5">
-                                        <Tooltip text="Editar">
-                                            <button onClick={() => openEditModal(ev)} className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-[--theme-500] transition-colors">
-                                                <Pencil size={13} />
-                                            </button>
-                                        </Tooltip>
-                                        <Tooltip text="Eliminar">
-                                            <button onClick={() => handleDelete(ev.EventoId)} className="p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors">
-                                                <Trash2 size={13} />
-                                            </button>
-                                        </Tooltip>
-                                    </div>
+                                    {canManage && (
+                                        <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0 -mt-0.5">
+                                            <Tooltip text="Editar">
+                                                <button onClick={() => openEditModal(ev)} className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-[--theme-500] transition-colors">
+                                                    <Pencil size={13} />
+                                                </button>
+                                            </Tooltip>
+                                            <Tooltip text="Eliminar">
+                                                <button onClick={() => handleDelete(ev.EventoId)} className="p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors">
+                                                    <Trash2 size={13} />
+                                                </button>
+                                            </Tooltip>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* Content Area: Uses 100% full width */}
@@ -217,7 +222,7 @@ export const DayDetailPanel: React.FC<DayDetailPanelProps> = ({
                     );
                 })}
             </div>
-            {selectedDate && (
+            {selectedDate && canManage && (
                 <div className="p-3 border-t border-slate-200">
                     <button
                         onClick={() => openCreateModal(selectedDate)}

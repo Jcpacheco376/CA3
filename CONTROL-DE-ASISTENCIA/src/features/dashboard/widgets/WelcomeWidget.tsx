@@ -17,14 +17,14 @@ export const WelcomeWidget = ({ user }: { user: User | null }) => {
         const updateTime = () => {
             const now = new Date();
             const hour = now.getHours();
-            
+
             if (hour < 12) setGreeting('Buenos días');
             else if (hour < 18) setGreeting('Buenas tardes');
             else setGreeting('Buenas noches');
 
             const options: Intl.DateTimeFormatOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
             setDateString(now.toLocaleDateString('es-MX', options));
-            
+
             setTimeString(now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }));
         };
 
@@ -42,7 +42,7 @@ export const WelcomeWidget = ({ user }: { user: User | null }) => {
     };
 
     return (
-        <div 
+        <div
             className="relative overflow-hidden rounded-2xl p-6 md:p-8 text-white shadow-sm border"
             style={{
                 background: `linear-gradient(135deg, ${currentTheme[600]}, ${currentTheme[900]})`,
@@ -66,7 +66,7 @@ export const WelcomeWidget = ({ user }: { user: User | null }) => {
             `}</style>
 
             {/* 2. PATRÓN DE FONDO: Retícula de puntos más visible y con degradado para integrarse. */}
-            <div 
+            <div
                 className="absolute inset-0 pointer-events-none"
                 style={{
                     backgroundImage: `radial-gradient(${currentTheme[100]} 1px, transparent 1px)`,
@@ -81,24 +81,24 @@ export const WelcomeWidget = ({ user }: { user: User | null }) => {
 
             <div className="relative z-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                 <div>
-                    <h2 
+                    <h2
                         className="text-2xl md:text-3xl font-bold mb-1 tracking-tight animate-welcome-in"
                         style={{ animationDelay: '0.1s' }}
                     >
                         {greeting}, {user?.NombreCompleto?.split(' ')[0] || 'Colaborador'}.
                     </h2>
-                    <p 
-                        className="text-sm md:text-base opacity-90 font-light max-w-lg animate-welcome-in" 
+                    <p
+                        className="text-sm md:text-base opacity-90 font-light max-w-lg animate-welcome-in"
                         style={{ color: currentTheme[100], animationDelay: '0.2s' }}
                     >
                         Bienvenido al panel de control. Aquí tienes un resumen de la actividad de hoy.
                     </p>
-                    
-                    <div 
+
+                    <div
                         className="mt-6 flex flex-wrap items-center gap-3 animate-welcome-in"
                         style={{ animationDelay: '0.3s' }}
                     >
-                         <div className="flex items-center space-x-2 text-xs md:text-sm bg-white/10 px-3 py-1.5 rounded-full backdrop-blur-md border border-white/10 shadow-sm">
+                        <div className="flex items-center space-x-2 text-xs md:text-sm bg-white/10 px-3 py-1.5 rounded-full backdrop-blur-md border border-white/10 shadow-sm">
                             <CalendarCheck size={14} style={{ color: currentTheme[100] }} />
                             <span className="capitalize font-medium">{dateString}</span>
                         </div>
@@ -107,11 +107,11 @@ export const WelcomeWidget = ({ user }: { user: User | null }) => {
                         </div>
                     </div>
                 </div>
-                
-               <div 
-                    className="hidden md:block p-4 rounded-xl backdrop-blur-sm border min-w-[180px] shadow-lg animate-welcome-in" 
-                    style={{ 
-                        backgroundColor: `${currentTheme[900]}40`, 
+
+                <div
+                    className="hidden md:block p-4 rounded-xl backdrop-blur-sm border min-w-[180px] shadow-lg animate-welcome-in"
+                    style={{
+                        backgroundColor: `${currentTheme[900]}40`,
                         borderColor: `${currentTheme[700]}30`,
                         animationDelay: '0.4s' // Retraso para la tarjeta de sesión
                     }}
@@ -122,8 +122,8 @@ export const WelcomeWidget = ({ user }: { user: User | null }) => {
                             <ShieldCheck size={16} className="text-emerald-300" />
                         </div>
                         <div>
-                             <p className="text-xs font-semibold text-white">Rol Activo</p>
-                             <p className="text-[10px] truncate max-w-[100px]" style={{ color: currentTheme[300] }}>{user?.Roles?.[0]?.NombreRol || 'Usuario'}</p>
+                            <p className="text-xs font-semibold text-white">Rol Activo</p>
+                            <p className="text-[10px] truncate max-w-[100px]" style={{ color: currentTheme[300] }}>{user?.Roles?.[0]?.NombreRol || 'Usuario'}</p>
                         </div>
                     </div>
                 </div>

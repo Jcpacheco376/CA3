@@ -1,8 +1,16 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Empleados_Save]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Empleados_Save]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.5.12
+-- Compilado:           17/03/2026, 10:50:24
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -34,11 +42,11 @@ BEGIN
     BEGIN TRY
         BEGIN TRANSACTION;
         -- Calcular NombreCompleto basado en Configuración
-        DECLARE @FormatoNombre INT;
-        SELECT TOP 1 @FormatoNombre = ISNULL(FormatoNombre, 1) FROM SISConfiguracion;
+			DECLARE @FormatoNombre VARCHAR;
+            SELECT  @FormatoNombre = ConfigValue FROM SISConfiguracion WHERE ConfigKey='FormNombreEmpleados'
         
         DECLARE @NombreCompleto NVARCHAR(300);
-        IF @FormatoNombre = 2 -- Apellidos Nombres
+        IF @FormatoNombre = 'AN' -- Apellidos Nombres
             SET @NombreCompleto = TRIM(@ApellidoPaterno + ' ' + ISNULL(@ApellidoMaterno, '') + ' ' + @Nombres);
         ELSE -- Nombres Apellidos (Default)
             SET @NombreCompleto = TRIM(@Nombres + ' ' + @ApellidoPaterno + ' ' + ISNULL(@ApellidoMaterno, ''));
@@ -57,7 +65,7 @@ BEGIN
                 FechaNacimiento, FechaIngreso, DepartamentoId, PuestoId, HorarioIdPredeterminado,
                 GrupoNominaId, EstablecimientoId, Sexo, NSS, CURP, RFC, Imagen, Activo
             ) VALUES (
-                @CodRef, @Pim, @Nombres, @ApellidoPaterno, @ApellidoMaterno, @NombreCompleto,
+                @CodRef, ISNULL(NULLIF(@Pim, ''), @CodRef), @Nombres, @ApellidoPaterno, @ApellidoMaterno, @NombreCompleto,
                 @FechaNacimiento, @FechaIngreso, @DepartamentoId, @PuestoId, @HorarioIdPredeterminado,
                 @GrupoNominaId, @EstablecimientoId, @Sexo, @NSS, @CURP, @RFC, @Imagen, @Activo
             );
@@ -105,6 +113,7 @@ BEGIN
             DECLARE @StatusChar CHAR(1) = CASE WHEN @Activo = 1 THEN '1' ELSE '2' END; -- Asumiendo 1=Alta, 2=Baja/Otro
             EXEC [dbo].[sp_SyncToExternal_Empleado]
                 @CodRef = @CodRef,
+                @NombreCompleto = @NombreCompleto,
                 @Nombres = @Nombres,
                 @ApellidoPaterno = @ApellidoPaterno,
                 @ApellidoMaterno = @ApellidoMaterno,

@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_CatalogoEstatusAsistencia_Upsert]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -26,14 +26,14 @@ BEGIN
     -- Validar que TipoCalculoId sea obligatorio
     IF @TipoCalculoId IS NULL OR LTRIM(RTRIM(@TipoCalculoId)) = ''
     BEGIN
-        RAISERROR('El Tipo de C�lculo es obligatorio.', 16, 1);
+        RAISERROR('El Tipo de Calculo es obligatorio.', 16, 1);
         RETURN;
     END
 
     -- Validar que el tipo de c�lculo exista en la tabla de referencia
     IF NOT EXISTS (SELECT 1 FROM SISTiposCalculo WHERE TipoCalculoId = @TipoCalculoId)
     BEGIN
-        RAISERROR('El tipo de c�lculo especificado (%s) no existe en el sistema.', 16, 1, @TipoCalculoId);
+        RAISERROR('El tipo de calculo especificado (%s) no existe en el sistema.', 16, 1, @TipoCalculoId);
         RETURN;
     END
 

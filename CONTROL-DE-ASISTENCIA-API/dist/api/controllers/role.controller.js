@@ -21,7 +21,10 @@ const getAllRoles = (req, res) => __awaiter(void 0, void 0, void 0, function* ()
     try {
         const pool = yield mssql_1.default.connect(database_1.dbConfig);
         const result = yield pool.request().execute('sp_Roles_GetAll');
-        res.json(result.recordset.map(role => (Object.assign(Object.assign({}, role), { SISPermisos: role.SISPermisos ? JSON.parse(role.SISPermisos) : [] }))));
+        res.json(result.recordset.map(role => {
+            const parsedPerms = role.SISPermisos ? JSON.parse(role.SISPermisos) : [];
+            return Object.assign(Object.assign({}, role), { SISPermisos: parsedPerms, Permisos: parsedPerms });
+        }));
     }
     catch (err) {
         res.status(500).json({ message: 'Error al obtener roles.' });
@@ -31,7 +34,8 @@ exports.getAllRoles = getAllRoles;
 const upsertRole = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     if (!req.user.permissions['roles.manage'])
         return res.status(403).json({ message: 'Acceso denegado.' }); // Corregido a 'manage'
-    const { RoleId, NombreRol, Descripcion, SISPermisos } = req.body;
+    const { RoleId, NombreRol, Descripcion, SISPermisos, Permisos } = req.body;
+    const permisosToSave = Permisos || SISPermisos || [];
     let pool;
     try {
         pool = yield mssql_1.default.connect(database_1.dbConfig);
@@ -40,7 +44,7 @@ const upsertRole = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
             .input('RoleId', mssql_1.default.Int, RoleId || 0)
             .input('NombreRol', mssql_1.default.NVarChar, NombreRol)
             .input('Descripcion', mssql_1.default.NVarChar, Descripcion)
-            .input('PermisosJSON', mssql_1.default.NVarChar, JSON.stringify(SISPermisos || []))
+            .input('PermisosJSON', mssql_1.default.NVarChar, JSON.stringify(permisosToSave))
             .execute('sp_Roles_Upsert');
         const savedRole = { RoleId: result.recordset[0].RoleId, NombreRol };
         // 2. --- NUEVO: Invalidar sesiones de usuarios afectados ---

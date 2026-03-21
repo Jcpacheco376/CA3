@@ -8,7 +8,7 @@ import { Modal, Button } from '../../components/ui/Modal.tsx';
 import { useAuth } from '../auth/AuthContext.tsx';
 import {
     Shield, Building, Briefcase, Tag, MapPin, Check,
-    CheckCheck, XCircle, ChevronDown, Crown, UserCheck, Search, Link2Off
+    CheckCheck, XCircle, ChevronDown, Crown, UserCheck, Search, Link2Off, X, Link
 } from 'lucide-react'; // Importé Crown para el icono de principal
 
 // --- Componentes UI Auxiliares (Checkbox, Toggle, Collapsible) ---
@@ -328,14 +328,90 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
                 <form id="user-modal-form" onSubmit={handleSubmit} className="space-y-5">
 
                     <CollapsibleSection title="Información General">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-1">
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Nombre Completo</label>
-                                <input type="text" name="NombreCompleto" value={formData.NombreCompleto || ''} onChange={handleChange} className="w-full p-2 border border-slate-300 rounded-md text-sm focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500] focus:outline-none" required />
+                        <div className="space-y-5 py-1 px-1">
+                            {/* Datos Básicos en flujo vertical simple */}
+                            <div className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Nombre Completo</label>
+                                    <input type="text" name="NombreCompleto" value={formData.NombreCompleto || ''} onChange={handleChange} className="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500] focus:outline-none shadow-sm transition-all" required />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Correo Electrónico (Email)</label>
+                                    <input type="email" name="Email" value={formData.Email || ''} onChange={handleChange} className="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500] focus:outline-none shadow-sm transition-all" required />
+                                </div>
                             </div>
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-                                <input type="email" name="Email" value={formData.Email || ''} onChange={handleChange} className="w-full p-2 border border-slate-300 rounded-md text-sm focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500] focus:outline-none" required />
+
+                            {/* Sección de Vínculo Separada y Sutil */}
+                            <div className="pt-2">
+                                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                    <Link size={12} /> Vínculo con Nómina
+                                </label>
+
+                                {formData.EmpleadoId ? (
+                                    <div className="flex items-center justify-between p-3 bg-emerald-50/50 border border-emerald-100 rounded-xl transition-all hover:bg-emerald-50">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
+                                                <UserCheck size={16} className="text-emerald-600" />
+                                            </div>
+                                            <div>
+                                                <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-tight leading-none mb-1">Usuario Vinculado</p>
+                                                <p className="text-sm font-bold text-slate-700">
+                                                    {allEmpleados.find(e => e.EmpleadoId === Number(formData.EmpleadoId))?.NombreCompleto || `Empleado ID#${formData.EmpleadoId}`}
+                                                </p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => { setFormData(prev => ({ ...prev, EmpleadoId: null })); setEmpleadoSearch(''); }}
+                                            className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+                                            title="Quitar vínculo"
+                                        >
+                                            <Link2Off size={18} />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="relative group">
+                                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-[--theme-500]" />
+                                        <input
+                                            type="text"
+                                            placeholder="Buscar empleado por nombre o código..."
+                                            value={empleadoSearch}
+                                            onChange={e => { setEmpleadoSearch(e.target.value); setShowEmpleadoDropdown(true); }}
+                                            onFocus={() => setShowEmpleadoDropdown(true)}
+                                            onBlur={() => setTimeout(() => setShowEmpleadoDropdown(false), 200)}
+                                            className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500] focus:outline-none bg-slate-50/50 transition-all hover:bg-white focus:bg-white shadow-sm"
+                                        />
+                                        {showEmpleadoDropdown && empleadoSearch.trim().length > 0 && (() => {
+                                            const filtered = allEmpleados.filter(e =>
+                                                e.NombreCompleto.toLowerCase().includes(empleadoSearch.toLowerCase()) ||
+                                                (e.CodRef && e.CodRef.toLowerCase().includes(empleadoSearch.toLowerCase()))
+                                            ).slice(0, 8);
+                                            return filtered.length > 0 ? (
+                                                <ul className="absolute z-[200] mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                                                    {filtered.map(emp => (
+                                                        <li
+                                                            key={emp.EmpleadoId}
+                                                            onMouseDown={() => {
+                                                                setFormData(prev => ({ ...prev, EmpleadoId: emp.EmpleadoId }));
+                                                                setEmpleadoSearch('');
+                                                                setShowEmpleadoDropdown(false);
+                                                            }}
+                                                            className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0"
+                                                        >
+                                                            <div className="w-8 h-8 rounded-full bg-[--theme-50] flex items-center justify-center shrink-0">
+                                                                <span className="text-xs font-bold text-[--theme-600]">{emp.NombreCompleto.charAt(0)}</span>
+                                                            </div>
+                                                            <div className="min-w-0">
+                                                                <p className="text-sm font-semibold text-slate-700 truncate">{emp.NombreCompleto}</p>
+                                                                <p className="text-[10px] text-slate-400 font-medium tracking-wide">ID: {emp.EmpleadoId}</p>
+                                                            </div>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            ) : null;
+                                        })()}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </CollapsibleSection>
@@ -354,85 +430,6 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
                                     </div>
                                 </div>
                                 {renderPasswordField()}
-
-                                {/* ── Vincular Empleado ──────────────────────────────── */}
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center gap-1.5">
-                                        <UserCheck size={14} className="text-[--theme-500]" />
-                                        Empleado vinculado
-                                        <span className="text-xs text-slate-400 font-normal">(nómina / vacaciones)</span>
-                                    </label>
-
-                                    {/* Badge del empleado seleccionado */}
-                                    {formData.EmpleadoId ? (
-                                        <div className="flex items-center gap-2 px-3 py-2 bg-[--theme-50] ring-1 ring-[--theme-100] rounded-lg shadow-sm">
-                                            <UserCheck size={14} className="text-[--theme-500] shrink-0" />
-                                            <span className="text-sm font-semibold text-[--theme-700] flex-1 truncate uppercase tracking-wide">
-                                                {allEmpleados.find(e => e.EmpleadoId === Number(formData.EmpleadoId))?.NombreCompleto || `Empleado #${formData.EmpleadoId}`}
-                                            </span>
-                                            <button
-                                                type="button"
-                                                onClick={() => { setFormData(prev => ({ ...prev, EmpleadoId: null })); setEmpleadoSearch(''); }}
-                                                className="p-0.5 rounded-full text-[--theme-300] hover:text-rose-500 hover:bg-rose-50 transition-colors"
-                                                title="Cambiar empleado"
-                                            >
-                                                <XCircle size={15} />
-                                            </button>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <p className="flex items-center gap-1.5 text-xs text-slate-400 mb-2 px-1">
-                                                <Link2Off size={12} /> Sin empleado vinculado
-                                            </p>
-                                            {/* Buscador — solo visible cuando NO hay empleado vinculado */}
-                                            <div className="relative">
-                                                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
-                                                <input
-                                                    type="text"
-                                                    placeholder="Buscar por nombre o código..."
-                                                    value={empleadoSearch}
-                                                    onChange={e => { setEmpleadoSearch(e.target.value); setShowEmpleadoDropdown(true); }}
-                                                    onFocus={() => setShowEmpleadoDropdown(true)}
-                                                    onBlur={() => setTimeout(() => setShowEmpleadoDropdown(false), 150)}
-                                                    className="w-full pl-8 pr-3 py-2 border border-slate-300 rounded-lg text-sm focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500] focus:outline-none bg-white"
-                                                />
-                                                {showEmpleadoDropdown && empleadoSearch.trim().length > 0 && (() => {
-                                                    const filtered = allEmpleados.filter(e =>
-                                                        e.NombreCompleto.toLowerCase().includes(empleadoSearch.toLowerCase()) ||
-                                                        (e.CodRef && e.CodRef.toLowerCase().includes(empleadoSearch.toLowerCase()))
-                                                    ).slice(0, 8);
-                                                    return filtered.length > 0 ? (
-                                                        <ul className="absolute z-[200] mt-1 w-full bg-white border border-[--theme-100] rounded-lg shadow-2xl overflow-hidden">
-                                                            {filtered.map(emp => (
-                                                                <li
-                                                                    key={emp.EmpleadoId}
-                                                                    onMouseDown={() => {
-                                                                        setFormData(prev => ({ ...prev, EmpleadoId: emp.EmpleadoId }));
-                                                                        setEmpleadoSearch('');
-                                                                        setShowEmpleadoDropdown(false);
-                                                                    }}
-                                                                    className="flex items-center gap-2.5 px-3 py-2.5 cursor-pointer hover:bg-[--theme-50] transition-colors border-b border-slate-100 last:border-0"
-                                                                >
-                                                                    <div className="w-7 h-7 rounded-full bg-[--theme-100] flex items-center justify-center shrink-0">
-                                                                        <span className="text-xs font-bold text-[--theme-600]">{emp.NombreCompleto.charAt(0)}</span>
-                                                                    </div>
-                                                                    <div className="min-w-0">
-                                                                        <p className="text-sm font-medium text-slate-600 truncate">{emp.NombreCompleto}</p>
-                                                                        {emp.CodRef && <p className="text-xs text-slate-400">{emp.CodRef}</p>}
-                                                                    </div>
-                                                                </li>
-                                                            ))}
-                                                        </ul>
-                                                    ) : (
-                                                        <div className="absolute z-[200] mt-1 w-full bg-white border border-slate-100 rounded-lg shadow-2xl px-3 py-3 text-sm text-slate-400 text-center">
-                                                            Sin resultados para &ldquo;{empleadoSearch}&rdquo;
-                                                        </div>
-                                                    );
-                                                })()}
-                                            </div>
-                                        </>
-                                    )}
-                                </div>
                             </div>
 
                             <div className="flex flex-col gap-3">
@@ -526,7 +523,7 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
                         </label>
                     </div>
                 </form>
-            </Modal>
+            </Modal >
 
             <ConfirmationModal isOpen={isConfirmOpen} onClose={() => setIsConfirmOpen(false)} onConfirm={handleResetPassword} title="Restablecer Contraseña">
                 <p>¿Estás seguro? Se generará una nueva clave aleatoria. <br /><span className="text-xs text-slate-500 mt-2 block">Nota: Debes guardar el formulario principal para aplicar el cambio.</span></p>

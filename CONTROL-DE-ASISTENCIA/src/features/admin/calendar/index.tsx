@@ -10,42 +10,59 @@ import { EventEditorModal } from './EventEditorModal';
 import { ImportHolidaysModal } from './ImportHolidaysModal';
 
 import { API_BASE_URL } from '../../../config/api';
+import { Plus } from 'lucide-react';
+import { Tooltip } from '../../../components/ui/Tooltip';
 
 export const CalendarEventsPage = () => {
-    const { getToken, user } = useAuth();
+    const { getToken, user, can } = useAuth();
     const { addNotification } = useNotification();
+
+    const canRead = can('calendario.read') || can('calendario.manage');
+    const canManage = can('calendario.manage');
 
     // ── Resizable panels ────────────────────────────────────────────────────
     const [panoramaHeight, setPanoramaHeight] = useState<number>(() =>
         parseInt(localStorage.getItem('cal-panorama-h') || '160'));
     const [detailWidth, setDetailWidth] = useState<number>(() =>
         parseInt(localStorage.getItem('cal-detail-w') || '260'));
+    const [isResizingDetail, setIsResizingDetail] = useState(false);
+    const [isResizingPanorama, setIsResizingPanorama] = useState(false);
 
     useEffect(() => { localStorage.setItem('cal-panorama-h', String(panoramaHeight)); }, [panoramaHeight]);
     useEffect(() => { localStorage.setItem('cal-detail-w', String(detailWidth)); }, [detailWidth]);
 
     const startPanoramaResize = useCallback((e: React.MouseEvent) => {
         e.preventDefault();
+        setIsResizingPanorama(true);
         const startY = e.clientY;
         const startH = panoramaHeight;
         const onMove = (ev: MouseEvent) => {
             const newH = Math.max(90, Math.min(340, startH + (startY - ev.clientY)));
             setPanoramaHeight(newH);
         };
-        const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+        const onUp = () => {
+            setIsResizingPanorama(false);
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+        };
         document.addEventListener('mousemove', onMove);
         document.addEventListener('mouseup', onUp);
     }, [panoramaHeight]);
 
     const startDetailResize = useCallback((e: React.MouseEvent) => {
         e.preventDefault();
+        setIsResizingDetail(true);
         const startX = e.clientX;
         const startW = detailWidth;
         const onMove = (ev: MouseEvent) => {
             const newW = Math.max(160, Math.min(480, startW + (startX - ev.clientX)));
             setDetailWidth(newW);
         };
-        const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+        const onUp = () => {
+            setIsResizingDetail(false);
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+        };
         document.addEventListener('mousemove', onMove);
         document.addEventListener('mouseup', onUp);
     }, [detailWidth]);
@@ -81,6 +98,7 @@ export const CalendarEventsPage = () => {
         Nombre: '',
         Descripcion: '',
         TipoEventoId: '',
+        Icono: '',
         AplicaATodos: true,
     });
     const [formFilterGroups, setFormFilterGroups] = useState<FilterGroup[]>([{ id: 'g1', filters: [] }]);
@@ -323,6 +341,7 @@ export const CalendarEventsPage = () => {
             Nombre: '',
             Descripcion: '',
             TipoEventoId: initialType,
+            Icono: '',
             AplicaATodos: !forceFilters
         });
 
@@ -366,7 +385,14 @@ export const CalendarEventsPage = () => {
         const eventType = eventTypes.find(t => t.TipoEventoId === ev.TipoEventoId);
         const isRestrictive = eventType ? !eventType.esGeneral : false;
 
-        setFormData({ Fecha: ev.Fecha.split('T')[0], Nombre: ev.Nombre, Descripcion: ev.Descripcion || '', TipoEventoId: ev.TipoEventoId, AplicaATodos: ev.AplicaATodos });
+        setFormData({
+            Fecha: ev.Fecha.split('T')[0],
+            Nombre: ev.Nombre,
+            Descripcion: ev.Descripcion || (ev as any).descripcion || '',
+            TipoEventoId: ev.TipoEventoId,
+            Icono: ev.EventoIcono || (ev as any).eventoIcono || (ev as any).Icono || (ev as any).icono || '',
+            AplicaATodos: ev.AplicaATodos || (ev as any).aplicaATodos || false
+        });
 
         if (isRestrictive) {
             // If the type is restrictive, let the handler set the filters from the user's role
@@ -418,6 +444,7 @@ export const CalendarEventsPage = () => {
                 nombre: formData.Nombre,
                 descripcion: formData.Descripcion,
                 tipoEventoId: formData.TipoEventoId,
+                icono: formData.Icono || null,
                 aplicaATodos: formData.AplicaATodos,
                 filtros: finalFilters
             };
@@ -446,36 +473,56 @@ export const CalendarEventsPage = () => {
         } catch (error) { addNotification('Error', 'Error al eliminar el evento', 'error'); }
     };
 
-    const handleImportHolidays = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!importTypeId) { addNotification('Aviso', "Selecciona un tipo de evento para los feriados.", 'warning'); return; }
+    const handleImportHolidays = async (selectedHolidays: any[]) => {
+        if (!importTypeId) {
+            addNotification('Aviso', "Selecciona un tipo de evento para los feriados.", 'warning');
+            return;
+        }
+        if (selectedHolidays.length === 0) {
+            addNotification('Aviso', "No hay eventos seleccionados para importar.", 'warning');
+            return;
+        }
+
         try {
             setIsImporting(true);
-            const response = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${importYear}/MX`);
-            if (!response.ok) throw new Error("No se pudo obtener la lista de feriados.");
-            const holidays: any[] = await response.json();
-            const newHolidays = holidays.filter(h => !events.some(ev => ev.Fecha.startsWith(h.date)));
+            const redundant = selectedHolidays.filter(h => events.some(ev => ev.Fecha.startsWith(h.date)));
+            const newHolidays = selectedHolidays.filter(h => !events.some(ev => ev.Fecha.startsWith(h.date)));
 
             if (newHolidays.length === 0) {
-                addNotification('Información', `Todos los festivos de ${importYear} ya están registrados.`, 'info');
+                addNotification('Información', `Los ${redundant.length} eventos seleccionados ya están registrados.`, 'info');
                 setIsImportModalOpen(false);
                 return;
             }
 
             let successCount = 0;
-            await Promise.all(newHolidays.map(async h => {
+            // Execute sequentially to avoid overwhelming the server or DB logs if many
+            for (const h of newHolidays) {
                 const res = await fetchWithAuth('/calendar-events', {
                     method: 'POST',
-                    body: JSON.stringify({ fecha: h.date, nombre: h.localName, descripcion: h.name, tipoEventoId: importTypeId, aplicaATodos: true, filtros: null })
+                    body: JSON.stringify({
+                        fecha: h.date,
+                        nombre: h.localName,
+                        descripcion: h.name,
+                        tipoEventoId: importTypeId,
+                        icono: h.icono || null,
+                        aplicaATodos: true,
+                        filtros: null
+                    })
                 });
                 if (res.ok) successCount++;
-            }));
+            }
 
-            addNotification('Éxito', `Se importaron ${successCount} festivos exitosamente.`, 'success');
+            addNotification('Éxito', `Se importaron ${successCount} eventos exitosamente.`, 'success');
+            if (redundant.length > 0) {
+                addNotification('Información', `${redundant.length} ya existían y fueron saltados.`, 'info');
+            }
             fetchData();
             setIsImportModalOpen(false);
-        } catch (error: any) { addNotification('Error', error.message || 'Error al importar festivos.', 'error'); }
-        finally { setIsImporting(false); }
+        } catch (error: any) {
+            addNotification('Error', error.message || 'Error al importar festivos.', 'error');
+        } finally {
+            setIsImporting(false);
+        }
     };
 
     const yearEvents = events.filter(ev => ev.Fecha.startsWith(yearTimelineYear.toString()));
@@ -502,14 +549,20 @@ export const CalendarEventsPage = () => {
         return <div className="p-6 text-center text-slate-500">Cargando calendario...</div>;
     }
 
+    if (!canRead) {
+        return <div className="p-12 text-center text-slate-500 font-semibold">No tienes permiso para ver el calendario de eventos.</div>;
+    }
+
     return (
         <div className="px-3 pt-3 pb-2 w-full flex flex-col overflow-hidden" style={{ height: 'calc(100vh - 128px)' }}>
-            <div className="mb-2">
-                <h2 className="text-xl font-bold text-slate-800 leading-none">Eventos y Días Especiales</h2>
-                <p className="text-slate-400 text-xs mt-0.5">Configura días feriados y eventos que afectan la asistencia general.</p>
+            <div className="mb-2 flex justify-between items-center">
+                <div>
+                    <h2 className="text-xl font-bold text-slate-800 leading-none">Eventos y Días Especiales</h2>
+                    <p className="text-slate-400 text-xs mt-0.5">Configura días feriados y eventos que afectan la asistencia general.</p>
+                </div>
             </div>
 
-            <div className="flex gap-4 flex-1 min-h-0 mb-2">
+            <div className="flex gap-0 flex-1 min-h-0 mb-2">
                 <CalendarGrid
                     viewMonth={viewMonth} viewYear={viewYear} todayKey={toDateKey(today)}
                     selectedDate={selectedDate} calendarDays={calendarDays} eventsByDate={eventsByDate}
@@ -521,13 +574,16 @@ export const CalendarEventsPage = () => {
                     handleDayClick={(d, m) => { setSelectedDate(d); if (!m) { const target = parseDateKey(d); setViewMonth(target.getMonth()); setViewYear(target.getFullYear()); } }}
                     openCreateModal={openCreateModal} openEditModal={openEditModal}
                 />
-                {/* Detail panel resize handle */}
+
+                {/* Detail panel resize handle exactamente como VacationsPage.tsx */}
                 <div
                     onMouseDown={startDetailResize}
-                    className="w-1.5 cursor-col-resize flex items-center justify-center group shrink-0 self-stretch rounded hover:bg-[--theme-100] transition-colors"
-                    title="Arrastrar para redimensionar"
+                    className={`w-4 flex items-center justify-center group cursor-col-resize self-stretch transition-colors relative ${isResizingDetail ? 'bg-[--theme-100]' : 'hover:bg-[--theme-50]'}`}
                 >
-                    <div className="w-0.5 h-8 rounded-full bg-slate-300 group-hover:bg-[--theme-400] transition-colors" />
+                    <Tooltip text="Arrastrar para redimensionar" triggerClassName="flex items-center justify-center h-16 w-full relative z-20">
+                        <div className="w-full h-full opacity-0" />
+                    </Tooltip>
+                    <div className={`absolute w-0.5 rounded-full transition-all duration-300 z-10 ${isResizingDetail ? 'bg-[--theme-500] h-full' : 'h-12 bg-slate-300 group-hover:bg-[--theme-400]'}`} />
                 </div>
                 <DayDetailPanel
                     selectedDate={selectedDate} selectedDayEvents={selectedDate ? (eventsByDate[selectedDate] || []) : []}
@@ -535,17 +591,19 @@ export const CalendarEventsPage = () => {
                     birthdays={birthdays}
                     anniversaries={anniversaries}
                     style={{ width: detailWidth, minWidth: detailWidth, maxWidth: detailWidth }}
+                    canManage={canManage}
                 />
             </div>
 
-            {/* Panorama resize handle */}
-            <div
-                onMouseDown={startPanoramaResize}
-                className="h-2 cursor-row-resize flex items-center justify-center group shrink-0"
-                title="Arrastrar para redimensionar panorama"
-            >
-                <div className="w-20 h-1 rounded-full bg-slate-200 group-hover:bg-[--theme-400] transition-colors" />
-            </div>
+            {/* Panorama resize handle (horizontal divider) */}
+            <Tooltip text="Arrastrar para redimensionar panorama">
+                <div
+                    onMouseDown={startPanoramaResize}
+                    className={`h-4 flex items-center justify-center group cursor-row-resize w-full transition-colors ${isResizingPanorama ? 'bg-[--theme-100]' : 'hover:bg-slate-50'}`}
+                >
+                    <div className={`h-0.5 rounded-full transition-all ${isResizingPanorama ? 'bg-[--theme-500] w-full' : 'w-24 bg-slate-200 group-hover:bg-[--theme-400]'}`} />
+                </div>
+            </Tooltip>
             <div style={{ height: panoramaHeight }} className="shrink-0 overflow-hidden flex flex-col">
 
                 <AnnualOverview
@@ -553,7 +611,7 @@ export const CalendarEventsPage = () => {
                     yearEvents={yearEvents} yearMonthGroups={yearMonthGroups}
                     setViewMonth={setViewMonth} setViewYear={setViewYear} today={today}
                     birthdaysByMonth={birthdaysByMonth}
-                    onImport={() => { setImportYear(yearTimelineYear); setImportTypeId(''); setIsImportModalOpen(true); }}
+                    onImport={canManage ? () => { setImportYear(yearTimelineYear); setImportTypeId(''); setIsImportModalOpen(true); } : undefined}
                 />
             </div>
 
@@ -574,7 +632,7 @@ export const CalendarEventsPage = () => {
                 isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)}
                 importYear={importYear} setImportYear={setImportYear}
                 importTypeId={importTypeId} setImportTypeId={setImportTypeId}
-                isImporting={isImporting} handleImportHolidays={handleImportHolidays}
+                isImporting={isImporting} onImportConfirmed={handleImportHolidays}
                 eventTypes={eventTypes}
             />
         </div>

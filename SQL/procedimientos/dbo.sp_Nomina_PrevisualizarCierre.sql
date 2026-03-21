@@ -1,17 +1,10 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Nomina_PrevisualizarCierre]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
-
-/*
-SET DATEFORMAT DMY;
-
-EXECUTE [sp_Nomina_PrevisualizarCierre] 2,'16-12-2025','31-12-2025',NULL,NULL,NULL,2
-
-*/
 
 CREATE OR ALTER PROCEDURE [dbo].[sp_Nomina_PrevisualizarCierre]
     @GrupoNominaId INT = 1,
@@ -39,7 +32,7 @@ BEGIN
     IF ISJSON(@EstablecimientoIds) = 1 AND @EstablecimientoIds <> '[]'
         INSERT INTO @Estabs SELECT value FROM OPENJSON(@EstablecimientoIds);
 
-    -- 1. Resumen FILTRADO (lo que ve el usuario con sus filtros + permisos)
+    -- 1. Resumen FILTRADO 
     SELECT
         COUNT(f.FichaId) AS TotalFichas,
         SUM(CASE WHEN f.Estado = 'VALIDADO'
@@ -96,7 +89,7 @@ BEGIN
         g.PendientesValidacionGrupo,
         g.YaBloqueadasGrupo
     FROM #ResumenFiltrado f
-    FULL OUTER JOIN #ResumenGrupo g ON 1=1;  -- Siempre una fila
+    FULL OUTER JOIN #ResumenGrupo g ON 1=1;
 
     DROP TABLE #ResumenFiltrado;
     DROP TABLE #ResumenGrupo;

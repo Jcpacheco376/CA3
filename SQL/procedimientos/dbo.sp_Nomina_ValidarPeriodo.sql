@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Nomina_ValidarPeriodo]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -24,9 +24,8 @@ BEGIN
         EXEC [dbo].[sp_FichasAsistencia_ProcesarChecadas] @FechaInicio, @FechaFin, @UsuarioId;
     END
 
-    -- 2. FILTRADO (Mismo c�digo de siempre...)
+    -- 2. FILTRADO 
     DECLARE @EmpleadosFiltrados TABLE (EmpleadoId INT PRIMARY KEY);
-    -- ... (Aqu� va todo el bloque de inserci�n de @EmpleadosFiltrados que ya tienes) ...
     DECLARE @Deptos TABLE (Id INT); IF @DepartamentoFiltro IS NOT NULL AND @DepartamentoFiltro <> '[]' INSERT INTO @Deptos SELECT Id FROM OPENJSON(@DepartamentoFiltro) WITH (Id INT '$');
     DECLARE @Grupos TABLE (Id INT); IF @GrupoNominaFiltro IS NOT NULL AND @GrupoNominaFiltro <> '[]' INSERT INTO @Grupos SELECT Id FROM OPENJSON(@GrupoNominaFiltro) WITH (Id INT '$');
     DECLARE @Puestos TABLE (Id INT); IF @PuestoFiltro IS NOT NULL AND @PuestoFiltro <> '[]' INSERT INTO @Puestos SELECT Id FROM OPENJSON(@PuestoFiltro) WITH (Id INT '$');
@@ -66,9 +65,9 @@ BEGIN
     DECLARE @Semaforo VARCHAR(20) = 'VERDE';
     DECLARE @Msg VARCHAR(255) = 'Periodo listo para procesar.';
 
-    IF @IncidenciasCriticas > 0 BEGIN SET @Semaforo = 'ROJO'; SET @Msg = 'ALERTA: Incidencias cr�ticas pendientes.'; END
-    ELSE IF @FichasSinHorario > 0 BEGIN SET @Semaforo = 'AMARILLO'; SET @Msg = 'ATENCI�N: Registros sin horario.'; END
-    ELSE IF @FichasBorrador > 0 BEGIN SET @Semaforo = 'AMARILLO'; SET @Msg = 'ATENCI�N: Hay ' + CAST(@FichasBorrador AS VARCHAR) + ' fichas en estado BORRADOR.'; END
+    IF @IncidenciasCriticas > 0 BEGIN SET @Semaforo = 'ROJO'; SET @Msg = 'ALERTA: Incidencias criticas pendientes.'; END
+    ELSE IF @FichasSinHorario > 0 BEGIN SET @Semaforo = 'AMARILLO'; SET @Msg = 'ATENCION: Registros sin horario.'; END
+    ELSE IF @FichasBorrador > 0 BEGIN SET @Semaforo = 'AMARILLO'; SET @Msg = 'ATENCION: Hay ' + CAST(@FichasBorrador AS VARCHAR) + ' fichas en estado BORRADOR.'; END
 
     -- 5. RETORNO
     SELECT 

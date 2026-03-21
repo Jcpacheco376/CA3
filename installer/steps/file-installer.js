@@ -87,6 +87,7 @@ async function installFiles(appConfig, baseDir, log, onProgress) {
         `NODE_ENV=production`,
         `LOCAL_IP=${mainIP}`,
         `ALLOWED_ORIGINS=${allowedOrigins}`,
+        `ZK_BRIDGE_PATH=bin/ZkBridge.exe`,
     ].join('\n');
 
     fs.writeFileSync(path.join(destApiDir, '.env'), envLines, 'utf8');
@@ -96,10 +97,18 @@ async function installFiles(appConfig, baseDir, log, onProgress) {
     // ── PASO 5: Copiar ZkBridge.exe ──────────────────────────────────────
     if (fs.existsSync(zkbDir)) {
         const zkExe = path.join(zkbDir, 'ZkBridge.exe');
-        const dest = path.join(destApiDir, 'ZkBridge.exe');
+        const destBinDir = path.join(destApiDir, 'bin');
+        const dest = path.join(destBinDir, 'ZkBridge.exe');
+
+        if (!fs.existsSync(destBinDir)) fs.mkdirSync(destBinDir, { recursive: true });
+
         if (fs.existsSync(zkExe)) {
             fs.copyFileSync(zkExe, dest);
-            log('✅ Módulo de checadores ZK copiado.');
+            // También copiar el config si existe
+            const zkConfig = zkExe + '.config';
+            if (fs.existsSync(zkConfig)) fs.copyFileSync(zkConfig, dest + '.config');
+
+            log('✅ Módulo de checadores ZK copiado a bin/.');
         } else {
             log('⚠️  Módulo ZkBridge.exe no encontrado en el paquete.');
         }
@@ -110,24 +119,39 @@ async function installFiles(appConfig, baseDir, log, onProgress) {
     if (fs.existsSync(sdkDir)) {
         const sdkDest = path.join(destApiDir, 'sdk');
         copyDirSync(sdkDir, sdkDest);
-        log(`✅ Componentes SDK ZK copiados.`);
+        log(`✅ Componentes SDK ZK copiados a la carpeta de la API.`);
 
-        const dllsToRegister = [
-            'zkemkeeper.dll',
-        ];
-        log('Registrando componentes de comunicación con checadores (requiere permisos de administrador)...');
-        for (const dll of dllsToRegister) {
-            const dllPath = path.join(sdkDest, dll);
-            if (!fs.existsSync(dllPath)) {
-                log(`  ⚠️  Componente no encontrado: ${dll}`);
-                continue;
+        // Identificar carpeta de sistema para DLLs
+        const isX64 = process.arch === 'x64' || process.env.PROCESSOR_ARCHITECTURE === 'AMD64';
+        const systemDir = isX64 ? path.join(process.env.windir, 'SysWOW64') : path.join(process.env.windir, 'System32');
+
+        log(`Instalando componentes en el sistema (${isX64 ? 'x64' : 'x86'})...`);
+
+        try {
+            const files = fs.readdirSync(sdkDir);
+            const dllFiles = files.filter(f => f.toLowerCase().endsWith('.dll'));
+
+            for (const dll of dllFiles) {
+                const srcPath = path.join(sdkDir, dll);
+                const destPath = path.join(systemDir, dll);
+                try {
+                    fs.copyFileSync(srcPath, destPath);
+                } catch (err) {
+                    log(`  ⚠️  No se pudo copiar ${dll} a ${systemDir}: ${err.message}`);
+                }
             }
-            try {
-                execSync(`regsvr32 /s "${dllPath}"`, { stdio: 'ignore' });
-                log(`  ✅ Registrado: ${dll}`);
-            } catch (err) {
-                log(`  ❌ Error registrando ${dll}: ${err.message}`);
+            log(`✅ DLLs copiadas a ${systemDir}.`);
+
+            const zkemkeeperPath = path.join(systemDir, 'zkemkeeper.dll');
+            if (fs.existsSync(zkemkeeperPath)) {
+                log('Registrando zkemkeeper.dll...');
+                execSync(`regsvr32 /s "${zkemkeeperPath}"`, { stdio: 'ignore' });
+                log('✅ zkemkeeper.dll registrado con éxito.');
+            } else {
+                log('⚠️  No se encontró zkemkeeper.dll en la carpeta del sistema para su registro.');
             }
+        } catch (err) {
+            log(`❌ Error durante la instalación del SDK: ${err.message}`);
         }
     } else {
         log('⚠️  SDK de checadores ZK no encontrado. El módulo de checadores no estará disponible.');

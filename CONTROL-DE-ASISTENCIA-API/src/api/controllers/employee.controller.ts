@@ -107,7 +107,7 @@ export const createEmployee = async (req: any, res: Response) => {
 
         // New Fields
         request.input('CodRef', sql.NVarChar, req.body.CodRef);
-        request.input('Pim', sql.NVarChar, req.body.Pim || null);
+        request.input('Pim', sql.NVarChar, req.body.Pim ? String(req.body.Pim) : null);
         request.input('Nombres', sql.NVarChar, req.body.Nombres);
         request.input('ApellidoPaterno', sql.NVarChar, req.body.ApellidoPaterno);
         request.input('ApellidoMaterno', sql.NVarChar, req.body.ApellidoMaterno || '');
@@ -160,7 +160,7 @@ export const updateEmployee = async (req: any, res: Response) => {
         const request = pool.request();
         request.input('EmpleadoId', sql.Int, employeeId);
         request.input('CodRef', sql.NVarChar, req.body.CodRef);
-        request.input('Pim', sql.NVarChar, req.body.Pim || null);
+        request.input('Pim', sql.NVarChar, req.body.Pim ? String(req.body.Pim) : null);
         request.input('Nombres', sql.NVarChar, req.body.Nombres);
         request.input('ApellidoPaterno', sql.NVarChar, req.body.ApellidoPaterno);
         request.input('ApellidoMaterno', sql.NVarChar, req.body.ApellidoMaterno || '');

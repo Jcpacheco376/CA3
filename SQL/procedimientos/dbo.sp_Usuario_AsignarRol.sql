@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Usuario_AsignarRol]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -16,7 +16,6 @@ BEGIN
     BEGIN TRY
         BEGIN TRANSACTION;
 
-        -- 1. Si este ser� el principal, desmarcar cualquier otro principal existente
         IF @EsPrincipal = 1
         BEGIN
             UPDATE dbo.UsuariosRoles 
@@ -24,7 +23,7 @@ BEGIN
             WHERE UsuarioId = @UsuarioId;
         END
 
-        -- 2. Insertar o Actualizar la relaci�n (MERGE)
+
         MERGE dbo.UsuariosRoles AS target
         USING (SELECT @UsuarioId, @RoleId) AS source (UsuarioId, RoleId)
         ON (target.UsuarioId = source.UsuarioId AND target.RoleId = source.RoleId)
@@ -36,8 +35,6 @@ BEGIN
             INSERT (UsuarioId, RoleId, EsPrincipal)
             VALUES (@UsuarioId, @RoleId, @EsPrincipal);
 
-        -- 3. Validaci�n de Seguridad (Self-Healing)
-        -- Si el usuario no tiene ning�n principal (ej. se insert� como false), forzar uno.
         IF NOT EXISTS (SELECT 1 FROM dbo.UsuariosRoles WHERE UsuarioId = @UsuarioId AND EsPrincipal = 1)
         BEGIN
             UPDATE TOP (1) dbo.UsuariosRoles 

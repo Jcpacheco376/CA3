@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Roles_GetAll]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -18,7 +18,7 @@ BEGIN
             SELECT 
                 p.PermisoId, 
                 p.NombrePermiso, 
-                p.Descripcion -- <-- LA L�NEA QUE FALTABA
+                p.Descripcion 
             FROM SISPermisos p
             INNER JOIN RolesPermisos rp ON p.PermisoId = rp.PermisoId
             WHERE rp.RoleId = r.RoleId

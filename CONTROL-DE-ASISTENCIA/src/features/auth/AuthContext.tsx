@@ -3,9 +3,10 @@ import React, { createContext, useState, useContext, ReactNode, useCallback, use
 import { User } from '../../types';
 import { API_BASE_URL } from '../../config/api';
 import { useNotification } from '../../context/NotificationContext';
+import { isPermissionAllowed } from '../../utils/editions';
 
 const SESSION_STORAGE_KEY = 'app_session';
-export const APP_DATA_VERSION = '1.3.67';
+export const APP_DATA_VERSION = '1.5.14';
 
 // --- NUEVO: Constantes para limpieza inteligente ---
 const LAST_USER_KEY = 'app_last_logged_user';
@@ -22,7 +23,7 @@ interface AuthContextType {
     login: (username: string, password: string) => Promise<string | true>;
     logout: () => void;
     can: (permission: string) => boolean;
-    updateUserPreferences: (prefs: Partial<Pick<User, 'Theme' | 'AnimationsEnabled' | 'DebeCambiarPassword'>>) => void;
+    updateUserPreferences: (prefs: Partial<Pick<User, 'Theme' | 'DebeCambiarPassword'>>) => void;
     getToken: () => string | null;
     checkSessionStatus: () => Promise<void>;
 }
@@ -52,6 +53,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const logout = useCallback(() => {
         setUser(null);
         localStorage.removeItem(SESSION_STORAGE_KEY);
+        sessionStorage.clear(); // Limpiar preferencias de sesión (como confirmaciones omitidas)
         // NOTA: No borramos LAST_USER_KEY aquí. Lo validamos al siguiente login.
         window.location.href = '/';
     }, []);
@@ -130,10 +132,18 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     const can = useCallback((permission: string): boolean => {
         if (!user?.permissions) return false;
-        return Object.prototype.hasOwnProperty.call(user.permissions, permission);
+
+        // 1. Verificar si el permiso existe en el objeto del usuario (DB)
+        const hasPerm = Object.prototype.hasOwnProperty.call(user.permissions, permission);
+        if (!hasPerm) return false;
+
+        // 2. Doble seguro: Verificar si está permitido en esta EDICIÓN compilada
+        // (Nota: No tenemos el Clasificador aquí fácilmente, se pasa null para validación por NombrePermiso/Lista Negra)
+        const edition = (import.meta as any).env.VITE_APP_EDITION || 'FULL';
+        return isPermissionAllowed(permission, null, edition);
     }, [user]);
 
-    const updateUserPreferences = useCallback((prefs: Partial<Pick<User, 'Theme' | 'AnimationsEnabled' | 'DebeCambiarPassword'>>) => {
+    const updateUserPreferences = useCallback((prefs: Partial<Pick<User, 'Theme' | 'DebeCambiarPassword'>>) => {
         if (user) {
             const updatedUser = { ...user, ...prefs };
             setUser(updatedUser);

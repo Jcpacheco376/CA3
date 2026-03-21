@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_CatalogoConceptosNomina_Upsert]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -17,7 +17,7 @@ BEGIN
 
     IF EXISTS (SELECT 1 FROM CatalogoConceptosNomina WHERE CodRef = @CodRef AND (@ConceptoId IS NULL OR ConceptoId <> @ConceptoId))
     BEGIN
-        RAISERROR('Ya existe un concepto con el c�digo de referencia %s.', 16, 1, @CodRef);
+        RAISERROR('Ya existe un concepto con el codigo de referencia %s.', 16, 1, @CodRef);
         RETURN;
     END
 

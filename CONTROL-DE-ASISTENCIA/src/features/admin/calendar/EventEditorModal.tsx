@@ -8,6 +8,7 @@ import { FilterMultiSelect } from './FilterMultiSelect';
 import { CalendarEvent, EventType, FilterGroup, CatalogItem } from './types';
 import { DIMENSIONS, SENTENCE_FLOW, LOGICA_LABELS, DynamicIcon, getColor } from './utils';
 import { Tooltip } from '../../../components/ui/Tooltip';
+import { IconPicker } from './IconPicker';
 
 interface EventEditorModalProps {
     isOpen: boolean;
@@ -19,9 +20,10 @@ interface EventEditorModalProps {
         Nombre: string;
         Descripcion: string;
         TipoEventoId: string;
+        Icono: string;
         AplicaATodos: boolean;
     };
-    setFormData: React.Dispatch<SetStateAction<{ Fecha: string; Nombre: string; Descripcion: string; TipoEventoId: string; AplicaATodos: boolean; }>>;
+    setFormData: React.Dispatch<SetStateAction<{ Fecha: string; Nombre: string; Descripcion: string; TipoEventoId: string; Icono: string; AplicaATodos: boolean; }>>;
     formFilterGroups: FilterGroup[];
     setScopeMode: (aplicaATodos: boolean) => void;
     catalogs: Record<string, CatalogItem[]>;
@@ -99,32 +101,44 @@ export const EventEditorModal: React.FC<EventEditorModalProps> = ({
                     </div>
                 )}
 
-                {/* Name */}
-                <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Nombre del Evento</label>
-                    <input
-                        type="text" required list="common-holidays"
-                        className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-[--theme-500] transition hover:border-slate-300"
-                        placeholder="Ej. Navidad, Viernes Santo"
-                        value={formData.Nombre}
-                        onChange={e => setFormData({ ...formData, Nombre: e.target.value })}
-                    />
-                    <datalist id="common-holidays">
-                        <option value="Año Nuevo" />
-                        <option value="Día de la Constitución" />
-                        <option value="Natalicio de Benito Juárez" />
-                        <option value="Día del Trabajo" />
-                        <option value="Día de la Independencia" />
-                        <option value="Revolución Mexicana" />
-                        <option value="Navidad" />
-                        <option value="Nochebuena" />
-                        <option value="Día de Muertos" />
-                        <option value="Día de las Madres" />
-                        <option value="Día del Padre" />
-                        <option value="Día del Niño" />
-                        <option value="Día del Maestro" />
-                        <option value="Vacaciones" />
-                    </datalist>
+                {/* Name & Icon */}
+                <div className="grid grid-cols-[1fr,200px] gap-4">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">Nombre del Evento</label>
+                        <input
+                            type="text" required list="common-holidays"
+                            className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-[--theme-500] transition hover:border-slate-300"
+                            placeholder="Ej. Navidad, Viernes Santo"
+                            value={formData.Nombre}
+                            onChange={e => setFormData({ ...formData, Nombre: e.target.value })}
+                        />
+                        <datalist id="common-holidays">
+                            <option value="Año Nuevo" />
+                            <option value="Día de la Constitución" />
+                            <option value="Natalicio de Benito Juárez" />
+                            <option value="Día del Trabajo" />
+                            <option value="Día de la Independencia" />
+                            <option value="Revolución Mexicana" />
+                            <option value="Navidad" />
+                            <option value="Nochebuena" />
+                            <option value="Día de Muertos" />
+                            <option value="Día de las Madres" />
+                            <option value="Día del Padre" />
+                            <option value="Día del Niño" />
+                            <option value="Día del Maestro" />
+                            <option value="Vacaciones" />
+                        </datalist>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1 flex items-center justify-between">
+                            Icono <span className="text-[10px] text-slate-400 font-normal">(opcional)</span>
+                        </label>
+                        <IconPicker
+                            value={formData.Icono}
+                            onChange={(name) => setFormData({ ...formData, Icono: name })}
+                            defaultIcon={selectedType?.Icono}
+                        />
+                    </div>
                 </div>
 
                 {/* Description */}

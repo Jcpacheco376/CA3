@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getDataByRange = exports.saveAttendance = void 0;
+exports.regenerateAttendance = exports.getRawChecadas = exports.getDataByRange = exports.saveAttendance = void 0;
 const mssql_1 = __importDefault(require("mssql"));
 const database_1 = require("../../config/database");
 const saveAttendance = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -109,3 +109,129 @@ const getDataByRange = (req, res) => __awaiter(void 0, void 0, void 0, function*
     }
 });
 exports.getDataByRange = getDataByRange;
+const getRawChecadas = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    if (!req.user.permissions['reportesAsistencia.read']) {
+        return res.status(403).json({ message: 'Acceso denegado.' });
+    }
+    const { empleadoId, startDate, endDate } = req.body;
+    if (!empleadoId || !startDate || !endDate) {
+        return res.status(400).json({ message: 'Faltan parámetros requeridos (empleadoId, startDate, endDate).' });
+    }
+    try {
+        const pool = yield mssql_1.default.connect(database_1.dbConfig);
+        // Ajustar fechas para el query de SQL
+        const query = `
+            SET DATEFIRST 1;
+            DECLARE @EmpId INT = @ParamEmpleadoId;
+            DECLARE @S DATE = @ParamStartDate;
+            DECLARE @E DATE = @ParamEndDate;
+
+            -- 1. Checadas
+            SELECT ChecadaId, EmpleadoId, FechaHora, Checador
+            FROM dbo.Checadas
+            WHERE EmpleadoId = @EmpId
+              AND FechaHora BETWEEN @S AND DATEADD(SECOND, -1, DATEADD(DAY, 1, CAST(@E AS DATETIME)))
+            ORDER BY FechaHora ASC;
+
+            -- 2. Horarios por día
+            WITH Fechas AS (
+                SELECT CAST(DATEADD(DAY, number, @S) AS DATE) AS Fecha
+                FROM master.dbo.spt_values 
+                WHERE type = 'P' AND DATEADD(DAY, number, @S) <= @E
+            ),
+            HorarioEfectivo AS (
+                SELECT 
+                    f.Fecha,
+                    CASE 
+                        WHEN ht.TipoAsignacion = 'H' THEN ht.HorarioId
+                        WHEN ht.TipoAsignacion = 'T' THEN (SELECT TOP 1 d.HorarioId FROM dbo.CatalogoHorariosDetalle d WHERE d.HorarioDetalleId = ht.HorarioDetalleId)
+                        WHEN ht.TipoAsignacion = 'D' THEN NULL -- Descanso
+                        WHEN e.EsRotativo = 1 THEN NULL -- Rotativo requiere temporal
+                        ELSE e.HorarioIdPredeterminado
+                    END AS HorarioId,
+                    CASE WHEN ht.TipoAsignacion = 'D' THEN 1 ELSE 0 END AS EsDescansoAsignado
+                FROM Fechas f
+                CROSS JOIN (
+                    SELECT em.HorarioIdPredeterminado, ch.EsRotativo 
+                    FROM dbo.Empleados em 
+                    LEFT JOIN dbo.CatalogoHorarios ch ON ch.HorarioId = em.HorarioIdPredeterminado
+                    WHERE em.EmpleadoId = @EmpId
+                ) e
+                LEFT JOIN dbo.HorariosTemporales ht ON ht.EmpleadoId = @EmpId AND f.Fecha = ht.Fecha
+            )
+            SELECT 
+                he.Fecha,
+                he.HorarioId,
+                CAST(hd.HoraEntrada AS VARCHAR(8)) as HoraEntrada,
+                CAST(hd.HoraSalida AS VARCHAR(8)) as HoraSalida,
+                hd.MinutosAntesEntrada,
+                hd.MinutosDespuesSalida,
+                hd.EsDiaLaboral,
+                he.EsDescansoAsignado,
+                h.Nombre as HorarioNombre,
+                h.ColorUI
+            FROM HorarioEfectivo he
+            LEFT JOIN dbo.CatalogoHorarios h ON h.HorarioId = he.HorarioId
+            LEFT JOIN dbo.CatalogoHorariosDetalle hd ON hd.HorarioId = he.HorarioId AND hd.DiaSemana = DATEPART(dw, he.Fecha)
+            ORDER BY he.Fecha ASC;
+
+            -- 3. Fichas de Asistencia (Estatus del Checador)
+            SELECT 
+                f.FichaId, f.Fecha, 
+                f.EstatusChecadorId,
+                f.EstatusManualId,
+                ec.Abreviatura AS EstatusChecadorAbrev, 
+                ec.ColorUI AS EstatusChecadorColor,
+                em.Abreviatura AS EstatusManualAbrev, 
+                em.ColorUI AS EstatusManualColor,
+                f.Estado,
+                f.Comentarios
+            FROM dbo.FichaAsistencia f
+            LEFT JOIN dbo.CatalogoEstatusAsistencia ec ON ec.EstatusId = f.EstatusChecadorId
+            LEFT JOIN dbo.CatalogoEstatusAsistencia em ON em.EstatusId = f.EstatusManualId
+            WHERE f.EmpleadoId = @EmpId
+              AND f.Fecha BETWEEN @S AND @E
+            ORDER BY f.Fecha ASC;
+        `;
+        const result = yield pool.request()
+            .input('ParamEmpleadoId', mssql_1.default.Int, empleadoId)
+            .input('ParamStartDate', mssql_1.default.Date, startDate)
+            .input('ParamEndDate', mssql_1.default.Date, endDate)
+            .query(query);
+        const recordsets = result.recordsets;
+        res.json({
+            checadas: recordsets[0],
+            schedules: recordsets[1],
+            fichas: recordsets[2]
+        });
+    }
+    catch (err) {
+        console.error('Error al obtener checadas y horarios:', err);
+        res.status(500).json({ message: err.message || 'Error al obtener las checadas y horarios.' });
+    }
+});
+exports.getRawChecadas = getRawChecadas;
+const regenerateAttendance = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    if (!req.user.permissions['reportesAsistencia.assign']) {
+        return res.status(403).json({ message: 'No tienes permiso para regenerar la asistencia.' });
+    }
+    const { empleadoId, startDate, endDate } = req.body;
+    if (!empleadoId || !startDate || !endDate) {
+        return res.status(400).json({ message: 'Faltan parámetros requeridos (empleadoId, startDate, endDate).' });
+    }
+    try {
+        const pool = yield mssql_1.default.connect(database_1.dbConfig);
+        yield pool.request()
+            .input('FechaInicio', mssql_1.default.Date, startDate)
+            .input('FechaFin', mssql_1.default.Date, endDate)
+            .input('UsuarioId', mssql_1.default.Int, req.user.usuarioId)
+            .input('EmpleadoId', mssql_1.default.Int, empleadoId)
+            .execute('sp_FichasAsistencia_ProcesarChecadas');
+        res.status(200).json({ message: 'Registros de asistencia regenerados con éxito.' });
+    }
+    catch (err) {
+        console.error('Error al regenerar asistencia:', err);
+        res.status(500).json({ message: err.message || 'Error al regenerar los registros de asistencia.' });
+    }
+});
+exports.regenerateAttendance = regenerateAttendance;

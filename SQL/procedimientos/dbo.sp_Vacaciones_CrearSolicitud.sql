@@ -1,10 +1,18 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Vacaciones_CrearSolicitud]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
+
+-- â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+-- Stored Procedure: [dbo].[sp_Vacaciones_CrearSolicitud]
+-- Base de Datos:       CA
+-- VersiÃ³n de Paquete:  v1.5.12
+-- Compilado:           17/03/2026, 10:50:24
+-- Sistema:             CA3 Control de Asistencia
+-- â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 CREATE OR ALTER PROCEDURE sp_Vacaciones_CrearSolicitud
                 @EmpleadoId INT,
@@ -24,7 +32,7 @@ CREATE OR ALTER PROCEDURE sp_Vacaciones_CrearSolicitud
                 -- Forcing recalculation of base balance if it hasn't been generated yet
                 IF NOT EXISTS (SELECT 1 FROM VacacionesSaldos WHERE EmpleadoId = @EmpleadoId AND Anio = @AnioActual)
                 BEGIN
-                    EXEC sp_Vacaciones_GenerarSaldosBase @AnioActual;
+                    EXEC sp_Vacaciones_GenerarSaldosBase NULL, @EmpleadoId;
                 END
 
                 -- Verificar saldo
@@ -35,7 +43,7 @@ CREATE OR ALTER PROCEDURE sp_Vacaciones_CrearSolicitud
 
                 IF @DiasRestantes IS NULL OR @DiasRestantes < @DiasSolicitados
                 BEGIN
-                    RAISERROR('El empleado no tiene suficientes días de vacaciones.', 16, 1);
+                    RAISERROR('El empleado no tiene suficientes dÃ­as de vacaciones.', 16, 1);
                     RETURN;
                 END
 
@@ -53,7 +61,7 @@ CREATE OR ALTER PROCEDURE sp_Vacaciones_CrearSolicitud
 
                 SET @NuevoSolicitudId = SCOPE_IDENTITY();
 
-                -- Insertar firmas pendientes basadas en la configuración
+                -- Insertar firmas pendientes basadas en la configuraciÃ³n
                 INSERT INTO SolicitudesVacacionesFirmas (
                     SolicitudId, ConfigId, EstatusFirma, UsuarioFirmaId, FechaFirma
                 )

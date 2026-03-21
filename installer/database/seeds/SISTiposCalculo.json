@@ -33,5 +33,10 @@
     "TipoCalculoId": "SIN_HORARIO",
     "Descripcion": "Error: Empleado sin horario asignado",
     "EsSistema": true
+  },
+  {
+    "TipoCalculoId": "VACACIONES",
+    "Descripcion": "Vacaciones programadas",
+    "EsSistema": true
   }
 ]

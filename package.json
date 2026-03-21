@@ -7,8 +7,8 @@
     "CONTROL-DE-ASISTENCIA-API"
   ],
   "scripts": {
-    "deploy:local": "node scripts/increment-version.js && npm run build:all && deploy.bat",
-    "deploy:local2": "npm run build:all && deploy_CA.bat",
+    "deploy:local": "node scripts/increment-version.js && npm run build:all && scripts\\deploy.bat",
+    "deploy:local2": "npm run build:all && scripts\\deploy_CA.bat",
     "build:api": "tsc -p CONTROL-DE-ASISTENCIA-API/tsconfig.json",
     "build": "npm run build --workspace=CONTROL-DE-ASISTENCIA",
     "export:sql": "node scripts/export-sql.js",
@@ -20,12 +20,13 @@
   "devDependencies": {
     "@types/node-cron": "^3.0.11",
     "archiver": "^7.0.1",
-    "dotenv-cli": "^10.0.0"
+    "dotenv-cli": "^10.0.0",
+    "mssql": "^10.0.2"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.13.12",
     "date-fns": "^4.1.0",
-    "jspdf": "^3.0.4",
+    "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.2",
     "node-cron": "^4.2.1",
     "xlsx": "^0.18.5"

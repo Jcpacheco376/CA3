@@ -1,16 +1,22 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_EventosCalendario_GetAll]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_EventosCalendario_GetAll]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.5.12
+-- Compilado:           17/03/2026, 10:50:24
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 CREATE OR ALTER PROCEDURE [dbo].[sp_EventosCalendario_GetAll]
 AS
 BEGIN
     SET NOCOUNT ON;
-
     -- Recordset 1: Eventos con info del tipo
     SELECT 
         ec.EventoId,
@@ -22,12 +28,12 @@ BEGIN
         t.LogicaCalculo,
         t.ColorUI        AS TipoColorUI,
         t.Icono          AS TipoIcono,
+        ec.Icono         AS EventoIcono,
         ec.AplicaATodos,
         ec.Activo
     FROM dbo.EventosCalendario ec
     INNER JOIN dbo.SISTiposEventoCalendario t ON ec.TipoEventoId = t.TipoEventoId
     ORDER BY ec.Fecha DESC;
-
     -- Recordset 2: Filtros de todos los eventos
     SELECT
         f.FiltroId,

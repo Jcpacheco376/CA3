@@ -4,7 +4,7 @@ import {
     Search, FileSpreadsheet, FileText, ChevronDown, ChevronUp,
     ArrowUpDown, ArrowUp, ArrowDown, Play, Loader2,
     Building, Briefcase, Tag, MapPin,
-    Contact, ShieldAlert, CalendarOff, Timer
+    Contact, ShieldAlert, CalendarOff, Timer, ScanSearch
 } from 'lucide-react';
 import { Tooltip } from '../../../components/ui/Tooltip';
 import { useAuth } from '../../auth/AuthContext';
@@ -26,6 +26,7 @@ import { ReportValidators } from '../definitions/ReportRules';
 import { EmployeeProfileModal } from '../../attendance/EmployeeProfileModal';
 import { AttendanceToolbarProvider, useAttendanceToolbarContext } from '../../attendance/AttendanceToolbarContext';
 import { ConfirmationModal } from '../../../components/ui/ConfirmationModal';
+import { AuditTimelineModal } from '../../attendance/AuditTimelineModal';
 
 // --- TIPOS ---
 interface FichaData {
@@ -70,7 +71,7 @@ export const AttendanceListReportPage = () => {
 const AttendanceListReportPageContent = () => {
     const { getToken, user, can } = useAuth();
 
-    const { 
+    const {
         filters, dateRange, startDate, endDate
     } = useAttendanceToolbarContext();
 
@@ -80,6 +81,8 @@ const AttendanceListReportPageContent = () => {
     const [expandedRows, setExpandedRows] = useState<number[]>([]);
     const [sortConfig, setSortConfig] = useState<{ key: SortKey; direction: SortDirection }>({ key: 'nombre', direction: 'asc' });
     const [viewingEmployeeId, setViewingEmployeeId] = useState<number | null>(null);
+    const [showTimeline, setShowTimeline] = useState(false);
+    const [timelineEmp, setTimelineEmp] = useState<{ EmpleadoId: number, Nombre: string, Ficha: string } | null>(null);
 
     const [validationResult, setValidationResult] = useState<any>(null);
     const [isGuardModalOpen, setIsGuardModalOpen] = useState(false);
@@ -91,10 +94,10 @@ const AttendanceListReportPageContent = () => {
 
     // Limpiar datos al cambiar filtros para evitar confusión
     useEffect(() => {
-        if (reportData.length > 0) { 
-            setReportData([]); 
-            setExpandedRows([]); 
-            setValidationResult(null); 
+        if (reportData.length > 0) {
+            setReportData([]);
+            setExpandedRows([]);
+            setValidationResult(null);
         }
     }, [dateRange, filters, startDate, endDate]);
 
@@ -128,11 +131,11 @@ const AttendanceListReportPageContent = () => {
         const activeFilters = {
             startDate: startDateStr,
             endDate: endDateStr,
-            filters: { 
-                departamentos: filters.depts, 
-                gruposNomina: filters.groups, 
-                puestos: filters.puestos, 
-                establecimientos: filters.estabs 
+            filters: {
+                departamentos: filters.depts,
+                gruposNomina: filters.groups,
+                puestos: filters.puestos,
+                establecimientos: filters.estabs
             }
         };
 
@@ -142,16 +145,16 @@ const AttendanceListReportPageContent = () => {
                 body: JSON.stringify(activeFilters)
             });
             if (!response.ok) throw new Error('Error validando.');
-            
+
             setValidationResult(await response.json());
             setPendingFilters(activeFilters);
             setIsGuardModalOpen(true);
-        } catch (err) { 
+        } catch (err) {
             console.error(err);
-            setPendingFilters(activeFilters); 
+            setPendingFilters(activeFilters);
             handleConfirmGeneration(); // Fallback si falla validación
-        } finally { 
-            setIsLoading(false); 
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -159,7 +162,7 @@ const AttendanceListReportPageContent = () => {
         setIsGuardModalOpen(false);
         setIsLoading(true);
         setIsInitialLoading(true); // <--- ACTIVAMOS EL ANTI-PARPADEO (Oculta tabla vacía)
-        
+
         const token = getToken();
         try {
             const response = await fetch(`${API_BASE_URL}/reports/attendance-list`, {
@@ -170,10 +173,10 @@ const AttendanceListReportPageContent = () => {
             const data = await response.json();
             setReportData(data);
             setExpandedRows([]);
-        } catch (e) { 
-            console.error(e); 
-        } finally { 
-            setIsLoading(false); 
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setIsLoading(false);
             setIsInitialLoading(false); // <--- DESACTIVAMOS AL TERMINAR (Muestra tabla llena)
         }
     };
@@ -264,7 +267,7 @@ const AttendanceListReportPageContent = () => {
             <div className="bg-white rounded-lg shadow-sm border border-slate-200">
                 <AttendanceToolbar
                     allowCustomRange={true}
-                  
+
                 />
             </div>
 
@@ -317,6 +320,7 @@ const AttendanceListReportPageContent = () => {
                                                             {incidentCount > 0 && (<Tooltip text={`${incidentCount} incidencias`}><div className="w-2 h-2 rounded-full bg-purple-500 ring-2 ring-purple-100"></div></Tooltip>)}
                                                             {sinHorarioCount > 0 && (<Tooltip text={`${sinHorarioCount} sin horario`}><div className="w-2 h-2 rounded-full bg-slate-400 ring-2 ring-slate-200"></div></Tooltip>)}
                                                             {emp.nombre}
+                                                            {can('asistencia.auditar') && <Tooltip text="Auditoría de Checadas"><button onClick={(e) => { e.stopPropagation(); setTimelineEmp({ EmpleadoId: emp.empleadoId, Nombre: emp.nombre, Ficha: emp.codRef }); setShowTimeline(true); }} className="p-1 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-full opacity-0 group-hover/name:opacity-100 transition-opacity"><ScanSearch size={16} /></button></Tooltip>}
                                                             <Tooltip text="Ver Ficha"><button onClick={(e) => { e.stopPropagation(); setViewingEmployeeId(emp.empleadoId); }} className="p-1 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-full opacity-0 group-hover/name:opacity-100 transition-opacity ml-auto"><Contact size={16} /></button></Tooltip>
                                                         </div>
                                                     </td>
@@ -402,6 +406,17 @@ const AttendanceListReportPageContent = () => {
             />
 
             {viewingEmployeeId && <EmployeeProfileModal employeeId={viewingEmployeeId as any} onClose={() => setViewingEmployeeId(null)} getToken={getToken} user={user} />}
+            {showTimeline && timelineEmp && dateRange.length > 0 && (
+                <AuditTimelineModal
+                    employeeId={timelineEmp.EmpleadoId}
+                    employeeName={timelineEmp.Nombre}
+                    employeeFicha={timelineEmp.Ficha}
+                    startDate={dateRange[0]}
+                    endDate={dateRange[dateRange.length - 1]}
+                    onClose={() => { setShowTimeline(false); setTimelineEmp(null); }}
+                    getToken={getToken}
+                />
+            )}
         </div>
     );
 };

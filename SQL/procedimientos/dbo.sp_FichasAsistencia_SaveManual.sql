@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_FichasAsistencia_SaveManual]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -27,7 +27,7 @@ BEGIN
 
         IF @EstatusId IS NULL 
         BEGIN
-            RAISERROR('Estatus inv�lido.', 16, 1);
+            RAISERROR('Estatus invalido.', 16, 1);
             RETURN;
         END
     END

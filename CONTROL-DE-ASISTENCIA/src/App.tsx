@@ -14,7 +14,7 @@ function AppContent() {
     const [theme, setTheme] = useState(auth.user?.Theme || 'indigo');
     // CAMBIO IMPORTANTE: Estado inicial es 'dashboard'
     const [activeView, setActiveView] = useState<View>('dashboard');
-    
+
     useEffect(() => {
         setTheme(auth.user?.Theme || 'indigo');
     }, [auth.user?.Theme]);
@@ -26,29 +26,29 @@ function AppContent() {
         Object.entries(themeColors).forEach(([key, value]) => {
             root.style.setProperty(`--theme-${key}`, value);
         });
-        
+
         return () => {
             // No removemos las variables para evitar parpadeos al desmontar
         };
     }, [themeColors]);
-    
+
     const handleSetTheme = (newTheme: string) => {
         if (!auth.user) return;
         setTheme(newTheme);
     };
-    
+
     if (!auth.user) {
         return <LoginPage />;
     }
-    
+
     if (auth.user.DebeCambiarPassword) {
         return (
-             <ForcePasswordChangeModal user={auth.user} />
+            <ForcePasswordChangeModal user={auth.user} />
         );
     }
 
     return (
-        <MainLayout 
+        <MainLayout
             user={auth.user}
             onLogout={auth.logout}
             activeView={activeView}
@@ -60,10 +60,8 @@ function AppContent() {
 }
 
 function AppContentWrapper() {
-    const { user } = useAuth();
-    const initialAnimationState = user?.AnimationsEnabled ?? true;
     return (
-        <AppProvider initialAnimationState={initialAnimationState}>
+        <AppProvider>
             <AppContent />
         </AppProvider>
     );

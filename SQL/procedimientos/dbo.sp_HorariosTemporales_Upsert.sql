@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_HorariosTemporales_Upsert]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -21,7 +21,7 @@ BEGIN
     BEGIN TRY
         BEGIN TRANSACTION;
 
-        -- 1. VALIDACI�N DE SEGURIDAD (SOLO BLOQUEADO)
+        -- 1. VALIDACI�N DE SEGURIDAD 
         -- Regla inquebrantable: Si ya se pag�/cerr�, no se toca.
         DECLARE @EstadoFicha VARCHAR(20);
         SELECT @EstadoFicha = Estado FROM dbo.FichaAsistencia WHERE EmpleadoId = @EmpleadoId AND Fecha = @Fecha;
@@ -55,9 +55,7 @@ BEGIN
         END
 
         -- 3. PREPARACI�N DE LA FICHA (Reset a BORRADOR)
-        -- No calculamos nada. Solo le decimos a la ficha: "Tus datos actuales son viejos, prep�rate para rec�lculo".
-        -- Al ponerla en BORRADOR, el procesador (sp_FichasAsistencia_ProcesarChecadas) tendr� permiso para sobrescribirla.
-        
+      
         MERGE dbo.FichaAsistencia AS target
         USING (SELECT @EmpleadoId, @Fecha) AS source (EmpleadoId, Fecha)
         ON (target.EmpleadoId = source.EmpleadoId AND target.Fecha = source.Fecha)
@@ -87,12 +85,9 @@ BEGIN
 				@SinRetorno = 1;
 
         -- 4. DISPARAR EL C�LCULO REAL
-        -- Este SP leer� la tabla HorariosTemporales (que acabamos de actualizar en el paso 2),
-        -- calcular� las ventanas exactas y llenar� la ficha correctamente.
-		
         EXEC dbo.sp_FichasAsistencia_ProcesarChecadas 
             @EmpleadoId = @EmpleadoId, 
-            @FechaInicio = @Fecha, -- Ojo con los nombres de parametros del SP procesador
+            @FechaInicio = @Fecha, 
             @FechaFin = @Fecha,
             @UsuarioId = @UsuarioId;
 			

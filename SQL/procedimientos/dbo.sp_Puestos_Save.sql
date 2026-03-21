@@ -1,13 +1,13 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Puestos_Save]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
 CREATE OR ALTER PROCEDURE [dbo].[sp_Puestos_Save]
-    @PuestoId INT, -- O el tipo de dato que sea
+    @PuestoId INT, 
     @CodRef NVARCHAR(50),
     @Nombre NVARCHAR(100),
     @Activo BIT
@@ -19,7 +19,6 @@ BEGIN
         BEGIN TRANSACTION;
 
         -- --- PASO 1: Guardado Local ---
-        -- (Asumimos un MERGE/UPSERT simple. Ajusta si tu ID es IDENTITY)
         MERGE dbo.CatalogoPuestos AS Target
         USING (
             SELECT @PuestoId AS PuestoId
@@ -38,7 +37,7 @@ BEGIN
         -- --- PASO 2: Verificar Configuraci�n de Sincronizaci�n ---
         IF (SELECT ConfigValue FROM dbo.SISConfiguracion WHERE ConfigKey = 'SyncPuestos') = 'true'
         BEGIN
-            PRINT 'Paso 2: Sincronizaci�n (PUSH) habilitada. Intentando...';
+            PRINT 'Paso 2: Sincronizacion (PUSH) habilitada. Intentando...';
             
             -- --- PASO 3: Intentar el "Push" Externo ---
             DECLARE @Status CHAR(1) = CASE WHEN @Activo = 1 THEN 'V' ELSE 'C' END;
@@ -52,11 +51,11 @@ BEGIN
         END
         ELSE
         BEGIN
-            PRINT 'Paso 2: Sincronizaci�n (PUSH) deshabilitada. Omitiendo.';
+            PRINT 'Paso 2: Sincronizacion (PUSH) deshabilitada. Omitiendo.';
         END
 
         COMMIT TRANSACTION;
-        PRINT 'Transacci�n local completada (COMMIT).';
+        PRINT 'Transaccion local completada (COMMIT).';
 
     END TRY
     BEGIN CATCH

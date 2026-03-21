@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Empleados_GetAllManagement]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -27,8 +27,6 @@ BEGIN
         h.EsRotativo,
         gn.Nombre AS GrupoNominaNombre,
         est.Nombre AS EstablecimientoNombre,
-
-        -- Zonas (JSON)
         (
             SELECT z.Nombre
             FROM EmpleadosZonas ez
@@ -37,7 +35,6 @@ BEGIN
             FOR JSON PATH
         ) AS Zonas,
         
-        -- ZonasCount
         (SELECT COUNT(*) FROM EmpleadosZonas ez WHERE ez.EmpleadoId = e.EmpleadoId) as ZonasCount
 
     FROM Empleados e

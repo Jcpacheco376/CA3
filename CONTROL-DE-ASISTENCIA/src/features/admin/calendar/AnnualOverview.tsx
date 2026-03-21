@@ -12,7 +12,7 @@ interface AnnualOverviewProps {
     setViewMonth: (m: number) => void;
     setViewYear: (y: number) => void;
     today: Date;
-    onImport: () => void;
+    onImport?: () => void;
     birthdaysByMonth: Record<number, number>; // month 0-11 => count
 }
 

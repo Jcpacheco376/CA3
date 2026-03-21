@@ -55,8 +55,8 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
                     id: 'attendance_reports',
                     label: 'Reportes', icon: <FileText size={20} />
                 },
-                { id: 'vacations', label: 'Vacaciones', icon: <Palmtree size={20} /> },
-                { id: 'admin_calendar_events', label: 'Eventos y Feriados', icon: <Calendar size={20} /> },
+                can('vacaciones.read') && { id: 'vacations', label: 'Vacaciones', icon: <Palmtree size={20} /> },
+                can('calendario.read') && { id: 'admin_calendar_events', label: 'Eventos y Feriados', icon: <Calendar size={20} /> },
             ].filter(Boolean)
         },
         (can('usuarios.read') || can('roles.manage') || can('catalogo.departamentos.read') || can('catalogo.gruposNomina.read') || can('catalogo.estatusAsistencia.read') || can('catalogo.horarios.read') || can('catalogo.establecimientos.read') || can('catalogo.puestos.read') || can('dispositivos.read')) && {
@@ -113,8 +113,10 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
             case 'payroll_closing':
                 return <PayrollClosingPage />;
             case 'admin_calendar_events':
+                if (!can('calendario.read')) return <DashboardPage setActiveView={setActiveView} />;
                 return <CalendarEventsPage />;
             case 'vacations':
+                if (!can('vacaciones.read')) return <DashboardPage setActiveView={setActiveView} />;
                 return <VacationsPage />;
             default: return <DashboardPage setActiveView={setActiveView} />;
         }
@@ -130,7 +132,7 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
             />
             <div className="flex-1 flex flex-col overflow-hidden">
                 <AppHeader user={user} onProfileClick={() => setIsProfileModalOpen(true)} themeColors={themeColors} />
-                <main className="flex-1 p-4 md:p-8 text-slate-900 overflow-y-auto">
+                <main className="flex-1 p-2 md:p-4 text-slate-900 overflow-y-auto">
                     {renderContent()}
                 </main>
             </div>

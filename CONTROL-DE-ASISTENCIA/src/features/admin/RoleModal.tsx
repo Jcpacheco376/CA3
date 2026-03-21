@@ -3,18 +3,19 @@ import { Role, Permission } from '../../types';
 import { Modal, Button } from '../../components/ui/Modal.tsx';
 import { Tooltip } from '../../components/ui/Tooltip.tsx';
 // --- MODIFICACIÓN: Importaciones completas con nuevos iconos para las secciones ---
-import { 
+import {
     ChevronDown, AlertTriangle, Check, CheckCheck, XCircle,
     Users, Settings, FileText, CalendarClock, Folder, Building, Eye,
     Briefcase, Clock, Tag, MapPin,
-    LayoutDashboard, BarChart3, Shield, Database // Nuevos iconos
+    LayoutDashboard, BarChart3, Shield, Database, ShieldCheck, Key // Agrego Key
 } from 'lucide-react';
-import { 
-    setupPermissions, 
-    actionIcons, 
+import {
+    setupPermissions,
+    actionIcons,
     getActionTranslation,
-    permissionIcons 
+    permissionIcons
 } from '../../utils/permissions.tsx'; // 'permissions.tsx'
+import { isPermissionAllowed } from '../../utils/editions';
 
 // --- Checkbox Local (de UserModal) ---
 const Checkbox = ({ id, label, checked, onChange }: {
@@ -24,15 +25,15 @@ const Checkbox = ({ id, label, checked, onChange }: {
     onChange: (checked: boolean) => void,
 }) => {
     return (
-        <label 
-            htmlFor={`cb-local-${id}`} 
+        <label
+            htmlFor={`cb-local-${id}`}
             className="flex items-center space-x-3 p-2 rounded-md hover:bg-slate-100 cursor-pointer transition-colors"
         >
             <div className="relative w-5 h-5 shrink-0">
-                <input 
+                <input
                     id={`cb-local-${id}`}
-                    type="checkbox" 
-                    checked={checked} 
+                    type="checkbox"
+                    checked={checked}
                     onChange={(e) => onChange(e.target.checked)}
                     className="
                         peer appearance-none w-5 h-5 rounded-md
@@ -46,14 +47,14 @@ const Checkbox = ({ id, label, checked, onChange }: {
                     transition-colors
                     pointer-events-none
                 "></div>
-                <Check 
-                    size={14} 
+                <Check
+                    size={14}
                     className={`
                         absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 
                         text-white pointer-events-none 
                         transition-opacity opacity-0 
                         peer-checked:opacity-100
-                    `} 
+                    `}
                 />
             </div>
             <span className="text-sm text-slate-700 select-none truncate flex items-center gap-2 w-full" title={typeof label === 'string' ? label : ''}>
@@ -65,8 +66,8 @@ const Checkbox = ({ id, label, checked, onChange }: {
 
 // --- NUEVO: Componente de Rejilla Visual (Para Dashboards y Reportes) ---
 // Este componente usa un estilo de "Lista de Configuración" con Switches
-const VisualPermissionGrid = ({ 
-    group, formData, handlePermissionChange 
+const VisualPermissionGrid = ({
+    group, formData, handlePermissionChange
 }: {
     group: { label: string; permissions: Permission[], icon?: React.ReactNode },
     formData: Partial<Role>,
@@ -77,7 +78,7 @@ const VisualPermissionGrid = ({
     return (
         <div className="mb-6 last:mb-2 bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
             {/* Encabezado del Grupo */}
-            <div 
+            <div
                 className="bg-slate-50/80 p-3 border-b border-slate-100 flex items-center justify-between cursor-pointer hover:bg-slate-100 transition-colors"
                 onClick={() => setIsOpen(!isOpen)}
             >
@@ -91,75 +92,82 @@ const VisualPermissionGrid = ({
                 </div>
                 <ChevronDown size={16} className={`text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
             </div>
-            
+
             {/* Lista de Permisos */}
             {isOpen && (
-            <div className="divide-y divide-slate-100 animate-in slide-in-from-top-2 duration-200">
-                {group.permissions.map((permission: Permission) => {
-                    const isChecked = formData.Permisos?.some((p: Permission) => p.PermisoId === permission.PermisoId) || false;
-                    const actionName = getActionTranslation(permission.NombrePermiso);
-                    const actionKey = permission.NombrePermiso.substring(permission.NombrePermiso.indexOf('.') + 1);
+                <div className="divide-y divide-slate-100 animate-in slide-in-from-top-2 duration-200">
+                    {group.permissions.map((permission: Permission) => {
+                        const isChecked = formData.Permisos?.some((p: Permission) => p.PermisoId === permission.PermisoId) || false;
+                        const actionName = getActionTranslation(permission.NombrePermiso);
+                        const actionKey = permission.NombrePermiso.substring(permission.NombrePermiso.indexOf('.') + 1);
 
-                    return (
-                        <div 
-                            key={permission.PermisoId}
-                            onClick={() => handlePermissionChange(permission)}
-                            className={`
-                                flex items-center gap-4 p-4 transition-colors cursor-pointer hover:bg-slate-50
-                                ${isChecked ? 'bg-indigo-50/30' : ''}
-                            `}
-                        >
-                            {/* Icono */}
-                            <div className={`
-                                w-10 h-10 rounded-lg flex items-center justify-center shrink-0 transition-colors
-                                ${isChecked 
-                                    ? 'bg-indigo-100 text-indigo-600' 
-                                    : 'bg-slate-100 text-slate-400'
-                                }
-                            `}>
-                                {actionIcons[actionKey] || <Eye size={20} />}
-                            </div>
+                        // Verificar Edición
+                        const edition = (import.meta as any).env.VITE_APP_EDITION || 'FULL';
+                        const isAllowed = isPermissionAllowed(permission.NombrePermiso, (permission as any).Clasificador || null, edition);
 
-                            {/* Texto */}
-                            <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                    <span className={`text-sm font-medium ${isChecked ? 'text-indigo-900' : 'text-slate-700'}`}>
-                                        {actionName}
-                                    </span>
-                                    {isChecked && (
-                                        <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full animate-in fade-in zoom-in duration-200">
-                                            ACTIVO
-                                        </span>
-                                    )}
-                                </div>
-                                <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">
-                                    {permission.Descripcion}
-                                </p>
-                            </div>
-
-                            {/* Switch Visual */}
-                            <div className={`
-                                w-11 h-6 rounded-full p-1 transition-colors duration-200 ease-in-out shrink-0
-                                ${isChecked ? 'bg-indigo-500' : 'bg-slate-200'}
-                            `}>
+                        return (
+                            <div
+                                key={permission.PermisoId}
+                                onClick={() => isAllowed && handlePermissionChange(permission)}
+                                className={`
+                                    flex items-center gap-4 p-4 transition-colors cursor-pointer hover:bg-slate-50
+                                    ${isChecked ? 'bg-indigo-50/30' : ''}
+                                    ${!isAllowed ? 'opacity-60 grayscale-[0.5] !cursor-not-allowed bg-slate-50' : ''}
+                                `}
+                            >
+                                {/* Icono */}
                                 <div className={`
-                                    bg-white w-4 h-4 rounded-full shadow-sm transform transition-transform duration-200
-                                    ${isChecked ? 'translate-x-5' : 'translate-x-0'}
-                                `} />
+                                    w-10 h-10 rounded-lg flex items-center justify-center shrink-0 transition-colors
+                                    ${isChecked
+                                        ? 'bg-indigo-100 text-indigo-600'
+                                        : 'bg-slate-100 text-slate-400'
+                                    }
+                                    ${!isAllowed ? 'bg-slate-200 text-slate-400' : ''}
+                                `}>
+                                    {actionIcons[actionKey] || <Eye size={20} />}
+                                </div>
+
+                                {/* Texto */}
+                                <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        <span className={`text-sm font-medium ${isChecked ? 'text-indigo-900' : 'text-slate-700'} ${!isAllowed ? 'text-slate-400' : ''}`}>
+                                            {actionName}
+                                        </span>
+                                        {isChecked && isAllowed && (
+                                            <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-100 text-indigo-700 rounded-full animate-in fade-in zoom-in duration-200">
+                                                ACTIVO
+                                            </span>
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">
+                                        {permission.Descripcion}
+                                    </p>
+                                </div>
+
+                                {/* Switch Visual */}
+                                <div className={`
+                                    w-11 h-6 rounded-full p-1 transition-colors duration-200 ease-in-out shrink-0
+                                    ${isChecked && isAllowed ? 'bg-indigo-500' : 'bg-slate-200'}
+                                    ${!isAllowed ? 'bg-slate-300' : ''}
+                                `}>
+                                    <div className={`
+                                        bg-white w-4 h-4 rounded-full shadow-sm transform transition-transform duration-200
+                                        ${isChecked && isAllowed ? 'translate-x-5' : 'translate-x-0'}
+                                    `} />
+                                </div>
                             </div>
-                        </div>
-                    );
-                })}
-            </div>
+                        );
+                    })}
+                </div >
             )}
-        </div>
+        </div >
     );
 };
 
 // --- Componente para un Grupo de Permisos ---
-const PermissionGroup = ({ 
-    groupKey, group, formData, handlePermissionChange, 
-    dependencies, allPermissions, onToggleGroup 
+const PermissionGroup = ({
+    groupKey, group, formData, handlePermissionChange,
+    dependencies, allPermissions, onToggleGroup
 }: {
     groupKey: string,
     group: { label: string; permissions: Permission[], icon?: React.ReactNode },
@@ -170,7 +178,7 @@ const PermissionGroup = ({
     onToggleGroup: (groupPermissions: Permission[], select: boolean) => void
 }) => {
     const [isOpen, setIsOpen] = useState(true);
-    
+
     const groupPermissionIds = group.permissions.map((p: Permission) => p.PermisoId);
     const selectedInGroup = formData.Permisos?.filter((p: Permission) => groupPermissionIds.includes(p.PermisoId)) || [];
     const allSelected = group.permissions.length > 0 && selectedInGroup.length === group.permissions.length;
@@ -178,18 +186,26 @@ const PermissionGroup = ({
     const handleToggleAll = () => {
         onToggleGroup(group.permissions, !allSelected);
     };
-    
-    const isPermissionDisabled = (permissionName: string) => {
-        const dependency = dependencies[permissionName];
+
+    const isPermissionDisabled = (permission: Permission) => {
+        // 1. Verificar Edición
+        const edition = (import.meta as any).env.VITE_APP_EDITION || 'FULL';
+        if (!isPermissionAllowed(permission.NombrePermiso, (permission as any).Clasificador || null, edition)) {
+            return 'edition';
+        }
+
+        // 2. Verificar Dependencia
+        const dependency = dependencies[permission.NombrePermiso];
         if (!dependency) return false;
         const dependencyPermission = allPermissions.find((p: Permission) => p.NombrePermiso === dependency);
-        return !formData.Permisos?.some((p: Permission) => p.PermisoId === dependencyPermission?.PermisoId);
+        const hasDependency = formData.Permisos?.some((p: Permission) => p.PermisoId === dependencyPermission?.PermisoId);
+        return !hasDependency ? 'dependency' : false;
     };
 
     return (
         <div className="flex flex-col h-full">
             <div className="flex justify-between items-center mb-2 px-1">
-                <button 
+                <button
                     type="button"
                     onClick={() => setIsOpen(!isOpen)}
                     className="font-semibold text-slate-800 flex items-center gap-2 text-sm hover:text-[--theme-600] transition-colors focus:outline-none"
@@ -199,9 +215,9 @@ const PermissionGroup = ({
                     <ChevronDown size={14} className={`text-slate-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
                 </button>
                 <Tooltip text={allSelected ? "Limpiar todo" : "Marcar todos"}>
-                    <button 
-                        type="button" 
-                        onClick={handleToggleAll} 
+                    <button
+                        type="button"
+                        onClick={handleToggleAll}
                         className={`p-1 rounded-md transition-colors ${allSelected ? 'text-red-500 hover:bg-red-50' : 'text-slate-400 hover:text-[--theme-500] hover:bg-slate-100'}`}
                     >
                         {allSelected ? <XCircle size={16} /> : <CheckCheck size={16} />}
@@ -210,39 +226,45 @@ const PermissionGroup = ({
             </div>
 
             {isOpen && (
-            <div className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 flex-1 min-h-[120px]">
-                <div className="max-h-48 h-full overflow-y-auto space-y-1 custom-scrollbar">
-                    {group.permissions.map((permission: Permission) => {
-                        const isDisabled = isPermissionDisabled(permission.NombrePermiso);
-                        const actionName = getActionTranslation(permission.NombrePermiso);
-                        const actionKey = permission.NombrePermiso.substring(permission.NombrePermiso.lastIndexOf('.') + 1);
-                        
-                        const isChecked = !isDisabled && (formData.Permisos?.some((p: Permission) => p.PermisoId === permission.PermisoId) || false);
-                        
-                        return (
-                            <div key={permission.PermisoId} className={`${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                                <Tooltip text={permission.Descripcion || actionName} placement="right" disabled={isDisabled}>
-                                    <Checkbox
-                                        id={permission.PermisoId}
-                                        label={
-                                            <div className="flex items-center gap-2">
-                                                {actionIcons[actionKey] || actionIcons['default']}
-                                                <span>{actionName}</span>
-                                            </div>
-                                        }
-                                        checked={isChecked}
-                                        onChange={() => {
-                                            if (!isDisabled) {
-                                                handlePermissionChange(permission);
-                                            }
-                                        }}
-                                    />
-                                </Tooltip>
-                            </div>
-                        );
-                    })}
+                <div className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 flex-1 min-h-[120px]">
+                    <div className="max-h-48 h-full overflow-y-auto space-y-1 custom-scrollbar">
+                        {group.permissions.map((permission: Permission) => {
+                            const disableReason = isPermissionDisabled(permission);
+                            const isDisabled = !!disableReason;
+                            const actionName = getActionTranslation(permission.NombrePermiso);
+                            const actionKey = permission.NombrePermiso.substring(permission.NombrePermiso.lastIndexOf('.') + 1);
+
+                            const isChecked = !isDisabled && (formData.Permisos?.some((p: Permission) => p.PermisoId === permission.PermisoId) || false);
+
+                            let tooltipText = permission.Descripcion || actionName;
+                            if (disableReason === 'dependency') tooltipText = `Requiere permiso de lectura: ${dependencies[permission.NombrePermiso]}`;
+
+                            return (
+                                <div key={permission.PermisoId} className={`${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                                    <Tooltip text={tooltipText} placement="right">
+                                        <div className="flex items-center gap-2">
+                                            <Checkbox
+                                                id={permission.PermisoId}
+                                                label={
+                                                    <div className="flex items-center gap-2">
+                                                        {actionIcons[actionKey] || actionIcons['default']}
+                                                        <span>{actionName}</span>
+                                                    </div>
+                                                }
+                                                checked={isChecked}
+                                                onChange={() => {
+                                                    if (!isDisabled) {
+                                                        handlePermissionChange(permission);
+                                                    }
+                                                }}
+                                            />
+                                        </div>
+                                    </Tooltip>
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
-            </div>
             )}
         </div>
     );
@@ -251,9 +273,9 @@ const PermissionGroup = ({
 export const RoleModal = ({ role, allPermissions, onClose, onSave, isOpen }: { role: Role | null; allPermissions: Permission[]; onClose: () => void; onSave: (role: Role) => void; isOpen: boolean; }) => {
     const [formData, setFormData] = useState<Partial<Role>>({ NombreRol: '', Descripcion: '', Permisos: [] });
     const [activeTab, setActiveTab] = useState<'operational' | 'visual' | 'catalogs' | 'admin'>('operational');
-    
+
     const { groups, dependencies } = useMemo(() => setupPermissions(allPermissions), [allPermissions]);
-    
+
     // --- NUEVA LÓGICA: Categorización de Permisos ---
     const categories = useMemo(() => {
         const cats = {
@@ -282,9 +304,9 @@ export const RoleModal = ({ role, allPermissions, onClose, onSave, isOpen }: { r
             if (b === 'dashboard') return 1;
             return a.localeCompare(b);
         });
-        
+
         // Orden específico para Operación
-        const opOrder = ['reportesAsistencia', 'horarios', 'nomina'];
+        const opOrder = ['reportesAsistencia', 'horarios', 'nomina', 'vacaciones', 'calendario'];
         cats.operational.sort((a, b) => {
             const idxA = opOrder.indexOf(a);
             const idxB = opOrder.indexOf(b);
@@ -331,7 +353,7 @@ export const RoleModal = ({ role, allPermissions, onClose, onSave, isOpen }: { r
             if (isCurrentlyChecked && !forceCheck) {
                 // LÓGICA DE DESMARCAR
                 newPermissions = currentPermissions.filter(p => p.PermisoId !== permission.PermisoId);
-                
+
                 // Desmarcar dependientes (siempre, no solo en no-batch)
                 Object.entries(dependencies).forEach(([child, parent]) => {
                     if (parent === permission.NombrePermiso) {
@@ -344,7 +366,7 @@ export const RoleModal = ({ role, allPermissions, onClose, onSave, isOpen }: { r
             } else if (!isCurrentlyChecked) {
                 // LÓGICA DE MARCAR
                 newPermissions = [...currentPermissions, permission];
-                
+
                 // Marcar dependencias (siempre)
                 const dependencyName = dependencies[permission.NombrePermiso];
                 if (dependencyName) {
@@ -358,8 +380,8 @@ export const RoleModal = ({ role, allPermissions, onClose, onSave, isOpen }: { r
             }
 
             const uniquePerms = Array.from(new Set(newPermissions.map(p => p.PermisoId)))
-                                    .map(id => allPermissions.find(p => p.PermisoId === id)!);
-                                    
+                .map(id => allPermissions.find(p => p.PermisoId === id)!);
+
             return { ...prev, Permisos: uniquePerms };
         });
     };
@@ -369,20 +391,20 @@ export const RoleModal = ({ role, allPermissions, onClose, onSave, isOpen }: { r
         setFormData(prev => {
             const currentPerms = prev.Permisos || [];
             const currentIds = new Set(currentPerms.map(p => p.PermisoId));
-            
+
             if (select) {
                 // 1. Agregar todos los permisos del grupo
                 groupPermissions.forEach(p => currentIds.add(p.PermisoId));
-                
+
                 // 2. Resolver dependencias hacia arriba (Si activo hijo, activo padre)
                 // Iteramos hasta que no haya cambios para asegurar cadenas de dependencia
                 let changed = true;
-                while(changed) {
+                while (changed) {
                     changed = false;
                     Object.entries(dependencies).forEach(([childName, parentName]) => {
                         const child = allPermissions.find(p => p.NombrePermiso === childName);
                         const parent = allPermissions.find(p => p.NombrePermiso === parentName);
-                        
+
                         if (child && parent && currentIds.has(child.PermisoId) && !currentIds.has(parent.PermisoId)) {
                             currentIds.add(parent.PermisoId);
                             changed = true;
@@ -392,15 +414,15 @@ export const RoleModal = ({ role, allPermissions, onClose, onSave, isOpen }: { r
             } else {
                 // 1. Quitar todos los permisos del grupo
                 groupPermissions.forEach(p => currentIds.delete(p.PermisoId));
-                
+
                 // 2. Resolver dependencias hacia abajo (Si quito padre, quito hijo)
                 let changed = true;
-                while(changed) {
+                while (changed) {
                     changed = false;
                     Object.entries(dependencies).forEach(([childName, parentName]) => {
                         const child = allPermissions.find(p => p.NombrePermiso === childName);
                         const parent = allPermissions.find(p => p.NombrePermiso === parentName);
-                        
+
                         if (child && parent && !currentIds.has(parent.PermisoId) && currentIds.has(child.PermisoId)) {
                             currentIds.delete(child.PermisoId);
                             changed = true;
@@ -408,7 +430,7 @@ export const RoleModal = ({ role, allPermissions, onClose, onSave, isOpen }: { r
                     });
                 }
             }
-            
+
             return {
                 ...prev,
                 Permisos: allPermissions.filter(p => currentIds.has(p.PermisoId))
@@ -431,7 +453,7 @@ export const RoleModal = ({ role, allPermissions, onClose, onSave, isOpen }: { r
     return (
         <Modal isOpen={isOpen} onClose={onClose} title={role ? `Editando Rol: ${role.NombreRol}` : 'Crear Nuevo Rol'} footer={footer} size="3xl">
             <form onSubmit={handleSubmit} className="space-y-6">
-                
+
                 {/* SECCIÓN FIJA: Información del Rol */}
                 <div className="bg-slate-50 p-5 rounded-xl border border-slate-200">
                     <h3 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
@@ -441,25 +463,25 @@ export const RoleModal = ({ role, allPermissions, onClose, onSave, isOpen }: { r
                         <div>
                             <label htmlFor="roleName" className="block text-sm font-medium text-slate-700">Nombre del Rol</label>
                             <Tooltip text="El nombre único para identificar este rol.">
-                                <input 
+                                <input
                                     id="roleName"
-                                    type="text" 
-                                    value={formData.NombreRol} 
-                                    onChange={e => setFormData(prev => ({ ...prev, NombreRol: e.target.value }))} 
-                                    className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500] focus:outline-none" 
-                                    required 
+                                    type="text"
+                                    value={formData.NombreRol}
+                                    onChange={e => setFormData(prev => ({ ...prev, NombreRol: e.target.value }))}
+                                    className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500] focus:outline-none"
+                                    required
                                 />
                             </Tooltip>
                         </div>
                         <div>
                             <label htmlFor="roleDesc" className="block text-sm font-medium text-slate-700">Descripción (Opcional)</label>
                             <Tooltip text="Una breve descripción de lo que hace este rol.">
-                                <input 
+                                <input
                                     id="roleDesc"
-                                    type="text" 
-                                    value={formData.Descripcion} 
-                                    onChange={e => setFormData(prev => ({ ...prev, Descripcion: e.target.value }))} 
-                                    className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500] focus:outline-none" 
+                                    type="text"
+                                    value={formData.Descripcion}
+                                    onChange={e => setFormData(prev => ({ ...prev, Descripcion: e.target.value }))}
+                                    className="mt-1 w-full p-2 border border-slate-300 rounded-md focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500] focus:outline-none"
                                 />
                             </Tooltip>
                         </div>
@@ -498,7 +520,7 @@ export const RoleModal = ({ role, allPermissions, onClose, onSave, isOpen }: { r
                             onClick={() => setActiveTab('admin')}
                             className={`flex items-center gap-2 px-4 py-2 border-b-2 font-medium text-sm transition-colors whitespace-nowrap ${activeTab === 'admin' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'}`}
                         >
-                            <Shield size={16} />
+                            <ShieldCheck size={16} />
                             Administración
                         </button>
                     </div>
@@ -508,7 +530,7 @@ export const RoleModal = ({ role, allPermissions, onClose, onSave, isOpen }: { r
                         {activeTab === 'operational' && (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {categories.operational.length > 0 ? categories.operational.map(groupKey => (
-                                    <PermissionGroup 
+                                    <PermissionGroup
                                         key={groupKey} groupKey={groupKey} group={groups[groupKey]}
                                         formData={formData} handlePermissionChange={handlePermissionChange}
                                         dependencies={dependencies} allPermissions={allPermissions}
@@ -521,7 +543,7 @@ export const RoleModal = ({ role, allPermissions, onClose, onSave, isOpen }: { r
                         {activeTab === 'visual' && (
                             <div className="flex flex-col gap-2">
                                 {categories.visual.length > 0 ? categories.visual.map(groupKey => (
-                                    <VisualPermissionGrid 
+                                    <VisualPermissionGrid
                                         key={groupKey} group={groups[groupKey]}
                                         formData={formData} handlePermissionChange={handlePermissionChange}
                                     />
@@ -532,7 +554,7 @@ export const RoleModal = ({ role, allPermissions, onClose, onSave, isOpen }: { r
                         {activeTab === 'catalogs' && (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {categories.catalogs.length > 0 ? categories.catalogs.map(groupKey => (
-                                    <PermissionGroup 
+                                    <PermissionGroup
                                         key={groupKey} groupKey={groupKey} group={groups[groupKey]}
                                         formData={formData} handlePermissionChange={handlePermissionChange}
                                         dependencies={dependencies} allPermissions={allPermissions}
@@ -545,7 +567,7 @@ export const RoleModal = ({ role, allPermissions, onClose, onSave, isOpen }: { r
                         {activeTab === 'admin' && (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {categories.admin.length > 0 ? categories.admin.map(groupKey => (
-                                    <PermissionGroup 
+                                    <PermissionGroup
                                         key={groupKey} groupKey={groupKey} group={groups[groupKey]}
                                         formData={formData} handlePermissionChange={handlePermissionChange}
                                         dependencies={dependencies} allPermissions={allPermissions}

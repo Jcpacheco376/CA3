@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Empleados_Update]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -31,11 +31,11 @@ CREATE OR ALTER PROCEDURE [dbo].[sp_Empleados_Update]
             BEGIN
                 SET NOCOUNT ON;
 
-                DECLARE @FormatoNombre INT;
-                SELECT TOP 1 @FormatoNombre = ISNULL(FormatoNombre, 1) FROM SISConfiguracion;
+                DECLARE @FormatoNombre VARCHAR;
+                SELECT @FormatoNombre = ConfigValue FROM SISConfiguracion WHERE ConfigKey = 'FormNombreEmpleados'
                 
                 DECLARE @NombreCompleto NVARCHAR(300);
-                IF @FormatoNombre = 2
+                IF @FormatoNombre = 'AN'
                     SET @NombreCompleto = TRIM(@ApellidoPaterno + ' ' + ISNULL(@ApellidoMaterno, '') + ' ' + @Nombres);
                 ELSE
                     SET @NombreCompleto = TRIM(@Nombres + ' ' + @ApellidoPaterno + ' ' + ISNULL(@ApellidoMaterno, ''));

@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Incidencias_Asignar]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -19,7 +19,7 @@ BEGIN
     BEGIN TRY
         BEGIN TRANSACTION;
 
-        -- 1. OBTENER FOTO ACTUAL (Contexto completo)
+        -- 1. OBTENER FOTO ACTUAL 
         DECLARE @EstadoAnterior VARCHAR(20);
         DECLARE @EstatusManualId INT;
         DECLARE @EstatusChecadorId INT;
@@ -43,7 +43,7 @@ BEGIN
             Estado = 'Asignada'
         WHERE IncidenciaId = @IncidenciaId;
 
-        -- 3. REGISTRAR EN BIT�CORA (FOTO COMPLETA)
+        -- 3. REGISTRAR EN BIT�CORA 
         INSERT INTO dbo.IncidenciasBitacora (
             IncidenciaId, UsuarioId, Accion, Comentario, 
             AsignadoA_Nuevo, 

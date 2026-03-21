@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Nomina_EjecutarCierre]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -21,7 +21,7 @@ BEGIN
 
     IF @FechaFin > CAST(GETDATE() AS DATE)
     BEGIN
-        THROW 51000, 'No es posible cerrar un periodo que a�n no ha concluido (Fecha Fin es futura).', 1;
+        THROW 51000, 'No es posible cerrar un periodo que aun no ha concluido (Fecha Fin es futura).', 1;
         RETURN;
     END
 
@@ -76,7 +76,7 @@ BEGIN
 
         DECLARE @EstadoCierre VARCHAR(20) = CASE WHEN @Pendientes = 0 THEN 'COMPLETO' ELSE 'PARCIAL' END;
 
-        -- Registro del cierre (igual que antes)
+        -- Registro del cierre 
         MERGE [dbo].[CierresNomina] AS target
         USING (SELECT @GrupoNominaId, @FechaInicio, @FechaFin) AS source (Grupo, Inicio, Fin)
         ON (target.GrupoNominaId = source.Grupo AND target.FechaInicio = source.Inicio AND target.FechaFin = source.Fin)

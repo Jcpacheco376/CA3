@@ -2,7 +2,8 @@
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, Plus, Cake, Award } from 'lucide-react';
 import { CalendarEvent, EventType, EmployeeBirthday, EmployeeAnniversary } from './types';
-import { MONTHS_ES, DAYS_ES, toDateKey, getColor, DynamicIcon, getSmartEventIcon } from './utils';
+import { MONTHS_ES, DAYS_ES, toDateKey, getColor, DynamicIcon } from './utils';
+import { Tooltip } from '../../../components/ui/Tooltip';
 import { themes } from '../../../config/theme';
 
 interface CalendarGridProps {
@@ -98,28 +99,38 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
                                 <div className="flex gap-1 items-start">
                                     {/* Cumpleaños (Pastel) */}
                                     {dayBirthdays.length > 0 && inMonth && (
-                                        <div className="group/bday relative flex items-center justify-center w-5 h-5 rounded-full hover:bg-pink-50 transition-colors ">
-                                            <Cake size={12} className="text-pink-400 shrink-0 opacity-70" />
-                                            <div className="absolute top-full mt-1 left-0 z-50 hidden group-hover/bday:flex flex-col bg-slate-800 text-white text-[10px] w-max max-w-[150px] p-2 rounded shadow-xl pointer-events-none">
-                                                <div className="font-bold border-b border-slate-600/50 pb-1 mb-1 text-pink-300">Cumpleaños</div>
-                                                {dayBirthdays.map(b => (
-                                                    <span key={b.EmpleadoId} className="truncate">{b.Nombres} {b.ApellidoPaterno}</span>
-                                                ))}
+                                        <Tooltip
+                                            text={
+                                                <div className="flex flex-col gap-1 min-w-[120px]">
+                                                    <div className="font-bold border-b border-white/20 pb-1 mb-1 text-pink-300">Cumpleaños</div>
+                                                    {dayBirthdays.map(b => (
+                                                        <span key={b.EmpleadoId} className="truncate">{b.Nombres} {b.ApellidoPaterno}</span>
+                                                    ))}
+                                                </div>
+                                            }
+                                        >
+                                            <div className="flex items-center justify-center w-5 h-5 rounded-full hover:bg-pink-50 transition-colors">
+                                                <Cake size={12} className="text-pink-400 shrink-0 opacity-70" />
                                             </div>
-                                        </div>
+                                        </Tooltip>
                                     )}
 
                                     {/* Aniversarios (Medalla) */}
                                     {dayAnniversaries.length > 0 && inMonth && (
-                                        <div className="group/anniv relative flex items-center justify-center w-5 h-5 rounded-full hover:bg-blue-50 transition-colors">
-                                            <Award size={12} className="text-blue-400 shrink-0 opacity-70" />
-                                            <div className="absolute top-full mt-1 left-0 z-50 hidden group-hover/anniv:flex flex-col bg-slate-800 text-white text-[10px] w-max max-w-[180px] p-2 rounded shadow-xl pointer-events-none">
-                                                <div className="font-bold border-b border-slate-600/50 pb-1 mb-1 text-blue-300">Aniversarios</div>
-                                                {dayAnniversaries.map(a => (
-                                                    <span key={a.EmpleadoId} className="truncate">{a.Nombres} {a.ApellidoPaterno} ({a.AniosServicio}º)</span>
-                                                ))}
+                                        <Tooltip
+                                            text={
+                                                <div className="flex flex-col gap-1 min-w-[150px]">
+                                                    <div className="font-bold border-b border-white/20 pb-1 mb-1 text-blue-300">Aniversarios</div>
+                                                    {dayAnniversaries.map(a => (
+                                                        <span key={a.EmpleadoId} className="truncate">{a.Nombres} {a.ApellidoPaterno} ({a.AniosServicio}º)</span>
+                                                    ))}
+                                                </div>
+                                            }
+                                        >
+                                            <div className="flex items-center justify-center w-5 h-5 rounded-full hover:bg-blue-50 transition-colors">
+                                                <Award size={12} className="text-blue-400 shrink-0 opacity-70" />
                                             </div>
-                                        </div>
+                                        </Tooltip>
                                     )}
                                 </div>
                                 <span className={`
@@ -134,24 +145,64 @@ export const CalendarGrid: React.FC<CalendarGridProps> = ({
 
                             {/* Bloques de Eventos */}
                             <div className="flex-1 w-full space-y-[2px] overflow-hidden flex flex-col relative z-10 px-0.5">
-                                {dayEvents.slice(0, 3).map((ev, i) => {
-                                    const c = getColor(ev.TipoColorUI);
+                                {(() => {
+                                    const maxVisible = 3;
+                                    const hasMore = dayEvents.length > maxVisible;
+                                    const visibleEvents = dayEvents.slice(0, maxVisible);
+
                                     return (
-                                        <div key={ev.EventoId + '-' + i}
-                                            className={`flex items-center gap-1 text-[10px] leading-tight px-1.5 py-[3px] rounded-[3px] font-medium border border-transparent hover:brightness-95 transition-all w-full truncate
-                                                ${c.bgText} shadow-sm border-[rgba(0,0,0,0.05)]`}
-                                            title={ev.Nombre}
-                                        >
-                                            <DynamicIcon name={getSmartEventIcon(ev.Nombre, ev.TipoIcono)} size={10} className="shrink-0 opacity-80" />
-                                            <span className="truncate flex-1 font-semibold">{ev.Nombre}</span>
-                                        </div>
+                                        <>
+                                            {visibleEvents.map((ev, i) => {
+                                                const c = getColor(ev.TipoColorUI);
+                                                const isLastVisible = i === maxVisible - 1 && hasMore;
+
+                                                const content = (
+                                                    <div
+                                                        className={`flex items-center gap-1 text-[10px] leading-tight px-1.5 py-[3px] rounded-[3px] font-medium border border-transparent hover:brightness-95 transition-all w-full
+                                                            ${c.bgText} shadow-sm border-[rgba(0,0,0,0.05)]`}
+                                                    >
+                                                        <DynamicIcon name={ev.EventoIcono || ev.TipoIcono} size={10} className="shrink-0 opacity-80" />
+                                                        <span className="truncate flex-1 font-semibold">{ev.Nombre}</span>
+                                                        {isLastVisible && (
+                                                            <span className="ml-auto pl-1 text-[9px] font-black opacity-60 shrink-0">
+                                                                +{dayEvents.length - (maxVisible - 1)}
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                );
+
+                                                if (isLastVisible) {
+                                                    return (
+                                                        <Tooltip
+                                                            key={ev.EventoId + '-' + i}
+                                                            text={
+                                                                <div className="flex flex-col gap-1.5 min-w-[140px] max-w-[200px]">
+                                                                    <div className="text-[10px] font-bold text-slate-400 border-b border-white/20 pb-1 mb-1 uppercase tracking-widest">
+                                                                        {dayEvents.length} Eventos en total
+                                                                    </div>
+                                                                    {dayEvents.map((e, idx) => (
+                                                                        <div key={e.EventoId || idx} className={`flex px-1 gap-1.5 items-center ${idx < 2 ? 'opacity-50' : ''}`}>
+                                                                            <div className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: themes[e.TipoColorUI]?.[400] || '#94a3b8' }} />
+                                                                            <span className="text-[11px] truncate leading-tight font-medium">{e.Nombre}</span>
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            }
+                                                        >
+                                                            {content}
+                                                        </Tooltip>
+                                                    );
+                                                }
+
+                                                return (
+                                                    <Tooltip key={ev.EventoId + '-' + i} text={ev.Nombre}>
+                                                        {content}
+                                                    </Tooltip>
+                                                );
+                                            })}
+                                        </>
                                     );
-                                })}
-                                {dayEvents.length > 3 && (
-                                    <div className="text-[10px] text-slate-500 font-semibold px-1 w-full hover:text-slate-700 hover:underline cursor-pointer shrink-0">
-                                        + {dayEvents.length - 3} más
-                                    </div>
-                                )}
+                                })()}
                             </div>
 
                             {/* Botón flotante muy sutil para agregar */}

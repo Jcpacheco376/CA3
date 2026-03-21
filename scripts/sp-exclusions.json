@@ -2,7 +2,9 @@
     "excluded": [
         "dbo.sp_ConfiguracionLocal",
         "dbo.sp_Empleados_GetPermitidos",
-        "dbo.sp_CatalogoEstatusAsistencia_ValidarConfiguracion"
+        "dbo.sp_CatalogoEstatusAsistencia_ValidarConfiguracion",
+        "dbo.sp_Exportar_NominaExterna",
+        "dbo.sp_SyncChecadas"
     ],
     "_comment": "SPs que NO se migran al cliente. Quedan solo en BD de desarrollo. Agregar más según sea necesario."
 }

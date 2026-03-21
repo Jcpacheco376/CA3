@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_CatalogoHorarios_Upsert]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -35,7 +35,7 @@ BEGIN
         BEGIN
             PRINT 'ERROR: Conflicto de abreviatura encontrada.';
             ROLLBACK;
-            RAISERROR ('La abreviatura del horario ya est� en uso por otro horario activo.', 16, 1);
+            RAISERROR ('La abreviatura del horario ya esta en uso por otro horario activo.', 16, 1);
             RETURN;
         END
 
@@ -118,12 +118,12 @@ BEGIN
         -- =========================================================================
         IF (SELECT ConfigValue FROM dbo.SISConfiguracion WHERE ConfigKey = 'SyncHorarios') = 'true'
         BEGIN
-            PRINT 'Paso Sync: Sincronizaci�n (PUSH) de Horario habilitada.';
+            PRINT 'Paso Sync: Sincronizacion (PUSH) de Horario habilitada.';
             EXEC [dbo].[sp_SyncToExternal_Horario] @HorarioId = @HorarioId;
         END
         ELSE
         BEGIN
-             PRINT 'Paso Sync: Sincronizaci�n (PUSH) deshabilitada.';
+             PRINT 'Paso Sync: Sincronizacion (PUSH) deshabilitada.';
         END
 
         COMMIT TRANSACTION;

@@ -5,14 +5,15 @@ import { Permission } from '../types';
 import {
     Users, Settings, FileText, Folder, PlusCircle, Pencil, Trash, Eye,
     Check, CheckCircle, CalendarClock, Building, Clock, Briefcase, Tag, MapPin, Lock, Unlock,
-    ClipboardList, Banknote, History, LayoutDashboard,
-    BarChart3, PieChart, TrendingUp, Bell, CreditCard, Server, Map, RefreshCw, DownloadCloud, Activity
+    ClipboardList, Banknote, History, LayoutDashboard, Palmtree,
+    BarChart3, PieChart, TrendingUp, Bell, CreditCard, Server, Map, RefreshCw, DownloadCloud, Activity,
+    ShieldCheck, CheckCheck, Fingerprint, CalendarDays, Key, AlertTriangle
 } from 'lucide-react';
 
 // --- MODIFICACIÓN: Etiquetas de Recurso actualizadas ---
 const resourceLabels: { [key: string]: string } = {
     usuarios: 'Gestión de Usuarios',
-    roles: 'Gestión de Roles',
+    roles: 'Roles',
     reportesAsistencia: 'Registro de Asistencia',
     horarios: 'Programador de Horarios',
     'catalogo.departamentos': 'Catálogo: Departamentos',
@@ -21,11 +22,15 @@ const resourceLabels: { [key: string]: string } = {
     'catalogo.horarios': 'Catálogo: Horarios',
     'catalogo.puestos': 'Catálogo: Puestos',
     'catalogo.establecimientos': 'Catálogo: Establecimientos',
-    'reportes': 'Reportes del Sistema',
-    'dashboard': 'Dashboard',
+    'catalogo.empleados': 'Catálogo: Empleados',
+    'reportes': 'Módulo de Reportes',
+    'dashboard': 'Tableros e Indicadores',
     'nomina': 'Gestión de Nómina',
-    'dispositivos': 'Biométricos y Sincronización',
-    'zonas': 'Zonas de Asistencia'
+    'dispositivos': 'Relojes Checadores',
+    'zonas': 'Zonas y Geocercas',
+    'incidencias': 'Tablero de Incidencias',
+    'vacaciones': 'Vacaciones',
+    'calendario': 'Eventos y Feriados'
 };
 
 // --- MODIFICACIÓN: Etiquetas de Acción actualizadas a tu DB ---
@@ -63,12 +68,16 @@ export const permissionIcons: { [key: string]: JSX.Element } = {
     roles: <Settings size={18} />,
     reportesAsistencia: <FileText size={18} />,
     horarios: <CalendarClock size={18} />,
+    vacaciones: <Palmtree size={18} />,
+    calendario: <CalendarDays size={18} />,
+    incidencias: <AlertTriangle size={18} />,
     'catalogo.departamentos': <Building size={18} />,
     'catalogo.gruposNomina': <Briefcase size={18} />,
     'catalogo.estatusAsistencia': <Check size={18} />,
     'catalogo.horarios': <Clock size={18} />,
     'catalogo.puestos': <Tag size={18} />,
     'catalogo.establecimientos': <MapPin size={18} />,
+    'catalogo.empleados': <Users size={18} />,
     'reportes': <FileText size={18} />,
     'dashboard': <LayoutDashboard size={18} />,
     'nomina': <Lock size={18} />,
@@ -84,7 +93,7 @@ export const actionIcons: { [key: string]: JSX.Element } = {
     'update': <Pencil size={16} />,
     'delete': <Trash size={16} />,
     'assign': <Pencil size={16} />,
-    'approve': <Check size={16} />,
+    'approve': <CheckCheck size={16} />,
     'manage': <Settings size={16} />,
     'unlock': <Unlock size={16} />,
     'default': <Check size={16} />,
@@ -106,17 +115,15 @@ export const actionIcons: { [key: string]: JSX.Element } = {
 };
 
 const getParts = (permissionName: string) => {
-    const parts = permissionName.split('.');
-    let resource = parts[0]; // Ej: 'reportesAsistencia', 'horarios', 'catalogo'
-    let action = parts.slice(1).join('.'); // Ej: 'read', 'assign', 'departamentos.read'
+    const parts = (permissionName || '').split('.');
+    let resource = parts[0];
+    let action = parts.slice(1).join('.');
 
-    // Si es un catálogo, el recurso son las dos primeras partes
-    // NOTA: Ya no separamos 'reportes' para que se agrupen todos juntos
+    // Manejo de Catálogos (catalogo.departamentos.read -> resource: 'catalogo.departamentos')
     if (resource === 'catalogo' && parts.length > 2) {
-        resource = `${parts[0]}.${parts[1]}`; // Ej: 'catalogo.puestos'
-        action = parts.slice(2).join('.'); // Ej: 'read', 'manage'
+        resource = `${parts[0]}.${parts[1]}`;
+        action = parts.slice(2).join('.');
     } else if (resource === 'catalogo' && parts.length <= 2) {
-        // Caso base para 'catalogo' (si existiera un permiso 'catalogo.read' general)
         action = parts.slice(1).join('.');
     }
 

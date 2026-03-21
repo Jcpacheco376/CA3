@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Incidencias_CancelarSolicitud]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -50,7 +50,7 @@ BEGIN
             RequiereAutorizacion = 0 
         WHERE IncidenciaId = @IncidenciaId;
 
-        -- 3. Bit�cora (Cierre del Ciclo)
+        -- 3. Bit�cora 
         INSERT INTO dbo.IncidenciasBitacora (
             IncidenciaId, UsuarioId, Accion, Comentario, 
             EstadoNuevo, EstadoAnterior,

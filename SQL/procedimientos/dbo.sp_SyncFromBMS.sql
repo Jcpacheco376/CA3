@@ -1,18 +1,18 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_SyncFromBMS]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
 CREATE OR ALTER PROCEDURE [dbo].[sp_SyncFromBMS]
-    @SourceDB varchar(100) = NULL -- Opcional, si es NULL lee de Config
+    @SourceDB varchar(100) = NULL 
 AS
 BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
-    -- Leer configuración si no se pasa parámetro
+
     IF @SourceDB IS NULL OR @SourceDB = ''
     BEGIN
         SELECT TOP 1 @SourceDB = ConfigValue 
@@ -200,12 +200,12 @@ BEGIN
                     Target.EstablecimientoId = Source.LocalEstabId
             WHEN NOT MATCHED BY TARGET THEN
                 INSERT (
-                    CodRef, NombreCompleto, Nombres, ApellidoPaterno, ApellidoMaterno, FechaNacimiento,
+                    CodRef, Pim, NombreCompleto, Nombres, ApellidoPaterno, ApellidoMaterno, FechaNacimiento,
                     FechaIngreso, Sexo, NSS, CURP, RFC, DepartamentoId, GrupoNominaId,
                     PuestoId, HorarioIdPredeterminado, Imagen, Activo, EstablecimientoId
                 )
                 VALUES (
-                    Source.empleado, Source.nombre_completo, Source.nombres, Source.apellido_paterno, Source.apellido_materno, Source.fecha_nacimiento,
+                    Source.empleado, Source.empleado, Source.nombre_completo, Source.nombres, Source.apellido_paterno, Source.apellido_materno, Source.fecha_nacimiento,
                     Source.fecha_ingreso, Source.sexo, Source.reg_imss, Source.curp, Source.rfc, Source.LocalDeptId, Source.LocalGrupoId,
                     Source.LocalPuestoId, Source.LocalHorarioId, Source.imagen, Source.EsActivo, Source.LocalEstabId
                 )

@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Usuario_ActualizarPassword]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -18,7 +18,7 @@ BEGIN
         UPDATE dbo.Usuarios
         SET 
             PasswordHash = PWDENCRYPT(@NuevoPassword),
-            DebeCambiarPassword = 0 -- Desmarcar, ya que el usuario ha cumplido.
+            DebeCambiarPassword = 0 
         WHERE UsuarioId = @UsuarioId;
     END
 END

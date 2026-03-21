@@ -1,11 +1,18 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_EventosCalendario_Upsert]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_EventosCalendario_Upsert]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.5.12
+-- Compilado:           17/03/2026, 10:50:24
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 CREATE OR ALTER PROCEDURE [dbo].[sp_EventosCalendario_Upsert]
     @EventoId      INT = NULL,
     @Fecha         DATE,
@@ -15,31 +22,26 @@ CREATE OR ALTER PROCEDURE [dbo].[sp_EventosCalendario_Upsert]
     @AplicaATodos  BIT = 1,
     @Activo        BIT = 1,
     @UsuarioId     INT,
-    @FiltrosJSON   NVARCHAR(MAX) = NULL   -- JSON: [{"dimension":"DEPARTAMENTO","valores":[1,3]}, ...]
+    @Icono         VARCHAR(50) = NULL,
+    @FiltrosJSON   NVARCHAR(MAX) = NULL  
 AS
 BEGIN
     SET NOCOUNT ON;
-
     -- ═══════════════════════════════════════════════════
     -- 1. Validar que el tipo de evento existe y está activo
     -- ═══════════════════════════════════════════════════
     DECLARE @PermiteMultiplesMismoDia BIT, @PermiteMultiplesAnio BIT;
-
     SELECT @PermiteMultiplesMismoDia = PermiteMultiplesMismoDia,
            @PermiteMultiplesAnio     = PermiteMultiplesAnio
     FROM dbo.SISTiposEventoCalendario
     WHERE TipoEventoId = @TipoEventoId AND Activo = 1;
-
     IF @PermiteMultiplesMismoDia IS NULL
     BEGIN
         THROW 50001, 'El tipo de evento especificado no existe o está inactivo.', 1;
     END
-
     -- ═══════════════════════════════════════════════════
     -- 2. Validar reglas de duplicidad
     -- ═══════════════════════════════════════════════════
-
-    -- Regla: PermiteMultiplesMismoDia
     IF @PermiteMultiplesMismoDia = 0
     BEGIN
         IF EXISTS (
@@ -53,7 +55,6 @@ BEGIN
             THROW 50001, 'Ya existe un evento activo de este tipo para la fecha indicada.', 1;
         END
     END
-
     -- Regla: PermiteMultiplesAnio
     IF @PermiteMultiplesAnio = 0
     BEGIN
@@ -68,17 +69,14 @@ BEGIN
             THROW 50001, 'Ya existe un evento activo de este tipo para el mismo año.', 1;
         END
     END
-
     -- ═══════════════════════════════════════════════════
     -- 3. Insert o Update del evento
     -- ═══════════════════════════════════════════════════
     DECLARE @ResultEventoId INT;
-
     IF @EventoId IS NULL OR @EventoId = 0
     BEGIN
-        INSERT INTO dbo.EventosCalendario (Fecha, Nombre, Descripcion, TipoEventoId, AplicaATodos, Activo, CreadoPorUsuarioId)
-        VALUES (@Fecha, @Nombre, @Descripcion, @TipoEventoId, @AplicaATodos, @Activo, @UsuarioId);
-
+        INSERT INTO dbo.EventosCalendario (Fecha, Nombre, Descripcion, TipoEventoId, AplicaATodos, Activo, CreadoPorUsuarioId, Icono)
+        VALUES (@Fecha, @Nombre, @Descripcion, @TipoEventoId, @AplicaATodos, @Activo, @UsuarioId, @Icono);
         SET @ResultEventoId = SCOPE_IDENTITY();
     END
     ELSE
@@ -89,17 +87,15 @@ BEGIN
             Descripcion   = @Descripcion,
             TipoEventoId  = @TipoEventoId,
             AplicaATodos  = @AplicaATodos,
-            Activo        = @Activo
+            Activo        = @Activo,
+            Icono         = @Icono
         WHERE EventoId = @EventoId;
-
         SET @ResultEventoId = @EventoId;
     END
-
     -- ═══════════════════════════════════════════════════
     -- 4. Procesar filtros (borrar y reinsertar)
     -- ═══════════════════════════════════════════════════
     DELETE FROM dbo.EventosCalendarioFiltros WHERE EventoId = @ResultEventoId;
-
     IF @AplicaATodos = 0 AND @FiltrosJSON IS NOT NULL AND LEN(@FiltrosJSON) > 2
     BEGIN
         INSERT INTO dbo.EventosCalendarioFiltros (EventoId, GrupoRegla, Dimension, ValorId)
@@ -118,7 +114,6 @@ BEGIN
         WHERE dimGroup.[dimension] IN ('DEPARTAMENTO', 'GRUPO_NOMINA', 'PUESTO', 'ESTABLECIMIENTO')
           AND TRY_CAST(valores.[value] AS INT) IS NOT NULL;
     END
-
     SELECT @ResultEventoId AS EventoId;
 END
 GO

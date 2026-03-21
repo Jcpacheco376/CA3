@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Incidencias_GetDetalle]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -10,15 +10,16 @@ CREATE OR ALTER PROCEDURE [dbo].[sp_Incidencias_GetDetalle]
     @IncidenciaId INT
 AS
 BEGIN
+    SET ANSI_NULLS ON;
+    SET QUOTED_IDENTIFIER ON;
     SET NOCOUNT ON;
 
-    -- RESULTSET 1: HEADER (Sin cambios, tu l�gica es correcta)
+    -- RESULTSET 1: HEADER
     SELECT 
         i.IncidenciaId, i.EmpleadoId, i.Fecha, i.Estado, i.AsignadoAUsuarioId,
         i.NivelSeveridad AS NivelCriticidad, i.RequiereAutorizacion,
         ISNULL(ea_sys.Abreviatura, 'F') AS EstatusChecadorOriginal,
         ISNULL(ea_man.Abreviatura, '-') AS EstatusManualOriginal,
-        -- Subconsulta para traer el estatus VIVO de la ficha
         (SELECT TOP 1 CEA.Abreviatura 
          FROM dbo.FichaAsistencia FA 
          LEFT JOIN dbo.CatalogoEstatusAsistencia CEA ON FA.EstatusManualId = CEA.EstatusId
@@ -43,7 +44,7 @@ BEGIN
     LEFT JOIN dbo.Roles r_asig ON ur_asig.RoleId = r_asig.RoleId
     WHERE i.IncidenciaId = @IncidenciaId;
 
-    -- RESULTSET 2: TIMELINE (ACTUALIZADO CON TUS NUEVOS CAMPOS)
+    -- RESULTSET 2: TIMELINE 
     SELECT 
         b.BitacoraId,
         b.IncidenciaId,
@@ -52,21 +53,19 @@ BEGIN
         b.Accion,
         b.Comentario,
         b.EstadoNuevo,
-        
-        -- IDs de Auditor�a T�cnica (Agregados para completar la refactorizaci�n)
         b.EstatusManualId_Anterior,
         b.EstatusManualId_Nuevo,
         b.EstatusChecadorId_Anterior,
         b.EstatusChecadorId_Nuevo,
 
         u.NombreCompleto AS UsuarioNombre,
-        u_target.NombreCompleto AS AsignadoANombre, -- Asumimos que AsignadoA_Nuevo NO lo borraste
+        u_target.NombreCompleto AS AsignadoANombre, 
         u.Theme as UsuarioTheme
     FROM dbo.IncidenciasBitacora b
     LEFT JOIN dbo.Usuarios u ON b.UsuarioId = u.UsuarioId
     LEFT JOIN dbo.Usuarios u_target ON b.AsignadoA_Nuevo = u_target.UsuarioId
     WHERE b.IncidenciaId = @IncidenciaId
-    ORDER BY b.FechaMovimiento ASC; -- Orden cronol�gico para leer la historia
+    ORDER BY b.FechaMovimiento ASC; 
 
     -- RESULTSET 3: AUTORIZACIONES 
     SELECT 

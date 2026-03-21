@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Tabla: [dbo].[EventosCalendario]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -18,6 +18,7 @@ BEGIN
     [Activo] bit NOT NULL CONSTRAINT [DF__EventosCa__Activ__0A344CDE] DEFAULT ((1)),
     [CreadoPorUsuarioId] int NULL,
     [FechaCreacion] datetime NULL CONSTRAINT [DF__EventosCa__Fecha__0B287117] DEFAULT (getdate()),
+    [Icono] nvarchar(100) NULL,
     CONSTRAINT [PK_EventosCalendario] PRIMARY KEY CLUSTERED ([EventoId])
     );
 END

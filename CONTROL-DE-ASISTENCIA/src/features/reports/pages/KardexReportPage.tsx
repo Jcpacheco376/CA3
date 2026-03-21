@@ -4,7 +4,7 @@ import {
     Search, FileSpreadsheet, FileText, ChevronDown, ChevronUp,
     MessageSquare, AlertCircle, ShieldAlert, Clock, CheckCircle2,
     Play, Loader2, Building, Briefcase, Tag, MapPin,
-    ArrowUpDown, ArrowUp, ArrowDown, Contact
+    ArrowUpDown, ArrowUp, ArrowDown, Contact, ScanSearch
 } from 'lucide-react';
 import { Tooltip } from '../../../components/ui/Tooltip';
 import { useAuth } from '../../auth/AuthContext';
@@ -29,6 +29,7 @@ import { AttendanceToolbar } from '../../attendance/AttendanceToolbar';
 import { EmployeeProfileModal } from '../../attendance/EmployeeProfileModal';
 import { AttendanceToolbarProvider, useAttendanceToolbarContext } from '../../attendance/AttendanceToolbarContext';
 import { ConfirmationModal } from '../../../components/ui/ConfirmationModal';
+import { AuditTimelineModal } from '../../attendance/AuditTimelineModal';
 
 // --- INTERFACES ---
 interface FichaData {
@@ -80,6 +81,8 @@ const KardexReportPageContent = () => {
     const [reportData, setReportData] = useState<EmpleadoKardex[]>([]);
     const [expandedRows, setExpandedRows] = useState<number[]>([]);
     const [viewingEmployeeId, setViewingEmployeeId] = useState<number | null>(null);
+    const [showTimeline, setShowTimeline] = useState(false);
+    const [timelineEmp, setTimelineEmp] = useState<{ EmpleadoId: number, Nombre: string, Ficha: string } | null>(null);
 
     const [validationResult, setValidationResult] = useState<any>(null);
     const [isGuardModalOpen, setIsGuardModalOpen] = useState(false);
@@ -115,7 +118,7 @@ const KardexReportPageContent = () => {
 
     const handleGenerateClick = async () => {
         if (!startDate || !endDate) return; // <--- Validación basada en fechas explícitas
-        
+
         // Advertencia de periodo largo
         if (differenceInDays(endDate, startDate) > 32) {
             setIsLongPeriodConfirmOpen(true);
@@ -127,7 +130,7 @@ const KardexReportPageContent = () => {
     const startValidationProcess = async () => {
         setIsLongPeriodConfirmOpen(false);
         setIsLoading(true);
-       
+
         const token = getToken();
         if (!token) return;
 
@@ -168,7 +171,7 @@ const KardexReportPageContent = () => {
     const handleConfirmGeneration = async () => {
         setIsGuardModalOpen(false);
         setIsLoading(true);
-        setIsInitialLoading(true); 
+        setIsInitialLoading(true);
         const token = getToken();
 
         try {
@@ -331,9 +334,9 @@ const KardexReportPageContent = () => {
 
             <div className="bg-white rounded-lg shadow-sm border border-slate-200">
                 <AttendanceToolbar
-                    
+
                     allowCustomRange={true}
-                    // enablePayrollSync={true}
+                // enablePayrollSync={true}
                 />
             </div>
 
@@ -384,6 +387,7 @@ const KardexReportPageContent = () => {
                                                             {pendingCount > 0 && <Tooltip text={`${pendingCount} días pendientes de validación`}><div className="w-2 h-2 rounded-full bg-amber-500 ring-2 ring-amber-100 animate-pulse"></div></Tooltip>}
                                                             {incidentCount > 0 && <Tooltip text={`${incidentCount} incidencias`}><div className="w-2 h-2 rounded-full bg-purple-500 ring-2 ring-purple-100"></div></Tooltip>}
                                                             {emp.nombre}
+                                                            {can('asistencia.auditar') && <Tooltip text="Auditoría de Checadas"><button onClick={(e) => { e.stopPropagation(); setTimelineEmp({ EmpleadoId: emp.empleadoId, Nombre: emp.nombre, Ficha: emp.codRef }); setShowTimeline(true); }} className="p-1 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-full opacity-0 group-hover/name:opacity-100 transition-opacity"><ScanSearch size={16} /></button></Tooltip>}
                                                             <Tooltip text="Ver Ficha"><button onClick={(e) => { e.stopPropagation(); setViewingEmployeeId(emp.empleadoId); }} className="p-1 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-full opacity-0 group-hover/name:opacity-100 transition-opacity"><Contact size={16} /></button></Tooltip>
                                                         </div>
                                                     </td>
@@ -445,7 +449,7 @@ const KardexReportPageContent = () => {
             </div>
 
             <PayrollGuardModal isOpen={isGuardModalOpen} onClose={() => setIsGuardModalOpen(false)} onConfirm={handleConfirmGeneration} validation={validationResult} canOverride={true} reportType="kardex" />
-            
+
             <ConfirmationModal
                 isOpen={isLongPeriodConfirmOpen}
                 onClose={() => setIsLongPeriodConfirmOpen(false)}
@@ -460,6 +464,17 @@ const KardexReportPageContent = () => {
 
             <PDFPreviewModal isOpen={isPreviewOpen} onClose={() => setIsPreviewOpen(false)} pdfUrl={previewPdfUrl} title="Kardex de Asistencia" fileName={`Kardex_${format(new Date(), 'yyyy-MM-dd')}.pdf`} onSettingsChange={generateReport} onSave={handleSaveFromPreview} allowedLayouts={['standard', 'compact', 'executive']} />
             {viewingEmployeeId && <EmployeeProfileModal employeeId={viewingEmployeeId as any} onClose={() => setViewingEmployeeId(null)} getToken={getToken} user={user} />}
+            {showTimeline && timelineEmp && startDate && endDate && (
+                <AuditTimelineModal
+                    employeeId={timelineEmp.EmpleadoId}
+                    employeeName={timelineEmp.Nombre}
+                    employeeFicha={timelineEmp.Ficha}
+                    startDate={startDate}
+                    endDate={endDate}
+                    onClose={() => { setShowTimeline(false); setTimelineEmp(null); }}
+                    getToken={getToken}
+                />
+            )}
         </div>
     );
 };

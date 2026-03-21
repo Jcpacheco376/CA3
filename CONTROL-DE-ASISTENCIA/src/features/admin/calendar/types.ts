@@ -34,6 +34,7 @@ export interface CalendarEvent {
     LogicaCalculo: string;
     TipoColorUI: string;
     TipoIcono: string;
+    EventoIcono?: string;
     AplicaATodos: boolean;
     Activo: boolean;
     Filtros: EventFilter[];

@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Prenomina_ValidarCierre]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -15,7 +15,6 @@ AS
 BEGIN
     SET NOCOUNT ON;
 
-    -- Variables para la l�gica
     DECLARE @PeriodoCerrado BIT = 0;
 	DECLARE @ReporteGenerado BIT = 0;
     DECLARE @FichasTotal INT = 0;
@@ -24,7 +23,7 @@ BEGIN
     DECLARE @IncidenciasCriticas INT = 0;
     DECLARE @FechaGeneracion DATETIME = NULL;
 
-    -- Variables de Salida (Formato Modal Legacy)
+    -- Variables de Salida
     DECLARE @EstadoSemaforo VARCHAR(20) = 'VERDE';
     DECLARE @MensajeValidacion NVARCHAR(255) = '';
 

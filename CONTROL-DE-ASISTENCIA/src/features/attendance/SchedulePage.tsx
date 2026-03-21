@@ -11,13 +11,14 @@ import {
 import { es } from 'date-fns/locale';
 import {
     Loader2, Briefcase, Building, Cake, GripVertical, Contact, InfoIcon as Info,
-    CalendarCheck, Tag, MapPin, AlertTriangle, CalendarOff, ListTodo, Lock, Unlock
+    CalendarCheck, Tag, MapPin, AlertTriangle, CalendarOff, ListTodo, Lock, Unlock, ScanSearch
 } from 'lucide-react';
 import { AttendanceToolbar } from './AttendanceToolbar';
 import { ScheduleCell } from './ScheduleCell';
 import { EmployeeProfileModal } from './EmployeeProfileModal';
 import { AssignFixedScheduleModal, AssignScope } from './AssignFixedScheduleModal'; // <--- Importamos AssignScope
 import { Tooltip } from '../../components/ui/Tooltip';
+import { AuditTimelineModal } from './AuditTimelineModal';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { TableSkeleton } from '../../components/ui/TableSkeleton';
 import { AttendanceToolbarProvider, useAttendanceToolbarContext } from './AttendanceToolbarContext';
@@ -86,6 +87,8 @@ const SchedulePageContent = () => {
     const [showOnlyPending, setShowOnlyPending] = useState(false);
     const [showOnlyUnlocked, setShowOnlyUnlocked] = useState(false);
     const [viewingEmployeeId, setViewingEmployeeId] = useState<number | null>(null);
+    const [showTimeline, setShowTimeline] = useState(false);
+    const [timelineEmp, setTimelineEmp] = useState<{ EmpleadoId: number, Nombre: string, Ficha: string } | null>(null);
 
     // --- ESTADOS PARA EL MODAL ---
     const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false);
@@ -119,11 +122,11 @@ const SchedulePageContent = () => {
         // FIX: Find the first day in the range that is on or after the target week start.
         // This handles cases where the period starts mid-week.
         const dayIndex = dateRange.findIndex(d => d >= targetDate);
-        
+
         if (dayIndex !== -1) {
             const columnWidth = 96; // Corregido a un valor constante
             const scrollLeft = dayIndex * columnWidth;
-            
+
             scrollContainerRef.current.scrollTo({
                 left: scrollLeft,
                 behavior: 'smooth'
@@ -134,155 +137,155 @@ const SchedulePageContent = () => {
         }
     };
 
-        // --- Manejador: Click en Cabecero ---
+    // --- Manejador: Click en Cabecero ---
 
-        const handleHeaderClick = (day: Date) => {
+    const handleHeaderClick = (day: Date) => {
 
-            const weekStart = startOfWeek(day, { weekStartsOn: effectiveWeekStartDay as any });
+        const weekStart = startOfWeek(day, { weekStartsOn: effectiveWeekStartDay as any });
 
-            scrollToDate(weekStart);
+        scrollToDate(weekStart);
 
-        };
+    };
 
-    
 
-        // --- Manejador: Cambio de Semana desde el Modal ---
 
-        const handleModalWeekChange = (newWeekStart: Date) => {
+    // --- Manejador: Cambio de Semana desde el Modal ---
 
-            scrollToDate(newWeekStart);
+    const handleModalWeekChange = (newWeekStart: Date) => {
 
-        };
+        scrollToDate(newWeekStart);
 
-    
+    };
 
-        // Lógica de "Semana Activa" (Ajustada para respetar weekStartDay)
 
-        const updateActiveWeek = useCallback(() => {
 
-            if (!scrollContainerRef.current || dateRange.length === 0) return;
+    // Lógica de "Semana Activa" (Ajustada para respetar weekStartDay)
 
-            const { scrollLeft, clientWidth, scrollWidth } = scrollContainerRef.current;
+    const updateActiveWeek = useCallback(() => {
 
-            let startOfActiveWeek: Date | null = null;
+        if (!scrollContainerRef.current || dateRange.length === 0) return;
 
-            const scrollEndTolerance = 5;
+        const { scrollLeft, clientWidth, scrollWidth } = scrollContainerRef.current;
 
-    
+        let startOfActiveWeek: Date | null = null;
 
-            if (scrollLeft <= 0) {
+        const scrollEndTolerance = 5;
 
-                startOfActiveWeek = startOfWeek(dateRange[0], { weekStartsOn: effectiveWeekStartDay as any });
 
-            } else if (scrollLeft + clientWidth >= scrollWidth - scrollEndTolerance) {
 
-                startOfActiveWeek = startOfWeek(dateRange[dateRange.length - 1], { weekStartsOn: effectiveWeekStartDay as any });
+        if (scrollLeft <= 0) {
 
-            } else {
+            startOfActiveWeek = startOfWeek(dateRange[0], { weekStartsOn: effectiveWeekStartDay as any });
 
-                const cellWidth = 96; // Corregido a un valor constante que refleja el contenido real (w-24 = 6rem = 96px)
+        } else if (scrollLeft + clientWidth >= scrollWidth - scrollEndTolerance) {
 
-                const detectionPoint = scrollLeft + (clientWidth * 0.3);
+            startOfActiveWeek = startOfWeek(dateRange[dateRange.length - 1], { weekStartsOn: effectiveWeekStartDay as any });
 
-                let dayIndex = Math.floor(detectionPoint / cellWidth);
+        } else {
 
-                dayIndex = Math.max(0, Math.min(dayIndex, dateRange.length - 1));
+            const cellWidth = 96; // Corregido a un valor constante que refleja el contenido real (w-24 = 6rem = 96px)
 
-                const activeDay = dateRange[dayIndex];
+            const detectionPoint = scrollLeft + (clientWidth * 0.3);
 
-                if (activeDay) {
+            let dayIndex = Math.floor(detectionPoint / cellWidth);
 
-                    startOfActiveWeek = startOfWeek(activeDay, { weekStartsOn: effectiveWeekStartDay as any });
+            dayIndex = Math.max(0, Math.min(dayIndex, dateRange.length - 1));
 
-                }
+            const activeDay = dateRange[dayIndex];
+
+            if (activeDay) {
+
+                startOfActiveWeek = startOfWeek(activeDay, { weekStartsOn: effectiveWeekStartDay as any });
 
             }
 
-    
+        }
 
-            if (startOfActiveWeek) {
 
-                setActiveWeekStartDate(currentActiveWeek => {
 
-                    const isSame = currentActiveWeek && isSameDay(currentActiveWeek, startOfActiveWeek!);
+        if (startOfActiveWeek) {
 
-                    if (!isSame) {
+            setActiveWeekStartDate(currentActiveWeek => {
 
-                        return startOfActiveWeek;
+                const isSame = currentActiveWeek && isSameDay(currentActiveWeek, startOfActiveWeek!);
 
-                    }
+                if (!isSame) {
 
-                    return currentActiveWeek;
-
-                });
-
-            }
-
-        }, [dateRange, viewMode, effectiveWeekStartDay]);
-
-    
-
-        useEffect(() => {
-
-            const scrollContainer = scrollContainerRef.current;
-
-            const handleScroll = () => {
-
-                if (scrollTimerRef.current) {
-
-                    cancelAnimationFrame(scrollTimerRef.current);
+                    return startOfActiveWeek;
 
                 }
 
-                scrollTimerRef.current = requestAnimationFrame(updateActiveWeek);
+                return currentActiveWeek;
 
-            };
+            });
+
+        }
+
+    }, [dateRange, viewMode, effectiveWeekStartDay]);
+
+
+
+    useEffect(() => {
+
+        const scrollContainer = scrollContainerRef.current;
+
+        const handleScroll = () => {
+
+            if (scrollTimerRef.current) {
+
+                cancelAnimationFrame(scrollTimerRef.current);
+
+            }
+
+            scrollTimerRef.current = requestAnimationFrame(updateActiveWeek);
+
+        };
+
+        if (scrollContainer) {
+
+            scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+
+            updateActiveWeek();
+
+        }
+
+        return () => {
 
             if (scrollContainer) {
 
-                scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
-
-                updateActiveWeek();
+                scrollContainer.removeEventListener('scroll', handleScroll);
 
             }
 
-            return () => {
+            if (scrollTimerRef.current) {
 
-                if (scrollContainer) {
-
-                    scrollContainer.removeEventListener('scroll', handleScroll);
-
-                }
-
-                if (scrollTimerRef.current) {
-
-                    cancelAnimationFrame(scrollTimerRef.current);
-
-                }
-
-            };
-
-        }, [updateActiveWeek]);
-
-    
-
-        useEffect(() => {
-
-            if (scrollContainerRef.current) {
-
-                scrollContainerRef.current.scrollLeft = 0;
+                cancelAnimationFrame(scrollTimerRef.current);
 
             }
 
-            if (dateRange.length > 0) {
+        };
 
-                const firstWeekStart = startOfWeek(dateRange[0], { weekStartsOn: effectiveWeekStartDay as any });
+    }, [updateActiveWeek]);
 
-                setActiveWeekStartDate(firstWeekStart);
 
-            }
 
-        }, [dateRange, effectiveWeekStartDay]);
+    useEffect(() => {
+
+        if (scrollContainerRef.current) {
+
+            scrollContainerRef.current.scrollLeft = 0;
+
+        }
+
+        if (dateRange.length > 0) {
+
+            const firstWeekStart = startOfWeek(dateRange[0], { weekStartsOn: effectiveWeekStartDay as any });
+
+            setActiveWeekStartDate(firstWeekStart);
+
+        }
+
+    }, [dateRange, effectiveWeekStartDay]);
 
     // Carga de Datos
     const fetchData = useCallback(async () => {
@@ -480,8 +483,8 @@ const SchedulePageContent = () => {
 
     // --- Handler actualizado para el Modal ---
     const handleAssignSchedule = (
-        horarioId: number | null, 
-        scope: AssignScope, 
+        horarioId: number | null,
+        scope: AssignScope,
         targetWeekStart: Date,
         weekStartDayOverride?: number
     ) => {
@@ -551,7 +554,7 @@ const SchedulePageContent = () => {
         if (searchWords.length > 0) {
             result = result.filter(emp => {
                 const targetText = ((emp?.NombreCompleto || '') + ' ' + (emp?.CodRef || '')).toLowerCase();
-                return searchWords.every(word => targetText.includes(word));
+                return searchWords.every((word: string) => targetText.includes(word));
             });
         }
 
@@ -652,8 +655,8 @@ const SchedulePageContent = () => {
                                 if (isWeekStart && !isFirstDay) thClasses += ' border-l-2 border-slate-300';
 
                                 return (
-                                    <th 
-                                        key={day.toISOString()} 
+                                    <th
+                                        key={day.toISOString()}
                                         className={thClasses}
                                         onClick={() => handleHeaderClick(day)}
                                         title="Click para seleccionar esta semana"
@@ -705,6 +708,19 @@ const SchedulePageContent = () => {
                                                     </div>
                                                     <div className="flex items-center space-x-2 flex-shrink-0 ml-2">
                                                         <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                            {can('asistencia.auditar') && (
+                                                                <Tooltip text="Auditoría de Checadas">
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setTimelineEmp({ EmpleadoId: emp.EmpleadoId, Nombre: emp.NombreCompleto, Ficha: emp.CodRef });
+                                                                            setShowTimeline(true);
+                                                                        }}
+                                                                        className="p-1 rounded-md text-slate-400 hover:text-indigo-500 hover:bg-indigo-50"
+                                                                    >
+                                                                        <ScanSearch size={18} />
+                                                                    </button>
+                                                                </Tooltip>
+                                                            )}
                                                             <Tooltip text="Ver Ficha de Empleado"><button onClick={() => setViewingEmployeeId(emp.EmpleadoId)} className="p-1 rounded-md text-slate-400 hover:text-[--theme-500] hover:bg-slate-200"><Contact size={18} /></button></Tooltip>
                                                             {canAssign && <Tooltip text={activeWeekStartDate ? `Asignar a la semana del ${format(activeWeekStartDate, 'd MMM', { locale: es })}` : "Asignar horario"}><button onClick={() => setAssignFixedModalInfo({ employeeId: emp.EmpleadoId, employeeName: emp.NombreCompleto || 'Empleado' })} className="p-1 rounded-md text-slate-500 hover:text-[--theme-600] hover:bg-slate-200 transition-colors"><CalendarCheck size={20} /></button></Tooltip>}
                                                         </div>
@@ -771,7 +787,22 @@ const SchedulePageContent = () => {
                 <AttendanceToolbar allowNaturalWeek={true} />
                 {renderContent()}
             </div>
-            {viewingEmployeeId && <EmployeeProfileModal employeeId={viewingEmployeeId as any} onClose={() => setViewingEmployeeId(null)} getToken={getToken} user={user} />}
+            {viewingEmployeeId && <EmployeeProfileModal employeeId={viewingEmployeeId as any} onClose={() => setViewingEmployeeId(null)} getToken={getToken} user={user} />
+            }
+            {showTimeline && timelineEmp && (
+                <AuditTimelineModal
+                    employeeId={timelineEmp.EmpleadoId}
+                    employeeName={timelineEmp.Nombre}
+                    employeeFicha={timelineEmp.Ficha}
+                    startDate={dateRange[0]}
+                    endDate={dateRange[dateRange.length - 1]}
+                    onClose={() => {
+                        setShowTimeline(false);
+                        setTimelineEmp(null);
+                    }}
+                    getToken={getToken}
+                />
+            )}
             <AssignFixedScheduleModal
                 isOpen={!!assignFixedModalInfo}
                 onClose={() => setAssignFixedModalInfo(null)}

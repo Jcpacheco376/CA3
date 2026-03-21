@@ -50,7 +50,6 @@ export interface User {
     Establecimientos?: ({ EstablecimientoId: number, Nombre: string } | number)[];
     permissions?: { [key: string]: string[] };
     Theme?: string;
-    AnimationsEnabled?: boolean;
     DebeCambiarPassword?: boolean;
 
     activeFilters?: ActiveFilters;
@@ -60,6 +59,7 @@ export interface Role {
     NombreRol: string;
     Descripcion?: string;
     SISPermisos?: Permission[];
+    Permisos?: Permission[];
     EsPrincipal?: boolean;
 
 }

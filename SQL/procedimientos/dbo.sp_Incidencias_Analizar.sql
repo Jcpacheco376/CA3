@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Incidencias_Analizar]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.3.66
--- Compilado:           09/03/2026, 15:34:05
+-- Versión de Paquete:  v1.5.13
+-- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -13,7 +13,7 @@ CREATE OR ALTER PROCEDURE [dbo].[sp_Incidencias_Analizar]
     @UsuarioId INT,
     @SinRetorno BIT = 0,
     @IncidenciaId INT = NULL,
-    @OrigenExec NVARCHAR(50) = 'Sistema' -- << NUEVO PAR�METRO DE CONTROL ('Sistema' o 'Manual')
+    @OrigenExec NVARCHAR(50) = 'Sistema'
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -91,11 +91,10 @@ BEGIN
         IncidenciaId,
         @UsuarioId,
         @Ahora,
-        -- LOGICA DE ETIQUETADO PRECISO:
         CASE 
-            WHEN @OrigenExec = 'Manual' THEN 'ResolucionManual' -- Forzado por el usuario (Modal/Grid)
-            WHEN ISNULL(Checador_Ant, -1) <> ISNULL(Checador_New, -1) THEN 'Sincronizacion' -- Cambi� el reloj
-            ELSE 'AutoResolucion' -- Cierre por regla de negocio pura
+            WHEN @OrigenExec = 'Manual' THEN 'ResolucionManual' 
+            WHEN ISNULL(Checador_Ant, -1) <> ISNULL(Checador_New, -1) THEN 'Sincronizacion' 
+            ELSE 'AutoResolucion' 
         END,
         'Incidencia resuelta. Estatus final: ' + EstatusFinal,
         'Resuelta',
@@ -107,7 +106,7 @@ BEGIN
     FROM dbo.FichaAsistencia f JOIN @AutoResueltas ar ON f.IncidenciaActivaId = ar.IncidenciaId;
 
     -------------------------------------------------------------------------
-    -- FASE 2: DETECCI�N Y EVOLUCI�N (Sin cambios)
+    -- FASE 2: DETECCI�N Y EVOLUCI�N 
     -------------------------------------------------------------------------
     DECLARE @Candidatas TABLE (
         EmpleadoId INT NOT NULL, Fecha DATE NOT NULL,
