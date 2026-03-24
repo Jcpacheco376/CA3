@@ -50,7 +50,7 @@ export const Modal = ({ isOpen, onClose, title, children, footer, footerActions,
     const panelAnimationClass = isOpen ? 'animate-scale-in' : 'animate-scale-out';
 
     const modalContent = (
-        <div className={`fixed inset-0 z-40 flex items-center justify-center p-4 ${animationClass}`}>
+        <div className={`fixed inset-0 z-[1000] flex items-center justify-center p-4 ${animationClass}`}>
             <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose}></div>
 
             {/* Ajuste: max-h-[90vh] para asegurar que quepa en pantalla */}

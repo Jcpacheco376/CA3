@@ -1,9 +1,14 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Nomina_AbrirPeriodo]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.5.13
--- Compilado:           21/03/2026, 14:38:21
+-- Versión de Paquete:  v1.5.16
+-- Compilado:           24/03/2026, 16:29:51
 -- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Nomina_AbrirPeriodo]
+-- Corregido para soportar apertura individual por EmpleadoId
 -- ──────────────────────────────────────────────────────────────────────
 
 CREATE OR ALTER PROCEDURE [dbo].[sp_Nomina_AbrirPeriodo]
@@ -14,7 +19,8 @@ CREATE OR ALTER PROCEDURE [dbo].[sp_Nomina_AbrirPeriodo]
     @Motivo NVARCHAR(510),
     @DepartamentoIds NVARCHAR(MAX) = '[]',
     @PuestoIds NVARCHAR(MAX) = '[]',
-    @EstablecimientoIds NVARCHAR(MAX) = '[]'
+    @EstablecimientoIds NVARCHAR(MAX) = '[]',
+    @EmpleadoId INT = NULL 
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -40,22 +46,27 @@ BEGIN
             Estado = 'VALIDADO',
             FechaModificacion = GETDATE(),
             ModificadoPorUsuarioId = @UsuarioId,
-            Comentarios = ISNULL(Comentarios, '') + ' [Desbloqueo: ' + @Motivo + ']'
+            Comentarios = ISNULL(Comentarios, '') + ' [Desbloqueo individual: ' + @Motivo + ']'
         FROM [dbo].[FichaAsistencia] f
         INNER JOIN [dbo].[Empleados] e ON f.EmpleadoId = e.EmpleadoId
         INNER JOIN dbo.fn_Seguridad_GetEmpleadosPermitidos(@UsuarioId) perm ON e.EmpleadoId = perm.EmpleadoId
         WHERE e.GrupoNominaId = @GrupoNominaId
           AND f.Fecha BETWEEN @FechaInicio AND @FechaFin
           AND f.Estado = 'BLOQUEADO'
-          AND ((SELECT COUNT(*) FROM @Deptos) = 0 OR e.DepartamentoId IN (SELECT Id FROM @Deptos))
-          AND ((SELECT COUNT(*) FROM @Puestos) = 0 OR e.PuestoId IN (SELECT Id FROM @Puestos))
-          AND ((SELECT COUNT(*) FROM @Estabs) = 0 OR e.EstablecimientoId IN (SELECT Id FROM @Estabs));
+          -- SI VIENE EMPLEADOID, SOLO AFECTA A ESE; SI NO, APLICA FILTROS MULTIPLES
+          AND (@EmpleadoId IS NULL OR e.EmpleadoId = @EmpleadoId)
+          AND (@EmpleadoId IS NOT NULL OR (
+                ((SELECT COUNT(*) FROM @Deptos) = 0 OR e.DepartamentoId IN (SELECT Id FROM @Deptos))
+            AND ((SELECT COUNT(*) FROM @Puestos) = 0 OR e.PuestoId IN (SELECT Id FROM @Puestos))
+            AND ((SELECT COUNT(*) FROM @Estabs) = 0 OR e.EstablecimientoId IN (SELECT Id FROM @Estabs))
+          ));
 
         DECLARE @FilasAfectadas INT = @@ROWCOUNT;
 
+        -- Actualizar el registro global de cierre si el periodo cambia de estado
         UPDATE [dbo].[CierresNomina]
         SET Estado = 'ABIERTO',
-            Comentarios = ISNULL(Comentarios, '') + ' | REAPERTURA: ' + @Motivo,
+            Comentarios = ISNULL(Comentarios, '') + ' | REAPERTURA: ' + @Motivo + (CASE WHEN @EmpleadoId IS NOT NULL THEN ' (EMP: ' + CAST(@EmpleadoId AS VARCHAR) + ')' ELSE '' END),
             FechaCierre = GETDATE(),
             UsuarioId = @UsuarioId
         WHERE GrupoNominaId = @GrupoNominaId

@@ -14,7 +14,7 @@ import { ProfessionalSidebar } from './ProfessionalSidebar';
 import { AppHeader } from './AppHeader';
 import {
     BarChartBig, Users, Shield, Folder, FileText, CalendarClock, Calendar,
-    AlertTriangle, Lock, LayoutDashboard, Monitor, Palmtree
+    AlertTriangle, Lock, LayoutDashboard, Monitor, Palmtree, ChevronsUp
 } from 'lucide-react';
 import { SchedulePage } from '../../features/attendance/SchedulePage';
 import { ReportsHub } from '../../features/reports/ReportsHub';
@@ -36,6 +36,7 @@ interface MainLayoutProps {
 export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme, themeColors }: MainLayoutProps) => {
     const { can } = useAuth();
     const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+    const [isHeaderCollapsed, setIsHeaderCollapsed] = useState(false);
 
     const menuConfig = [
         {
@@ -129,9 +130,17 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
                 activeView={activeView}
                 setActiveView={setActiveView}
                 menuConfig={menuConfig}
+                isHeaderCollapsed={isHeaderCollapsed}
+                setIsHeaderCollapsed={setIsHeaderCollapsed}
+                user={user}
+                themeColors={themeColors}
+                onProfileClick={() => setIsProfileModalOpen(true)}
             />
-            <div className="flex-1 flex flex-col overflow-hidden">
-                <AppHeader user={user} onProfileClick={() => setIsProfileModalOpen(true)} themeColors={themeColors} />
+            <div className="flex-1 flex flex-col overflow-hidden relative">
+                <div className={`relative z-50 transition-all duration-300 transform-gpu ease-in-out bg-white ${isHeaderCollapsed ? 'max-h-0 opacity-0 overflow-hidden shrink-0' : 'max-h-16 opacity-100 shrink-0 border-b border-gray-200'}`}>
+                    <AppHeader user={user} onProfileClick={() => setIsProfileModalOpen(true)} themeColors={themeColors} />
+                </div>
+
                 <main className="flex-1 p-2 md:p-4 text-slate-900 overflow-y-auto">
                     {renderContent()}
                 </main>

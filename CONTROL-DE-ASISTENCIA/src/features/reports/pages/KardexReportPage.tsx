@@ -103,7 +103,7 @@ const KardexReportPageContent = () => {
             setValidationResult(null);
             setExpandedRows([]);
         }
-    }, [startDate, endDate, filters]); // <--- Dependencia actualizada
+    }, [startDate, endDate, filters.depts, filters.groups, filters.puestos, filters.estabs]); // <--- Dependencia actualizada
 
     const toggleRow = (empleadoId: number) => {
         setExpandedRows(prev => prev.includes(empleadoId) ? prev.filter(id => id !== empleadoId) : [...prev, empleadoId]);
@@ -135,8 +135,8 @@ const KardexReportPageContent = () => {
         if (!token) return;
 
         const activeFilters = {
-            startDate: format(startDate, 'yyyy-MM-dd'), // <--- Uso directo
-            endDate: format(endDate, 'yyyy-MM-dd'),     // <--- Uso directo
+            startDate: format(startDate!, 'yyyy-MM-dd'), // <--- Uso directo
+            endDate: format(endDate!, 'yyyy-MM-dd'),     // <--- Uso directo
             filters: {
                 departamentos: filters.depts,
                 gruposNomina: filters.groups,
@@ -462,7 +462,7 @@ const KardexReportPageContent = () => {
                 <p className="text-sm text-slate-500 mt-2">Generar este reporte podría tardar considerablemente. ¿Estás seguro de continuar?</p>
             </ConfirmationModal>
 
-            <PDFPreviewModal isOpen={isPreviewOpen} onClose={() => setIsPreviewOpen(false)} pdfUrl={previewPdfUrl} title="Kardex de Asistencia" fileName={`Kardex_${format(new Date(), 'yyyy-MM-dd')}.pdf`} onSettingsChange={generateReport} onSave={handleSaveFromPreview} allowedLayouts={['standard', 'compact', 'executive']} />
+            <PDFPreviewModal isOpen={isPreviewOpen} onClose={() => setIsPreviewOpen(false)} pdfUrl={previewPdfUrl} title="Kardex de Asistencia" onSettingsChange={generateReport} onSave={handleSaveFromPreview} allowedLayouts={['standard', 'compact', 'executive']} />
             {viewingEmployeeId && <EmployeeProfileModal employeeId={viewingEmployeeId as any} onClose={() => setViewingEmployeeId(null)} getToken={getToken} user={user} />}
             {showTimeline && timelineEmp && startDate && endDate && (
                 <AuditTimelineModal

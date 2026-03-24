@@ -76,13 +76,15 @@ export const executePeriodClose = async (req: any, res: Response) => {
         comentarios,
         departamentoIds,
         puestoIds,
-        establecimientoIds
+        establecimientoIds,
+        empleadoId // NUEVO: Para cierre individual
     } = req.body;
 
     try {
         const pool = await sql.connect(dbConfig);
         const result = await pool.request()
             .input('GrupoNominaId', sql.Int, grupoNominaId)
+            .input('EmpleadoId', sql.Int, empleadoId || null) // NUEVO
             .input('FechaInicio', sql.Date, fechaInicio)
             .input('FechaFin', sql.Date, fechaFin)
             .input('UsuarioId', sql.Int, req.user.usuarioId)
@@ -94,7 +96,9 @@ export const executePeriodClose = async (req: any, res: Response) => {
 
         // result.recordset[0] contiene { Bloqueadas, Pendientes, EstatusFinal }
         res.status(200).json({
-            message: 'Proceso de cierre ejecutado correctamente.',
+            message: empleadoId
+                ? 'El empleado ha sido bloqueado correctamente.'
+                : 'Proceso de cierre ejecutado correctamente.',
             data: result.recordset[0]
         });
 
@@ -110,7 +114,13 @@ export const unlockPeriod = async (req: any, res: Response) => {
         return res.status(403).json({ message: 'No tienes permiso para desbloquear periodos.' });
     }
 
-    const { grupoNominaId, fechaInicio, fechaFin, motivo } = req.body;
+    const {
+        grupoNominaId,
+        fechaInicio,
+        fechaFin,
+        motivo,
+        empleadoId // NUEVO: Para apertura individual
+    } = req.body;
 
     if (!motivo) {
         return res.status(400).json({ message: 'Es obligatorio indicar un motivo para el desbloqueo.' });
@@ -120,13 +130,18 @@ export const unlockPeriod = async (req: any, res: Response) => {
         const pool = await sql.connect(dbConfig);
         await pool.request()
             .input('GrupoNominaId', sql.Int, grupoNominaId)
+            .input('EmpleadoId', sql.Int, empleadoId || null) // NUEVO
             .input('FechaInicio', sql.Date, fechaInicio)
             .input('FechaFin', sql.Date, fechaFin)
             .input('UsuarioId', sql.Int, req.user.usuarioId)
             .input('Motivo', sql.NVarChar, motivo)
             .execute('sp_Nomina_AbrirPeriodo');
 
-        res.status(200).json({ message: 'Periodo desbloqueado correctamente. Las fichas han regresado a estado VALIDADO.' });
+        res.status(200).json({
+            message: empleadoId
+                ? 'El periodo del empleado ha sido desbloqueado correctamente.'
+                : 'Periodo desbloqueado correctamente. Las fichas han regresado a estado VALIDADO.'
+        });
 
     } catch (err: any) {
         console.error("Error desbloqueando periodo:", err);

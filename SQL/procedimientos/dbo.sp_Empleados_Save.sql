@@ -1,6 +1,14 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Empleados_Save]
 -- Base de Datos:       CA
+-- Versión de Paquete:  v1.5.16
+-- Compilado:           24/03/2026, 16:29:51
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Empleados_Save]
+-- Base de Datos:       CA
 -- Versión de Paquete:  v1.5.13
 -- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
@@ -42,7 +50,7 @@ BEGIN
     BEGIN TRY
         BEGIN TRANSACTION;
         -- Calcular NombreCompleto basado en Configuración
-			DECLARE @FormatoNombre VARCHAR;
+			DECLARE @FormatoNombre VARCHAR(10);
             SELECT  @FormatoNombre = ConfigValue FROM SISConfiguracion WHERE ConfigKey='FormNombreEmpleados'
         
         DECLARE @NombreCompleto NVARCHAR(300);

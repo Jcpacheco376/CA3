@@ -1,6 +1,6 @@
-// src/features/attendance/EmployeeProfileModal.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { API_BASE_URL } from '../../config/api';
+import ReactDOM from 'react-dom';
 import { format, startOfWeek, endOfWeek, differenceInYears, isWithinInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Badge, Cake, Calendar as CalendarIcon, Hash, Fingerprint, X, User, Briefcase, Building, AlertCircle, Mars, Venus, Pencil, MapPin, Clock } from 'lucide-react';
@@ -208,39 +208,50 @@ export const EmployeeProfileModal = ({ employeeId, onClose, getToken, user }: { 
     const themeName = user?.Theme || 'indigo';
     const themeColors = themes[themeName];
 
-    return (
-        <div ref={cardRef} className={`fixed bg-white rounded-xl shadow-2xl z-40 w-[600px] animate-scale-in overflow-hidden`} style={positionStyle}>
-            <div onMouseDown={handleDragStart} className="h-12 w-full cursor-move p-4 flex items-center justify-between border-b border-slate-200" style={{ backgroundColor: themeColors[50] }}>
-                <div className="flex items-center gap-3">
-                    <h3 className="font-semibold" style={{ color: themeColors[600] }}>Ficha de Empleado</h3>
-                    {!isLoading && can('catalogo.empleados.manage') && (
-                        <Tooltip text="Editar Empleado">
-                            <button
-                                onClick={() => setIsEditModalOpen(true)}
-                                className="p-1.5 rounded-full text-slate-400 hover:text-[--theme-600] hover:bg-[--theme-100] transition-colors"
-                            >
-                                <Pencil size={16} />
-                            </button>
-                        </Tooltip>
-                    )}
+    const modalContent = (
+        <div className="fixed inset-0 z-[1100] flex items-center justify-center pointer-events-none">
+            {/* Backdrop */}
+            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm pointer-events-auto" onClick={onClose}></div>
+
+            <div
+                ref={cardRef}
+                className={`fixed bg-white rounded-xl shadow-2xl z-[1101] w-[600px] animate-scale-in overflow-hidden pointer-events-auto`}
+                style={positionStyle}
+            >
+                <div onMouseDown={handleDragStart} className="h-12 w-full cursor-move p-4 flex items-center justify-between border-b border-slate-200" style={{ backgroundColor: themeColors[50] }}>
+                    <div className="flex items-center gap-3">
+                        <h3 className="font-semibold" style={{ color: themeColors[600] }}>Ficha de Empleado</h3>
+                        {!isLoading && can('catalogo.empleados.manage') && (
+                            <Tooltip text="Editar Empleado">
+                                <button
+                                    onClick={() => setIsEditModalOpen(true)}
+                                    className="p-1.5 rounded-full text-slate-400 hover:text-[--theme-600] hover:bg-[--theme-100] transition-colors"
+                                >
+                                    <Pencil size={16} />
+                                </button>
+                            </Tooltip>
+                        )}
+                    </div>
+                    {/* Spacer to avoid overlap with absolute close button if needed, but close button is absolute */}
                 </div>
-                {/* Spacer to avoid overlap with absolute close button if needed, but close button is absolute */}
-            </div>
 
-            <button onClick={onClose} className="absolute top-3 right-3 p-1 rounded-full text-slate-400 hover:bg-slate-200 z-50"><X size={18} /></button>
+                <button onClick={onClose} className="absolute top-3 right-3 p-1 rounded-full text-slate-400 hover:bg-slate-200 z-50"><X size={18} /></button>
 
-            <div className={`absolute inset-0 bg-white/30 bg-clip-padding backdrop-filter backdrop-blur-sm animate-pulse ${!isLoading && 'hidden'}`}>
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/80 to-transparent -translate-x-full animate-[shimmer_2s_infinite]"></div>
+                <div className={`absolute inset-0 bg-white/30 bg-clip-padding backdrop-filter backdrop-blur-sm animate-pulse ${!isLoading && 'hidden'}`}>
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/80 to-transparent -translate-x-full animate-[shimmer_2s_infinite]"></div>
+                </div>
+                {renderContent()}
+                {isEditModalOpen && (
+                    <EmpleadoModal
+                        isOpen={isEditModalOpen}
+                        onClose={() => setIsEditModalOpen(false)}
+                        empleado={{ EmpleadoId: employeeId, ...employeeData }}
+                        onSave={() => { setIsEditModalOpen(false); fetchEmployeeData(); }}
+                    />
+                )}
             </div>
-            {renderContent()}
-            {isEditModalOpen && (
-                <EmpleadoModal
-                    isOpen={isEditModalOpen}
-                    onClose={() => setIsEditModalOpen(false)}
-                    empleado={{ EmpleadoId: employeeId, ...employeeData }}
-                    onSave={() => { setIsEditModalOpen(false); fetchEmployeeData(); }}
-                />
-            )}
         </div>
     );
+
+    return ReactDOM.createPortal(modalContent, document.body);
 };

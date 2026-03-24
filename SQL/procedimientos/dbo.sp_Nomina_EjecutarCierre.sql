@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Nomina_EjecutarCierre]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.5.13
--- Compilado:           21/03/2026, 14:38:21
+-- Versión de Paquete:  v1.5.16
+-- Compilado:           24/03/2026, 16:29:51
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -11,19 +11,14 @@ CREATE OR ALTER PROCEDURE [dbo].[sp_Nomina_EjecutarCierre]
     @FechaInicio DATE,
     @FechaFin DATE,
     @UsuarioId INT,
-    @Comentarios NVARCHAR(510) = NULL,
+    @Comentarios NVARCHAR(MAX) = '',
     @DepartamentoIds NVARCHAR(MAX) = '[]',
     @PuestoIds NVARCHAR(MAX) = '[]',
-    @EstablecimientoIds NVARCHAR(MAX) = '[]'
+    @EstablecimientoIds NVARCHAR(MAX) = '[]',
+    @EmpleadoId INT = NULL 
 AS
 BEGIN
     SET NOCOUNT ON;
-
-    IF @FechaFin > CAST(GETDATE() AS DATE)
-    BEGIN
-        THROW 51000, 'No es posible cerrar un periodo que aun no ha concluido (Fecha Fin es futura).', 1;
-        RETURN;
-    END
 
     DECLARE @Deptos TABLE (Id INT);
     DECLARE @Puestos TABLE (Id INT);
@@ -41,54 +36,44 @@ BEGIN
     BEGIN TRY
         BEGIN TRANSACTION;
 
+        -- Actualizar fichas a BLOQUEADO
         UPDATE f
-        SET
-            Estado = 'BLOQUEADO',
+        SET Estado = 'BLOQUEADO',
             FechaModificacion = GETDATE(),
-            ModificadoPorUsuarioId = @UsuarioId
+            ModificadoPorUsuarioId = @UsuarioId,
+            Comentarios = ISNULL(Comentarios, '') + ' ' + @Comentarios
         FROM [dbo].[FichaAsistencia] f
         INNER JOIN [dbo].[Empleados] e ON f.EmpleadoId = e.EmpleadoId
         INNER JOIN dbo.fn_Seguridad_GetEmpleadosPermitidos(@UsuarioId) perm ON e.EmpleadoId = perm.EmpleadoId
         WHERE e.GrupoNominaId = @GrupoNominaId
           AND f.Fecha BETWEEN @FechaInicio AND @FechaFin
-          AND f.Estado = 'VALIDADO'
-          AND f.IncidenciaActivaId IS NULL
-          AND f.EstatusChecadorId IS NOT NULL
-          AND f.EstatusManualId IS NOT NULL
-          AND ((SELECT COUNT(*) FROM @Deptos) = 0 OR e.DepartamentoId IN (SELECT Id FROM @Deptos))
-          AND ((SELECT COUNT(*) FROM @Puestos) = 0 OR e.PuestoId IN (SELECT Id FROM @Puestos))
-          AND ((SELECT COUNT(*) FROM @Estabs) = 0 OR e.EstablecimientoId IN (SELECT Id FROM @Estabs));
+          AND f.Estado = 'VALIDADO' -- Solo cerramos las que estén validadas
+          -- SI VIENE EMPLEADOID, SOLO AFECTA A ESE; SI NO, APLICA FILTROS MULTIPLES
+          AND (@EmpleadoId IS NULL OR e.EmpleadoId = @EmpleadoId)
+          AND (@EmpleadoId IS NOT NULL OR (
+                ((SELECT COUNT(*) FROM @Deptos) = 0 OR e.DepartamentoId IN (SELECT Id FROM @Deptos))
+            AND ((SELECT COUNT(*) FROM @Puestos) = 0 OR e.PuestoId IN (SELECT Id FROM @Puestos))
+            AND ((SELECT COUNT(*) FROM @Estabs) = 0 OR e.EstablecimientoId IN (SELECT Id FROM @Estabs))
+          ));
 
-        DECLARE @FilasAfectadas INT = @@ROWCOUNT;
+        DECLARE @Bloqueadas INT = @@ROWCOUNT;
 
-        -- Pendientes en el �mbito filtrado + permisos
-        DECLARE @Pendientes INT;
-        SELECT @Pendientes = COUNT(*)
-        FROM [dbo].[FichaAsistencia] f
-        INNER JOIN [dbo].[Empleados] e ON f.EmpleadoId = e.EmpleadoId
-        INNER JOIN dbo.fn_Seguridad_GetEmpleadosPermitidos(@UsuarioId) perm ON e.EmpleadoId = perm.EmpleadoId
-        WHERE e.GrupoNominaId = @GrupoNominaId
-          AND f.Fecha BETWEEN @FechaInicio AND @FechaFin
-          AND f.Estado != 'BLOQUEADO'
-          AND ((SELECT COUNT(*) FROM @Deptos) = 0 OR e.DepartamentoId IN (SELECT Id FROM @Deptos))
-          AND ((SELECT COUNT(*) FROM @Puestos) = 0 OR e.PuestoId IN (SELECT Id FROM @Puestos))
-          AND ((SELECT COUNT(*) FROM @Estabs) = 0 OR e.EstablecimientoId IN (SELECT Id FROM @Estabs));
-
-        DECLARE @EstadoCierre VARCHAR(20) = CASE WHEN @Pendientes = 0 THEN 'COMPLETO' ELSE 'PARCIAL' END;
-
-        -- Registro del cierre 
-        MERGE [dbo].[CierresNomina] AS target
-        USING (SELECT @GrupoNominaId, @FechaInicio, @FechaFin) AS source (Grupo, Inicio, Fin)
-        ON (target.GrupoNominaId = source.Grupo AND target.FechaInicio = source.Inicio AND target.FechaFin = source.Fin)
-        WHEN MATCHED THEN
-            UPDATE SET FechaCierre = GETDATE(), UsuarioId = @UsuarioId, Estado = @EstadoCierre, Comentarios = @Comentarios
-        WHEN NOT MATCHED THEN
-            INSERT (FechaInicio, FechaFin, FechaCierre, UsuarioId, Comentarios, Estado, GrupoNominaId)
-            VALUES (@FechaInicio, @FechaFin, GETDATE(), @UsuarioId, @Comentarios, @EstadoCierre, @GrupoNominaId);
+        -- Registrar en CierresNomina si no existe o actualizar
+        IF @EmpleadoId IS NULL AND NOT EXISTS (SELECT 1 FROM [dbo].[CierresNomina] WHERE GrupoNominaId = @GrupoNominaId AND FechaInicio = @FechaInicio AND FechaFin = @FechaFin)
+        BEGIN
+            INSERT INTO [dbo].[CierresNomina] (GrupoNominaId, FechaInicio, FechaFin, Estado, FechaCierre, UsuarioId, Comentarios)
+            VALUES (@GrupoNominaId, @FechaInicio, @FechaFin, 'CERRADO', GETDATE(), @UsuarioId, @Comentarios);
+        END
+        ELSE IF @EmpleadoId IS NULL
+        BEGIN
+            UPDATE [dbo].[CierresNomina]
+            SET Estado = 'CERRADO', FechaCierre = GETDATE(), UsuarioId = @UsuarioId, Comentarios = @Comentarios
+            WHERE GrupoNominaId = @GrupoNominaId AND FechaInicio = @FechaInicio AND FechaFin = @FechaFin;
+        END
 
         COMMIT TRANSACTION;
 
-        SELECT @FilasAfectadas AS FichasBloqueadas, @Pendientes AS FichasPendientes, @EstadoCierre AS EstatusFinal;
+        SELECT @Bloqueadas AS Bloqueadas;
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;

@@ -1,0 +1,12 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "npm",
+			"script": "deploy:installer:exe",
+			"problemMatcher": [],
+			"label": "npm: deploy:installer:exe",
+			"detail": "node scripts/export-sql.js && node scripts/extract-seeds.js && node scripts/increment-version.js && npm run build:all && node scripts/packager.js --exe"
+		}
+	]
+}

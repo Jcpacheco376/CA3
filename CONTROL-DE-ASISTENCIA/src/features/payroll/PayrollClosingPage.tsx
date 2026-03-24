@@ -77,7 +77,7 @@ const PayrollClosingPageContent = () => {
     const [summary, setSummary] = useState<PeriodSummary | null>(null);
     const [employeeDetails, setEmployeeDetails] = useState<EmployeePayrollSummary[]>([]);
 
-    const [showConfirmModal, setShowConfirmModal] = useState<'close' | 'unlock' | null>(null);
+    const [showConfirmModal, setShowConfirmModal] = useState<{ type: 'close' | 'unlock', employee?: EmployeePayrollSummary } | null>(null);
     const [viewingEmployeeId, setViewingEmployeeId] = useState<number | null>(null);
     const [showTimeline, setShowTimeline] = useState(false);
     const [timelineEmp, setTimelineEmp] = useState<{ EmpleadoId: number, Nombre: string, Ficha: string } | null>(null);
@@ -158,11 +158,17 @@ const PayrollClosingPageContent = () => {
     const fetchData = useCallback(async () => {
         if (dateRange.length === 0) return;
 
-        if (filters.groups.length === 0 && filters.depts.length === 0 && filters.puestos.length === 0 && filters.estabs.length === 0) {
+        // VALIDACIÓN: El Grupo de Nómina es OBLIGATORIO si el filtro está activo para el usuario
+        const isGroupFilterActive = user?.activeFilters?.gruposNomina ?? true;
+        if (isGroupFilterActive && filters.groups.length === 0) {
             setSummary(null);
             setEmployeeDetails([]);
             return;
         }
+
+        // Si el filtro no está activo y no hay grupo seleccionado, usar 1 por defecto
+        const grupoNominaId = filters.groups.length > 0 ? filters.groups[0] : 1;
+
         const token = getToken();
         if (!token) return;
         setLoading(true);
@@ -174,7 +180,7 @@ const PayrollClosingPageContent = () => {
                     'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({
-                    grupoNominaId: filters.groups.length > 0 ? filters.groups[0] : null,
+                    grupoNominaId,
                     departamentoIds: filters.depts,
                     puestoIds: filters.puestos,
                     establecimientoIds: filters.estabs,
@@ -206,9 +212,15 @@ const PayrollClosingPageContent = () => {
     const handleAction = async () => {
         if (!showConfirmModal) return;
 
+        // VALIDACIÓN: Motivo obligatorio para REABRIR (unlock)
+        if (showConfirmModal.type === 'unlock' && !comment.trim()) {
+            notify('Por favor, indica un motivo para reabrir el periodo.', 'warning');
+            return;
+        }
+
         const token = getToken();
         if (!token) return;
-        const endpoint = showConfirmModal === 'close' ? '/payroll/close' : '/payroll/unlock';
+        const endpoint = showConfirmModal.type === 'close' ? '/payroll/close' : '/payroll/unlock';
 
         try {
             const res = await fetch(`${API_BASE_URL}${endpoint}`, {
@@ -218,10 +230,15 @@ const PayrollClosingPageContent = () => {
                     'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({
-                    grupoNominaId: filters.groups.length > 0 ? filters.groups[0] : null,
+                    empleadoId: showConfirmModal.employee ? showConfirmModal.employee.EmpleadoId : null,
+                    grupoNominaId: filters.groups.length > 0 ? filters.groups[0] : 1,
+                    departamentoIds: showConfirmModal.employee ? [] : (filters.depts.length > 0 ? filters.depts : []),
+                    puestoIds: showConfirmModal.employee ? [] : (filters.puestos.length > 0 ? filters.puestos : []),
+                    establecimientoIds: showConfirmModal.employee ? [] : (filters.estabs.length > 0 ? filters.estabs : []),
+                    esIndividual: !!showConfirmModal.employee,
                     fechaInicio: dateRange[0],
                     fechaFin: dateRange[dateRange.length - 1],
-                    [showConfirmModal === 'close' ? 'comentarios' : 'motivo']: comment
+                    [showConfirmModal.type === 'close' ? 'comentarios' : 'motivo']: comment
                 })
             });
             const result = await res.json();
@@ -235,21 +252,61 @@ const PayrollClosingPageContent = () => {
         }
     };
 
-    // const filterConfigurations: FilterConfig[] = useMemo(() => {
-    //     const configs: FilterConfig[] = [
-    //         {
-    //             id: 'gruposNomina',
-    //             title: 'Grupos Nómina',
-    //             icon: <Briefcase size={16} />,
-    //             options: user?.GruposNomina?.map(g => ({ value: g.GrupoNominaId, label: g.Nombre })) || [],
-    //             selectedValues: filters.groups,
-    //             selectionMode: 'single', // Importante para la lógica de sync
-    //             onChange: (vals) => setFilters((f: any) => ({ ...f, groups: vals as number[] })),
-    //             isActive: user?.activeFilters?.gruposNomina ?? true
-    //         }
-    //     ];
-    //     return configs.filter(c => c.isActive && c.options.length > 0);
-    // }, [user, filters, setFilters]);
+    const filterConfigurations: FilterConfig[] = useMemo(() => {
+        const configs: FilterConfig[] = [];
+        const isGroupActive = user?.activeFilters?.gruposNomina ?? true;
+
+        if (isGroupActive) {
+            configs.push({
+                id: 'gruposNomina',
+                title: 'Grupos Nómina',
+                icon: <Briefcase size={16} />,
+                options: user?.GruposNomina?.map((g: any) => ({ value: g.GrupoNominaId, label: g.Nombre })) || [],
+                selectedValues: filters.groups,
+                selectionMode: 'single',
+                onChange: (vals) => setFilters((f: any) => ({ ...f, groups: vals as number[] })),
+                isActive: true
+            });
+        }
+
+        if (user?.activeFilters?.departamentos ?? true) {
+            configs.push({
+                id: 'departamentos',
+                title: 'Departamentos',
+                icon: <Building size={16} />,
+                options: user?.Departamentos?.map((d: any) => ({ value: d.DepartamentoId, label: d.Nombre })) || [],
+                selectedValues: filters.depts,
+                onChange: (vals) => setFilters((f: any) => ({ ...f, depts: vals as number[] })),
+                isActive: true
+            });
+        }
+
+        if (user?.activeFilters?.puestos ?? true) {
+            configs.push({
+                id: 'puestos',
+                title: 'Puestos',
+                icon: <Tag size={16} />,
+                options: user?.Puestos?.map((p: any) => ({ value: p.PuestoId, label: p.Nombre })) || [],
+                selectedValues: filters.puestos,
+                onChange: (vals) => setFilters((f: any) => ({ ...f, puestos: vals as number[] })),
+                isActive: true
+            });
+        }
+
+        if (user?.activeFilters?.establecimientos ?? true) {
+            configs.push({
+                id: 'establecimientos',
+                title: 'Establecimientos',
+                icon: <MapPin size={16} />,
+                options: user?.Establecimientos?.map((e: any) => ({ value: e.EstablecimientoId, label: e.Nombre })) || [],
+                selectedValues: filters.estabs,
+                onChange: (vals) => setFilters((f: any) => ({ ...f, estabs: vals as number[] })),
+                isActive: true
+            });
+        }
+
+        return configs;
+    }, [user, filters, setFilters]);
 
     const filteredEmployees = useMemo(() => {
         let data = [...employeeDetails];
@@ -313,12 +370,19 @@ const PayrollClosingPageContent = () => {
             <div className="bg-white rounded-lg shadow-sm border border-slate-200 flex-1 flex flex-col overflow-hidden -mb-5">
                 <AttendanceToolbar
                     enablePayrollSync={true}
+                    filterConfigurations={filterConfigurations}
                 />
                 <div className="flex-1 overflow-hidden flex flex-col relative">
-                    {(filters.groups.length === 0 && filters.depts.length === 0 && filters.puestos.length === 0 && filters.estabs.length === 0) ? (
+                    {(filters.groups.length === 0 && (user?.activeFilters?.gruposNomina ?? true)) ? (
                         <div className="flex flex-col items-center justify-center h-full text-slate-400">
                             <Briefcase size={48} className="mb-4 opacity-50 text-slate-300" />
-                            <p className="font-medium text-slate-600">Selecciona filtros para comenzar</p>
+                            <p className="font-medium text-slate-600 text-lg">Selecciona un Grupo de Nómina</p>
+                            <p className="text-sm mt-1 max-w-sm text-center">Debes elegir un grupo en la barra superior para visualizar y validar el periodo de pago.</p>
+                        </div>
+                    ) : (filters.groups.length === 0 && filters.depts.length === 0 && filters.puestos.length === 0 && filters.estabs.length === 0) ? (
+                        <div className="flex flex-col items-center justify-center h-full text-slate-400">
+                            <Briefcase size={48} className="mb-4 opacity-50 text-slate-300" />
+                            <p className="font-medium text-slate-600 text-lg">Selecciona filtros para comenzar</p>
                             <p className="text-sm mt-1">Usa los filtros en la barra superior para visualizar el periodo.</p>
                         </div>
                     ) : loading && !summary ? (
@@ -404,7 +468,7 @@ const PayrollClosingPageContent = () => {
 
                                     <div className="flex items-center gap-2 mt-4">
                                         <button
-                                            onClick={() => setShowConfirmModal('close')}
+                                            onClick={() => setShowConfirmModal({ type: 'close' })}
                                             disabled={summary.ListasParaCierre === 0 || isFuturePeriod}
                                             title={isFuturePeriod ? "No se pueden cerrar periodos futuros" : summary.ListasParaCierre === 0 ? "No hay fichas listas" : "Cerrar Periodo"}
                                             className={`w-full px-4 py-2.5 rounded-lg text-sm font-bold uppercase tracking-wide flex items-center justify-center gap-2 shadow-sm transition-all duration-200
@@ -417,7 +481,7 @@ const PayrollClosingPageContent = () => {
                                         {summary.YaBloqueadas > 0 && (
                                             <Tooltip text="Desbloquear periodo">
                                                 <button
-                                                    onClick={() => setShowConfirmModal('unlock')}
+                                                    onClick={() => setShowConfirmModal({ type: 'unlock' })}
                                                     className="p-2.5 border border-red-200 text-red-600 bg-white hover:bg-red-50 rounded-lg transition-colors"
                                                 >
                                                     <Unlock size={16} />
@@ -473,7 +537,7 @@ const PayrollClosingPageContent = () => {
                                                         {getSortIcon('Estado')}
                                                     </div>
                                                 </th>
-                                                <th className="px-6 py-3 font-semibold w-auto">Detalle</th>
+                                                <th className="px-6 py-3 font-semibold w-auto">Acciones</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
@@ -482,6 +546,11 @@ const PayrollClosingPageContent = () => {
                                                 const hasIncidents = emp.DiasConIncidencia > 0;
                                                 const isPending = emp.DiasPendientes > 0;
                                                 const progress = emp.TotalDias > 0 ? ((emp.DiasListos + emp.DiasBloqueados) / emp.TotalDias) * 100 : 0;
+
+                                                // Lógica de botones individuales
+                                                const canCloseIndividual = emp.DiasListos > 0;
+                                                const canUnlockIndividual = !canCloseIndividual && emp.DiasBloqueados > 0;
+
                                                 return (
                                                     <tr key={emp.EmpleadoId} className="hover:bg-slate-50 transition-colors">
                                                         <td className="px-6 py-3">
@@ -550,7 +619,11 @@ const PayrollClosingPageContent = () => {
                                                             </div>
                                                         </td>
                                                         <td className="px-6 py-3 text-center">
-                                                            {hasIncidents ? (
+                                                            {emp.DiasBloqueados === emp.TotalDias && emp.TotalDias > 0 ? (
+                                                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
+                                                                    <Lock size={12} /> Bloqueado
+                                                                </span>
+                                                            ) : hasIncidents ? (
                                                                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
                                                                     <AlertCircle size={12} /> Incidencias ({emp.DiasConIncidencia})
                                                                 </span>
@@ -566,10 +639,35 @@ const PayrollClosingPageContent = () => {
                                                                 <span className="text-xs text-slate-400">-</span>
                                                             )}
                                                         </td>
-                                                        <td className="px-6 py-3 text-xs text-slate-500">
-                                                            {hasIncidents && <p className="text-red-600">Tiene días con incidencias activas.</p>}
-                                                            {isPending && <p>Faltan validaciones o datos.</p>}
-                                                            {isFullyReady && <p className="text-emerald-600">Completo para cierre.</p>}
+                                                        <td className="px-6 py-3">
+                                                            <div className="flex items-center justify-end gap-2 text-xs">
+                                                                {emp.DiasBloqueados === emp.TotalDias && emp.TotalDias > 0
+                                                                    ? <span className="text-indigo-600 font-medium">Periodo bloqueado por completo.</span>
+                                                                    : <>
+                                                                        {hasIncidents && <p className="text-red-600">Tiene días con incidencias activas.</p>}
+                                                                        {isPending && <p className="text-slate-500">Faltan validaciones o datos.</p>}
+                                                                        {isFullyReady && <p className="text-emerald-600">Completo para cierre.</p>}
+                                                                    </>
+                                                                }
+                                                                <div className="flex items-center gap-2 ml-auto">
+                                                                    {canCloseIndividual && (
+                                                                        <button
+                                                                            onClick={() => setShowConfirmModal({ type: 'close', employee: emp })}
+                                                                            className="flex items-center gap-1 px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-600 hover:text-white rounded-lg text-xs font-bold transition-all border border-indigo-100"
+                                                                        >
+                                                                            <Lock size={14} /> Cerrar
+                                                                        </button>
+                                                                    )}
+                                                                    {canUnlockIndividual && (
+                                                                        <button
+                                                                            onClick={() => setShowConfirmModal({ type: 'unlock', employee: emp })}
+                                                                            className="flex items-center gap-1 px-3 py-1.5 bg-red-50 text-red-700 hover:bg-red-600 hover:text-white rounded-lg text-xs font-bold transition-all border border-red-100"
+                                                                        >
+                                                                            <Unlock size={14} /> Reabrir
+                                                                        </button>
+                                                                    )}
+                                                                </div>
+                                                            </div>
                                                         </td>
                                                     </tr>
                                                 );
@@ -596,19 +694,30 @@ const PayrollClosingPageContent = () => {
                     isOpen={true}
                     onClose={() => setShowConfirmModal(null)}
                     onConfirm={handleAction}
-                    title={showConfirmModal === 'close' ? "Confirmar Cierre" : "Confirmar Desbloqueo"}
+                    title={showConfirmModal.type === 'close'
+                        ? (showConfirmModal.employee ? `Cerrar Periodo: ${showConfirmModal.employee.NombreCompleto}` : "Confirmar Cierre Grupal")
+                        : (showConfirmModal.employee ? `Reabrir Periodo: ${showConfirmModal.employee.NombreCompleto}` : "Confirmar Desbloqueo Grupal")
+                    }
                 >
                     <div className="space-y-3">
-                        <div className={`p-3 rounded border text-sm ${showConfirmModal === 'close' ? 'bg-blue-50 border-blue-100 text-blue-800' : 'bg-red-50 border-red-100 text-red-800'}`}>
-                            {showConfirmModal === 'close'
-                                ? <p>Se bloquearán <strong>{summary?.ListasParaCierre}</strong> fichas validadas.<br />Las fichas pendientes no se verán afectadas.</p>
-                                : <p><strong>¡Atención!</strong> Se habilitará la edición de todas las fichas del periodo.</p>
+                        <div className={`p-3 rounded border text-sm ${showConfirmModal.type === 'close' ? 'bg-blue-50 border-blue-100 text-blue-800' : 'bg-red-50 border-red-100 text-red-800'}`}>
+                            {showConfirmModal.type === 'close'
+                                ? (
+                                    showConfirmModal.employee
+                                        ? <p>Se bloquearán las <strong>{showConfirmModal.employee.DiasListos}</strong> fichas listas del empleado.</p>
+                                        : <p>Se bloquearán <strong>{summary.ListasParaCierre}</strong> fichas validadas en el grupo actual.</p>
+                                )
+                                : (
+                                    showConfirmModal.employee
+                                        ? <p><strong>¡Atención!</strong> Se habilitará la edición de las <strong>{showConfirmModal.employee.DiasBloqueados}</strong> fichas bloqueadas de este empleado.</p>
+                                        : <p><strong>¡Atención!</strong> Se habilitará la edición de todas las fichas bloqueadas (<strong>{summary.YaBloqueadas}</strong>) del grupo seleccionado.</p>
+                                )
                             }
                         </div>
                         <textarea
                             className="w-full border border-slate-300 rounded p-2 text-sm focus:outline-none focus:border-indigo-500"
                             rows={3}
-                            placeholder={showConfirmModal === 'close' ? "Comentarios (opcional)..." : "Motivo obligatorio..."}
+                            placeholder={showConfirmModal.type === 'close' ? "Comentarios (opcional)..." : "Motivo obligatorio..."}
                             value={comment}
                             onChange={e => setComment(e.target.value)}
                         />
@@ -619,7 +728,7 @@ const PayrollClosingPageContent = () => {
             {/* Modal de Perfil de Empleado */}
             {viewingEmployeeId && (
                 <EmployeeProfileModal
-                    employeeId={viewingEmployeeId}
+                    employeeId={String(viewingEmployeeId)}
                     onClose={() => setViewingEmployeeId(null)}
                     getToken={getToken}
                     user={user}
@@ -627,7 +736,7 @@ const PayrollClosingPageContent = () => {
             )}
             {showTimeline && timelineEmp && dateRange.length > 0 && (
                 <AuditTimelineModal
-                    employeeId={timelineEmp.EmpleadoId}
+                    employeeId={Number(timelineEmp.EmpleadoId)}
                     employeeName={timelineEmp.Nombre}
                     employeeFicha={timelineEmp.Ficha}
                     startDate={dateRange[0]}

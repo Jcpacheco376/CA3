@@ -1,5 +1,5 @@
 const sql = require('mssql');
-require('dotenv').config({ path: '../.env' }); // Adjust if needed
+require('dotenv').config({ path: '../.env' });
 
 const dbConfig = {
     user: process.env.DB_USER,
@@ -18,111 +18,100 @@ async function updateSP() {
         const pool = await sql.connect(dbConfig);
         console.log('Connected to DB');
 
-        // Note: The logic for "Disfrutados" is now a dynamic read from PrenominaDetalle.
-        // Wait, if it's dynamic, do we still need to store it in VacacionesSaldos?
-        // Or we just calculate it in a View / API?
-        // Let's store "DiasOtorgados" in the table at the beginning of the year.
-        // We will update the stored procedure to rely on CatalogoReglasVacaciones for the "Otorgados" value.
-
         await pool.request().query(`
             CREATE OR ALTER PROCEDURE sp_Vacaciones_GenerarSaldosBase
-                @AnioActual INT
+                @AnioActual INT,
+                @EmpleadoId INT = NULL
             AS
             BEGIN
                 SET NOCOUNT ON;
 
-                -- Insert initial balance for all active employees for the year if not exists
+                -- 1. Asegurar registro de saldo base
+                -- Calculamos el año natural real para evaluar reglas (independientemente si @AnioActual es el año 2024 o el índice 3)
                 INSERT INTO VacacionesSaldos (EmpleadoId, Anio, DiasOtorgados, DiasDisfrutados)
                 SELECT 
                     e.EmpleadoId, 
                     @AnioActual, 
-                    -- Dynamic calculation of granted days based on seniority and Mexican Law
                     ISNULL((
                         SELECT TOP 1 crv.DiasOtorgados
                         FROM CatalogoReglasVacaciones crv
-                        WHERE crv.Esquema = CASE WHEN @AnioActual >= 2023 THEN 'Ley-2023' ELSE 'Pre-2023' END
-                          AND crv.AniosAntiguedad = CASE 
-                                                      WHEN DATEDIFF(YEAR, e.FechaIngreso, DATEFROMPARTS(@AnioActual, 1, 1)) = 0 THEN 1 
-                                                      ELSE DATEDIFF(YEAR, e.FechaIngreso, DATEFROMPARTS(@AnioActual, 1, 1)) 
-                                                    END
-                    ), 0),
-                    0 -- Disfrutados (will be dynamically calculated by another process or API)
+                        WHERE crv.Esquema = CASE 
+                            WHEN (@AnioActual >= 2023 OR (@AnioActual < 1000 AND YEAR(DATEADD(YEAR, @AnioActual - 1, e.FechaIngreso)) >= 2023)) 
+                            THEN 'Ley-2023' 
+                            ELSE 'Pre-2023' 
+                        END
+                        AND crv.AniosAntiguedad = CASE 
+                            WHEN @AnioActual >= 1000 THEN 
+                                CASE WHEN DATEDIFF(YEAR, e.FechaIngreso, DATEFROMPARTS(@AnioActual, 1, 1)) <= 0 THEN 1 
+                                ELSE DATEDIFF(YEAR, e.FechaIngreso, DATEFROMPARTS(@AnioActual, 1, 1)) END
+                            ELSE @AnioActual -- Si @AnioActual es un índice (1, 2, 3), coincide con AniosAntiguedad
+                        END
+                    ), 12),
+                    0
                 FROM Empleados e
                 WHERE e.Activo = 1 
+                  AND (@EmpleadoId IS NULL OR e.EmpleadoId = @EmpleadoId)
                   AND NOT EXISTS (
                       SELECT 1 FROM VacacionesSaldos vs 
                       WHERE vs.EmpleadoId = e.EmpleadoId AND vs.Anio = @AnioActual
                   );
 
-                -- Recalculate 'Disfrutados' and 'Restantes' dynamically based on Prenomina
-                -- First find the ConceptoId for VAC
+                -- 2. Recalcular 'DiasDisfrutados' (Consumo Total)
                 DECLARE @ConceptoVacacionesId INT;
-                SELECT TOP 1 @ConceptoVacacionesId = ccn.ConceptoId
+                SELECT TOP 1 @ConceptoVacacionesId = cea.ConceptoNominaId
                 FROM CatalogoEstatusAsistencia cea
-                JOIN CatalogoConceptosNomina ccn ON cea.ConceptoNominaId = ccn.ConceptoId
                 WHERE cea.Abreviatura = 'VAC';
 
-                -- Update Disfrutados crossing Prenomina
                 IF @ConceptoVacacionesId IS NOT NULL
                 BEGIN
                     UPDATE vs
-                    SET vs.DiasDisfrutados = ISNULL(p.DiasTomados, 0)
+                    SET vs.DiasDisfrutados = 
+                        -- a) Prenómina
+                        ISNULL((
+                            SELECT SUM(pd.Valor)
+                            FROM Prenomina pr
+                            JOIN PrenominaDetalle pd ON pr.Id = pd.CabeceraId
+                            WHERE pr.EmpleadoId = vs.EmpleadoId
+                              AND pd.ConceptoId = @ConceptoVacacionesId
+                              AND (
+                                  (vs.FechaInicioPeriodo IS NOT NULL AND pd.Fecha BETWEEN vs.FechaInicioPeriodo AND vs.FechaFinPeriodo)
+                                  OR 
+                                  (vs.FechaInicioPeriodo IS NULL AND (vs.Anio >= 1000 AND YEAR(pd.Fecha) = vs.Anio OR vs.Anio < 1000 AND YEAR(pd.Fecha) = YEAR(DATEADD(YEAR, vs.Anio-1, e2.FechaIngreso))))
+                              )
+                        ), 0)
+                        +
+                        -- b) Solicitudes
+                        ISNULL((
+                            SELECT SUM(DiasSolicitados)
+                            FROM SolicitudesVacaciones
+                            WHERE EmpleadoId = vs.EmpleadoId
+                              AND Estatus = 'Aprobado' AND FechaInicio > GETDATE()
+                              AND (
+                                  (vs.FechaInicioPeriodo IS NOT NULL AND FechaInicio BETWEEN vs.FechaInicioPeriodo AND vs.FechaFinPeriodo)
+                                  OR (vs.FechaInicioPeriodo IS NULL AND (vs.Anio >= 1000 AND YEAR(FechaInicio) = vs.Anio OR vs.Anio < 1000 AND YEAR(FechaInicio) = YEAR(DATEADD(YEAR, vs.Anio-1, e2.FechaIngreso))))
+                              )
+                        ), 0)
+                        +
+                        -- c) Ajustes
+                        ISNULL((
+                            SELECT SUM(Dias)
+                            FROM VacacionesSaldosDetalle
+                            WHERE SaldoId = vs.SaldoId 
+                              AND Tipo IN ('Ajuste', 'Pagado')
+                        ), 0)
                     FROM VacacionesSaldos vs
-                    LEFT JOIN (
-                        -- Suma de dias de vacaciones disfrutados en el año segun prenomina
-                        SELECT 
-                            pr.EmpleadoId, 
-                            SUM(pd.Valor) as DiasTomados
-                        FROM Prenomina pr
-                        JOIN PrenominaDetalle pd ON pr.Id = pd.CabeceraId
-                        WHERE pd.ConceptoId = @ConceptoVacacionesId
-                          AND YEAR(pd.Fecha) = @AnioActual
-                        GROUP BY pr.EmpleadoId
-                    ) p ON vs.EmpleadoId = p.EmpleadoId
-                    WHERE vs.Anio = @AnioActual;
-                    
-                    -- Adicionalmente sumar las Solicitudes Aprobadas que AUN no han pasado por prenomina
-                    -- para no conceder más dias de los que se tiene en solicitudes futuras.
-                    UPDATE vs
-                    SET vs.DiasDisfrutados = vs.DiasDisfrutados + ISNULL(sol.DiasFuturos, 0)
-                    FROM VacacionesSaldos vs
-                    LEFT JOIN (
-                        SELECT 
-                            EmpleadoId,
-                            SUM(DiasSolicitados) as DiasFuturos
-                        FROM SolicitudesVacaciones
-                        WHERE Estatus = 'Aprobado' 
-                          AND YEAR(FechaInicio) = @AnioActual
-                          -- Solo las que no esten en un periodo cerrado de prenomina (Simplificacion: sumar todas y restar prenomina si es necesario,
-                          -- En este caso asumiremos que Prenomina es la historica real.
-                          -- Idealmente deberia existir una bandera en SolicitudesVacaciones "AplicadoEnNomina". 
-                          -- Añadiremos esto mas adelante si es necesario, por ahora tomaremos solo Solicitudes = Aprobado futuras a hoy.
-                          AND FechaInicio > GETDATE()
-                        GROUP BY EmpleadoId
-                    ) sol ON vs.EmpleadoId = sol.EmpleadoId
-                    WHERE vs.Anio = @AnioActual;
-                END
-                ELSE
-                BEGIN
-                    -- Si no hay concepto ligado a prenomina, hacer fallback a SolicitudesVacaciones historicas
-                    UPDATE vs
-                    SET vs.DiasDisfrutados = ISNULL(sol.DiasTomados, 0)
-                    FROM VacacionesSaldos vs
-                    LEFT JOIN (
-                        SELECT EmpleadoId, SUM(DiasSolicitados) as DiasTomados
-                        FROM SolicitudesVacaciones
-                        WHERE Estatus = 'Aprobado' AND YEAR(FechaInicio) = @AnioActual
-                        GROUP BY EmpleadoId
-                    ) sol ON vs.EmpleadoId = sol.EmpleadoId
-                    WHERE vs.Anio = @AnioActual;
+                    JOIN Empleados e2 ON vs.EmpleadoId = e2.EmpleadoId
+                    WHERE vs.Anio = @AnioActual
+                      AND (@EmpleadoId IS NULL OR vs.EmpleadoId = @EmpleadoId);
                 END
             END
         `);
-        console.log('SP sp_Vacaciones_GenerarSaldosBase actualizado');
+        console.log('SP sp_Vacaciones_GenerarSaldosBase actualizado para manejar indices de aniversario');
 
         await sql.close();
     } catch (err) {
         console.error('Error: ', err);
+        process.exit(1);
     }
 }
 

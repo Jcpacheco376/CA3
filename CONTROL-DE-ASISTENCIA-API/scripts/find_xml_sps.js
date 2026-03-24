@@ -1,0 +1,26 @@
+const sql = require('mssql');
+require('dotenv').config();
+
+const dbConfig = {
+    user: process.env.DB_USER || 'sa',
+    password: process.env.DB_PASSWORD || 'P*V3NT4',
+    server: process.env.DB_SERVER || '192.168.0.141',
+    database: process.env.DB_DATABASE || 'CA',
+    port: 9000,
+    options: {
+        encrypt: false,
+        trustServerCertificate: true
+    }
+};
+
+async function test() {
+    try {
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request().query("SELECT name FROM sys.procedures WHERE OBJECT_DEFINITION(object_id) LIKE '%FOR XML%'");
+        console.log('Procedures using XML:', result.recordset.map(r => r.name));
+        await sql.close();
+    } catch (err) {
+        console.error(err);
+    }
+}
+test();

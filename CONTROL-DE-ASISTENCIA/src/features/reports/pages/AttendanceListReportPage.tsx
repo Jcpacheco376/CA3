@@ -99,7 +99,7 @@ const AttendanceListReportPageContent = () => {
             setExpandedRows([]);
             setValidationResult(null);
         }
-    }, [dateRange, filters, startDate, endDate]);
+    }, [dateRange, filters.depts, filters.groups, filters.puestos, filters.estabs, startDate, endDate]);
 
     const toggleRow = (id: number) => setExpandedRows(prev => prev.includes(id) ? prev.filter(r => r !== id) : [...prev, id]);
     const handleSort = (key: SortKey) => setSortConfig(current => ({ key, direction: current.key === key && current.direction === 'asc' ? 'desc' : 'asc' }));

@@ -14,7 +14,7 @@ interface Notification {
     timestamp: Date;
 }
 
-interface Toast extends Omit<Notification, 'read' | 'timestamp'> {}
+interface Toast extends Omit<Notification, 'read' | 'timestamp'> { }
 
 interface NotificationContextType {
     notifications: Notification[];
@@ -31,7 +31,7 @@ const ToastComponent = ({ toast, onRemove }: { toast: Toast; onRemove: (id: numb
     useEffect(() => {
         const exitTimer = setTimeout(() => {
             setIsExiting(true);
-            setTimeout(() => onRemove(toast.id), 400); 
+            setTimeout(() => onRemove(toast.id), 400);
         }, 5000);
         return () => clearTimeout(exitTimer);
     }, [toast.id, onRemove]);
@@ -44,13 +44,13 @@ const ToastComponent = ({ toast, onRemove }: { toast: Toast; onRemove: (id: numb
     // Configuración visual para cada tipo, incluyendo warning
     const typeClasses = {
         success: { bg: 'bg-green-500', icon: <CheckCircle2 /> },
-        error:   { bg: 'bg-red-500',   icon: <AlertCircle /> },
-        info:    { bg: 'bg-blue-500',  icon: <Info /> },
+        error: { bg: 'bg-red-500', icon: <AlertCircle /> },
+        info: { bg: 'bg-blue-500', icon: <Info /> },
         warning: { bg: 'bg-amber-500', icon: <AlertTriangle /> } // <--- Nuevo estilo
     };
 
     const animationClass = isExiting ? 'animate-fade-out-right' : 'animate-fade-in-right';
-    
+
     // Safety check por si llega un tipo desconocido
     const currentStyle = typeClasses[toast.type] || typeClasses.info;
 
@@ -103,10 +103,10 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
     const addNotification = useCallback((title: string, message: string, type: 'success' | 'error' | 'info' | 'warning') => {
         const uniqueId = Date.now() + Math.random();
         const newNotification: Notification = { id: uniqueId, title, message, type, read: false, timestamp: new Date() };
-        
+
         const updatedHistory = [newNotification, ...history].slice(0, 10);
         saveHistory(updatedHistory);
-        
+
         setToasts(prev => [...prev, { id: newNotification.id, title, message, type }]);
     }, [history]);
 
@@ -118,7 +118,7 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
         const updatedHistory = history.map(n => n.id === id ? { ...n, read: true } : n);
         saveHistory(updatedHistory);
     }, [history]);
-    
+
     const markAllAsRead = useCallback(() => {
         const updatedHistory = history.map(n => ({ ...n, read: true }));
         saveHistory(updatedHistory);
@@ -131,7 +131,7 @@ export const NotificationProvider = ({ children }: { children: ReactNode }) => {
     return (
         <NotificationContext.Provider value={{ notifications: history, addNotification, markAllAsRead, clearNotifications, markOneAsRead }}>
             {children}
-            <div className="fixed bottom-5 right-5 z-[100] space-y-3">
+            <div className="fixed bottom-5 right-5 z-[2000] space-y-3">
                 {toasts.map(toast => (
                     <ToastComponent key={toast.id} toast={toast} onRemove={removeToast} />
                 ))}

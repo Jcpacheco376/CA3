@@ -19,21 +19,27 @@ export const getBalance = async (req: any, res: Response) => {
         let record: any = null;
 
         // Base query: Agnostica de Anio < 100 para soportar historial viejo y nuevo
-        let baseQuery = 'SELECT * FROM VacacionesSaldos WHERE EmpleadoId = @EmpleadoId';
+        let baseQuery = `
+            SELECT vs.*, 
+            ISNULL((SELECT SUM(Dias) FROM VacacionesSaldosDetalle WHERE SaldoId = vs.SaldoId AND Tipo = 'Ajuste'), 0) as DiasAjuste,
+            ISNULL((SELECT SUM(Dias) FROM VacacionesSaldosDetalle WHERE SaldoId = vs.SaldoId AND Tipo = 'Pagado'), 0) as DiasPagados
+            FROM VacacionesSaldos vs 
+            WHERE vs.EmpleadoId = @EmpleadoId
+        `;
 
         if (year) {
             // Solicitud explícita de un periodo
             const r = await pool.request()
                 .input('EmpleadoId', sql.Int, empleadoId)
                 .input('Anio', sql.Int, year)
-                .query(baseQuery + ' AND Anio = @Anio');
+                .query(baseQuery + ' AND vs.Anio = @Anio');
             record = r.recordset[0] ?? null;
         } else {
             // Intento 1: periodo actual por fecha
             try {
                 const r = await pool.request()
                     .input('EmpleadoId', sql.Int, empleadoId)
-                    .query(baseQuery + ` AND GETDATE() BETWEEN FechaInicioPeriodo AND FechaFinPeriodo`);
+                    .query(baseQuery + ` AND GETDATE() BETWEEN vs.FechaInicioPeriodo AND vs.FechaFinPeriodo`);
                 record = r.recordset[0] ?? null;
             } catch (dateErr: any) {
                 console.warn('[getBalance] Error en query por fechas:', dateErr.message);
@@ -43,14 +49,13 @@ export const getBalance = async (req: any, res: Response) => {
             if (!record) {
                 const r = await pool.request()
                     .input('EmpleadoId', sql.Int, empleadoId)
-                    .query(baseQuery + ` ORDER BY Anio DESC`);
+                    .query(baseQuery + ` ORDER BY vs.Anio DESC`);
                 record = r.recordset[0] ?? null;
             }
         }
 
         if (record) {
-            record.DiasRestantes = (record.DiasOtorgados || 0)
-                - ((record.DiasDisfrutados || 0) + (record.DiasPagados || 0) + (record.DiasAjuste || 0));
+            record.DiasRestantes = record.DiasRestantes || 0;
             res.setHeader('X-API-Version', `Antigravity-V4 [DB: ${dbName}]`);
             return res.json(record);
         }
@@ -233,7 +238,14 @@ export const getHistory = async (req: any, res: Response) => {
         // 1. Obtener todos los saldos (Agnóstico de Anio < 100)
         const result = await pool.request()
             .input('EmpleadoId', sql.Int, empleadoId)
-            .query('SELECT * FROM VacacionesSaldos WHERE EmpleadoId = @EmpleadoId ORDER BY Anio DESC');
+            .query(`
+                SELECT vs.*, 
+                ISNULL((SELECT SUM(Dias) FROM VacacionesSaldosDetalle WHERE SaldoId = vs.SaldoId AND Tipo = 'Ajuste'), 0) as DiasAjuste,
+                ISNULL((SELECT SUM(Dias) FROM VacacionesSaldosDetalle WHERE SaldoId = vs.SaldoId AND Tipo = 'Pagado'), 0) as DiasPagados
+                FROM VacacionesSaldos vs 
+                WHERE vs.EmpleadoId = @EmpleadoId 
+                ORDER BY vs.Anio DESC
+            `);
 
         const history = result.recordset.map((b: any) => ({
             SaldoId: b.SaldoId,
@@ -242,9 +254,9 @@ export const getHistory = async (req: any, res: Response) => {
             FechaFin: b.FechaFinPeriodo,
             DiasOtorgados: b.DiasOtorgados || 0,
             DiasDisfrutados: b.DiasDisfrutados || 0,
-            DiasPagados: b.DiasPagados || 0,
             DiasAjuste: b.DiasAjuste || 0,
-            DiasRestantes: (b.DiasOtorgados || 0) - ((b.DiasDisfrutados || 0) + (b.DiasPagados || 0) + (b.DiasAjuste || 0))
+            DiasPagados: b.DiasPagados || 0,
+            DiasRestantes: b.DiasRestantes || 0
         }));
 
         res.setHeader('X-API-Version', `Antigravity-V4 [DB: ${dbName}]`);
@@ -256,40 +268,24 @@ export const getHistory = async (req: any, res: Response) => {
 };
 
 export const updateAdjustment = async (req: any, res: Response) => {
-    if (!req.user.permissions['vacaciones.manage']) {
-        return res.status(403).json({ message: 'No tienes permiso para ajustar saldos.' });
-    }
-    const { saldoId } = req.params;
-    const { DiasAjuste } = req.body;
-    if (DiasAjuste === undefined || DiasAjuste === null) {
-        return res.status(400).json({ message: 'El campo DiasAjuste es requerido.' });
-    }
-    try {
-        const pool = await sql.connect(dbConfig);
-        await pool.request()
-            .input('SaldoId', sql.Int, saldoId)
-            .input('DiasAjuste', sql.Decimal(10, 2), DiasAjuste)
-            .query('UPDATE VacacionesSaldos SET DiasAjuste = @DiasAjuste WHERE SaldoId = @SaldoId');
-        res.json({ message: 'Ajuste actualizado correctamente.' });
-    } catch (err: any) {
-        res.status(500).json({ message: err.message || 'Error al actualizar ajuste.' });
-    }
+    return res.status(400).json({ message: 'El endpoint updateAdjustment directo fue descontinuado. Utilice addAdjustmentDetail.' });
 };
 
-// ─── Forzar recálculo de saldos desde Prenómina ───────────────────────────────
+// ─── Recalcular saldos desde VacacionesSaldosDetalle (fuente de verdad) ──────
 export const recalculate = async (req: any, res: Response) => {
     if (!req.user.permissions['vacaciones.manage']) {
         return res.status(403).json({ message: 'No tienes permiso para recalcular.' });
     }
     const { empleadoId } = req.params;
-    const year = req.body.year || new Date().getFullYear();
+    if (!empleadoId) {
+        return res.status(400).json({ message: 'Se requiere empleadoId.' });
+    }
     try {
         const pool = await sql.connect(dbConfig);
         await pool.request()
-            .input('AnioActual', sql.Int, year)
-            .input('EmpleadoId', sql.Int, empleadoId || null)
-            .execute('sp_Vacaciones_GenerarSaldosBase');
-        res.json({ message: `Saldos recalculados para el año ${year}.` });
+            .input('EmpleadoId', sql.Int, empleadoId)
+            .execute('sp_Vacaciones_Recalcular');
+        res.json({ message: 'Saldos recalculados correctamente desde VacacionesSaldosDetalle.' });
     } catch (err: any) {
         res.status(500).json({ message: err.message || 'Error al recalcular saldos.' });
     }
@@ -297,7 +293,8 @@ export const recalculate = async (req: any, res: Response) => {
 
 // ─── Obtener desglose de días (detalle desde Prenómina + Solicitudes) ─────────
 export const getDetails = async (req: any, res: Response) => {
-    const { empleadoId, year } = req.params; // year = anio aniversario
+    const { empleadoId } = req.params;
+    const year = parseInt(req.params.year); // Asegurar que sea número
     const isOwn = parseInt(empleadoId as string) === req.user.empleadoId;
 
     if (!isOwn && !req.user.permissions['vacaciones.read'] && !req.user.permissions['vacaciones.manage']) {
@@ -341,7 +338,7 @@ export const getDetails = async (req: any, res: Response) => {
                 .input('Inicio', sql.Date, FechaInicioPeriodo)
                 .input('Fin', sql.Date, FechaFinPeriodo)
                 .query(
-                    `SELECT pd.Fecha, pd.Valor as Dias, 'Prenomina' as Fuente, 'Disfrutada' as Tipo
+                    `SELECT pd.Fecha, pd.Valor as Dias, 'Prenomina' as Fuente, 'Disfrutado' as Tipo
                      FROM Prenomina pr
                      JOIN PrenominaDetalle pd ON pr.Id = pd.CabeceraId
                      WHERE pr.EmpleadoId = @EmpleadoId
@@ -359,7 +356,7 @@ export const getDetails = async (req: any, res: Response) => {
             .input('Fin', sql.Date, FechaFinPeriodo)
             .query(
                 `SELECT FechaInicio, FechaFin, DiasSolicitados as Dias, 'Solicitud' as Fuente,
-                        CASE WHEN TipoVacaciones = 'Pagadas' THEN 'Pagada' ELSE 'Disfrutada' END as Tipo,
+                        'Disfrutado' as Tipo,
                         Estatus, Comentarios
                  FROM SolicitudesVacaciones
                  WHERE EmpleadoId = @EmpleadoId
@@ -372,7 +369,7 @@ export const getDetails = async (req: any, res: Response) => {
         const ajustesDetalleRes = await pool.request()
             .input('SaldoId', sql.Int, saldo.SaldoId)
             .query(
-                `SELECT Fecha, Dias, Descripcion, 'AjusteDetalle' as Fuente, 'Disfrutada' as Tipo
+                `SELECT DetalleId, Fecha, Dias, Descripcion, 'AjusteDetalle' as Fuente, Tipo
                  FROM VacacionesSaldosDetalle
                  WHERE SaldoId = @SaldoId
                  ORDER BY Fecha`
@@ -398,27 +395,36 @@ export const addAdjustmentDetail = async (req: any, res: Response) => {
     if (!req.user.permissions['vacaciones.manage']) {
         return res.status(403).json({ message: 'No tienes permiso.' });
     }
-    const { saldoId, fecha, dias, descripcion } = req.body;
-    if (!saldoId || !fecha || !dias) {
-        return res.status(400).json({ message: 'Faltan parámetros obligatorios.' });
+    const { saldoId, fecha, dias, descripcion, tipo } = req.body;
+    if (saldoId === undefined || saldoId === null || !fecha || dias === undefined || dias === null) {
+        return res.status(400).json({ message: 'Faltan parámetros obligatorios (SaldoId, Fecha o Dias).' });
     }
     try {
         const pool = await sql.connect(dbConfig);
+
+        // Garantizar que solo haya un registro por tipo 'Ajuste' o 'Pagado' por SaldoId
+        if (tipo === 'Ajuste' || tipo === 'Pagado') {
+            await pool.request()
+                .input('SaldoId', sql.Int, saldoId)
+                .input('Tipo', sql.VarChar(50), tipo)
+                .query('DELETE FROM VacacionesSaldosDetalle WHERE SaldoId = @SaldoId AND Tipo = @Tipo');
+        }
+
         await pool.request()
             .input('SaldoId', sql.Int, saldoId)
             .input('Fecha', sql.Date, fecha)
             .input('Dias', sql.Decimal(10, 2), dias)
-            .input('Descripcion', sql.VarChar(255), descripcion || '')
-            .query('INSERT INTO VacacionesSaldosDetalle (SaldoId, Fecha, Dias, Descripcion) VALUES (@SaldoId, @Fecha, @Dias, @Descripcion)');
+            .input('Descripcion', sql.VarChar(255), (descripcion || 'Ajuste extraordinario manual').substring(0, 255))
+            .input('Tipo', sql.VarChar(50), tipo || 'Ajuste')
+            .query('INSERT INTO VacacionesSaldosDetalle (SaldoId, Fecha, Dias, Descripcion, Tipo) VALUES (@SaldoId, @Fecha, @Dias, @Descripcion, @Tipo)');
 
-        // Disparar recálculo automático para ese empleado
-        const saldoRes = await pool.request().input('SaldoId', sql.Int, saldoId).query('SELECT EmpleadoId, Anio FROM VacacionesSaldos WHERE SaldoId = @SaldoId');
+        // Disparar recálculo centralizado para ese empleado
+        const saldoRes = await pool.request().input('SaldoId', sql.Int, saldoId).query('SELECT EmpleadoId FROM VacacionesSaldos WHERE SaldoId = @SaldoId');
         if (saldoRes.recordset.length > 0) {
-            const { EmpleadoId, Anio } = saldoRes.recordset[0];
+            const { EmpleadoId } = saldoRes.recordset[0];
             await pool.request()
-                .input('AnioActual', sql.Int, Anio)
                 .input('EmpleadoId', sql.Int, EmpleadoId)
-                .execute('sp_Vacaciones_GenerarSaldosBase');
+                .execute('sp_Vacaciones_Recalcular');
         }
 
         res.status(201).json({ message: 'Detalle de ajuste agregado.' });
@@ -446,11 +452,10 @@ export const deleteAdjustmentDetail = async (req: any, res: Response) => {
         await pool.request().input('Id', sql.Int, id).query('DELETE FROM VacacionesSaldosDetalle WHERE DetalleId = @Id');
 
         if (infoRes.recordset.length > 0) {
-            const { EmpleadoId, Anio } = infoRes.recordset[0];
+            const { EmpleadoId } = infoRes.recordset[0];
             await pool.request()
-                .input('AnioActual', sql.Int, Anio)
                 .input('EmpleadoId', sql.Int, EmpleadoId)
-                .execute('sp_Vacaciones_GenerarSaldosBase');
+                .execute('sp_Vacaciones_Recalcular');
         }
 
         res.json({ message: 'Detalle de ajuste eliminado.' });

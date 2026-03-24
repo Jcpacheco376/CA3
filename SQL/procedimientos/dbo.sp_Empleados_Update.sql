@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Empleados_Update]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.5.13
--- Compilado:           21/03/2026, 14:38:21
+-- Versión de Paquete:  v1.5.16
+-- Compilado:           24/03/2026, 16:29:51
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -31,7 +31,7 @@ CREATE OR ALTER PROCEDURE [dbo].[sp_Empleados_Update]
             BEGIN
                 SET NOCOUNT ON;
 
-                DECLARE @FormatoNombre VARCHAR;
+                DECLARE @FormatoNombre VARCHAR(10);
                 SELECT @FormatoNombre = ConfigValue FROM SISConfiguracion WHERE ConfigKey = 'FormNombreEmpleados'
                 
                 DECLARE @NombreCompleto NVARCHAR(300);

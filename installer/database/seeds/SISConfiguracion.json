@@ -106,5 +106,11 @@
     "ConfigKey": "FormNombreEmpleados",
     "ConfigValue": "NA",
     "Descripcion": "Formato para la formación de nombre completo en empleados, NA = Nombre Apellido, AN = Apellido Nombre"
+  },
+  {
+    "ConfigId": 20,
+    "ConfigKey": "VacacionesModoOtorgamiento",
+    "ConfigValue": "FIN",
+    "Descripcion": "Modo de otorgamiento de vacaciones: FIN = Al cumplir aniversario, DEV = Proporcional/Devengado, INI = Desde inicio de periodo"
   }
 ]

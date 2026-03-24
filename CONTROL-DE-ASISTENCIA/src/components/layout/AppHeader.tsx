@@ -1,12 +1,12 @@
-// src/components/layout/AppHeader.tsx
 import React, { useState, useRef, useEffect } from 'react';
-import { Bell, Check, Trash2, X, CheckCircle2, AlertCircle, Info } from 'lucide-react';
+import ReactDOM from 'react-dom';
+import { Bell, Check, Trash2, X, CheckCircle2, AlertCircle, Info, AlertTriangle } from 'lucide-react';
 import { User } from '../../types';
 import { useNotification } from '../../context/NotificationContext.tsx';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-const NotificationPanel = ({ isOpen, onClose }: { isOpen: boolean, onClose: () => void }) => {
+export const NotificationPanel = ({ isOpen, onClose, positionClass = "top-14 right-0" }: { isOpen: boolean, onClose: () => void, positionClass?: string }) => {
     const { notifications, markAllAsRead, clearNotifications, markOneAsRead } = useNotification();
     const panelRef = useRef<HTMLDivElement>(null);
     const [show, setShow] = useState(isOpen);
@@ -36,15 +36,19 @@ const NotificationPanel = ({ isOpen, onClose }: { isOpen: boolean, onClose: () =
     }, [isOpen, onClose]);
 
     if (!show) return null;
-    
-    const typeIcons = {
+
+    const typeIcons: Record<string, React.ReactNode> = {
         success: <CheckCircle2 className="text-green-500" />,
         error: <AlertCircle className="text-red-500" />,
-        info: <Info className="text-blue-500" />
+        info: <Info className="text-blue-500" />,
+        warning: <AlertTriangle className="text-yellow-500" />
     };
 
-    return (
-        <div ref={panelRef} className={`absolute top-14 right-0 w-80 bg-white rounded-lg shadow-xl border border-slate-200 z-50 ${isOpen ? 'animate-fade-in' : 'animate-fade-out'}`}>
+    const panelContent = (
+        <div
+            ref={panelRef}
+            className={`fixed ${positionClass} w-80 bg-white rounded-lg shadow-2xl border border-slate-200 z-[1500] ${isOpen ? 'animate-fade-in' : 'animate-fade-out'}`}
+        >
             <div className="p-3 flex justify-between items-center border-b">
                 <h3 className="font-semibold text-slate-800">Notificaciones</h3>
                 <button onClick={onClose} className="p-1 rounded-full hover:bg-slate-100"><X size={18} /></button>
@@ -67,12 +71,14 @@ const NotificationPanel = ({ isOpen, onClose }: { isOpen: boolean, onClose: () =
             </div>
             {notifications.length > 0 && (
                 <div className="p-2 bg-slate-50 rounded-b-lg flex justify-between">
-                    <button onClick={markAllAsRead} className="text-xs font-semibold text-blue-600 hover:underline flex items-center gap-1"><Check size={14}/> Marcar como leído</button>
-                    <button onClick={clearNotifications} className="text-xs font-semibold text-red-600 hover:underline flex items-center gap-1"><Trash2 size={14}/> Borrar todo</button>
+                    <button onClick={markAllAsRead} className="text-xs font-semibold text-blue-600 hover:underline flex items-center gap-1"><Check size={14} /> Marcar como leído</button>
+                    <button onClick={clearNotifications} className="text-xs font-semibold text-red-600 hover:underline flex items-center gap-1"><Trash2 size={14} /> Borrar todo</button>
                 </div>
             )}
         </div>
-    )
+    );
+
+    return ReactDOM.createPortal(panelContent, document.body);
 }
 
 export const AppHeader = ({ user, onProfileClick, themeColors }: { user: User, onProfileClick: () => void, themeColors: any }) => {
@@ -96,7 +102,7 @@ export const AppHeader = ({ user, onProfileClick, themeColors }: { user: User, o
     const roles = user?.Roles?.map(r => r.NombreRol).join(', ') || 'Usuario';
 
     return (
-        <header className="bg-white h-16 border-b border-gray-200 flex items-center justify-end px-6 shrink-0">
+        <header className="bg-white h-16 border-b border-gray-200 flex items-center justify-end px-6 shrink-0 relative z-[90]">
             <div className="flex items-center gap-4">
                 <div className="relative">
                     <button onClick={() => setIsPanelOpen(prev => !prev)} className="p-2 rounded-full hover:bg-gray-100 text-gray-500">
@@ -108,10 +114,10 @@ export const AppHeader = ({ user, onProfileClick, themeColors }: { user: User, o
                     <NotificationPanel isOpen={isPanelOpen} onClose={() => setIsPanelOpen(false)} />
                 </div>
                 <button onClick={onProfileClick} className="flex items-center gap-2 p-1 rounded-md hover:bg-gray-100">
-                    <img 
-                        src={`https://placehold.co/40x40/${themeColors[100].substring(1)}/${themeColors[900].substring(1)}?text=${avatarInitial}`} 
-                        alt="Avatar" 
-                        className="w-9 h-9 rounded-full" 
+                    <img
+                        src={`https://placehold.co/40x40/${themeColors[100].substring(1)}/${themeColors[900].substring(1)}?text=${avatarInitial}`}
+                        alt="Avatar"
+                        className="w-9 h-9 rounded-full"
                     />
                     <div>
                         <p className="text-sm font-semibold text-slate-700 text-left">{fullName}</p>
