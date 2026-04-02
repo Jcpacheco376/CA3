@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Modal, Button } from '../../components/ui/Modal';
 import { useAuth } from '../auth/AuthContext';
 //import { Camera, Upload, X, User, Calendar, Briefcase, MapPin, Clock, FileText, Hash, Fingerprint, Badge, Check, CheckCheck, XCircle } from 'lucide-react';
-import { Camera, Upload, X, User, Calendar, Briefcase, MapPin, Clock, FileText, Hash, Fingerprint, Badge, Check, CheckCheck, XCircle, Lock } from 'lucide-react';
+import { Camera, Upload, X, User, Calendar, Briefcase, MapPin, Clock, FileText, Hash, Fingerprint, Badge, Check, CheckCheck, XCircle, Lock, AlertCircle } from 'lucide-react';
 import { themes } from '../../config/theme';
 import { SmartSelect } from '../../components/ui/SmartSelect';
 import { ModernDatePicker } from '../../components/ui/ModernDatePicker';
@@ -113,6 +113,7 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
         RFC: '',
         Imagen: null, // Base64 string
         Activo: true,
+        FechaBaja: null,
         Zonas: [] // Array of Zone objects or Zone IDs
     });
 
@@ -197,6 +198,7 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
                             EstablecimientoId: fullData.EstablecimientoId || '',
                             Imagen: fullData.Imagen ? arrayBufferToBase64(fullData.Imagen) : null,
                             Activo: fullData.Activo,
+                            FechaBaja: fullData.FechaBaja ? fullData.FechaBaja.split('T')[0] : null,
                             Zonas: Array.isArray(fullData.Zonas) ? fullData.Zonas : []
                         }));
                     })
@@ -226,6 +228,7 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
                     RFC: '',
                     Imagen: null,
                     Activo: true,
+                    FechaBaja: null,
                     Zonas: []
                 });
             }
@@ -576,7 +579,7 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
                                     <SmartSelect
                                         value={formData.HorarioIdPredeterminado}
                                         options={horarios.map(h => ({ value: h.HorarioId, title: h.Nombre }))}
-                                        onChange={(val) => setFormData(prev => ({ ...prev, HorarioIdPredeterminado: val }))}
+                                        onChange={(val) => setFormData((prev: any) => ({ ...prev, HorarioIdPredeterminado: val }))}
                                         placeholder="Seleccionar..."
                                     />
                                 </InputGroup>
@@ -585,7 +588,7 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
                                     <SmartSelect
                                         value={formData.DepartamentoId}
                                         options={departamentos.map(d => ({ value: d.DepartamentoId, title: d.Nombre }))}
-                                        onChange={(val) => setFormData(prev => ({ ...prev, DepartamentoId: val }))}
+                                        onChange={(val) => setFormData((prev: any) => ({ ...prev, DepartamentoId: val }))}
                                         placeholder="Seleccionar Departamento..."
                                     />
                                 </InputGroup>
@@ -594,7 +597,7 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
                                     <SmartSelect
                                         value={formData.PuestoId}
                                         options={puestos.map(p => ({ value: p.PuestoId, title: p.Nombre }))}
-                                        onChange={(val) => setFormData(prev => ({ ...prev, PuestoId: val }))}
+                                        onChange={(val) => setFormData((prev: any) => ({ ...prev, PuestoId: val }))}
                                         placeholder="Seleccionar Puesto..."
                                     />
                                 </InputGroup>
@@ -603,7 +606,7 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
                                     <SmartSelect
                                         value={formData.GrupoNominaId}
                                         options={gruposNomina.map(g => ({ value: g.GrupoNominaId, title: g.Nombre }))}
-                                        onChange={(val) => setFormData(prev => ({ ...prev, GrupoNominaId: val }))}
+                                        onChange={(val) => setFormData((prev: any) => ({ ...prev, GrupoNominaId: val }))}
                                         placeholder="Seleccionar Grupo Nómina..."
                                     />
                                 </InputGroup>
@@ -612,17 +615,41 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
                                     <SmartSelect
                                         value={formData.EstablecimientoId}
                                         options={establecimientos.map(e => ({ value: e.EstablecimientoId, title: e.Nombre }))}
-                                        onChange={(val) => setFormData(prev => ({ ...prev, EstablecimientoId: val }))}
+                                        onChange={(val) => setFormData((prev: any) => ({ ...prev, EstablecimientoId: val }))}
                                         placeholder="Seleccionar Establecimiento..."
                                     />
                                 </InputGroup>
+
+                                {!formData.Activo && (
+                                    <div className="col-span-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                                        <InputGroup label="Fecha de Baja">
+                                            <ModernDatePicker
+                                                value={formData.FechaBaja}
+                                                onChange={(date) => setFormData((prev: any) => ({
+                                                    ...prev,
+                                                    FechaBaja: date ? date.toISOString().split('T')[0] : null
+                                                }))}
+                                                placeholder="Seleccionar fecha de baja"
+                                            />
+                                            <p className="text-[10px] text-red-400 mt-1 flex items-center gap-1">
+                                                <AlertCircle size={10} /> Definir la fecha exacta para reportes históricos.
+                                            </p>
+                                        </InputGroup>
+                                    </div>
+                                )}
 
                                 {/* Activo Toggle Moved to Right Side */}
                                 <div className="col-span-2 flex justify-end mt-4">
                                     <div className="flex items-center gap-2">
                                         <ToggleSwitch
                                             checked={formData.Activo}
-                                            onChange={(val) => setFormData((prev: any) => ({ ...prev, Activo: val }))}
+                                            onChange={(val) => setFormData((prev: any) => ({
+                                                ...prev,
+                                                Activo: val,
+                                                // If activating, clear FechaBaja? Not necessarily, maybe keep it if it was a mistake. 
+                                                // But usually activating means no baja date.
+                                                FechaBaja: val ? null : (prev.FechaBaja || format(new Date(), 'yyyy-MM-dd'))
+                                            }))}
                                             themeColor={theme[600]}
                                         />
                                         <span className="text-sm font-medium text-slate-700">

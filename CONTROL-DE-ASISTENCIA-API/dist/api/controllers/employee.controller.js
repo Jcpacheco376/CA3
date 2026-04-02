@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.getPermittedEmployees = exports.getAnniversaries = exports.getBirthdays = exports.deleteEmployee = exports.updateEmployee = exports.createEmployee = exports.getEmployeePhoto = exports.getEmployeeStats = exports.getEmployees = exports.getEmployeeProfile = void 0;
+exports.getEmployeeSchedulePattern = exports.getPermittedEmployees = exports.getEmployeeCalendarSchedule = exports.getAnniversaries = exports.getBirthdays = exports.deleteEmployee = exports.updateEmployee = exports.createEmployee = exports.getEmployeePhoto = exports.getEmployeeStats = exports.getEmployees = exports.getEmployeeProfile = void 0;
 const mssql_1 = __importDefault(require("mssql"));
 const database_1 = require("../../config/database");
 const getEmployeeProfile = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
@@ -62,11 +62,13 @@ const getEmployees = (req, res) => __awaiter(void 0, void 0, void 0, function* (
         const pool = yield mssql_1.default.connect(database_1.dbConfig);
         const includeInactive = req.query.includeInactive === 'true' ? 1 : 0;
         const result = yield pool.request()
+            .input('UsuarioId', mssql_1.default.Int, req.user.usuarioId) // Aplicar filtro universal de seguridad
             .input('IncluirInactivos', mssql_1.default.Bit, includeInactive)
             .execute('dbo.sp_Empleados_GetAllManagement');
         res.json(result.recordset);
     }
     catch (err) {
+        console.error('ERROR EN getEmployees:', err);
         res.status(500).json({ message: err.message || 'Error al obtener empleados.' });
     }
 });
@@ -147,6 +149,7 @@ const createEmployee = (req, res) => __awaiter(void 0, void 0, void 0, function*
             request.input('Imagen', mssql_1.default.VarBinary, null);
         }
         request.input('Activo', mssql_1.default.Bit, (_a = req.body.Activo) !== null && _a !== void 0 ? _a : true);
+        request.input('FechaBaja', mssql_1.default.Date, req.body.FechaBaja || null);
         // EmpleadoId is OUTPUT for Insert (NULL input, New ID output)
         request.output('EmpleadoId', mssql_1.default.Int);
         const result = yield request.execute('dbo.sp_Empleados_Save');
@@ -209,6 +212,7 @@ const updateEmployee = (req, res) => __awaiter(void 0, void 0, void 0, function*
             // If undefined, do we pass null? Yes, let's stick to safe "send what we have"
         }
         request.input('Activo', mssql_1.default.Bit, req.body.Activo);
+        request.input('FechaBaja', mssql_1.default.Date, req.body.FechaBaja || null);
         // Pass EmpleadoId as Input for Update. 
         // Note: SP defines it as OUTPUT but accepts input value. 
         // We don't need to read it back for update, so just Input is fine in mssql usually.
@@ -281,12 +285,33 @@ const getAnniversaries = (req, res) => __awaiter(void 0, void 0, void 0, functio
     }
 });
 exports.getAnniversaries = getAnniversaries;
+const getEmployeeCalendarSchedule = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { employeeId } = req.params;
+    const { start, end } = req.query;
+    if (!employeeId || !start || !end) {
+        return res.status(400).json({ message: 'employeeId, start, y end son requeridos.' });
+    }
+    try {
+        const pool = yield mssql_1.default.connect(database_1.dbConfig);
+        const result = yield pool.request()
+            .input('EmpleadoId', mssql_1.default.Int, employeeId)
+            .input('FechaInicio', mssql_1.default.Date, start)
+            .input('FechaFin', mssql_1.default.Date, end)
+            .execute('dbo.sp_Empleados_GetCalendarioDescansos');
+        res.json(result.recordset);
+    }
+    catch (err) {
+        res.status(500).json({ message: err.message || 'Error al obtener descansos del calendario.' });
+    }
+});
+exports.getEmployeeCalendarSchedule = getEmployeeCalendarSchedule;
 const getPermittedEmployees = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const pool = yield mssql_1.default.connect(database_1.dbConfig);
         const result = yield pool.request()
             .input('UsuarioId', mssql_1.default.Int, req.user.usuarioId)
-            .execute('dbo.sp_Empleados_GetPermitidos');
+            .input('IncluirInactivos', mssql_1.default.Bit, 0)
+            .execute('dbo.sp_Empleados_GetAllManagement');
         res.json(result.recordset);
     }
     catch (err) {
@@ -294,3 +319,33 @@ const getPermittedEmployees = (req, res) => __awaiter(void 0, void 0, void 0, fu
     }
 });
 exports.getPermittedEmployees = getPermittedEmployees;
+const getEmployeeSchedulePattern = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const { employeeId } = req.params;
+    if (!employeeId)
+        return res.status(400).json({ message: 'El ID del empleado es requerido.' });
+    try {
+        const pool = yield mssql_1.default.connect(database_1.dbConfig);
+        // 1. Obtener el HorarioIdPredeterminado del empleado
+        const empRes = yield pool.request()
+            .input('EmpleadoId', mssql_1.default.Int, employeeId)
+            .query('SELECT HorarioIdPredeterminado FROM dbo.Empleados WHERE EmpleadoId = @EmpleadoId');
+        if (empRes.recordset.length === 0)
+            return res.status(404).json({ message: 'Empleado no encontrado.' });
+        const horarioId = empRes.recordset[0].HorarioIdPredeterminado;
+        if (!horarioId)
+            return res.json([]); // No tiene horario base
+        // 2. Obtener los detalles del horario
+        const scheduleRes = yield pool.request()
+            .input('HorarioId', mssql_1.default.Int, horarioId)
+            .query(`
+                SELECT DiaSemana, EsDiaLaboral 
+                FROM dbo.CatalogoHorariosDetalle 
+                WHERE HorarioId = @HorarioId
+            `);
+        res.json(scheduleRes.recordset);
+    }
+    catch (err) {
+        res.status(500).json({ message: err.message || 'Error al obtener patrón de horario.' });
+    }
+});
+exports.getEmployeeSchedulePattern = getEmployeeSchedulePattern;

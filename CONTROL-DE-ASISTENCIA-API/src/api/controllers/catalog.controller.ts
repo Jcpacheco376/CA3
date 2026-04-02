@@ -154,7 +154,7 @@ export const getSchedulesCatalog = async (req: any, res: Response) => {
 
 export const upsertScheduleCatalog = async (req: any, res: Response) => {
     if (!req.user.permissions['catalogo.horarios.manage']) return res.status(403).json({ message: 'Acceso denegado.' });
-    const { HorarioId, Abreviatura, Nombre, MinutosTolerancia, ColorUI, Activo, EsRotativo, DetallesJSON } = req.body;
+    const { HorarioId, CodRef, Abreviatura, Nombre, MinutosTolerancia, ColorUI, Activo, EsRotativo, DetallesJSON } = req.body;
     try {
         const pool = await poolPromise;
         //console.log('Received Body:', req.body); // Log the received body
@@ -162,6 +162,7 @@ export const upsertScheduleCatalog = async (req: any, res: Response) => {
 
         const result = await pool.request()
             .input('HorarioId', sql.Int, HorarioId || 0)
+            .input('CodRef', sql.NVarChar, CodRef)
             .input('Abreviatura', sql.NVarChar, Abreviatura)
             .input('Nombre', sql.NVarChar, Nombre)
             .input('MinutosTolerancia', sql.Int, MinutosTolerancia)

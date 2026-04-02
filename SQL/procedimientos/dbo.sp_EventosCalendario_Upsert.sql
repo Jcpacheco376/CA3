@@ -1,18 +1,11 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_EventosCalendario_Upsert]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.5.16
--- Compilado:           24/03/2026, 16:29:51
+-- Versión de Paquete:  v1.5.22
+-- Compilado:           02/04/2026, 14:20:17
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
--- ──────────────────────────────────────────────────────────────────────
--- Stored Procedure: [dbo].[sp_EventosCalendario_Upsert]
--- Base de Datos:       CA
--- Versión de Paquete:  v1.5.12
--- Compilado:           17/03/2026, 10:50:24
--- Sistema:             CA3 Control de Asistencia
--- ──────────────────────────────────────────────────────────────────────
 CREATE OR ALTER PROCEDURE [dbo].[sp_EventosCalendario_Upsert]
     @EventoId      INT = NULL,
     @Fecha         DATE,

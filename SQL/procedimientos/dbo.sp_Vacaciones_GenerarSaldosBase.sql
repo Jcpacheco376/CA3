@@ -1,39 +1,36 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Vacaciones_GenerarSaldosBase]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.5.16
--- Compilado:           24/03/2026, 16:29:51
+-- Versión de Paquete:  v1.5.22
+-- Compilado:           02/04/2026, 14:20:17
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Vacaciones_GenerarSaldosBase]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.5.20
+-- Compilado:           25/03/2026, 11:52:51
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 CREATE OR ALTER PROCEDURE sp_Vacaciones_GenerarSaldosBase
                 @AnioActual INT,
                 @EmpleadoId INT = NULL
             AS
             BEGIN
                 SET NOCOUNT ON;
-
                 -- 1. Asegurar registro de saldo base
-                -- Calculamos el año natural real para evaluar reglas (independientemente si @AnioActual es el año 2024 o el índice 3)
+                -- DiasOtorgados se calcula usando fn_Vacaciones_GetDiasOtorgados con la FechaFinPeriodo
+                -- del aniversario correspondiente. La FechaFinPeriodo es siempre un día antes del
+                -- siguiente aniversario: DATEADD(DAY, -1, DATEADD(YEAR, @AnioActual, FechaIngreso))
                 INSERT INTO VacacionesSaldos (EmpleadoId, Anio, DiasOtorgados, DiasDisfrutados)
                 SELECT 
                     e.EmpleadoId, 
                     @AnioActual, 
-                    ISNULL((
-                        SELECT TOP 1 crv.DiasOtorgados
-                        FROM CatalogoReglasVacaciones crv
-                        WHERE crv.Esquema = CASE 
-                            WHEN (@AnioActual >= 2023 OR (@AnioActual < 1000 AND YEAR(DATEADD(YEAR, @AnioActual - 1, e.FechaIngreso)) >= 2023)) 
-                            THEN 'Ley-2023' 
-                            ELSE 'Pre-2023' 
-                        END
-                        AND crv.AniosAntiguedad = CASE 
-                            WHEN @AnioActual >= 1000 THEN 
-                                CASE WHEN DATEDIFF(YEAR, e.FechaIngreso, DATEFROMPARTS(@AnioActual, 1, 1)) <= 0 THEN 1 
-                                ELSE DATEDIFF(YEAR, e.FechaIngreso, DATEFROMPARTS(@AnioActual, 1, 1)) END
-                            ELSE @AnioActual -- Si @AnioActual es un índice (1, 2, 3), coincide con AniosAntiguedad
-                        END
-                    ), 12),
+                    dbo.fn_Vacaciones_GetDiasOtorgados(
+                        DATEADD(DAY, -1, DATEADD(YEAR, @AnioActual, e.FechaIngreso)), -- FechaFinPeriodo
+                        @AnioActual                                                     -- AnioAntiguedad
+                    ),
                     0
                 FROM Empleados e
                 WHERE e.Activo = 1 
@@ -42,13 +39,11 @@ CREATE OR ALTER PROCEDURE sp_Vacaciones_GenerarSaldosBase
                       SELECT 1 FROM VacacionesSaldos vs 
                       WHERE vs.EmpleadoId = e.EmpleadoId AND vs.Anio = @AnioActual
                   );
-
                 -- 2. Recalcular 'DiasDisfrutados' (Consumo Total)
                 DECLARE @ConceptoVacacionesId INT;
                 SELECT TOP 1 @ConceptoVacacionesId = cea.ConceptoNominaId
                 FROM CatalogoEstatusAsistencia cea
                 WHERE cea.Abreviatura = 'VAC';
-
                 IF @ConceptoVacacionesId IS NOT NULL
                 BEGIN
                     UPDATE vs
@@ -83,7 +78,7 @@ CREATE OR ALTER PROCEDURE sp_Vacaciones_GenerarSaldosBase
                         ISNULL((
                             SELECT SUM(Dias)
                             FROM VacacionesSaldosDetalle
-                            WHERE SaldoId = vs.SaldoId 
+                            WHERE SaldoId = vs.SaldoId
                               AND Tipo IN ('Ajuste', 'Pagado')
                         ), 0)
                     FROM VacacionesSaldos vs

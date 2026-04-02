@@ -47,11 +47,13 @@ export const getEmployees = async (req: any, res: Response) => {
         const includeInactive = req.query.includeInactive === 'true' ? 1 : 0;
 
         const result = await pool.request()
+            .input('UsuarioId', sql.Int, req.user.usuarioId) // Aplicar filtro universal de seguridad
             .input('IncluirInactivos', sql.Bit, includeInactive)
             .execute('dbo.sp_Empleados_GetAllManagement');
 
         res.json(result.recordset);
     } catch (err: any) {
+        console.error('ERROR EN getEmployees:', err);
         res.status(500).json({ message: err.message || 'Error al obtener empleados.' });
     }
 };
@@ -134,6 +136,7 @@ export const createEmployee = async (req: any, res: Response) => {
         }
 
         request.input('Activo', sql.Bit, req.body.Activo ?? true);
+        request.input('FechaBaja', sql.Date, req.body.FechaBaja || null);
 
         // EmpleadoId is OUTPUT for Insert (NULL input, New ID output)
         request.output('EmpleadoId', sql.Int);
@@ -197,6 +200,7 @@ export const updateEmployee = async (req: any, res: Response) => {
         }
 
         request.input('Activo', sql.Bit, req.body.Activo);
+        request.input('FechaBaja', sql.Date, req.body.FechaBaja || null);
 
         // Pass EmpleadoId as Input for Update. 
         // Note: SP defines it as OUTPUT but accepts input value. 
@@ -270,14 +274,69 @@ export const getAnniversaries = async (req: Request, res: Response) => {
     }
 };
 
+export const getEmployeeCalendarSchedule = async (req: any, res: Response) => {
+    const { employeeId } = req.params;
+    const { start, end } = req.query;
+
+    if (!employeeId || !start || !end) {
+        return res.status(400).json({ message: 'employeeId, start, y end son requeridos.' });
+    }
+
+    try {
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request()
+            .input('EmpleadoId', sql.Int, employeeId)
+            .input('FechaInicio', sql.Date, start as string)
+            .input('FechaFin', sql.Date, end as string)
+            .execute('dbo.sp_Empleados_GetCalendarioDescansos');
+
+        res.json(result.recordset);
+    } catch (err: any) {
+        res.status(500).json({ message: err.message || 'Error al obtener descansos del calendario.' });
+    }
+};
+
 export const getPermittedEmployees = async (req: any, res: Response) => {
     try {
         const pool = await sql.connect(dbConfig);
         const result = await pool.request()
             .input('UsuarioId', sql.Int, req.user.usuarioId)
-            .execute('dbo.sp_Empleados_GetPermitidos');
+            .input('IncluirInactivos', sql.Bit, 0)
+            .execute('dbo.sp_Empleados_GetAllManagement');
         res.json(result.recordset);
     } catch (err: any) {
         res.status(500).json({ message: err.message || 'Error al obtener empleados permitidos.' });
     }
-}
+};
+
+export const getEmployeeSchedulePattern = async (req: any, res: Response) => {
+    const { employeeId } = req.params;
+    if (!employeeId) return res.status(400).json({ message: 'El ID del empleado es requerido.' });
+
+    try {
+        const pool = await sql.connect(dbConfig);
+
+        // 1. Obtener el HorarioIdPredeterminado del empleado
+        const empRes = await pool.request()
+            .input('EmpleadoId', sql.Int, employeeId)
+            .query('SELECT HorarioIdPredeterminado FROM dbo.Empleados WHERE EmpleadoId = @EmpleadoId');
+
+        if (empRes.recordset.length === 0) return res.status(404).json({ message: 'Empleado no encontrado.' });
+
+        const horarioId = empRes.recordset[0].HorarioIdPredeterminado;
+        if (!horarioId) return res.json([]); // No tiene horario base
+
+        // 2. Obtener los detalles del horario
+        const scheduleRes = await pool.request()
+            .input('HorarioId', sql.Int, horarioId)
+            .query(`
+                SELECT DiaSemana, EsDiaLaboral 
+                FROM dbo.CatalogoHorariosDetalle 
+                WHERE HorarioId = @HorarioId
+            `);
+
+        res.json(scheduleRes.recordset);
+    } catch (err: any) {
+        res.status(500).json({ message: err.message || 'Error al obtener patrón de horario.' });
+    }
+};

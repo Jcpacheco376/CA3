@@ -25,7 +25,7 @@ export const createUser = async (req: any, res: Response) => {
     }
 
     const {
-        UsuarioId, EmpleadoId, NombreCompleto, NombreUsuario, Email, Password, EstaActivo,
+        UsuarioId, EmpleadoId, NombreCompleto, NombreUsuario, Email, Telefono, Password, EstaActivo,
         Roles, Departamentos, GruposNomina, Puestos, Establecimientos
     } = req.body;
 
@@ -43,6 +43,7 @@ export const createUser = async (req: any, res: Response) => {
             .input('NombreCompleto', sql.NVarChar, NombreCompleto)
             .input('NombreUsuario', sql.NVarChar, NombreUsuario)
             .input('Email', sql.NVarChar, Email)
+            .input('Telefono', sql.NVarChar, Telefono || null)
             .input('Password', sql.NVarChar, Password)
             .input('EstaActivo', sql.Bit, EstaActivo)
             .input('EmpleadoId', sql.Int, EmpleadoId || null)

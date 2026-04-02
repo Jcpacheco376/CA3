@@ -1,13 +1,14 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_CatalogoHorarios_Upsert]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.5.16
--- Compilado:           24/03/2026, 16:29:51
+-- Versión de Paquete:  v1.5.22
+-- Compilado:           02/04/2026, 14:20:17
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
 CREATE OR ALTER PROCEDURE [dbo].[sp_CatalogoHorarios_Upsert]
     @HorarioId INT,
+    @CodRef NVARCHAR(10),
     @Abreviatura NVARCHAR(10),
     @Nombre NVARCHAR(100),
     @MinutosTolerancia INT,
@@ -19,11 +20,10 @@ AS
 BEGIN
     SET NOCOUNT ON;
     DECLARE @CalculatedTurno CHAR(1) = '';
-
     BEGIN TRY
         BEGIN TRANSACTION;
         
-        -- 1. Validaci�n de duplicados
+        -- 1. Validacin de duplicados
         IF EXISTS (
             SELECT 1 
             FROM dbo.CatalogoHorarios 
@@ -38,12 +38,12 @@ BEGIN
             RAISERROR ('La abreviatura del horario ya esta en uso por otro horario activo.', 16, 1);
             RETURN;
         END
-
         -- 2. Upsert en Cabecera Local
         IF @HorarioId IS NOT NULL AND @HorarioId > 0
         BEGIN
             UPDATE dbo.CatalogoHorarios 
-            SET Abreviatura = LTRIM(RTRIM(@Abreviatura)), 
+            SET CodRef = @CodRef,
+                Abreviatura = LTRIM(RTRIM(@Abreviatura)), 
                 Nombre = @Nombre, 
                 MinutosTolerancia = @MinutosTolerancia, 
                 ColorUI = @ColorUI, 
@@ -53,12 +53,11 @@ BEGIN
         END
         ELSE
         BEGIN
-            INSERT INTO dbo.CatalogoHorarios (Abreviatura, Nombre, MinutosTolerancia, ColorUI, Activo, EsRotativo) 
-            VALUES (LTRIM(RTRIM(@Abreviatura)), @Nombre, @MinutosTolerancia, @ColorUI, @Activo, @esRotativo);
+            INSERT INTO dbo.CatalogoHorarios (CodRef, Abreviatura, Nombre, MinutosTolerancia, ColorUI, Activo, EsRotativo) 
+            VALUES (@CodRef, LTRIM(RTRIM(@Abreviatura)), @Nombre, @MinutosTolerancia, @ColorUI, @Activo, @esRotativo);
             SET @HorarioId = SCOPE_IDENTITY();
         END
-
-        -- 3. Actualizaci�n de Detalles Locales
+        -- 3. Actualizacin de Detalles Locales
         DELETE FROM dbo.CatalogoHorariosDetalle WHERE HorarioId = @HorarioId;
             
         INSERT INTO dbo.CatalogoHorariosDetalle (HorarioId, DiaSemana, EsDiaLaboral, HoraEntrada, HoraSalida, HoraInicioComida, HoraFinComida) 
@@ -80,7 +79,6 @@ BEGIN
             HoraInicioComida TIME '$.HoraInicioComida', 
             HoraFinComida TIME '$.HoraFinComida'
         ) AS j;
-
         -- 4. C�lculo de Turno Autom�tico
         SET @CalculatedTurno = NULL;
         DECLARE @DistinctTurnos INT = 0;
@@ -110,29 +108,31 @@ BEGIN
         BEGIN 
             SET @CalculatedTurno = ''; 
         END
-
         UPDATE dbo.CatalogoHorarios SET turno = @CalculatedTurno WHERE HorarioId = @HorarioId;
-
         -- =========================================================================
-        -- 5. SINCRONIZACI�N (NUEVA INTEGRACI�N)
+        -- 5. SINCRONIZACIN
         -- =========================================================================
         IF (SELECT ConfigValue FROM dbo.SISConfiguracion WHERE ConfigKey = 'SyncHorarios') = 'true'
         BEGIN
             PRINT 'Paso Sync: Sincronizacion (PUSH) de Horario habilitada.';
-            EXEC [dbo].[sp_SyncToExternal_Horario] @HorarioId = @HorarioId;
+            DECLARE @SyncStatus CHAR(1) = CASE WHEN @Activo = 1 THEN 'V' ELSE 'C' END;
+            EXEC [dbo].[sp_SyncToExternal_Horario] 
+                @CodRef = @CodRef, 
+                @Nombre = @Nombre, 
+                @MinutosTolerancia = @MinutosTolerancia, 
+                @Status = @SyncStatus, 
+                @Detalles = @DetallesJSON;
         END
         ELSE
         BEGIN
              PRINT 'Paso Sync: Sincronizacion (PUSH) deshabilitada.';
         END
-
         COMMIT TRANSACTION;
         
         -- Retorno de datos a la UI/API
-        SELECT H.HorarioId, H.turno, H.EsRotativo, H.Nombre, H.Abreviatura, H.ColorUI 
+        SELECT H.HorarioId, H.CodRef, H.turno, H.EsRotativo, H.Nombre, H.Abreviatura, H.ColorUI 
         FROM dbo.CatalogoHorarios H 
         WHERE H.HorarioId = @HorarioId;
-
     END TRY
     BEGIN CATCH
         IF @@TRANCOUNT > 0 

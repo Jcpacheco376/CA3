@@ -1,34 +1,70 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Usuarios_GetAll]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.5.16
--- Compilado:           24/03/2026, 16:29:51
+-- Versión de Paquete:  v1.5.22
+-- Compilado:           02/04/2026, 14:20:17
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
 CREATE OR ALTER PROCEDURE [dbo].[sp_Usuarios_GetAll]
-AS
-BEGIN
-    SET NOCOUNT ON;
-    SELECT
-        u.UsuarioId, u.NombreCompleto, u.NombreUsuario, u.Email, u.EstaActivo,
-        u.EmpleadoId,
-        ISNULL(u.Theme, 'indigo') AS Theme, 
-        ISNULL(u.AnimationsEnabled, 1) AS AnimationsEnabled,
-        
-      
-        (SELECT 
-            r.RoleId, 
-            r.NombreRol
-         FROM dbo.Roles r 
-         INNER JOIN dbo.UsuariosRoles ur ON r.RoleId = ur.RoleId 
-         WHERE ur.UsuarioId = u.UsuarioId 
-         ORDER BY ur.EsPrincipal DESC, r.NombreRol ASC 
-         FOR JSON PATH) AS Roles,
-        (SELECT d.DepartamentoId, d.Nombre FROM dbo.CatalogoDepartamentos d INNER JOIN dbo.UsuariosDepartamentos ud ON d.DepartamentoId = ud.DepartamentoId WHERE ud.UsuarioId = u.UsuarioId FOR JSON PATH) AS Departamentos,
-        (SELECT gn.GrupoNominaId, gn.Nombre,Periodo FROM dbo.CatalogoGruposNomina gn INNER JOIN dbo.UsuariosGruposNomina ugn ON gn.GrupoNominaId = ugn.GrupoNominaId WHERE ugn.UsuarioId = u.UsuarioId FOR JSON PATH) AS GruposNomina,
-        (SELECT p.PuestoId, p.Nombre FROM dbo.CatalogoPuestos p INNER JOIN dbo.UsuariosPuestos up ON p.PuestoId = up.PuestoId WHERE up.UsuarioId = u.UsuarioId FOR JSON PATH) AS Puestos,
-        (SELECT e.EstablecimientoId, e.Nombre FROM dbo.CatalogoEstablecimientos e INNER JOIN dbo.UsuariosEstablecimientos ue ON e.EstablecimientoId = ue.EstablecimientoId WHERE ue.UsuarioId = u.UsuarioId FOR JSON PATH) AS Establecimientos
-    FROM dbo.Usuarios u;
-END
+            AS
+            BEGIN
+                SET NOCOUNT ON;
+
+                SELECT
+                    u.UsuarioId,
+                    u.NombreUsuario,
+                    u.NombreCompleto,
+                    u.Email,
+                    u.Telefono,
+                    u.EstaActivo,
+                    u.FechaCreacion,
+                    u.Theme,
+                    u.AnimationsEnabled,
+                    u.DebeCambiarPassword,
+                    u.EmpleadoId,
+
+                    Roles = (
+                        SELECT r.RoleId, r.NombreRol, ur.EsPrincipal
+                        FROM dbo.UsuariosRoles ur
+                        INNER JOIN dbo.Roles r ON ur.RoleId = r.RoleId
+                        WHERE ur.UsuarioId = u.UsuarioId
+                        ORDER BY ur.EsPrincipal DESC, r.NombreRol ASC
+                        FOR JSON PATH
+                    ),
+
+                    Departamentos = (
+                        SELECT d.DepartamentoId, d.Nombre
+                        FROM dbo.UsuariosDepartamentos ud
+                        INNER JOIN dbo.CatalogoDepartamentos d ON ud.DepartamentoId = d.DepartamentoId
+                        WHERE ud.UsuarioId = u.UsuarioId
+                        FOR JSON PATH
+                    ),
+
+                    GruposNomina = (
+                        SELECT gn.GrupoNominaId, gn.Nombre, gn.Periodo
+                        FROM dbo.UsuariosGruposNomina ugn
+                        INNER JOIN dbo.CatalogoGruposNomina gn ON ugn.GrupoNominaId = gn.GrupoNominaId
+                        WHERE ugn.UsuarioId = u.UsuarioId
+                        FOR JSON PATH
+                    ),
+
+                    Puestos = (
+                        SELECT p.PuestoId, p.Nombre
+                        FROM dbo.UsuariosPuestos up
+                        INNER JOIN dbo.CatalogoPuestos p ON up.PuestoId = p.PuestoId
+                        WHERE up.UsuarioId = u.UsuarioId
+                        FOR JSON PATH
+                    ),
+
+                    Establecimientos = (
+                        SELECT e.EstablecimientoId, e.Nombre
+                        FROM dbo.UsuariosEstablecimientos ue
+                        INNER JOIN dbo.CatalogoEstablecimientos e ON ue.EstablecimientoId = e.EstablecimientoId
+                        WHERE ue.UsuarioId = u.UsuarioId
+                        FOR JSON PATH
+                    )
+
+                FROM dbo.Usuarios u;
+            END
 GO

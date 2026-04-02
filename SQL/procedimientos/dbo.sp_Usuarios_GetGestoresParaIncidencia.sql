@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Usuarios_GetGestoresParaIncidencia]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.5.16
--- Compilado:           24/03/2026, 16:29:51
+-- Versión de Paquete:  v1.5.22
+-- Compilado:           02/04/2026, 14:20:17
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -11,21 +11,11 @@ CREATE OR ALTER PROCEDURE [dbo].[sp_Usuarios_GetGestoresParaIncidencia]
 AS
 BEGIN
     SET NOCOUNT ON;
-
-    -- 1. OBTENER CONFIGURACI�N
-    DECLARE @FiltroDepts BIT, @FiltroGrupos BIT, @FiltroPuestos BIT, @FiltroEstabs BIT;
-    SELECT 
-        @FiltroDepts = CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroDepartamentosActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT),
-        @FiltroGrupos = CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroGruposNominaActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT),
-        @FiltroPuestos = CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroPuestosActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT),
-        @FiltroEstabs = CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroEstablecimientosActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT)
-    FROM dbo.SISConfiguracion;
-
-    -- 2. DATOS EMPLEADO
-    DECLARE @EmpDepto INT, @EmpGrupo INT, @EmpPuesto INT, @EmpEstab INT;
-    SELECT @EmpDepto = e.DepartamentoId, @EmpGrupo = e.GrupoNominaId, @EmpPuesto = e.PuestoId, @EmpEstab = e.EstablecimientoId
-    FROM dbo.Incidencias i JOIN dbo.Empleados e ON i.EmpleadoId = e.EmpleadoId WHERE i.IncidenciaId = @IncidenciaId;
-
+    -- 1. OBTENER EMPLEADO
+    DECLARE @EmpleadoId INT;
+    SELECT @EmpleadoId = EmpleadoId
+    FROM dbo.Incidencias
+    WHERE IncidenciaId = @IncidenciaId;
     -- 3. BUSCAR GESTORES
     SELECT DISTINCT
         u.UsuarioId,
@@ -38,21 +28,12 @@ BEGIN
             JOIN dbo.Roles r ON ur.RoleId = r.RoleId 
             WHERE ur.UsuarioId = u.UsuarioId AND ur.EsPrincipal = 1
         ), 'Sin Rol Principal') AS RolPrincipal
-
     FROM dbo.Usuarios u
+    JOIN dbo.fn_Seguridad_GetUsuariosPermitidosPorEmpleado(@EmpleadoId) perm ON u.UsuarioId = perm.UsuarioId
     WHERE u.EstaActivo = 1
       AND EXISTS (
           SELECT 1 FROM dbo.UsuariosRoles ur JOIN dbo.Roles r ON ur.RoleId = r.RoleId JOIN dbo.RolesPermisos rp ON r.RoleId = rp.RoleId JOIN dbo.SISPermisos p ON rp.PermisoId = p.PermisoId
           WHERE ur.UsuarioId = u.UsuarioId AND p.NombrePermiso IN ('incidencias.resolve', 'incidencias.manage') AND p.Activo = 1
-      )
-      AND (
-          (@FiltroDepts = 0 OR (NOT EXISTS (SELECT 1 FROM dbo.UsuariosDepartamentos WHERE UsuarioId = u.UsuarioId) OR EXISTS (SELECT 1 FROM dbo.UsuariosDepartamentos WHERE UsuarioId = u.UsuarioId AND DepartamentoId = @EmpDepto)))
-          AND
-          (@FiltroGrupos = 0 OR (NOT EXISTS (SELECT 1 FROM dbo.UsuariosGruposNomina WHERE UsuarioId = u.UsuarioId) OR EXISTS (SELECT 1 FROM dbo.UsuariosGruposNomina WHERE UsuarioId = u.UsuarioId AND GrupoNominaId = @EmpGrupo)))
-          AND
-          (@FiltroPuestos = 0 OR (NOT EXISTS (SELECT 1 FROM dbo.UsuariosPuestos WHERE UsuarioId = u.UsuarioId) OR EXISTS (SELECT 1 FROM dbo.UsuariosPuestos WHERE UsuarioId = u.UsuarioId AND PuestoId = @EmpPuesto)))
-          AND
-          (@FiltroEstabs = 0 OR (NOT EXISTS (SELECT 1 FROM dbo.UsuariosEstablecimientos WHERE UsuarioId = u.UsuarioId) OR EXISTS (SELECT 1 FROM dbo.UsuariosEstablecimientos WHERE UsuarioId = u.UsuarioId AND EstablecimientoId = @EmpEstab)))
       )
     ORDER BY NombreCompleto;
 END

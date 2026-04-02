@@ -25,30 +25,22 @@ async function updateSP() {
                 @FechaFin DATE,
                 @DiasSolicitados INT,
                 @Comentarios NVARCHAR(MAX),
-                @UsuarioSolicitanteId INT,
-                @SolicitanteRolName VARCHAR(50) = 'Empleado' -- 'Empleado', 'JefeDirecto', 'RecursosHumanos', 'Gerencia'
+                @UsuarioSolicitanteId INT
             AS
             BEGIN
                 SET NOCOUNT ON;
 
-                DECLARE @AnioActual INT = YEAR(GETDATE());
-                DECLARE @DiasRestantes INT;
+                DECLARE @DiasRestantes DECIMAL(10,2);
 
-                -- Forcing recalculation of base balance if it hasn't been generated yet
-                IF NOT EXISTS (SELECT 1 FROM VacacionesSaldos WHERE EmpleadoId = @EmpleadoId AND Anio = @AnioActual)
-                BEGIN
-                    EXEC sp_Vacaciones_GenerarSaldosBase @AnioActual;
-                END
-
-                -- Verificar saldo
-                -- Since DiasRestantes is a computed column or derived visually now, we need to read DiasOtorgados - DiasDisfrutados
-                SELECT @DiasRestantes = (DiasOtorgados - DiasDisfrutados)
+                -- Sumar todos los dias otorgados y restarle los dias disfrutados para saber el total real disponible
+                SELECT @DiasRestantes = SUM(ISNULL(DiasOtorgados, 0) - ISNULL(DiasDisfrutados, 0))
                 FROM VacacionesSaldos
-                WHERE EmpleadoId = @EmpleadoId AND Anio = @AnioActual;
+                WHERE EmpleadoId = @EmpleadoId;
 
                 IF @DiasRestantes IS NULL OR @DiasRestantes < @DiasSolicitados
                 BEGIN
-                    RAISERROR('El empleado no tiene suficientes días de vacaciones.', 16, 1);
+                    DECLARE @ErrMsg VARCHAR(255) = 'El empleado no tiene suficientes días de vacaciones (Total disponible: ' + ISNULL(CAST(@DiasRestantes AS VARCHAR(20)), '0') + ', Solicitados: ' + CAST(@DiasSolicitados AS VARCHAR(20)) + ').';
+                    RAISERROR(@ErrMsg, 16, 1);
                     RETURN;
                 END
 
@@ -66,19 +58,28 @@ async function updateSP() {
 
                 SET @NuevoSolicitudId = SCOPE_IDENTITY();
 
+                DECLARE @UsuarioSolicitanteEmpleadoId INT;
+                SELECT @UsuarioSolicitanteEmpleadoId = EmpleadoId FROM Usuarios WHERE UsuarioId = @UsuarioSolicitanteId;
+
                 -- Insertar firmas pendientes basadas en la configuración
                 INSERT INTO SolicitudesVacacionesFirmas (
                     SolicitudId, ConfigId, EstatusFirma, UsuarioFirmaId, FechaFirma
                 )
                 SELECT 
                     @NuevoSolicitudId,
-                    ConfigId,
-                    -- Logica de Autofirma
-                    CASE WHEN RolAprobador = @SolicitanteRolName THEN 'Aprobado' ELSE 'Pendiente' END,
-                    CASE WHEN RolAprobador = @SolicitanteRolName THEN @UsuarioSolicitanteId ELSE NULL END,
-                    CASE WHEN RolAprobador = @SolicitanteRolName THEN GETDATE() ELSE NULL END
-                FROM VacacionesAprobadoresConfig
-                WHERE EsObligatorio = 1;
+                    c.ConfigId,
+                    -- Logica de Autofirma: Solo si lo crea para OTRO empleado y el solicitante tiene el rol especifico de la etapa
+                    CASE WHEN ISNULL(@UsuarioSolicitanteEmpleadoId, -1) <> @EmpleadoId 
+                              AND EXISTS (SELECT 1 FROM UsuariosRoles ur WHERE ur.UsuarioId = @UsuarioSolicitanteId AND ur.RoleId = c.RoleId)
+                         THEN 'Aprobado' ELSE 'Pendiente' END,
+                    CASE WHEN ISNULL(@UsuarioSolicitanteEmpleadoId, -1) <> @EmpleadoId 
+                              AND EXISTS (SELECT 1 FROM UsuariosRoles ur WHERE ur.UsuarioId = @UsuarioSolicitanteId AND ur.RoleId = c.RoleId)
+                         THEN @UsuarioSolicitanteId ELSE NULL END,
+                    CASE WHEN ISNULL(@UsuarioSolicitanteEmpleadoId, -1) <> @EmpleadoId 
+                              AND EXISTS (SELECT 1 FROM UsuariosRoles ur WHERE ur.UsuarioId = @UsuarioSolicitanteId AND ur.RoleId = c.RoleId)
+                         THEN GETDATE() ELSE NULL END
+                FROM VacacionesAprobadoresConfig c
+                WHERE c.EsObligatorio = 1;
 
                 -- Verificar si de causalidad todas las firmas ya se autoaprobaron (e.g. un Gerente/RH que tiene un rol supremo y se quitan firmas o algo asi)
                 -- Esto se resolvera en sp_Vacaciones_ResponderSolicitud en el futuro, pero lo checamos por si acaso

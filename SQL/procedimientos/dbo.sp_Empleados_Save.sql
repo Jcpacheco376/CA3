@@ -1,27 +1,18 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Empleados_Save]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.5.16
--- Compilado:           24/03/2026, 16:29:51
+-- Versión de Paquete:  v1.5.22
+-- Compilado:           02/04/2026, 14:20:17
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Empleados_Save]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.5.13
--- Compilado:           21/03/2026, 14:38:21
+-- Versión de Paquete:  v1.5.20
+-- Compilado:           25/03/2026, 11:52:51
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
-
--- ──────────────────────────────────────────────────────────────────────
--- Stored Procedure: [dbo].[sp_Empleados_Save]
--- Base de Datos:       CA
--- Versión de Paquete:  v1.5.12
--- Compilado:           17/03/2026, 10:50:24
--- Sistema:             CA3 Control de Asistencia
--- ──────────────────────────────────────────────────────────────────────
-
 CREATE OR ALTER PROCEDURE [dbo].[sp_Empleados_Save]
     @EmpleadoId INT = NULL OUTPUT,
     @CodRef NVARCHAR(50),
@@ -42,6 +33,7 @@ CREATE OR ALTER PROCEDURE [dbo].[sp_Empleados_Save]
     @RFC NVARCHAR(20) = NULL,
     @Imagen VARBINARY(MAX) = NULL,
     @Activo BIT = 1,
+    @FechaBaja DATE = NULL,
     @UsuarioId INT = NULL
 AS
 BEGIN
@@ -71,11 +63,11 @@ BEGIN
             INSERT INTO Empleados (
                 CodRef, Pim, Nombres, ApellidoPaterno, ApellidoMaterno, NombreCompleto,
                 FechaNacimiento, FechaIngreso, DepartamentoId, PuestoId, HorarioIdPredeterminado,
-                GrupoNominaId, EstablecimientoId, Sexo, NSS, CURP, RFC, Imagen, Activo
+                GrupoNominaId, EstablecimientoId, Sexo, NSS, CURP, RFC, Imagen, Activo, FechaBaja
             ) VALUES (
                 @CodRef, ISNULL(NULLIF(@Pim, ''), @CodRef), @Nombres, @ApellidoPaterno, @ApellidoMaterno, @NombreCompleto,
                 @FechaNacimiento, @FechaIngreso, @DepartamentoId, @PuestoId, @HorarioIdPredeterminado,
-                @GrupoNominaId, @EstablecimientoId, @Sexo, @NSS, @CURP, @RFC, @Imagen, @Activo
+                @GrupoNominaId, @EstablecimientoId, @Sexo, @NSS, @CURP, @RFC, @Imagen, @Activo, @FechaBaja
             );
             SET @EmpleadoId = SCOPE_IDENTITY();
         END
@@ -107,7 +99,8 @@ BEGIN
                 CURP = @CURP,
                 RFC = @RFC,
                 Imagen = @Imagen,
-                Activo = @Activo
+                Activo = @Activo,
+                FechaBaja = @FechaBaja
             WHERE EmpleadoId = @EmpleadoId;
         END
         COMMIT TRANSACTION;
@@ -136,6 +129,7 @@ BEGIN
                 @HorarioIdPredeterminado = @HorarioIdPredeterminado,
                 @GrupoNominaId = @GrupoNominaId,
                 @EstablecimientoId = @EstablecimientoId,
+                @FechaBaja = @FechaBaja,
                 @Status = @StatusChar;
                 
             PRINT 'Sincronización completada.';

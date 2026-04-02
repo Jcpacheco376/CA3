@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Tabla: [dbo].[Usuarios]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.5.16
--- Compilado:           24/03/2026, 16:29:51
+-- Versión de Paquete:  v1.5.22
+-- Compilado:           02/04/2026, 14:20:17
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -21,6 +21,7 @@ BEGIN
     [DebeCambiarPassword] bit NOT NULL CONSTRAINT [DF__Usuarios__DebeCa__793DFFAF] DEFAULT ((0)),
     [TokenVersion] int NOT NULL CONSTRAINT [DF__Usuarios__TokenV__4DB4832C] DEFAULT ((1)),
     [EmpleadoId] int NULL,
+    [Telefono] nvarchar(50) NULL,
     CONSTRAINT [PK__Usuarios__2B3DE7B818448526] PRIMARY KEY CLUSTERED ([UsuarioId])
     );
 END

@@ -158,16 +158,9 @@ const PayrollClosingPageContent = () => {
     const fetchData = useCallback(async () => {
         if (dateRange.length === 0) return;
 
-        // VALIDACIÓN: El Grupo de Nómina es OBLIGATORIO si el filtro está activo para el usuario
-        const isGroupFilterActive = user?.activeFilters?.gruposNomina ?? true;
-        if (isGroupFilterActive && filters.groups.length === 0) {
-            setSummary(null);
-            setEmployeeDetails([]);
-            return;
-        }
-
-        // Si el filtro no está activo y no hay grupo seleccionado, usar 1 por defecto
+        // Si el Grupo de Nómina no está seleccionado, se usará 1 por defecto internamente
         const grupoNominaId = filters.groups.length > 0 ? filters.groups[0] : 1;
+
 
         const token = getToken();
         if (!token) return;
@@ -373,19 +366,7 @@ const PayrollClosingPageContent = () => {
                     filterConfigurations={filterConfigurations}
                 />
                 <div className="flex-1 overflow-hidden flex flex-col relative">
-                    {(filters.groups.length === 0 && (user?.activeFilters?.gruposNomina ?? true)) ? (
-                        <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                            <Briefcase size={48} className="mb-4 opacity-50 text-slate-300" />
-                            <p className="font-medium text-slate-600 text-lg">Selecciona un Grupo de Nómina</p>
-                            <p className="text-sm mt-1 max-w-sm text-center">Debes elegir un grupo en la barra superior para visualizar y validar el periodo de pago.</p>
-                        </div>
-                    ) : (filters.groups.length === 0 && filters.depts.length === 0 && filters.puestos.length === 0 && filters.estabs.length === 0) ? (
-                        <div className="flex flex-col items-center justify-center h-full text-slate-400">
-                            <Briefcase size={48} className="mb-4 opacity-50 text-slate-300" />
-                            <p className="font-medium text-slate-600 text-lg">Selecciona filtros para comenzar</p>
-                            <p className="text-sm mt-1">Usa los filtros en la barra superior para visualizar el periodo.</p>
-                        </div>
-                    ) : loading && !summary ? (
+                    {loading && !summary ? (
                         <div className="flex flex-col h-full gap-6 animate-pulse p-6">
                             <div className="flex-none grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                                 {[1, 2, 3, 4, 5].map(i => (

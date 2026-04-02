@@ -78,7 +78,7 @@ const Switch = ({ checked, onChange, label, id }: { checked: boolean, onChange: 
             type="button"
             id={id}
             onClick={() => onChange(!checked)}
-            className={`relative inline-flex items-center h-6 rounded-full w-12 transition-colors shrink-0 ${checked ? 'bg-[--theme-500]' : 'bg-slate-200'}`}
+            className={`relative inline-flex items-center h-6 rounded-full w-12 transition-colors shrink-0 focus:outline-none ${checked ? 'bg-[--theme-500]' : 'bg-slate-200'}`}
         >
             <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform duration-200 shadow-sm ${checked ? 'translate-x-7' : 'translate-x-1'}`} />
         </button>
@@ -891,13 +891,13 @@ const AttendancePageContent = () => {
                                                                                     setTimelineEmp({ EmpleadoId: emp.EmpleadoId, Nombre: emp.NombreCompleto, Ficha: emp.CodRef });
                                                                                     setShowTimeline(true);
                                                                                 }}
-                                                                                className="p-1 rounded-md text-slate-400 hover:text-indigo-500 hover:bg-indigo-50"
+                                                                                className="p-1 rounded-md text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 focus:outline-none"
                                                                             >
                                                                                 <ScanSearch size={18} />
                                                                             </button>
                                                                         </Tooltip>
                                                                     )}
-                                                                    <Tooltip text="Ver Ficha"><button onClick={() => setViewingEmployeeId(emp.EmpleadoId)} className="p-1 rounded-md text-slate-400 hover:text-[--theme-500] hover:bg-slate-200"><Contact size={18} /></button></Tooltip>
+                                                                    <Tooltip text="Ver Ficha"><button onClick={() => setViewingEmployeeId(emp.EmpleadoId)} className="p-1 rounded-md text-slate-400 hover:text-[--theme-500] hover:bg-slate-200 focus:outline-none"><Contact size={18} /></button></Tooltip>
                                                                 </div>
                                                             </div>
                                                             <div className="grid grid-cols-3 gap-x-3 text-xs text-slate-500 mt-1 w-full">

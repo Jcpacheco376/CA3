@@ -35,6 +35,7 @@ interface ModernDatePickerProps {
     name?: string;
     className?: string;
     error?: string;
+    variant?: 'default' | 'ghost';
 }
 
 type ViewMode = 'days' | 'months' | 'years';
@@ -48,7 +49,8 @@ export const ModernDatePicker: React.FC<ModernDatePickerProps> = ({
     disabled = false,
     name,
     className = "",
-    error
+    error,
+    variant = 'default'
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [viewDate, setViewDate] = useState(new Date()); // Date currently visible/focused in navigation
@@ -63,7 +65,7 @@ export const ModernDatePicker: React.FC<ModernDatePickerProps> = ({
         if (!value) return null;
         if (value instanceof Date) return value;
         try {
-            const parsed = parseISO(value);
+            const parsed = parseISO(value as string);
             return isValid(parsed) ? parsed : null;
         } catch {
             return null;
@@ -295,23 +297,26 @@ export const ModernDatePicker: React.FC<ModernDatePickerProps> = ({
     // Compact Display Format: dd/MM/yyyy
     const displayValue = selectedDate ? format(selectedDate, "dd/MM/yyyy") : "";
 
+    const isGhost = variant === 'ghost';
+
     return (
         <div className={`w-full ${className}`}>
             <div
                 ref={triggerRef}
                 onClick={() => !disabled && setIsOpen(!isOpen)}
                 className={`
-                    relative flex items-center w-full px-3 py-2.5 bg-white border rounded-lg cursor-pointer transition-all duration-200
-                    ${error ? 'border-red-300 focus:bg-red-50' : 'border-slate-200 hover:border-slate-300'}
-                    ${isOpen ? 'border-[--theme-500]' : ''}
+                    relative flex items-center w-full transition-all duration-200
+                    ${isGhost ? 'px-1 py-1 bg-transparent border-none cursor-pointer' : 'px-3 py-2.5 bg-white border rounded-lg cursor-pointer'}
+                    ${!isGhost && error ? 'border-red-300 focus:bg-red-50' : !isGhost ? 'border-slate-200 hover:border-slate-300' : ''}
+                    ${!isGhost && isOpen ? 'border-[--theme-500]' : ''}
                     ${disabled ? 'bg-slate-50 cursor-not-allowed opacity-70' : ''}
                 `}
             >
-                <CalendarIcon size={16} className={`mr-3 ${selectedDate ? 'text-[--theme-500]' : 'text-slate-400'}`} />
+                {!isGhost && <CalendarIcon size={16} className={`mr-3 ${selectedDate ? 'text-[--theme-500]' : 'text-slate-400'}`} />}
 
                 <div className="flex-1 overflow-hidden">
                     {displayValue ? (
-                        <span className="text-sm font-medium text-slate-700 block whitespace-nowrap overflow-hidden text-ellipsis">
+                        <span className={`text-sm font-medium block whitespace-nowrap overflow-hidden text-ellipsis ${isGhost ? 'text-slate-600 font-mono' : 'text-slate-700'}`}>
                             {displayValue}
                         </span>
                     ) : (
@@ -321,7 +326,7 @@ export const ModernDatePicker: React.FC<ModernDatePickerProps> = ({
                     )}
                 </div>
 
-                {selectedDate && !disabled && (
+                {selectedDate && !disabled && !isGhost && (
                     <button
                         onClick={handleClear}
                         className="ml-2 p-0.5 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"

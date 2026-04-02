@@ -1,11 +1,18 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Incidencias_GetByPeriodo]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.5.16
--- Compilado:           24/03/2026, 16:29:51
+-- Versión de Paquete:  v1.5.22
+-- Compilado:           02/04/2026, 14:20:17
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Incidencias_GetByPeriodo]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.5.20
+-- Compilado:           25/03/2026, 11:52:51
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
 CREATE OR ALTER PROCEDURE [dbo].[sp_Incidencias_GetByPeriodo]
     @UsuarioId INT,
     @FechaInicio DATE,
@@ -13,7 +20,6 @@ CREATE OR ALTER PROCEDURE [dbo].[sp_Incidencias_GetByPeriodo]
 AS
 BEGIN
     SET NOCOUNT ON;
-
     SELECT 
         i.IncidenciaId, 
         i.Fecha,          
@@ -40,7 +46,6 @@ BEGIN
          FROM dbo.UsuariosRoles ur 
          JOIN dbo.Roles r ON ur.RoleId = r.RoleId 
          WHERE ur.UsuarioId = i.AsignadoAUsuarioId AND ur.EsPrincipal = 1) as RolAsignado
-
     FROM dbo.Incidencias i
     JOIN dbo.Empleados e ON i.EmpleadoId = e.EmpleadoId
     LEFT JOIN dbo.CatalogoEstatusAsistencia s_chec ON i.EstatusChecadorId = s_chec.EstatusId
@@ -49,6 +54,10 @@ BEGIN
     LEFT JOIN dbo.Usuarios u ON i.AsignadoAUsuarioId = u.UsuarioId
     
     WHERE i.Fecha BETWEEN @FechaInicio AND @FechaFin
+    AND (
+        i.AsignadoAUsuarioId = @UsuarioId
+        OR i.EmpleadoId IN (SELECT EmpleadoId FROM dbo.fn_Seguridad_GetEmpleadosPermitidos(@UsuarioId))
+    )
     ORDER BY 
         CASE i.NivelSeveridad 
             WHEN 'Critica' THEN 1 

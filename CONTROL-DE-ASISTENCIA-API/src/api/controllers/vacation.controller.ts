@@ -2,6 +2,38 @@ import { Request, Response } from 'express';
 import sql from 'mssql';
 import { dbConfig } from '../../config/database';
 
+export const previewPeriod = async (req: any, res: Response) => {
+    const { empleadoId } = req.params;
+    const { fechaInicio, fechaFin } = req.query as { fechaInicio: string; fechaFin: string };
+    const isOwn = parseInt(empleadoId as string) === req.user.empleadoId;
+
+    if (!isOwn && !req.user.permissions['vacaciones.read'] && !req.user.permissions['vacaciones.manage']) {
+        return res.status(403).json({ message: 'No tienes permiso.' });
+    }
+    if (!fechaInicio || !fechaFin) {
+        return res.status(400).json({ message: 'fechaInicio y fechaFin son requeridos.' });
+    }
+
+    try {
+        const pool = await sql.connect(dbConfig);
+        const result: any = await pool.request()
+            .input('EmpleadoId', sql.Int, empleadoId)
+            .input('FechaInicio', sql.Date, fechaInicio)
+            .input('FechaFin', sql.Date, fechaFin)
+            .execute('sp_Vacaciones_PreviewPeriodo');
+
+        // result.recordsets[0] contains the daily detail
+        // result.recordsets[1] contains the summary summary
+        res.json({
+            days: result.recordsets ? result.recordsets[0] : [],
+            summary: result.recordsets ? result.recordsets[1][0] : {}
+        });
+    } catch (err: any) {
+        console.error('[previewPeriod] Error:', err);
+        res.status(500).json({ message: 'Error al calcular preview del periodo.' });
+    }
+};
+
 export const getBalance = async (req: any, res: Response) => {
     // Both read their own or manage all can see balances
     const { empleadoId } = req.params;
@@ -70,51 +102,51 @@ export const getBalance = async (req: any, res: Response) => {
 };
 
 export const getRequests = async (req: any, res: Response) => {
-    // If user can manage vacations, show all. If user can read own, show own.
-    const isManager = req.user.permissions['vacaciones.manage'];
-    const canRead = req.user.permissions['vacaciones.read'];
     const { empleadoId } = req.query; // Optional filter
-
-    // Allow if manager, canRead, or if filtering for own ID
-    const isRequestingOwn = empleadoId && parseInt(empleadoId as string) === req.user.empleadoId;
-
-    if (!isManager && !canRead && !isRequestingOwn) {
-        return res.status(403).json({ message: 'No tienes permiso para ver solicitudes.' });
-    }
 
     try {
         const pool = await sql.connect(dbConfig);
+        const request = pool.request();
+
+        request.input('UsuarioId', sql.Int, req.user.usuarioId);
+        request.input('MiEmpleadoId', sql.Int, req.user.empleadoId || -1);
+
         let query = `
+            WITH EmpleadosPermitidos AS (
+                SELECT EmpleadoId FROM dbo.fn_Seguridad_GetEmpleadosPermitidos(@UsuarioId)
+            )
             SELECT S.*, E.NombreCompleto, E.CodRef,
+            (SELECT NombreCompleto FROM Usuarios WHERE UsuarioId = S.UsuarioSolicitanteId) as SolicitanteNombre,
+            (SELECT NombreCompleto FROM Usuarios WHERE UsuarioId = S.UsuarioAutorizoId) as AutorizadorGeneral,
             (
-                SELECT f.EstatusFirma, c.RolAprobador, f.FechaFirma 
+                SELECT f.EstatusFirma, r.NombreRol as RolAprobador, f.FechaFirma,
+                (SELECT NombreCompleto FROM Usuarios u WHERE u.UsuarioId = f.UsuarioFirmaId) as FirmanteNombre
                 FROM SolicitudesVacacionesFirmas f 
                 JOIN VacacionesAprobadoresConfig c ON f.ConfigId = c.ConfigId 
+                JOIN Roles r ON c.RoleId = r.RoleId
                 WHERE f.SolicitudId = S.SolicitudId 
                 FOR JSON PATH
             ) as FirmasJSON
             FROM SolicitudesVacaciones S
             JOIN Empleados E ON S.EmpleadoId = E.EmpleadoId
-            WHERE 1=1
+            WHERE (
+                S.EmpleadoId IN (SELECT EmpleadoId FROM EmpleadosPermitidos)
+                OR S.UsuarioSolicitanteId = @UsuarioId
+                OR S.EmpleadoId = @MiEmpleadoId
+                -- Si es Admin, forzamos que vea todo (prevención)
+                OR EXISTS (SELECT 1 FROM UsuariosRoles WHERE UsuarioId = @UsuarioId AND RoleId = 1)
+            )
         `;
-        const request = pool.request();
-
-        if (!isManager) {
-            // If they are not manager, they can only see their own
-            query += ` AND S.EmpleadoId = @ReqEmpleado`;
-            request.input('ReqEmpleado', sql.Int, req.user.empleadoId);
-        }
 
         if (empleadoId) {
-            query += ` AND S.EmpleadoId = @EmpleadoId`;
-            request.input('EmpleadoId', sql.Int, empleadoId);
+            query += ` AND S.EmpleadoId = @FiltroEmpleadoId`;
+            request.input('FiltroEmpleadoId', sql.Int, empleadoId);
         }
 
         query += ` ORDER BY S.FechaSolicitud DESC`;
 
         const result = await request.query(query);
 
-        // Parse FirmasJSON strings back to objects
         const records = result.recordset.map(row => {
             if (row.FirmasJSON) {
                 try {
@@ -136,11 +168,11 @@ export const getRequests = async (req: any, res: Response) => {
 };
 
 export const createRequest = async (req: any, res: Response) => {
-    // Empleados can request their own
-    const { empleadoId, fechaInicio, fechaFin, diasSolicitados, comentarios } = req.body;
+    // Backend calculates all day counts from the schedule tables — do NOT trust front-end values
+    const { empleadoId, fechaInicio, fechaFin, comentarios } = req.body;
 
-    if (!empleadoId || !fechaInicio || !fechaFin || !diasSolicitados) {
-        return res.status(400).json({ message: 'Faltan parámetros.' });
+    if (!empleadoId || !fechaInicio || !fechaFin) {
+        return res.status(400).json({ message: 'Faltan parámetros: empleadoId, fechaInicio y fechaFin son obligatorios.' });
     }
 
     const isOwnRequest = Number(empleadoId) === req.user.empleadoId;
@@ -157,67 +189,70 @@ export const createRequest = async (req: any, res: Response) => {
     try {
         const pool = await sql.connect(dbConfig);
 
-        // Determine role of requester for auto-signing logic
-        let solicitanteRol = 'Empleado';
-        if (empleadoId !== req.user.empleadoId) {
-            solicitanteRol = 'RecursosHumanos';
-        }
-
         const result = await pool.request()
             .input('EmpleadoId', sql.Int, empleadoId)
             .input('FechaInicio', sql.Date, fechaInicio)
             .input('FechaFin', sql.Date, fechaFin)
-            .input('DiasSolicitados', sql.Int, diasSolicitados)
             .input('Comentarios', sql.NVarChar, comentarios || '')
             .input('UsuarioSolicitanteId', sql.Int, req.user.usuarioId)
-            .input('SolicitanteRolName', sql.VarChar, solicitanteRol)
             .execute('sp_Vacaciones_CrearSolicitud');
 
-        res.status(201).json({ message: 'Solicitud creada.', id: result.recordset[0].SolicitudId });
+        const row = result.recordset[0];
+        const isPendienteHorario = row.Estatus === 'PendienteHorario';
+
+        res.status(201).json({
+            message: isPendienteHorario
+                ? `Solicitud creada pero requiere horario completo en el periodo (${row.DiasSinHorario} día(s) sin horario asignado).`
+                : 'Solicitud creada correctamente.',
+            id: row.SolicitudId,
+            estatus: row.Estatus,
+            diasNaturales: row.DiasNaturales,
+            diasSolicitados: row.DiasSolicitados,
+            diasFeriados: row.DiasFeriados,
+            diasDescanso: row.DiasDescanso,
+            diasSinHorario: row.DiasSinHorario,
+        });
     } catch (err: any) {
+        console.error('[createRequest] Fatal Error:', err);
         res.status(500).json({ message: err.message || 'Error al crear solicitud.' });
     }
 };
 
 export const respondRequest = async (req: any, res: Response) => {
-    // Only users with approve permission can respond
-    if (!req.user.permissions['vacaciones.approve']) {
-        return res.status(403).json({ message: 'No tienes permiso para autorizar vacaciones.' });
+    const { id } = req.params;
+    const { estatus } = req.body; // 'Aprobado', 'Rechazado', 'Cancelado'
+
+    if (!['Aprobado', 'Rechazado', 'Cancelado'].includes(estatus)) {
+        return res.status(400).json({ message: 'Estatus inválido.' });
     }
 
-    const { id } = req.params;
-    const { estatus } = req.body; // 'Aprobado' o 'Rechazado'
-
-    if (!['Aprobado', 'Rechazado'].includes(estatus)) {
-        return res.status(400).json({ message: 'Estatus inválido.' });
+    // Only users with approve permission can respond (except when they cancel their own request)
+    if (estatus !== 'Cancelado' && !req.user.permissions['vacaciones.approve']) {
+        return res.status(403).json({ message: 'No tienes permiso para autorizar vacaciones.' });
     }
 
     try {
         const pool = await sql.connect(dbConfig);
-        const userRoles = Array.isArray(req.user.Roles) ? req.user.Roles.map((r: any) => r.NombreRol) : [];
-        let rolAprobador = 'RecursosHumanos'; // Default fallback
 
-        // Intenta encontrar un rol de aprobador del usuario que coincida con la configuración
-        // Esto asume que VacacionesAprobadoresConfig.RolAprobador tiene los mismos nombres de rol que los del JWT
-        // Podrías necesitar ajustar esta lógica si los nombres de los roles no coinciden directamente
-        if (userRoles.includes('Gerencia')) { // Prioridad a Gerencia si existe
-            rolAprobador = 'Gerencia';
-        } else if (userRoles.includes('JefeDirecto')) { // Luego Jefe Directo
-            rolAprobador = 'JefeDirecto';
-        } else if (userRoles.includes('RecursosHumanos')) { // Finalmente Recursos Humanos
-            rolAprobador = 'RecursosHumanos';
-        } else if (userRoles.some((r: string) => r.toUpperCase().includes('ADMIN'))) { // Admins por si acaso
-            rolAprobador = 'Administrador';
+        // Block approval when the request still has 'PendienteHorario' status
+        if (estatus === 'Aprobado') {
+            const check = await pool.request()
+                .input('SolicitudId', sql.Int, id)
+                .query(`SELECT Estatus FROM SolicitudesVacaciones WHERE SolicitudId = @SolicitudId`);
+            if (check.recordset[0]?.Estatus === 'PendienteHorario') {
+                return res.status(409).json({
+                    message: 'Esta solicitud no puede aprobarse aún. Hay días en el periodo sin horario asignado. Asigna el horario y vuelve a intentarlo.'
+                });
+            }
         }
 
         await pool.request()
             .input('SolicitudId', sql.Int, id)
             .input('Estatus', sql.VarChar, estatus)
             .input('UsuarioAutorizoId', sql.Int, req.user.usuarioId)
-            .input('RolAprobador', sql.VarChar, rolAprobador) // Usar el rol determinado dinámicamente
             .execute('sp_Vacaciones_ResponderSolicitud');
 
-        res.json({ message: `Firma de ${rolAprobador} procesada para la solicitud: ${estatus}.` });
+        res.json({ message: `Firma procesada para la solicitud: ${estatus}.` });
     } catch (err: any) {
         res.status(500).json({ message: err.message || 'Error al responder solicitud.' });
     }
@@ -361,7 +396,6 @@ export const getDetails = async (req: any, res: Response) => {
                  FROM SolicitudesVacaciones
                  WHERE EmpleadoId = @EmpleadoId
                    AND FechaInicio BETWEEN @Inicio AND @Fin
-                   AND Estatus IN ('Aprobado', 'Pendiente')
                  ORDER BY FechaInicio`
             );
 
@@ -463,3 +497,4 @@ export const deleteAdjustmentDetail = async (req: any, res: Response) => {
         res.status(500).json({ message: err.message || 'Error al eliminar detalle.' });
     }
 };
+

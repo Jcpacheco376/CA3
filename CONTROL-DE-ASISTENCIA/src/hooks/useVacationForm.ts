@@ -1,47 +1,54 @@
 import { useState, useEffect, useCallback } from 'react';
-import { isSameDay, differenceInDays, addDays, getDay, parseISO } from 'date-fns';
+import { isSameDay, addDays, parseISO, differenceInCalendarDays } from 'date-fns';
 
 interface VacationRequestForm {
     empleadoId: string;
     fechaInicio: string;
     fechaFin: string;
-    diasSolicitados: number;
+    // Display-only estimates (real calculation is done by the backend SP)
+    diasNaturales: number;
+    diasFeriados: number; // Only DIA_FERIADO events — used for the UI dot indicator
     comentarios: string;
 }
 
 interface UseVacationFormProps {
     initialEmployeeId?: string;
+    calendarEvents?: any[];
     onDaysCalculated?: (days: number) => void;
 }
 
-const isWeekend = (date: Date) => {
-    const day = getDay(date);
-    return day === 0 || day === 6; // Sunday = 0, Saturday = 6
-};
+// Calculate display-only estimates for the UI card:
+// - diasNaturales: total calendar days in range
+// - diasFeriados: DIA_FERIADO calendar events within range (for the note label)
+// NO hardcoded weekend/rest-day logic — that's the backend's job using the employee's schedule.
+const calcDisplayEstimates = (startDate: Date, endDate: Date, calendarEvents: any[]): {
+    diasNaturales: number;
+    diasFeriados: number;
+} => {
+    const diasNaturales = differenceInCalendarDays(endDate, startDate) + 1;
+    let diasFeriados = 0;
 
-const calculateBusinessDays = (startDate: Date, endDate: Date): number => {
-    if (isSameDay(startDate, endDate)) {
-        return isWeekend(startDate) ? 0 : 1;
+    let current = startDate;
+    while (current <= endDate) {
+        const isFeriado = calendarEvents.some(ev =>
+            ev.TipoEventoId === 'DIA_FERIADO' &&
+            ev.Fecha &&
+            isSameDay(parseISO(ev.Fecha.substring(0, 10)), current)
+        );
+        if (isFeriado) diasFeriados++;
+        current = addDays(current, 1);
     }
 
-    let days = 0;
-    let currentDate = startDate;
-
-    while (currentDate <= endDate) {
-        if (!isWeekend(currentDate)) {
-            days++;
-        }
-        currentDate = addDays(currentDate, 1);
-    }
-    return days;
+    return { diasNaturales, diasFeriados };
 };
 
-export const useVacationForm = ({ initialEmployeeId = '', onDaysCalculated }: UseVacationFormProps) => {
+export const useVacationForm = ({ initialEmployeeId = '', calendarEvents = [], onDaysCalculated }: UseVacationFormProps) => {
     const [newRequest, setNewRequest] = useState<VacationRequestForm>({
         empleadoId: initialEmployeeId,
         fechaInicio: '',
         fechaFin: '',
-        diasSolicitados: 0,
+        diasNaturales: 0,
+        diasFeriados: 0,
         comentarios: ''
     });
 
@@ -56,18 +63,19 @@ export const useVacationForm = ({ initialEmployeeId = '', onDaysCalculated }: Us
             const end = parseISO(fechaFin);
 
             if (start && end && start <= end) {
-                const businessDays = calculateBusinessDays(start, end);
-                setNewRequest(prev => ({ ...prev, diasSolicitados: businessDays }));
-                onDaysCalculated?.(businessDays);
+                const { diasNaturales, diasFeriados } = calcDisplayEstimates(start, end, calendarEvents);
+                setNewRequest(prev => ({ ...prev, diasNaturales, diasFeriados }));
+                // Notify parent with natural days as a rough estimate only
+                onDaysCalculated?.(diasNaturales);
             } else {
-                setNewRequest(prev => ({ ...prev, diasSolicitados: 0 }));
+                setNewRequest(prev => ({ ...prev, diasNaturales: 0, diasFeriados: 0 }));
                 onDaysCalculated?.(0);
             }
         } else {
-            setNewRequest(prev => ({ ...prev, diasSolicitados: 0 }));
+            setNewRequest(prev => ({ ...prev, diasNaturales: 0, diasFeriados: 0 }));
             onDaysCalculated?.(0);
         }
-    }, [newRequest.fechaInicio, newRequest.fechaFin, onDaysCalculated]);
+    }, [newRequest.fechaInicio, newRequest.fechaFin, calendarEvents, onDaysCalculated]);
 
     useEffect(() => {
         calculateAndSetDays();
@@ -86,7 +94,8 @@ export const useVacationForm = ({ initialEmployeeId = '', onDaysCalculated }: Us
             empleadoId: initialEmployeeId,
             fechaInicio: '',
             fechaFin: '',
-            diasSolicitados: 0,
+            diasNaturales: 0,
+            diasFeriados: 0,
             comentarios: ''
         });
     }, [initialEmployeeId]);

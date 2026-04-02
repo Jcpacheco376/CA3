@@ -30,12 +30,12 @@ const getColorClasses = (colorName: string = 'slate') => {
 
 const SeverityBadge = ({ severity }: { severity: string }) => {
     const config = {
-        'Critica': { bg: 'bg-rose-100', text: 'text-rose-700', border: 'border-rose-200', icon: <BadgeAlert size={12}/> },
-        'Advertencia': { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', icon: <AlertTriangle size={12}/> },
-        'Info': { bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-200', icon: <Info size={12}/> },
+        'Critica': { bg: 'bg-rose-100', text: 'text-rose-700', border: 'border-rose-200', icon: <BadgeAlert size={12} /> },
+        'Advertencia': { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-200', icon: <AlertTriangle size={12} /> },
+        'Info': { bg: 'bg-slate-50', text: 'text-slate-600', border: 'border-slate-200', icon: <Info size={12} /> },
     };
     const style = config[severity as keyof typeof config] || config['Info'];
-    
+
     return (
         <Tooltip text={`Nivel de severidad: ${severity}`}>
             <span className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold border ${style.bg} ${style.text} ${style.border}`}>
@@ -77,8 +77,8 @@ const getActionStyle = (action: string) => {
     switch (action) {
         case 'Asignar': return 'bg-blue-50 border-blue-200 text-blue-900';
         case 'Resolver': return 'bg-emerald-50 border-emerald-200 text-emerald-900';
-        case 'AutoResolucion' : return 'bg-emerald-50 border-emerald-200 text-emerald-900';
-        case 'ResolucionManual' : return 'bg-emerald-50 border-emerald-200 text-emerald-900';
+        case 'AutoResolucion': return 'bg-emerald-50 border-emerald-200 text-emerald-900';
+        case 'ResolucionManual': return 'bg-emerald-50 border-emerald-200 text-emerald-900';
         case 'SolicitarAutorizacion': return 'bg-amber-50 border-amber-200 text-amber-900';
         case 'AutorizacionTotal': return 'bg-green-50 border-green-200 text-green-900';
         case 'VotoPositivo': return 'bg-teal-50 border-teal-200 text-teal-900';
@@ -145,13 +145,14 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
     useEffect(() => {
         if (isOpen && incidentId) {
             setData(null); setAction(null); setComment(''); setSelectedUser(''); setSelectedStatus('');
+            setManagers([]); setResolutionOptions([]);
             fetchDetails();
-            
+
             const token = getToken();
             fetch(`${API_BASE_URL}/catalogs/attendance-statuses`, { headers: { 'Authorization': `Bearer ${token}` } })
                 .then(res => res.ok ? res.json() : [])
                 .then(data => setStatusCatalog(data))
-                .catch(() => {});
+                .catch(() => { });
         }
     }, [isOpen, incidentId, getToken]);
 
@@ -337,7 +338,7 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
 
         // Lógica actualizada para cancelar solicitud
         const canCancelAuth = isPendingAuth && (header.SolicitadoPorUsuarioId === user?.UsuarioId || user?.permissions['incidencias.resolve']);
-        
+
         const canAssign = !isClosed && !isPendingAuth && (header.Estado === 'Nueva' || amIAssigned || user?.permissions['incidencias.assign']);
         const canAct = !isClosed && !isPendingAuth && amIAssigned;
 
@@ -355,13 +356,12 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
                             <div className="flex gap-2">
                                 {header.NivelCriticidad && <SeverityBadge severity={header.NivelCriticidad} />}
                                 <Tooltip text={getStatusDescription(header.Estado)}>
-                                    <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${
-                                        header.Estado === 'Nueva' ? 'bg-blue-50 text-blue-700 border-blue-100' :
-                                        header.Estado === 'Asignada' ? 'bg-purple-50 text-purple-700 border-purple-100' :
-                                        header.Estado === 'PorAutorizar' ? 'bg-amber-50 text-amber-700 border-amber-100' :
-                                        header.Estado === 'Resuelta' ? 'bg-green-50 text-green-700 border-green-100' :
-                                        'bg-slate-50 text-slate-500 border-slate-200'
-                                    }`}>
+                                    <span className={`px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${header.Estado === 'Nueva' ? 'bg-blue-50 text-blue-700 border-blue-100' :
+                                            header.Estado === 'Asignada' ? 'bg-purple-50 text-purple-700 border-purple-100' :
+                                                header.Estado === 'PorAutorizar' ? 'bg-amber-50 text-amber-700 border-amber-100' :
+                                                    header.Estado === 'Resuelta' ? 'bg-green-50 text-green-700 border-green-100' :
+                                                        'bg-slate-50 text-slate-500 border-slate-200'
+                                        }`}>
                                         {header.Estado}
                                     </span>
                                 </Tooltip>
@@ -380,61 +380,61 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
                             const sysStatus = statusCatalog.find(s => s.Abreviatura === header.EstatusChecadorOriginal);
                             const manStatusOriginal = statusCatalog.find(s => s.Abreviatura === header.EstatusManualOriginal);
                             const manStatusActual = statusCatalog.find(s => s.Abreviatura === header.EstatusManualActual);
-                            
+
                             // Usamos colores de texto en lugar de fondo completo para reducir la intensidad
                             const sysColor = sysStatus?.ColorUI ? `text-${sysStatus.ColorUI}-600` : 'text-slate-600';
                             const manColorOriginal = manStatusOriginal?.ColorUI ? `text-${manStatusOriginal.ColorUI}-600` : 'text-indigo-600';
                             const manColorActual = manStatusActual?.ColorUI ? `text-${manStatusActual.ColorUI}-600` : 'text-emerald-600';
-                            
+
                             const hasStatusChanged = header.EstatusManualActual && header.EstatusManualActual !== header.EstatusManualOriginal;
-                            
+
                             return (
-                        <div className="relative flex shadow-sm rounded-xl overflow-hidden border border-slate-200 h-20 group bg-white">
-                            <div className="flex-1 flex flex-col items-center justify-center relative border-r border-slate-100">
-                                <Tooltip text="Estatus calculado automáticamente por el reloj checador">
-                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5 flex items-center gap-1.5"><Clock size={12} /> Sistema</div>
-                                </Tooltip>
-                                <Tooltip text={sysStatus?.Descripcion || 'Sin descripción'}>
-                                    <div className={`text-2xl font-black tracking-tight ${sysColor}`}>{header.EstatusChecadorOriginal || '-'}</div>
-                                </Tooltip>
-                                <div className="text-[9px] text-slate-400 truncate max-w-[120px]">{sysStatus?.Descripcion || 'No registrado'}</div>
-                            </div>
-                            
-                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
-                                <Tooltip text="Comparativa: Sistema vs Manual">
-                                    <div className="bg-slate-50 border border-slate-200 rounded-full w-6 h-6 flex items-center justify-center shadow-sm">
-                                        <span className="text-[8px] font-black text-slate-400 italic">VS</span>
-                                    </div>
-                                </Tooltip>
-                            </div>
-                            
-                            <div className={`flex-1 flex flex-col items-center justify-center relative ${hasStatusChanged ? 'bg-emerald-50/30' : ''}`}>
-                                <Tooltip text="Estatus asignado manualmente o propuesto para corrección">
-                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5 flex items-center gap-1.5">Manual <UserCog size={12} /></div>
-                                </Tooltip>
-                                {hasStatusChanged ? (
-                                    <div className="flex flex-col items-center justify-center">
-                                        <div className="flex items-center gap-2">
-                                            <Tooltip text={manStatusOriginal?.Descripcion || 'Original'}>
-                                                <span className="text-xl font-bold text-slate-400 shrink-0">{header.EstatusManualOriginal || '-'}</span>
-                                            </Tooltip>
-                                            <ArrowRight size={16} className="text-slate-400 shrink-0" />
-                                            <Tooltip text={manStatusActual?.Descripcion || 'Nuevo'}>
-                                                <span className={`text-2xl font-black tracking-tight ${manColorActual}`}>{header.EstatusManualActual}</span>
-                                            </Tooltip>
-                                        </div>
-                                        <div className="text-[9px] text-slate-500 truncate max-w-[140px] mt-1">{manStatusActual?.Descripcion || 'No asignado'}</div>
-                                    </div>
-                                ) : (
-                                    <>
-                                        <Tooltip text={manStatusOriginal?.Descripcion || 'Sin descripción'}>
-                                            <div className={`text-2xl font-black tracking-tight ${manColorOriginal}`}>{header.EstatusManualOriginal || '-'}</div>
+                                <div className="relative flex shadow-sm rounded-xl overflow-hidden border border-slate-200 h-20 group bg-white">
+                                    <div className="flex-1 flex flex-col items-center justify-center relative border-r border-slate-100">
+                                        <Tooltip text="Estatus calculado automáticamente por el reloj checador">
+                                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5 flex items-center gap-1.5"><Clock size={12} /> Sistema</div>
                                         </Tooltip>
-                                        <div className="text-[9px] text-slate-400 truncate max-w-[120px]">{manStatusOriginal?.Descripcion || 'No asignado'}</div>
-                                    </>
-                                )}
-                            </div>
-                        </div>
+                                        <Tooltip text={sysStatus?.Descripcion || 'Sin descripción'}>
+                                            <div className={`text-2xl font-black tracking-tight ${sysColor}`}>{header.EstatusChecadorOriginal || '-'}</div>
+                                        </Tooltip>
+                                        <div className="text-[9px] text-slate-400 truncate max-w-[120px]">{sysStatus?.Descripcion || 'No registrado'}</div>
+                                    </div>
+
+                                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-10">
+                                        <Tooltip text="Comparativa: Sistema vs Manual">
+                                            <div className="bg-slate-50 border border-slate-200 rounded-full w-6 h-6 flex items-center justify-center shadow-sm">
+                                                <span className="text-[8px] font-black text-slate-400 italic">VS</span>
+                                            </div>
+                                        </Tooltip>
+                                    </div>
+
+                                    <div className={`flex-1 flex flex-col items-center justify-center relative ${hasStatusChanged ? 'bg-emerald-50/30' : ''}`}>
+                                        <Tooltip text="Estatus asignado manualmente o propuesto para corrección">
+                                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-0.5 flex items-center gap-1.5">Manual <UserCog size={12} /></div>
+                                        </Tooltip>
+                                        {hasStatusChanged ? (
+                                            <div className="flex flex-col items-center justify-center">
+                                                <div className="flex items-center gap-2">
+                                                    <Tooltip text={manStatusOriginal?.Descripcion || 'Original'}>
+                                                        <span className="text-xl font-bold text-slate-400 shrink-0">{header.EstatusManualOriginal || '-'}</span>
+                                                    </Tooltip>
+                                                    <ArrowRight size={16} className="text-slate-400 shrink-0" />
+                                                    <Tooltip text={manStatusActual?.Descripcion || 'Nuevo'}>
+                                                        <span className={`text-2xl font-black tracking-tight ${manColorActual}`}>{header.EstatusManualActual}</span>
+                                                    </Tooltip>
+                                                </div>
+                                                <div className="text-[9px] text-slate-500 truncate max-w-[140px] mt-1">{manStatusActual?.Descripcion || 'No asignado'}</div>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <Tooltip text={manStatusOriginal?.Descripcion || 'Sin descripción'}>
+                                                    <div className={`text-2xl font-black tracking-tight ${manColorOriginal}`}>{header.EstatusManualOriginal || '-'}</div>
+                                                </Tooltip>
+                                                <div className="text-[9px] text-slate-400 truncate max-w-[120px]">{manStatusOriginal?.Descripcion || 'No asignado'}</div>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
                             );
                         })()}
                     </div>
@@ -457,7 +457,7 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
                                 </div>
                                 {authorizations?.map((auth: any) => {
                                     const showButtons = canISign(auth);
-                                    
+
                                     return (
                                         <div key={auth.AutorizacionId} className="p-3 bg-white border border-slate-100 rounded-lg shadow-sm">
                                             <div className="flex items-center justify-between gap-2">
@@ -476,7 +476,7 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
                                                     <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">Pendiente</span>
                                                 )}
                                             </div>
-                                            
+
                                             {showButtons && (
                                                 <div className="flex gap-2 mt-1 border-t pt-2 border-slate-100">
                                                     <Tooltip text="Autorizar solicitud" triggerClassName="flex-1 flex">
@@ -683,8 +683,8 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
                                                                         setIsUserDropdownOpen(false);
                                                                     }}
                                                                     className={`w-full flex items-center justify-between p-2.5 rounded-lg transition-colors text-left group mb-0.5 ${selectedUser.toString() === m.UsuarioId.toString()
-                                                                            ? 'bg-blue-50 ring-1 ring-blue-100'
-                                                                            : 'hover:bg-slate-50'
+                                                                        ? 'bg-blue-50 ring-1 ring-blue-100'
+                                                                        : 'hover:bg-slate-50'
                                                                         }`}
                                                                 >
                                                                     <div className="flex items-center gap-3 min-w-0">
@@ -706,7 +706,7 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
                                                         }
                                                         {managers.length === 0 && (
                                                             <div className="p-6 text-center text-xs text-slate-400 flex flex-col items-center">
-                                                                <User size={24} className="mb-2 opacity-20"/>
+                                                                <User size={24} className="mb-2 opacity-20" />
                                                                 No se encontraron gestores.
                                                             </div>
                                                         )}
@@ -724,7 +724,7 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
                                             {resolutionOptions.map((status: any) => {
                                                 const themeBtn = getColorClasses(status.ColorUI);
                                                 const isSelected = selectedStatus === status.Abreviatura;
-                                                
+
                                                 return (
                                                     <Tooltip key={status.EstatusId} text={status.Descripcion} placement="top">
                                                         <button
@@ -732,8 +732,8 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
                                                             className={`
                                                                 relative w-full p-2 rounded-lg text-center transition-all duration-200 border border-transparent
                                                                 ${themeBtn.bgText}
-                                                                ${isSelected 
-                                                                    ? `ring-2 ring-offset-1 ring-[--theme-500] shadow-md transform scale-[1.02]` 
+                                                                ${isSelected
+                                                                    ? `ring-2 ring-offset-1 ring-[--theme-500] shadow-md transform scale-[1.02]`
                                                                     : `hover:scale-[1.08] hover:shadow-sm`
                                                                 }
                                                             `}
@@ -771,8 +771,8 @@ export const IncidentDetailModal = ({ isOpen, onClose, incidentId, onRefresh }: 
     return (
         <Modal isOpen={isOpen} onClose={onClose} title="Detalle de Incidencia" size="5xl">
             {content}
-            <ConfirmationModal 
-                isOpen={confirmation.isOpen} 
+            <ConfirmationModal
+                isOpen={confirmation.isOpen}
                 onClose={() => setConfirmation({ ...confirmation, isOpen: false })}
                 onConfirm={() => {
                     if (confirmation.onConfirm) confirmation.onConfirm();

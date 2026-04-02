@@ -104,7 +104,7 @@
   {
     "ConfigId": 19,
     "ConfigKey": "FormNombreEmpleados",
-    "ConfigValue": "NA",
+    "ConfigValue": "AN",
     "Descripcion": "Formato para la formación de nombre completo en empleados, NA = Nombre Apellido, AN = Apellido Nombre"
   },
   {

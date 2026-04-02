@@ -1,88 +1,90 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Vacaciones_Recalcular]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.5.16
--- Compilado:           24/03/2026, 16:29:51
+-- Versión de Paquete:  v1.5.22
+-- Compilado:           02/04/2026, 14:20:17
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
 CREATE OR ALTER PROCEDURE sp_Vacaciones_Recalcular
-    @EmpleadoId INT
+    @EmpleadoId INT,
+    @ReacomodarFIFO BIT = 0  -- 0: Solo suma (default), 1: Reasigna detalles de forma cronológica (FIFO)
 AS
 BEGIN
     SET NOCOUNT ON;
-
     -- =============================================================
-    -- PASO 1: Borrar registros de periodos FUTUROS (no iniciados)
-    --         para este empleado. El usuario limpiará los suyos
-    --         manualmente, pero el SP también lo garantiza.
-    -- =============================================================
-    DELETE FROM VacacionesSaldos
-    WHERE EmpleadoId = @EmpleadoId
-      AND FechaInicioPeriodo > GETDATE();
-
-    -- =============================================================
-    -- PASO 2: Crear registros en VacacionesSaldos para periodos
-    --         que aparecen en VacacionesSaldosDetalle pero no tienen
-    --         fila en VacacionesSaldos (huérfanos).
-    --         Esto garantiza consistencia si el detalle tiene más info.
-    --         (Caso raro pero defensivo.)
-    -- =============================================================
-    -- (No aplica directamente: VacacionesSaldosDetalle apunta a SaldoId
-    --  que ya existe en VacacionesSaldos. Si no existe el saldo padre,
-    --  hay un FK violation, por lo que ignoramos este caso.)
-
-    -- =============================================================
-    -- PASO 3: Recalcular DiasOtorgados de cada saldo según las
-    --         reglas de ley usando el número de aniversario y la
-    --         fecha de ingreso del empleado.
+    -- PASO 1: Determinar Fecha de Ingreso
     -- =============================================================
     DECLARE @FechaIngreso DATE;
     SELECT @FechaIngreso = FechaIngreso FROM Empleados WHERE EmpleadoId = @EmpleadoId;
-
     IF @FechaIngreso IS NULL
     BEGIN
         RAISERROR('Empleado no encontrado o sin fecha de ingreso.', 16, 1);
         RETURN;
     END
-
-    -- Detectar el esquema de ley vigente por año de inicio del periodo
+    -- =============================================================
+    -- PASO 2: Borrar periodos futuros no iniciados
+    -- =============================================================
+    DELETE FROM VacacionesSaldos
+    WHERE EmpleadoId = @EmpleadoId
+      AND FechaInicioPeriodo > GETDATE();
+    -- =============================================================
+    -- PASO 3: Actualizar DiasOtorgados (Fuente de verdad: fn_Vacaciones_GetDiasOtorgados)
+    -- =============================================================
     UPDATE vs
-    SET vs.DiasOtorgados = ISNULL((
-        SELECT TOP 1 crv.DiasOtorgados
-        FROM CatalogoReglasVacaciones crv
-        WHERE crv.AniosAntiguedad = vs.Anio
-          AND crv.Esquema = CASE
-              WHEN YEAR(vs.FechaInicioPeriodo) >= 2023 THEN 'Ley-2023'
-              ELSE 'Pre-2023'
-          END
-        ORDER BY crv.AniosAntiguedad
-    ), vs.DiasOtorgados) -- Si no hay regla, mantener lo que tenía
+    SET vs.DiasOtorgados = dbo.fn_Vacaciones_GetDiasOtorgados(vs.FechaFinPeriodo, vs.Anio)
     FROM VacacionesSaldos vs
     WHERE vs.EmpleadoId = @EmpleadoId;
-
     -- =============================================================
-    -- PASO 4: Resetear DiasDisfrutados a 0 en todos los saldos
-    --         de este empleado. Lo recalcularemos desde el detalle.
+    -- PASO 4: MODO REACOMODAR (FIFO) — Opcional
+    --         Si se solicita, este paso re-asigna el SaldoId de cada
+    --         movimiento para que consuman primero lo más viejo.
     -- =============================================================
-    UPDATE VacacionesSaldos
-    SET DiasDisfrutados = 0
-    WHERE EmpleadoId = @EmpleadoId;
-
+    IF @ReacomodarFIFO = 1
+    BEGIN
+        -- Usamos una tabla temporal para controlar la disponibilidad de cada bolsa
+        DECLARE @Saldos TABLE (SaldoId INT PRIMARY KEY, Anio INT, Capacidad DECIMAL(10,2), Usado DECIMAL(10,2) DEFAULT 0);
+        INSERT INTO @Saldos (SaldoId, Anio, Capacidad)
+        SELECT SaldoId, Anio, CAST(DiasOtorgados AS DECIMAL(10,2))
+        FROM VacacionesSaldos WHERE EmpleadoId = @EmpleadoId ORDER BY Anio ASC;
+        -- Cursor de movimientos por fecha (usamos JOIN con VacacionesSaldos para filtrar por EmpleadoId)
+        DECLARE @DetId INT, @DiasMov DECIMAL(10,2);
+        DECLARE cur_movs CURSOR FAST_FORWARD FOR 
+            SELECT vd.DetalleId, vd.Dias 
+            FROM VacacionesSaldosDetalle vd
+            JOIN VacacionesSaldos vs ON vd.SaldoId = vs.SaldoId
+            WHERE vs.EmpleadoId = @EmpleadoId 
+              AND vd.Tipo IN ('Disfrutado', 'Ajuste', 'Pagado', 'Saldos Iniciales')
+            ORDER BY vd.Fecha ASC, vd.DetalleId ASC;
+        OPEN cur_movs;
+        FETCH NEXT FROM cur_movs INTO @DetId, @DiasMov;
+        WHILE @@FETCH_STATUS = 0
+        BEGIN
+            -- Buscar la bolsa más antigua que tenga espacio
+            DECLARE @TargetSaldoId INT = (SELECT TOP 1 SaldoId FROM @Saldos WHERE (Capacidad - Usado) > 0 ORDER BY Anio ASC);
+            -- Si no hay bolsas con espacio, asignamos a la última (más reciente) para que quede en saldo negativo
+            IF @TargetSaldoId IS NULL SET @TargetSaldoId = (SELECT TOP 1 SaldoId FROM @Saldos ORDER BY Anio DESC);
+            IF @TargetSaldoId IS NULL BREAK; -- No debería pasar si hay VacacionesSaldos
+            -- Vinculamos el movimiento a esa bolsa
+            UPDATE VacacionesSaldosDetalle SET SaldoId = @TargetSaldoId WHERE DetalleId = @DetId;
+            -- Actualizamos nuestro control local de capacidad
+            UPDATE @Saldos SET Usado = Usado + @DiasMov WHERE SaldoId = @TargetSaldoId;
+            FETCH NEXT FROM cur_movs INTO @DetId, @DiasMov;
+        END
+        CLOSE cur_movs;
+        DEALLOCATE cur_movs;
+    END
     -- =============================================================
-    -- PASO 5: Aplicar todos los movimientos (Disfrutados, Ajustes, Pagados)
-    --         directamente a su SaldoId. 
-    --         Recalcular NO reasigna SaldoId, respeta el que ya venga.
+    -- PASO 5: Recalcular sumatorias (DiasDisfrutados)
     -- =============================================================
     UPDATE vs
     SET vs.DiasDisfrutados = ISNULL((
         SELECT SUM(vd.Dias)
         FROM VacacionesSaldosDetalle vd
         WHERE vd.SaldoId = vs.SaldoId
-          AND vd.Tipo IN ('Disfrutado', 'Ajuste', 'Pagado')
+          AND vd.Tipo IN ('Disfrutado', 'Ajuste', 'Pagado', 'Saldos Iniciales')
     ), 0)
     FROM VacacionesSaldos vs
     WHERE vs.EmpleadoId = @EmpleadoId;
-
 END
 GO

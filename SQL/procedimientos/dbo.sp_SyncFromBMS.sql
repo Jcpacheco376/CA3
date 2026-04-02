@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_SyncFromBMS]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.5.16
--- Compilado:           24/03/2026, 16:29:51
+-- Versión de Paquete:  v1.5.22
+-- Compilado:           02/04/2026, 14:20:17
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -13,14 +13,12 @@
 -- Compilado:           21/03/2026, 14:38:21
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
-
 CREATE OR ALTER PROCEDURE [dbo].[sp_SyncFromBMS]
     @SourceDB varchar(100) = NULL 
 AS
 BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
-
     IF @SourceDB IS NULL OR @SourceDB = ''
     BEGIN
         SELECT TOP 1 @SourceDB = ConfigValue 
@@ -152,7 +150,7 @@ BEGIN
         PRINT 'Sincronizando Empleados (con todos los campos)...';
         IF (SELECT ConfigValue FROM dbo.SISConfiguracion WHERE ConfigKey = 'SyncEmpleados') = 'true'
         BEGIN
-            SET @SQL = '
+            SET @SQL = CAST('' AS NVARCHAR(MAX)) + '
             ;WITH ImagenesUnicas AS (
                 SELECT folio,imagen, ROW_NUMBER() OVER(PARTITION BY folio ORDER BY (SELECT NULL)) AS rn
                 FROM ' + QUOTENAME(@SourceDB) + '.dbo.imagenes
@@ -168,6 +166,7 @@ BEGIN
                     RTRIM(e.ap_materno) AS apellido_materno,
                     e.fecha_nacimiento,
                     e.fecha_ingreso,
+                    e.fecha_baja,
                     e.sexo,
                     RTRIM(e.reg_imss) AS reg_imss,
                     RTRIM(e.curp) AS curp,
@@ -187,6 +186,7 @@ BEGIN
                 LEFT JOIN dbo.CatalogoHorarios h ON RTRIM(e.horario) = h.CodRef
                 LEFT JOIN dbo.CatalogoEstablecimientos est ON RTRIM(e.cod_estab) = est.CodRef    
             ) AS Source ON Target.CodRef = Source.empleado
+' + '
             WHEN MATCHED THEN
                 UPDATE SET
                     Target.NombreCompleto = Source.nombre_completo,
@@ -205,17 +205,20 @@ BEGIN
                     Target.HorarioIdPredeterminado = Source.LocalHorarioId,
                     Target.Imagen = Source.imagen,
                     Target.Activo = Source.EsActivo,
+                    Target.FechaBaja = Source.fecha_baja,
                     Target.EstablecimientoId = Source.LocalEstabId
+' + '
             WHEN NOT MATCHED BY TARGET THEN
                 INSERT (
                     CodRef, Pim, NombreCompleto, Nombres, ApellidoPaterno, ApellidoMaterno, FechaNacimiento,
                     FechaIngreso, Sexo, NSS, CURP, RFC, DepartamentoId, GrupoNominaId,
-                    PuestoId, HorarioIdPredeterminado, Imagen, Activo, EstablecimientoId
+                    PuestoId, HorarioIdPredeterminado, Imagen, Activo, FechaBaja, EstablecimientoId
                 )
                 VALUES (
                     Source.empleado, Source.empleado, Source.nombre_completo, Source.nombres, Source.apellido_paterno, Source.apellido_materno, Source.fecha_nacimiento,
-                    Source.fecha_ingreso, Source.sexo, Source.reg_imss, Source.curp, Source.rfc, Source.LocalDeptId, Source.LocalGrupoId,
-                    Source.LocalPuestoId, Source.LocalHorarioId, Source.imagen, Source.EsActivo, Source.LocalEstabId
+                    Source.fecha_ingreso,
+                    Source.sexo, Source.reg_imss, Source.curp, Source.rfc, Source.LocalDeptId, Source.LocalGrupoId,
+                    Source.LocalPuestoId, Source.LocalHorarioId, Source.imagen, Source.EsActivo, Source.fecha_baja, Source.LocalEstabId
                 )
             WHEN NOT MATCHED BY SOURCE THEN
                 UPDATE SET Target.Activo = 0;';

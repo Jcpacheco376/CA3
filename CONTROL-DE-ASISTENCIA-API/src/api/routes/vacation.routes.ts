@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getBalance, getRequests, createRequest, respondRequest, getHistory, updateAdjustment, recalculate, getDetails, addAdjustmentDetail, deleteAdjustmentDetail } from '../controllers/vacation.controller';
+import { getBalance, getRequests, createRequest, respondRequest, getHistory, updateAdjustment, recalculate, getDetails, addAdjustmentDetail, deleteAdjustmentDetail, previewPeriod } from '../controllers/vacation.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 
 const router = Router();
@@ -7,6 +7,7 @@ const router = Router();
 router.use(authMiddleware);
 
 router.get('/balance/:empleadoId', getBalance);
+router.get('/preview/:empleadoId', previewPeriod); // ?fechaInicio=&fechaFin=  — read-only day breakdown
 router.get('/history/:empleadoId', getHistory);
 router.get('/details/:empleadoId/:year', getDetails);
 router.get('/requests', getRequests);

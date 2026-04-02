@@ -375,11 +375,17 @@ export const EmpleadosPage = () => {
                                         </div>
                                     </td>
 
-                                    {/* Estado */}
                                     <td className="p-3 text-center">
-                                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${item.Activo ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
-                                            {item.Activo ? 'Activo' : 'Inactivo'}
-                                        </span>
+                                        <div className="flex flex-col items-center gap-1">
+                                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${item.Activo ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                                                {item.Activo ? 'Activo' : 'Inactivo'}
+                                            </span>
+                                            {!item.Activo && item.FechaBaja && (
+                                                <span className="text-[10px] text-slate-400 font-medium whitespace-nowrap">
+                                                    Baja: {new Date(item.FechaBaja).toLocaleDateString()}
+                                                </span>
+                                            )}
+                                        </div>
                                     </td>
 
                                     {canManage && (

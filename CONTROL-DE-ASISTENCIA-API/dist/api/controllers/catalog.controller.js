@@ -178,13 +178,14 @@ exports.getSchedulesCatalog = getSchedulesCatalog;
 const upsertScheduleCatalog = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     if (!req.user.permissions['catalogo.horarios.manage'])
         return res.status(403).json({ message: 'Acceso denegado.' });
-    const { HorarioId, Abreviatura, Nombre, MinutosTolerancia, ColorUI, Activo, EsRotativo, DetallesJSON } = req.body;
+    const { HorarioId, CodRef, Abreviatura, Nombre, MinutosTolerancia, ColorUI, Activo, EsRotativo, DetallesJSON } = req.body;
     try {
         const pool = yield database_1.poolPromise;
         //console.log('Received Body:', req.body); // Log the received body
         //console.log('DetallesJSON String:', DetallesJSON); // Log the string received
         const result = yield pool.request()
             .input('HorarioId', mssql_1.default.Int, HorarioId || 0)
+            .input('CodRef', mssql_1.default.NVarChar, CodRef)
             .input('Abreviatura', mssql_1.default.NVarChar, Abreviatura)
             .input('Nombre', mssql_1.default.NVarChar, Nombre)
             .input('MinutosTolerancia', mssql_1.default.Int, MinutosTolerancia)

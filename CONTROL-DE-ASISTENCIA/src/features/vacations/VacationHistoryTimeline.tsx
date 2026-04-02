@@ -43,6 +43,7 @@ const classifyRecord = (r: any, def: string): string => {
     if (t.includes('PAGAD')) return 'PAGADOS';
     if (t.includes('AJUSTE')) return 'AJUSTES';
     if (t.includes('DISFRUTAD')) return 'DISFRUTADOS';
+    if (t.includes('SALDOS INICIALES')) return 'SALDOS INICIALES';
     return def;
 };
 
@@ -99,7 +100,6 @@ export const VacationHistoryTimeline: React.FC<VacationHistoryTimelineProps> = (
 
     return (
         <div className="space-y-2 pt-1">
-            {/* Header row */}
             <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                 <div className="flex items-center gap-2">
                     <div className="p-1.5 bg-indigo-50 text-indigo-600 rounded-lg">
@@ -108,7 +108,6 @@ export const VacationHistoryTimeline: React.FC<VacationHistoryTimelineProps> = (
                     <h3 className="text-base font-bold text-slate-800">Histórico</h3>
                 </div>
                 <div className="flex items-center gap-2">
-                    {/* Mode selector */}
                     <div
                         className="flex items-center bg-slate-100 rounded-xl p-0.5 gap-1 border border-slate-200 shadow-sm relative transition-all duration-300"
                         onMouseEnter={() => onModeHover(true)}
@@ -137,7 +136,6 @@ export const VacationHistoryTimeline: React.FC<VacationHistoryTimelineProps> = (
                             );
                         })}
                     </div>
-                    {/* Recalculate button */}
                     {canManageVacations && (
                         <button
                             onClick={onRecalculate}
@@ -150,14 +148,12 @@ export const VacationHistoryTimeline: React.FC<VacationHistoryTimelineProps> = (
                 </div>
             </div>
 
-            {/* Timeline */}
             <div className="relative pt-1 pb-2">
                 <div className="absolute top-[2.5rem] left-0 right-0 h-1 bg-slate-200 z-0" />
                 <div
                     ref={historyContainerRef}
                     className="flex items-start gap-0 overflow-x-auto pb-6 pt-4 h-full custom-scrollbar relative z-10"
                 >
-                    {/* Ingreso marker */}
                     {dIngreso && (
                         <div className="min-w-[100px] flex flex-col items-center group relative z-10">
                             <div className="h-10 flex items-center justify-center mb-1.5">
@@ -170,10 +166,8 @@ export const VacationHistoryTimeline: React.FC<VacationHistoryTimelineProps> = (
                         </div>
                     )}
 
-                    {/* Year cards */}
                     {(() => {
                         const nodes: React.ReactNode[] = [];
-
                         displayHistory.forEach((h: any, idx: number) => {
                             const now = new Date();
                             const startDate = h.FechaInicio ? parseSQLDate(h.FechaInicio) : null;
@@ -228,7 +222,7 @@ export const VacationHistoryTimeline: React.FC<VacationHistoryTimelineProps> = (
                                             }
                                             if (data) {
                                                 const period = startDate && endDate ? `${format(startDate, 'dd/MM/yyyy')} - ${format(endDate, 'dd/MM/yyyy')}` : '';
-                                                onOpenDetailModal({ year: h.Anio, data, employeeName: getEmpName() || 'Empleado', period });
+                                                onOpenDetailModal({ year: h.Anio, data, employeeName: getEmpName() || 'Empleado', period, saldoId: h.SaldoId, endDate: h.FechaFin });
                                             }
                                         }}
                                         className={`w-full text-left bg-white rounded-2xl p-4 border-2 transition-all duration-300 relative overflow-hidden cursor-pointer select-none group/card ${selectedYear === h.Anio ? 'border-[--theme-500]' : 'border-slate-200 shadow-sm'} hover:-translate-y-1 hover:shadow-md active:scale-[0.98]`}
@@ -248,7 +242,6 @@ export const VacationHistoryTimeline: React.FC<VacationHistoryTimelineProps> = (
                                             <ChevronDown size={14} />
                                         </div>
 
-                                        {/* Expandable detail summary */}
                                         <div className={`grid transition-all duration-300 ease-in-out ${expandedYear === h.Anio ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
                                             <div className="overflow-hidden">
                                                 {!yearDetails[h.Anio] ? (
@@ -270,15 +263,15 @@ export const VacationHistoryTimeline: React.FC<VacationHistoryTimelineProps> = (
                                                             onClick={(e) => {
                                                                 e.stopPropagation();
                                                                 const period = startDate && endDate ? `${format(startDate, 'dd/MM/yyyy')} - ${format(endDate, 'dd/MM/yyyy')}` : '';
-                                                                onOpenDetailModal({ year: h.Anio, data: yearDetails[h.Anio], employeeName: getEmpName() || 'Empleado', period });
+                                                                onOpenDetailModal({ year: h.Anio, data: yearDetails[h.Anio], employeeName: getEmpName() || 'Empleado', period, saldoId: h.SaldoId, endDate: h.FechaFin });
                                                             }}
                                                             className="flex flex-col gap-1 pl-0 pr-1 mt-1.5 border-t border-dashed border-slate-100 pt-2 group/detail cursor-pointer"
                                                         >
                                                             {Object.entries(grouped).map(([type, total]) => (
                                                                 <div key={type} className="flex items-center justify-between text-[10px] group-hover/detail:bg-slate-50/50 rounded-md transition-colors pl-0 pr-1 py-0.5 min-w-0">
-                                                                    <span className="text-slate-400 font-bold flex items-center gap-1 min-w-0 overflow-hidden">
-                                                                        <div className={`w-1 h-1 rounded-full ${type === 'PAGADOS' ? 'bg-amber-400' : type === 'AJUSTES' ? 'bg-indigo-400' : type === 'SOLICITUDES' ? 'bg-emerald-400' : 'bg-[--theme-400]'}`} />
-                                                                        <span className="truncate uppercase tracking-tighter shrink-0">{type === 'DISFRUTADOS' ? 'Disfrutados' : type}</span>
+                                                                    <span className="text-slate-400 font-bold flex items-center gap-1 min-w-0 overflow-hidden text-[9px]">
+                                                                        <div className={`w-1 h-1 rounded-full ${type === 'PAGADOS' ? 'bg-amber-400' : type === 'AJUSTES' ? 'bg-indigo-400' : type === 'SOLICITUDES' ? 'bg-emerald-400' : type === 'SALDOS INICIALES' ? 'bg-emerald-600' : 'bg-[--theme-400]'}`} />
+                                                                        <span className="truncate uppercase tracking-tighter shrink-0">{type === 'DISFRUTADOS' ? 'Disfrutados' : (type === 'SALDOS INICIALES' ? 'Carga Inicial' : type)}</span>
                                                                     </span>
                                                                     <div className="font-black text-slate-700 whitespace-nowrap ml-1 shrink-0">{formatValue(total as number)} d</div>
                                                                 </div>
@@ -292,7 +285,6 @@ export const VacationHistoryTimeline: React.FC<VacationHistoryTimelineProps> = (
                                 </div>
                             );
                         });
-
                         return nodes;
                     })()}
                 </div>

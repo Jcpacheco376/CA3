@@ -14,15 +14,18 @@ import {
 // --- Componentes UI Auxiliares (Checkbox, Toggle, Collapsible) ---
 // (Se mantienen idénticos a tu versión original para respetar estilos)
 
-const Checkbox = ({ id, label, checked, onChange }: { id: string | number, label: string, checked: boolean, onChange: (checked: boolean) => void }) => {
+const Checkbox = ({ id, label, checked, onChange, disabled, subtitle }: { id: string | number, label: string, checked: boolean, onChange: (checked: boolean) => void, disabled?: boolean, subtitle?: string }) => {
     return (
-        <label htmlFor={`cb-local-${id}`} className="flex items-center space-x-3 p-2 rounded-md hover:bg-slate-100 cursor-pointer transition-colors">
-            <div className="relative w-5 h-5 shrink-0">
-                <input id={`cb-local-${id}`} type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="peer appearance-none w-5 h-5 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[--theme-500]" />
-                <div className="absolute inset-0 w-full h-full rounded-md border-2 border-slate-300 peer-checked:bg-[--theme-500] peer-checked:border-[--theme-500] transition-colors pointer-events-none"></div>
+        <label htmlFor={`cb-local-${id}`} className={`flex items-start space-x-3 p-2 rounded-md transition-colors ${disabled ? 'opacity-60 cursor-not-allowed bg-slate-50/50' : 'hover:bg-slate-100 cursor-pointer'}`}>
+            <div className="relative w-5 h-5 shrink-0 mt-0.5">
+                <input id={`cb-local-${id}`} type="checkbox" checked={checked} onChange={(e) => !disabled && onChange(e.target.checked)} disabled={disabled} className="peer appearance-none w-5 h-5 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-[--theme-500] disabled:cursor-not-allowed" />
+                <div className={`absolute inset-0 w-full h-full rounded-md border-2 transition-colors pointer-events-none ${disabled ? 'border-slate-200' : 'border-slate-300 peer-checked:bg-[--theme-500] peer-checked:border-[--theme-500]'}`}></div>
                 <Check size={14} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white pointer-events-none transition-opacity opacity-0 peer-checked:opacity-100" />
             </div>
-            <span className="text-sm text-slate-700 select-none truncate" title={label}>{label}</span>
+            <div className="flex flex-col min-w-0">
+                <span className={`text-sm select-none truncate ${disabled ? 'text-slate-400 italic' : 'text-slate-700'}`} title={label}>{label}</span>
+                {subtitle && <span className="text-[10px] text-slate-400 font-medium uppercase leading-tight">{subtitle}</span>}
+            </div>
         </label>
     );
 };
@@ -48,32 +51,83 @@ const CollapsibleSection = ({ title, children, defaultOpen = true }: { title: st
 
 // --- Componente de Catálogo (Idéntico a tu original) ---
 const CatalogSection = ({ title, icon, items, selectedItems, onItemsChange, keyField, labelField, loading, error }: any) => {
-    const allSelected = items.length > 0 && selectedItems.length === items.length;
-    const handleToggleAll = () => allSelected ? onItemsChange([]) : onItemsChange(items);
+    const [searchTerm, setSearchTerm] = useState('');
+    // Solo consideramos activos para el "Marcar todos"
+    const activeItems = items.filter((i: any) => i.Activo !== false);
+    const selectedActiveItems = selectedItems.filter((s: any) => items.find((i: any) => i[keyField] === s[keyField])?.Activo !== false);
+
+    const allActiveSelected = activeItems.length > 0 && selectedActiveItems.length === activeItems.length;
+
+    const handleToggleAll = () => {
+        if (allActiveSelected) {
+            // Si todos los activos están marcados, quitamos solo los activos de la selección
+            const preserveInactive = selectedItems.filter((s: any) => items.find((i: any) => i[keyField] === s[keyField])?.Activo === false);
+            onItemsChange(preserveInactive);
+        } else {
+            // Si no, agregamos todos los activos a lo que ya esté seleccionado (evitando duplicados)
+            const otherSelected = selectedItems.filter((s: any) => !activeItems.some((ai: any) => ai[keyField] === s[keyField]));
+            onItemsChange([...otherSelected, ...activeItems]);
+        }
+    };
 
     const handleToggle = (item: any) => {
+        if (item.Activo === false) return; // No permitir seleccionar inactivos
+
         const itemId = item[keyField];
         const isSelected = selectedItems.some((s: any) => s[keyField] === itemId);
         onItemsChange(isSelected ? selectedItems.filter((s: any) => s[keyField] !== itemId) : [...selectedItems, item]);
     };
 
+    // Ordenar: Activos primero, luego Inactivos. En cada grupo, por nombre.
+    const sortedItems = [...items].sort((a, b) => {
+        if (a.Activo !== b.Activo) return a.Activo ? -1 : 1;
+        return a[labelField].localeCompare(b[labelField]);
+    });
+
+    const filteredItems = sortedItems.filter(item =>
+        item[labelField].toLowerCase().includes(searchTerm.toLowerCase()) ||
+        item[keyField]?.toString().toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
     return (
         <div className="flex flex-col h-full">
             <div className="flex justify-between items-center mb-2 px-1">
                 <h4 className="font-semibold text-slate-800 flex items-center gap-2 text-sm">{icon} {title}</h4>
-                <Tooltip text={allSelected ? "Limpiar todo" : "Marcar todos"}>
-                    <button type="button" onClick={handleToggleAll} className={`p-1 transition-colors ${allSelected ? 'text-red-500 hover:text-red-700' : 'text-slate-400 hover:text-[--theme-500]'}`}>
-                        {allSelected ? <XCircle size={16} /> : <CheckCheck size={16} />}
+                <Tooltip text={allActiveSelected ? "Limpiar activos" : "Marcar activos"}>
+                    <button type="button" onClick={handleToggleAll} className={`p-1 transition-colors ${allActiveSelected ? 'text-rose-500 hover:text-rose-700' : 'text-slate-400 hover:text-[--theme-500]'}`}>
+                        {allActiveSelected ? <XCircle size={16} /> : <CheckCheck size={16} />}
                     </button>
                 </Tooltip>
             </div>
-            <div className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 flex-1 min-h-[180px]">
-                <div className="max-h-48 h-full overflow-y-auto space-y-1 custom-scrollbar">
-                    {loading && <p className="text-xs text-slate-400 p-2">Cargando...</p>}
-                    {error && <p className="text-xs text-red-500 p-2">{error}</p>}
-                    {!loading && !error && items.length === 0 && <p className="text-xs text-slate-400 p-2">Sin datos disponibles.</p>}
-                    {!loading && !error && items.map((item: any) => (
-                        <Checkbox key={item[keyField]} id={`${keyField}-${item[keyField]}`} label={item[labelField]}
+            <div className="w-full bg-slate-50 border border-slate-200 rounded-lg p-2 flex-1 flex flex-col min-h-[220px]">
+                {/* Buscador interno */}
+                <div className="relative mb-2">
+                    <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                        type="text"
+                        placeholder={`Buscar ${title.toLowerCase()}...`}
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-8 pr-7 py-1.5 text-xs bg-white border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-[--theme-500] focus:border-[--theme-500] transition-all"
+                    />
+                    {searchTerm && (
+                        <button onClick={() => setSearchTerm('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                            <X size={12} />
+                        </button>
+                    )}
+                </div>
+
+                <div className="max-h-44 overflow-y-auto space-y-1 custom-scrollbar pr-1 flex-1">
+                    {loading && <p className="text-xs text-slate-400 p-2 text-center">Cargando...</p>}
+                    {error && <p className="text-xs text-red-500 p-2 text-center">{error}</p>}
+                    {!loading && !error && filteredItems.length === 0 && <p className="text-xs text-slate-400 p-4 text-center">Sin resultados.</p>}
+                    {!loading && !error && filteredItems.map((item: any) => (
+                        <Checkbox
+                            key={item[keyField]}
+                            id={`${keyField}-${item[keyField]}`}
+                            label={item[labelField]}
+                            subtitle={item.Activo === false ? "No vigente" : undefined}
+                            disabled={item.Activo === false}
                             checked={selectedItems?.some((s: any) => s[keyField] === item[keyField]) || false}
                             onChange={() => handleToggle(item)}
                         />
@@ -222,7 +276,15 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
 
     // Manejadores
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-        setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+        let value = e.target.value;
+        if (e.target.name === 'Telefono') {
+            // Mask 10 digits: (XXX) XXX-XXXX
+            const numbers = value.replace(/\D/g, '').slice(0, 10);
+            if (numbers.length <= 3) value = numbers;
+            else if (numbers.length <= 6) value = `(${numbers.slice(0, 3)}) ${numbers.slice(3)}`;
+            else value = `(${numbers.slice(0, 3)}) ${numbers.slice(3, 6)}-${numbers.slice(6)}`;
+        }
+        setFormData(prev => ({ ...prev, [e.target.name]: value }));
     };
 
     const handleRolesChange = (items: Role[]) => {
@@ -339,80 +401,12 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
                                     <label className="block text-sm font-medium text-slate-700 mb-1.5">Correo Electrónico (Email)</label>
                                     <input type="email" name="Email" value={formData.Email || ''} onChange={handleChange} className="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500] focus:outline-none shadow-sm transition-all" required />
                                 </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1.5">Número de Teléfono</label>
+                                    <input type="text" name="Telefono" value={formData.Telefono || ''} onChange={handleChange} placeholder="Ej: (667) 123-4567" className="w-full p-2.5 border border-slate-300 rounded-lg text-sm focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500] focus:outline-none shadow-sm transition-all" />
+                                </div>
                             </div>
 
-                            {/* Sección de Vínculo Separada y Sutil */}
-                            <div className="pt-2">
-                                <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
-                                    <Link size={12} /> Vínculo con Nómina
-                                </label>
-
-                                {formData.EmpleadoId ? (
-                                    <div className="flex items-center justify-between p-3 bg-emerald-50/50 border border-emerald-100 rounded-xl transition-all hover:bg-emerald-50">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
-                                                <UserCheck size={16} className="text-emerald-600" />
-                                            </div>
-                                            <div>
-                                                <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-tight leading-none mb-1">Usuario Vinculado</p>
-                                                <p className="text-sm font-bold text-slate-700">
-                                                    {allEmpleados.find(e => e.EmpleadoId === Number(formData.EmpleadoId))?.NombreCompleto || `Empleado ID#${formData.EmpleadoId}`}
-                                                </p>
-                                            </div>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={() => { setFormData(prev => ({ ...prev, EmpleadoId: null })); setEmpleadoSearch(''); }}
-                                            className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
-                                            title="Quitar vínculo"
-                                        >
-                                            <Link2Off size={18} />
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <div className="relative group">
-                                        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-[--theme-500]" />
-                                        <input
-                                            type="text"
-                                            placeholder="Buscar empleado por nombre o código..."
-                                            value={empleadoSearch}
-                                            onChange={e => { setEmpleadoSearch(e.target.value); setShowEmpleadoDropdown(true); }}
-                                            onFocus={() => setShowEmpleadoDropdown(true)}
-                                            onBlur={() => setTimeout(() => setShowEmpleadoDropdown(false), 200)}
-                                            className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500] focus:outline-none bg-slate-50/50 transition-all hover:bg-white focus:bg-white shadow-sm"
-                                        />
-                                        {showEmpleadoDropdown && empleadoSearch.trim().length > 0 && (() => {
-                                            const filtered = allEmpleados.filter(e =>
-                                                e.NombreCompleto.toLowerCase().includes(empleadoSearch.toLowerCase()) ||
-                                                (e.CodRef && e.CodRef.toLowerCase().includes(empleadoSearch.toLowerCase()))
-                                            ).slice(0, 8);
-                                            return filtered.length > 0 ? (
-                                                <ul className="absolute z-[200] mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-                                                    {filtered.map(emp => (
-                                                        <li
-                                                            key={emp.EmpleadoId}
-                                                            onMouseDown={() => {
-                                                                setFormData(prev => ({ ...prev, EmpleadoId: emp.EmpleadoId }));
-                                                                setEmpleadoSearch('');
-                                                                setShowEmpleadoDropdown(false);
-                                                            }}
-                                                            className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0"
-                                                        >
-                                                            <div className="w-8 h-8 rounded-full bg-[--theme-50] flex items-center justify-center shrink-0">
-                                                                <span className="text-xs font-bold text-[--theme-600]">{emp.NombreCompleto.charAt(0)}</span>
-                                                            </div>
-                                                            <div className="min-w-0">
-                                                                <p className="text-sm font-semibold text-slate-700 truncate">{emp.NombreCompleto}</p>
-                                                                <p className="text-[10px] text-slate-400 font-medium tracking-wide">ID: {emp.EmpleadoId}</p>
-                                                            </div>
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            ) : null;
-                                        })()}
-                                    </div>
-                                )}
-                            </div>
                         </div>
                     </CollapsibleSection>
 
@@ -430,6 +424,82 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
                                     </div>
                                 </div>
                                 {renderPasswordField()}
+
+                                {/* Sección de Vínculo Separada y Sutil - Movida aquí por petición */}
+                                <div className="pt-2">
+                                    <label className="block text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                        <Link size={12} /> Vínculo con Nómina
+                                    </label>
+
+                                    {formData.EmpleadoId ? (
+                                        <div className="flex items-center justify-between p-3 bg-emerald-50/50 border border-emerald-100 rounded-xl transition-all hover:bg-emerald-50 shadow-sm">
+                                            <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
+                                                    <UserCheck size={16} className="text-emerald-600" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[10px] text-emerald-600 font-bold uppercase tracking-tight leading-none mb-1">Usuario Vinculado</p>
+                                                    <p className="text-sm font-bold text-slate-700">
+                                                        {(() => {
+                                                            const emp = allEmpleados.find(e => e.EmpleadoId === Number(formData.EmpleadoId));
+                                                            return emp ? `${emp.NombreCompleto} (${emp.CodRef || emp.EmpleadoId})` : `Empleado #${formData.EmpleadoId}`;
+                                                        })()}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => { setFormData(prev => ({ ...prev, EmpleadoId: null })); setEmpleadoSearch(''); }}
+                                                className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+                                                title="Quitar vínculo"
+                                            >
+                                                <Link2Off size={18} />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="relative group">
+                                            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 transition-colors group-focus-within:text-[--theme-500]" />
+                                            <input
+                                                type="text"
+                                                placeholder="Buscar empleado por nombre o código..."
+                                                value={empleadoSearch}
+                                                onChange={e => { setEmpleadoSearch(e.target.value); setShowEmpleadoDropdown(true); }}
+                                                onFocus={() => setShowEmpleadoDropdown(true)}
+                                                onBlur={() => setTimeout(() => setShowEmpleadoDropdown(false), 200)}
+                                                className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-lg text-sm focus:border-[--theme-500] focus:ring-1 focus:ring-[--theme-500] focus:outline-none bg-slate-50/50 transition-all hover:bg-white focus:bg-white shadow-sm"
+                                            />
+                                            {showEmpleadoDropdown && empleadoSearch.trim().length > 0 && (() => {
+                                                const filtered = allEmpleados.filter(e =>
+                                                    e.NombreCompleto.toLowerCase().includes(empleadoSearch.toLowerCase()) ||
+                                                    (e.CodRef && e.CodRef.toLowerCase().includes(empleadoSearch.toLowerCase()))
+                                                ).slice(0, 8);
+                                                return filtered.length > 0 ? (
+                                                    <ul className="absolute z-[200] mt-2 w-full bg-white border border-slate-200 rounded-xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+                                                        {filtered.map(emp => (
+                                                            <li
+                                                                key={emp.EmpleadoId}
+                                                                onMouseDown={() => {
+                                                                    setFormData(prev => ({ ...prev, EmpleadoId: emp.EmpleadoId }));
+                                                                    setEmpleadoSearch('');
+                                                                    setShowEmpleadoDropdown(false);
+                                                                }}
+                                                                className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0"
+                                                            >
+                                                                <div className="w-8 h-8 rounded-full bg-[--theme-50] flex items-center justify-center shrink-0">
+                                                                    <span className="text-xs font-bold text-[--theme-600]">{emp.NombreCompleto.charAt(0)}</span>
+                                                                </div>
+                                                                <div className="min-w-0">
+                                                                    <p className="text-sm font-semibold text-slate-700 truncate">{emp.NombreCompleto}</p>
+                                                                    <p className="text-[10px] text-slate-400 font-medium tracking-wide">ID: {emp.CodRef || emp.EmpleadoId}</p>
+                                                                </div>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                ) : null;
+                                            })()}
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
                             <div className="flex flex-col gap-3">
@@ -505,11 +575,11 @@ export const UserModal = ({ user, allRoles, onClose, onSave, isOpen }: { user: U
                             <p className="text-xs text-slate-500 mb-3 italic">
                                 * Limita la información que el usuario puede visualizar en reportes y listas.
                             </p>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                {activeFilters?.departamentos && <CatalogSection title="Departamentos" icon={<Building size={14} />} items={allDepartamentos} selectedItems={formData.Departamentos || []} onItemsChange={handleDepartamentosChange} keyField="DepartamentoId" labelField="Nombre" loading={catalogsLoading} error={catalogsError} />}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
                                 {activeFilters?.gruposNomina && <CatalogSection title="Grupos Nómina" icon={<Briefcase size={14} />} items={allGruposNomina} selectedItems={formData.GruposNomina || []} onItemsChange={handleGruposChange} keyField="GrupoNominaId" labelField="Nombre" loading={catalogsLoading} error={catalogsError} />}
-                                {activeFilters?.puestos && <CatalogSection title="Puestos" icon={<Tag size={14} />} items={allPuestos} selectedItems={formData.Puestos || []} onItemsChange={handlePuestosChange} keyField="PuestoId" labelField="Nombre" loading={catalogsLoading} error={catalogsError} />}
                                 {activeFilters?.establecimientos && <CatalogSection title="Establecimientos" icon={<MapPin size={14} />} items={allEstablecimientos} selectedItems={formData.Establecimientos || []} onItemsChange={handleEstablecimientosChange} keyField="EstablecimientoId" labelField="Nombre" loading={catalogsLoading} error={catalogsError} />}
+                                {activeFilters?.departamentos && <CatalogSection title="Departamentos" icon={<Building size={14} />} items={allDepartamentos} selectedItems={formData.Departamentos || []} onItemsChange={handleDepartamentosChange} keyField="DepartamentoId" labelField="Nombre" loading={catalogsLoading} error={catalogsError} />}
+                                {activeFilters?.puestos && <CatalogSection title="Puestos" icon={<Tag size={14} />} items={allPuestos} selectedItems={formData.Puestos || []} onItemsChange={handlePuestosChange} keyField="PuestoId" labelField="Nombre" loading={catalogsLoading} error={catalogsError} />}
                             </div>
                         </CollapsibleSection>
                     )}

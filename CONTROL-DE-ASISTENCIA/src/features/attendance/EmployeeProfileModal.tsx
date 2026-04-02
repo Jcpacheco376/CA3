@@ -3,7 +3,7 @@ import { API_BASE_URL } from '../../config/api';
 import ReactDOM from 'react-dom';
 import { format, startOfWeek, endOfWeek, differenceInYears, isWithinInterval } from 'date-fns';
 import { es } from 'date-fns/locale';
-import { Badge, Cake, Calendar as CalendarIcon, Hash, Fingerprint, X, User, Briefcase, Building, AlertCircle, Mars, Venus, Pencil, MapPin, Clock } from 'lucide-react';
+import { Badge, Cake, Calendar as CalendarIcon, Hash, Fingerprint, X, User, Briefcase, Building, AlertCircle, Mars, Venus, Pencil, MapPin, Clock, XCircle } from 'lucide-react';
 import { Tooltip } from '../../components/ui/Tooltip';
 import { themes } from '../../config/theme';
 import { EmpleadoModal } from '../admin/EmpleadoModal';
@@ -55,18 +55,21 @@ export const EmployeeProfileModal = ({ employeeId, onClose, getToken, user }: { 
         fetchEmployeeData();
     }, [fetchEmployeeData]);
 
+    // Permitir cerrar con la tecla Escape
     useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (isEditModalOpen) return;
-            if (cardRef.current && !cardRef.current.contains(event.target as Node)) {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape' && !isEditModalOpen) {
                 onClose();
             }
         };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
     }, [onClose, isEditModalOpen]);
 
     const handleDragStart = (e: React.MouseEvent) => {
+        // Prevenir la selección de texto al arrastrar
+        e.preventDefault();
+
         if (cardRef.current) {
             setIsDragging(true);
             const rect = cardRef.current.getBoundingClientRect();
@@ -173,7 +176,16 @@ export const EmployeeProfileModal = ({ employeeId, onClose, getToken, user }: { 
                         {isLoading ? (
                             <><div className="h-5 bg-slate-300/70 rounded w-48 mx-auto mt-2"></div><div className="h-4 bg-slate-200/70 rounded w-32 mx-auto mt-1.5"></div></>
                         ) : (
-                            <><h3 className="text-lg font-bold text-slate-900">{employeeData.NombreCompleto}</h3><p className="text-sm text-slate-500">{employeeData.puesto_descripcion}</p></>
+                            <>
+                                <h3 className="text-lg font-bold text-slate-900">{employeeData.NombreCompleto}</h3>
+                                <p className="text-sm text-slate-500">{employeeData.puesto_descripcion}</p>
+                                {employeeData.FechaBaja && !employeeData.Activo && (
+                                    <div className="mt-2.5 inline-flex items-center gap-1.5 px-2.5 py-1 bg-rose-50 text-rose-600 rounded-md border border-rose-200 text-xs font-bold uppercase tracking-tight shadow-sm">
+                                        <XCircle size={12} className="shrink-0" />
+                                        <span>Baja el {formatDateAdjusted(employeeData.FechaBaja)}</span>
+                                    </div>
+                                )}
+                            </>
                         )}
                     </div>
                 </div>
@@ -208,24 +220,38 @@ export const EmployeeProfileModal = ({ employeeId, onClose, getToken, user }: { 
     const themeName = user?.Theme || 'indigo';
     const themeColors = themes[themeName];
 
+    if (isEditModalOpen) {
+        return (
+            <EmpleadoModal
+                isOpen={isEditModalOpen}
+                onClose={() => setIsEditModalOpen(false)}
+                empleado={{ EmpleadoId: employeeId, ...employeeData }}
+                onSave={() => {
+                    setIsEditModalOpen(false);
+                    fetchEmployeeData();
+                    // Opcional: si quieres que se cierre todo tras guardar, quita el fetch y pon onClose();
+                }}
+            />
+        );
+    }
+
     const modalContent = (
         <div className="fixed inset-0 z-[1100] flex items-center justify-center pointer-events-none">
-            {/* Backdrop */}
-            <div className="fixed inset-0 bg-black/40 backdrop-blur-sm pointer-events-auto" onClick={onClose}></div>
+            {/* Sin Backdrop ni Blur para permitir manipular el fondo */}
 
             <div
                 ref={cardRef}
                 className={`fixed bg-white rounded-xl shadow-2xl z-[1101] w-[600px] animate-scale-in overflow-hidden pointer-events-auto`}
                 style={positionStyle}
             >
-                <div onMouseDown={handleDragStart} className="h-12 w-full cursor-move p-4 flex items-center justify-between border-b border-slate-200" style={{ backgroundColor: themeColors[50] }}>
+                <div onMouseDown={handleDragStart} className="h-12 w-full cursor-move p-4 flex items-center justify-between border-b border-slate-200 select-none" style={{ backgroundColor: themeColors[50] }}>
                     <div className="flex items-center gap-3">
                         <h3 className="font-semibold" style={{ color: themeColors[600] }}>Ficha de Empleado</h3>
                         {!isLoading && can('catalogo.empleados.manage') && (
                             <Tooltip text="Editar Empleado">
                                 <button
                                     onClick={() => setIsEditModalOpen(true)}
-                                    className="p-1.5 rounded-full text-slate-400 hover:text-[--theme-600] hover:bg-[--theme-100] transition-colors"
+                                    className="p-1.5 rounded-full text-slate-400 hover:text-[--theme-600] hover:bg-[--theme-100] transition-colors focus:outline-none"
                                 >
                                     <Pencil size={16} />
                                 </button>
@@ -235,20 +261,12 @@ export const EmployeeProfileModal = ({ employeeId, onClose, getToken, user }: { 
                     {/* Spacer to avoid overlap with absolute close button if needed, but close button is absolute */}
                 </div>
 
-                <button onClick={onClose} className="absolute top-3 right-3 p-1 rounded-full text-slate-400 hover:bg-slate-200 z-50"><X size={18} /></button>
+                <button onClick={onClose} className="absolute top-3 right-3 p-1 rounded-full text-slate-400 hover:bg-slate-200 z-50 focus:outline-none"><X size={18} /></button>
 
                 <div className={`absolute inset-0 bg-white/30 bg-clip-padding backdrop-filter backdrop-blur-sm animate-pulse ${!isLoading && 'hidden'}`}>
                     <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/80 to-transparent -translate-x-full animate-[shimmer_2s_infinite]"></div>
                 </div>
                 {renderContent()}
-                {isEditModalOpen && (
-                    <EmpleadoModal
-                        isOpen={isEditModalOpen}
-                        onClose={() => setIsEditModalOpen(false)}
-                        empleado={{ EmpleadoId: employeeId, ...employeeData }}
-                        onSave={() => { setIsEditModalOpen(false); fetchEmployeeData(); }}
-                    />
-                )}
             </div>
         </div>
     );

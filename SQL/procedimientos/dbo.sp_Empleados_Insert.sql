@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Empleados_Insert]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.5.16
--- Compilado:           24/03/2026, 16:29:51
+-- Versión de Paquete:  v1.5.22
+-- Compilado:           02/04/2026, 14:20:17
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -31,7 +31,7 @@ CREATE OR ALTER PROCEDURE [dbo].[sp_Empleados_Insert]
                 SET NOCOUNT ON;
 
                 -- Calculate NombreCompleto based on Config
-                DECLARE @FormatoNombre VARCHAR(10);
+                DECLARE @FormatoNombre VARCHAR;
                 SELECT  @FormatoNombre = ConfigValue FROM SISConfiguracion WHERE ConfigKey='FormNombreEmpleados'
                 
                 DECLARE @NombreCompleto NVARCHAR(300);

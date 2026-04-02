@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Incidencias_GetDetalle]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.5.16
--- Compilado:           24/03/2026, 16:29:51
+-- Versión de Paquete:  v1.5.22
+-- Compilado:           02/04/2026, 14:20:17
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -11,7 +11,6 @@ CREATE OR ALTER PROCEDURE [dbo].[sp_Incidencias_GetDetalle]
 AS
 BEGIN
     SET NOCOUNT ON;
-
     -- RESULTSET 1: HEADER
     SELECT
         i.IncidenciaId, i.EmpleadoId, i.Fecha, i.Estado, i.AsignadoAUsuarioId,
@@ -41,7 +40,6 @@ BEGIN
     LEFT JOIN dbo.UsuariosRoles ur_asig ON u_asig.UsuarioId = ur_asig.UsuarioId AND ur_asig.EsPrincipal = 1
     LEFT JOIN dbo.Roles r_asig ON ur_asig.RoleId = r_asig.RoleId
     WHERE i.IncidenciaId = @IncidenciaId;
-
     -- RESULTSET 2: TIMELINE
     SELECT
         b.BitacoraId,
@@ -55,7 +53,6 @@ BEGIN
         b.EstatusManualId_Nuevo,
         b.EstatusChecadorId_Anterior,
         b.EstatusChecadorId_Nuevo,
-
         u.NombreCompleto AS UsuarioNombre,
         u_target.NombreCompleto AS AsignadoANombre,
         u.Theme as UsuarioTheme
@@ -64,7 +61,6 @@ BEGIN
     LEFT JOIN dbo.Usuarios u_target ON b.AsignadoA_Nuevo = u_target.UsuarioId
     WHERE b.IncidenciaId = @IncidenciaId
     ORDER BY b.FechaMovimiento ASC;
-
     -- RESULTSET 3: AUTORIZACIONES
     SELECT
         ia.AutorizacionId, ia.RolRequeridoId, r.NombreRol as RolRequerido,

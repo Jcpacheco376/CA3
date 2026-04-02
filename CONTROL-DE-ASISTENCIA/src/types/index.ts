@@ -42,6 +42,7 @@ export interface User {
     NombreUsuario: string;
     NombreCompleto: string;
     Email: string;
+    Telefono?: string;
     EstaActivo: boolean;
     Roles: Role[];
     Departamentos?: ({ DepartamentoId: string, Nombre: string } | string)[];
