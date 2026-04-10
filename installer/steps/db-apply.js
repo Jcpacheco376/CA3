@@ -12,8 +12,8 @@ const sql = require('mssql');
 
 async function applyDatabase(cfg, analysis, baseDir, log, onProgress) {
     const pkgRoot = fs.existsSync(path.join(baseDir, 'database')) ? baseDir : path.join(baseDir, '..');
-    const { tablesToCreate, columnsToAdd, spsToApply } = analysis;
-    const total = tablesToCreate.length + columnsToAdd.length + spsToApply.length || 1;
+    const { tablesToCreate, columnsToAdd, spsToApply, functionsToApply = [] } = analysis;
+    const total = tablesToCreate.length + columnsToAdd.length + spsToApply.length + functionsToApply.length || 1;
     let done = 0;
     const errors = [];
     let pool;
@@ -52,8 +52,23 @@ async function applyDatabase(cfg, analysis, baseDir, log, onProgress) {
                 done++; onProgress(done / total);
             }
         }
+        // ── PASO 3: Aplicar todas las Funciones ──────────────────────────────
+        if (functionsToApply.length > 0) {
+            log(`Aplicando ${functionsToApply.length} función(es)...`);
+            for (const func of functionsToApply) {
+                try {
+                    const funcSQL = forceCreateOrAlter(stripHeader(func.sql));
+                    await execScript(pool, funcSQL, cfg, func.filePath);
+                    log(`  ✅ Función aplicada: ${func.name}`);
+                } catch (err) {
+                    const msg = `  ❌ Error en Función ${func.name}: ${err.message}`;
+                    log(msg); errors.push(msg);
+                }
+                done++; onProgress(done / total);
+            }
+        }
 
-        // ── PASO 3: Aplicar todos los SPs ────────────────────────────────────
+        // ── PASO 4: Aplicar todos los SPs ────────────────────────────────────
         if (spsToApply.length > 0) {
             log(`Aplicando ${spsToApply.length} procedimiento(s)...`);
             for (const sp of spsToApply) {
@@ -71,7 +86,7 @@ async function applyDatabase(cfg, analysis, baseDir, log, onProgress) {
             }
         }
 
-        // ── PASO 4: Registrar versión en BD (Propiedades Extendidas) ─────────
+        // ── PASO 5: Registrar versión en BD (Propiedades Extendidas) ─────────
         try {
             // Leer versión del paquete
             let pkgVersion = '0.0.0';
@@ -177,14 +192,9 @@ async function execScript(pool, sqlText, cfg, filePath) {
         }
     }
 
-    // Fallback: mssql.query — dividir por GO y ejecutar por batch
-    const batches = sqlText
-        .split(/^\s*GO\s*$/im)
-        .map(b => b.trim())
-        .filter(b => b.length > 0);
-    for (const batch of batches) {
-        await pool.request().query(batch);
-    }
+    // Fallback: mssql.batch — a diferencia de query(), batch() soporta y divide por GO
+    // manteniendo la misma sesión (connection) para que SET QUOTED_IDENTIFIER persista
+    await pool.request().batch(sqlText);
 }
 
 /**

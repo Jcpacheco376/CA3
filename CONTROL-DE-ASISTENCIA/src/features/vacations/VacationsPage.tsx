@@ -178,7 +178,7 @@ export const VacationsPage = () => {
     };
 
     const loadYearDetails = async (empleadoId: number | undefined, year: number) => {
-        if (!empleadoId) return null;
+        if (!empleadoId || !year || year <= 0) return null;
         const token = getToken();
         try {
             const res = await fetch(`${API_BASE_URL}/vacations/details/${empleadoId}/${year}`, {
@@ -218,6 +218,7 @@ export const VacationsPage = () => {
     useEffect(() => {
         setYearDetails({});
         setExpandedYear(null);
+        setSelectedYear(null);
     }, [selectedEmployeeId, activeTab]);
 
     useEffect(() => {

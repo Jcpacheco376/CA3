@@ -1,18 +1,15 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_SyncFromBMS]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.5.22
--- Compilado:           02/04/2026, 14:20:17
+-- Versión de Paquete:  v1.6.12
+-- Compilado:           07/04/2026, 11:26:15
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
--- ──────────────────────────────────────────────────────────────────────
--- Stored Procedure: [dbo].[sp_SyncFromBMS]
--- Base de Datos:       CA
--- Versión de Paquete:  v1.5.13
--- Compilado:           21/03/2026, 14:38:21
--- Sistema:             CA3 Control de Asistencia
--- ──────────────────────────────────────────────────────────────────────
+SET ANSI_NULLS ON;
+GO
+SET QUOTED_IDENTIFIER ON;
+GO
 CREATE OR ALTER PROCEDURE [dbo].[sp_SyncFromBMS]
     @SourceDB varchar(100) = NULL 
 AS

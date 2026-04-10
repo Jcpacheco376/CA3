@@ -328,6 +328,46 @@ const AttendancePageContent = () => {
 
     useEffect(() => { fetchData(); }, [fetchData]);
 
+    /**
+     * Cuando AuditTimelineModal termina de regenerar fichas, actualizamos
+     * solo ese empleado en el estado local sin refrescar toda la pantalla.
+     */
+    const handleAttendanceRegenerated = useCallback(async (empleadoId: number, rStart: Date, rEnd: Date) => {
+        const token = getToken();
+        if (!token) return;
+        try {
+            const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+            // Pedimos el rango completo visible para obtener las fichas actualizadas del empleado
+            const res = await fetch(`${API_BASE_URL}/attendance/data-by-range`, {
+                method: 'POST',
+                headers,
+                body: JSON.stringify({
+                    startDate: format(dateRange[0], 'yyyy-MM-dd'),
+                    endDate: format(dateRange[dateRange.length - 1], 'yyyy-MM-dd'),
+                    filters: {
+                        departamentos: filters.depts,
+                        gruposNomina: filters.groups,
+                        puestos: filters.puestos,
+                        establecimientos: filters.estabs
+                    }
+                })
+            });
+            if (!res.ok) return;
+            const freshData: any[] = await res.json();
+            const freshEmp = freshData.find((e: any) => e.EmpleadoId === empleadoId);
+            if (!freshEmp) return;
+
+            setEmployees(prev => prev.map(emp =>
+                emp.EmpleadoId === empleadoId
+                    ? { ...emp, FichasSemana: freshEmp.FichasSemana }
+                    : emp
+            ));
+        } catch {
+            // Silencioso: el modal ya notificó el éxito; si el re-fetch falla el usuario
+            // puede recargar manualmente si lo necesita.
+        }
+    }, [getToken, dateRange, filters]);
+
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (event.target instanceof Element && !event.target.closest('.status-cell-wrapper')) {
@@ -986,6 +1026,7 @@ const AttendancePageContent = () => {
                     }}
                     getToken={getToken}
                     statusCatalog={statusCatalog}
+                    onRegenerated={handleAttendanceRegenerated}
                 />
             )}
         </div>

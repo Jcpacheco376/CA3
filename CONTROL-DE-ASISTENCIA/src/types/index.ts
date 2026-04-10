@@ -23,7 +23,8 @@ export type View =
     'report_attendance_list' |
     'payroll_closing' |
     'admin_calendar_events' |
-    'vacations';
+    'vacations' |
+    'admin_procesos';
 
 
 export type DayOfWeek = 'Lunes' | 'Martes' | 'Miércoles' | 'Jueves' | 'Viernes' | 'Sábado' | 'Domingo';

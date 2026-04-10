@@ -1,11 +1,15 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_FichasAsistencia_GetDataByRange]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.5.22
--- Compilado:           02/04/2026, 14:20:17
+-- Versión de Paquete:  v1.6.12
+-- Compilado:           07/04/2026, 11:26:15
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
+SET ANSI_NULLS ON;
+GO
+SET QUOTED_IDENTIFIER ON;
+GO
 CREATE OR ALTER PROCEDURE [dbo].[sp_FichasAsistencia_GetDataByRange]
     @UsuarioId INT,
     @FechaInicio DATE,
@@ -113,7 +117,10 @@ BEGIN
                     WHEN ISNULL(estMan.TipoCalculoId, estChec.TipoCalculoId) = 'RETARDO'     THEN 'R'
                     WHEN ISNULL(estMan.TipoCalculoId, estChec.TipoCalculoId) = 'ASISTENCIA'  THEN 'A'
                     WHEN ISNULL(estMan.TipoCalculoId, estChec.TipoCalculoId) = 'SIN_HORARIO' THEN 'S'
-                    WHEN ISNULL(estMan.TipoCalculoId, estChec.TipoCalculoId) = 'INCOMPLETA'  THEN 'I' -- Opcional si usas I
+                    WHEN ISNULL(estMan.TipoCalculoId, estChec.TipoCalculoId) = 'INCOMPLETA'  THEN 'I'
+                    WHEN ISNULL(estMan.TipoCalculoId, estChec.TipoCalculoId) = 'VACACIONES'   THEN 'V'
+                    WHEN ISNULL(estMan.TipoCalculoId, estChec.TipoCalculoId) = 'DESCANSO_LABORADO' THEN 'L'
+                    WHEN ISNULL(estMan.TipoCalculoId, estChec.TipoCalculoId) = 'SALIDA_ANTICIPADA' THEN 'S'
                     ELSE 'O'
                 END as Clasificacion,
 

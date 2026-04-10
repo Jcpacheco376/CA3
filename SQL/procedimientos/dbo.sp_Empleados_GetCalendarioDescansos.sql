@@ -1,21 +1,15 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Empleados_GetCalendarioDescansos]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.5.22
--- Compilado:           02/04/2026, 14:20:17
+-- Versión de Paquete:  v1.6.12
+-- Compilado:           07/04/2026, 11:26:15
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
--- â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
--- Stored Procedure: [dbo].[sp_Empleados_GetCalendarioDescansos]
--- Base de Datos:       CA
--- Sistema:             CA3 Control de Asistencia
--- â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
--- Wrapper sobre fn_Empleados_GetCalendarioDias, devuelve solo los dÃ­as
--- que NO son laborales (descanso, feriado, sin horario).
--- Usado por el API endpoint GET /employees/:id/calendar-schedule
--- â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-
+SET ANSI_NULLS ON;
+GO
+SET QUOTED_IDENTIFIER ON;
+GO
 CREATE OR ALTER PROCEDURE [dbo].[sp_Empleados_GetCalendarioDescansos]
     @EmpleadoId  INT,
     @FechaInicio DATE,

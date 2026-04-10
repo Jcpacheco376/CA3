@@ -26,6 +26,8 @@ interface AuditTimelineModalProps {
     onClose: () => void;
     getToken: () => string | null;
     statusCatalog?: any[]; // Prop crucial para no harcodear nombres
+    /** Callback opcional que se invoca al terminar una regeneración exitosa */
+    onRegenerated?: (employeeId: number, startDate: Date, endDate: Date) => void;
 }
 
 const getColorClasses = (colorName: string = 'slate') => {
@@ -48,7 +50,7 @@ const timeToPercent = (timeStr: string, addMinutes: number = 0) => {
 };
 
 export const AuditTimelineModal: React.FC<AuditTimelineModalProps> = ({
-    employeeId, employeeName, employeeFicha, startDate, endDate, onClose, getToken, statusCatalog = []
+    employeeId, employeeName, employeeFicha, startDate, endDate, onClose, getToken, statusCatalog = [], onRegenerated
 }) => {
     const { can } = useAuth();
     const [isLoading, setIsLoading] = useState(true);
@@ -59,7 +61,8 @@ export const AuditTimelineModal: React.FC<AuditTimelineModalProps> = ({
     const [calendarEvents, setCalendarEvents] = useState<any[]>([]);
     const [activeChecadaId, setActiveChecadaId] = useState<number | null>(null);
     const [isRegenerating, setIsRegenerating] = useState(false);
-    const [confirmRegenerate, setConfirmRegenerate] = useState<{ isOpen: boolean; date?: string }>({ isOpen: false });
+    // date: día específico a regenerar (si aplica); manualDays: fechas con ajuste manual que se perderán
+    const [confirmRegenerate, setConfirmRegenerate] = useState<{ isOpen: boolean; date?: string; manualDays?: string[] }>({ isOpen: false });
 
     const { addNotification } = useNotification();
 
@@ -111,7 +114,32 @@ export const AuditTimelineModal: React.FC<AuditTimelineModalProps> = ({
         fetchData();
     }, [fetchData]);
 
-    const handleRegenerate = async (specificDateStr?: string) => {
+    /**
+     * Determina qué días dentro del rango a regenerar tienen ajuste manual
+     * (EstatusManualAbrev con valor), para advertir al usuario antes de continuar.
+     */
+    const getManualDaysInRange = (specificDateStr?: string): string[] => {
+        return fichas
+            .filter(f => {
+                if (!f.EstatusManualAbrev) return false;
+                const fichaDate = f.Fecha?.substring(0, 10);
+                if (!fichaDate) return false;
+                if (specificDateStr) return fichaDate === specificDateStr;
+                // Rango completo: comparar contra startDate..endDate
+                return fichaDate >= format(startDate, 'yyyy-MM-dd') && fichaDate <= format(endDate, 'yyyy-MM-dd');
+            })
+            .map(f => f.Fecha.substring(0, 10));
+    };
+
+    /** Paso 1: El usuario pide regenerar — detectar manuales y pedir confirmación */
+    const requestRegenerate = (specificDateStr?: string) => {
+        const manualDays = getManualDaysInRange(specificDateStr);
+        setConfirmRegenerate({ isOpen: true, date: specificDateStr, manualDays });
+    };
+
+    /** Paso 2: El usuario confirma — limpiar manuales si los hay, luego regenerar */
+    const handleRegenerate = async () => {
+        const { date: specificDateStr, manualDays = [] } = confirmRegenerate;
         const token = getToken();
         if (!token) return;
 
@@ -119,10 +147,34 @@ export const AuditTimelineModal: React.FC<AuditTimelineModalProps> = ({
         setConfirmRegenerate({ isOpen: false });
 
         try {
+            // --- PASO A: Limpiar ajustes manuales si los hay ---
+            // Usamos el endpoint /attendance (sp_FichasAsistencia_SaveManual) con estatusManual=null
+            // para dejar la ficha en estado BORRADOR antes de regenerar.
+            if (manualDays.length > 0) {
+                const clearRequests = manualDays.map(dateStr =>
+                    fetch(`${API_BASE_URL}/attendance`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            empleadoId: employeeId,
+                            fecha: dateStr,
+                            estatusManual: null,  // null = limpiar / volver a BORRADOR
+                            comentarios: null
+                        })
+                    })
+                );
+                const clearResults = await Promise.all(clearRequests);
+                const failedClears = clearResults.filter(r => !r.ok);
+                if (failedClears.length > 0) {
+                    throw new Error(`No se pudieron limpiar ${failedClears.length} ajuste(s) manual(es) antes de regenerar.`);
+                }
+            }
+
+            // --- PASO B: Ejecutar la regeneración ---
             const payload = {
                 empleadoId: employeeId,
-                startDate: specificDateStr ? specificDateStr : format(startDate, 'yyyy-MM-dd'),
-                endDate: specificDateStr ? specificDateStr : format(endDate, 'yyyy-MM-dd')
+                startDate: specificDateStr ?? format(startDate, 'yyyy-MM-dd'),
+                endDate: specificDateStr ?? format(endDate, 'yyyy-MM-dd')
             };
 
             const res = await fetch(`${API_BASE_URL}/attendance/regenerate`, {
@@ -136,11 +188,18 @@ export const AuditTimelineModal: React.FC<AuditTimelineModalProps> = ({
 
             addNotification(
                 'Regeneración exitosa',
-                `Se han reprocesado las fichas de asistencia correctamente${specificDateStr ? ` para el día ${specificDateStr}` : ' para el periodo completo'}.`,
+                `Se han reprocesado las fichas de asistencia correctamente${specificDateStr ? ` para el día ${specificDateStr}` : ' para el periodo completo'}${manualDays.length > 0 ? ` (${manualDays.length} ajuste(s) manual(es) limpiado(s))` : ''}.`,
                 'success'
             );
 
-            await fetchData(); // Recargar datos al finalizar
+            await fetchData(); // Recargar datos internos del modal
+
+            // Notificar a la pantalla padre para que actualice sus fichas
+            if (onRegenerated) {
+                const rStart = specificDateStr ? new Date(`${specificDateStr}T00:00:00`) : startDate;
+                const rEnd = specificDateStr ? new Date(`${specificDateStr}T00:00:00`) : endDate;
+                onRegenerated(employeeId, rStart, rEnd);
+            }
         } catch (err: any) {
             addNotification('Error al regenerar', err.message || 'Ocurrió un error en el servidor', 'error');
         } finally {
@@ -226,7 +285,7 @@ export const AuditTimelineModal: React.FC<AuditTimelineModalProps> = ({
                     {can('asistencia.regenerar') && (
                         <Tooltip text="Regenerar todas las fichas visibles evaluando las checadas originales" placement="bottom" offset={8} triggerClassName="hidden sm:block">
                             <button
-                                onClick={() => setConfirmRegenerate({ isOpen: true })}
+                                onClick={() => requestRegenerate()}
                                 disabled={isRegenerating || isLoading}
                                 className="flex flex-row items-center gap-2 px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-amber-600 bg-slate-100 hover:bg-amber-50 border border-slate-200 hover:border-amber-300 rounded-lg transition-all shadow-sm group"
                             >
@@ -248,9 +307,9 @@ export const AuditTimelineModal: React.FC<AuditTimelineModalProps> = ({
             <ConfirmationModal
                 isOpen={confirmRegenerate.isOpen}
                 onClose={() => setConfirmRegenerate({ isOpen: false })}
-                onConfirm={() => handleRegenerate(confirmRegenerate.date)}
+                onConfirm={handleRegenerate}
                 title={confirmRegenerate.date ? "Recalcular Día" : "Recalcular Periodo"}
-                variant="info"
+                variant={(confirmRegenerate.manualDays?.length ?? 0) > 0 ? 'warning' : 'info'}
                 confirmText={isRegenerating ? "Procesando..." : "Sí, recalcular"}
                 cancelText="Cancelar"
             >
@@ -258,9 +317,28 @@ export const AuditTimelineModal: React.FC<AuditTimelineModalProps> = ({
                     <p className="font-medium text-slate-800">
                         ¿Deseas recalcular la asistencia {confirmRegenerate.date ? `del día ${confirmRegenerate.date}` : 'del periodo actual'}?
                     </p>
-                    <p className="text-xs text-slate-600">
-                        Esta acción volverá a evaluar las checadas contra el horario asignado. Las aprobaciones manuales no se verán afectadas.
-                    </p>
+                    {(confirmRegenerate.manualDays?.length ?? 0) > 0 ? (
+                        <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
+                            <AlertTriangle size={16} className="text-amber-500 shrink-0 mt-0.5" />
+                            <div className="text-xs text-amber-800 space-y-1">
+                                <p className="font-bold">
+                                    {confirmRegenerate.date
+                                        ? 'Este día tiene un ajuste manual que se eliminará antes de regenerar.'
+                                        : `${confirmRegenerate.manualDays!.length} día(s) tienen ajustes manuales que se eliminarán antes de regenerar:`}
+                                </p>
+                                {!confirmRegenerate.date && (
+                                    <ul className="list-disc list-inside space-y-0.5 font-mono">
+                                        {confirmRegenerate.manualDays!.map(d => <li key={d}>{d}</li>)}
+                                    </ul>
+                                )}
+                                <p>La asistencia quedará en estado <strong>Borrador</strong> y el sistema volverá a evaluarla desde las checadas originales.</p>
+                            </div>
+                        </div>
+                    ) : (
+                        <p className="text-xs text-slate-600">
+                            Esta acción volverá a evaluar las checadas contra el horario asignado.
+                        </p>
+                    )}
                 </div>
             </ConfirmationModal>
 
@@ -315,7 +393,7 @@ export const AuditTimelineModal: React.FC<AuditTimelineModalProps> = ({
                                                     <div className="absolute left-2 top-1/2 -translate-y-1/2 p-0 m-0 z-30 opacity-0 group-hover/header:opacity-100 transition-all">
                                                         <Tooltip text={`Regenerar ficha del ${format(date, 'dd MMM', { locale: es })}`} placement="top" offset={6}>
                                                             <button
-                                                                onClick={() => setConfirmRegenerate({ isOpen: true, date: dateStr })}
+                                                                onClick={() => requestRegenerate(dateStr)}
                                                                 disabled={isRegenerating || isLoading}
                                                                 className="flex items-center justify-center p-1.5 text-amber-500 bg-white hover:text-amber-600 border border-slate-200 hover:border-amber-300 hover:bg-amber-50 rounded-md shadow-sm transition-all"
                                                             >

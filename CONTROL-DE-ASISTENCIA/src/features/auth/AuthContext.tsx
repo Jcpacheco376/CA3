@@ -6,7 +6,7 @@ import { useNotification } from '../../context/NotificationContext';
 import { isPermissionAllowed } from '../../utils/editions';
 
 const SESSION_STORAGE_KEY = 'app_session';
-export const APP_DATA_VERSION = '1.5.23';
+export const APP_DATA_VERSION = '1.6.13';
 
 // --- NUEVO: Constantes para limpieza inteligente ---
 const LAST_USER_KEY = 'app_last_logged_user';

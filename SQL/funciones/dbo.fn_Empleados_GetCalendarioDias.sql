@@ -1,25 +1,15 @@
 -- ──────────────────────────────────────────────────────────────────────
--- Función Tabla: [dbo].[fn_Empleados_GetCalendarioDias]
+-- Tabla: [dbo].[fn_Empleados_GetCalendarioDias]
 -- Base de Datos:       CA
+-- Versión de Paquete:  v1.6.12
+-- Compilado:           07/04/2026, 11:26:15
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
--- Fuente de verdad absoluta para determinar el tipo de cada día
--- (LABORAL, DESCANSO, FERIADO, SIN_HORARIO) para un empleado en un rango.
---
--- Usa EXACTAMENTE la misma lógica de resolución de horarios que
--- sp_FichasAsistencia_ProcesarChecadas (la referencia canónica):
---   1. HorariosTemporales tiene prioridad absoluta
---      - TipoAsignacion = 'D' → descanso explícito
---      - TipoAsignacion = 'H' → usa HorarioId con DiaSemana (no rotativo) o HorarioDetalleId (rotativo)
---      - TipoAsignacion = 'T' → usa HorarioDetalleId directo (turno específico)
---   2. Si no hay temporal → horario base del empleado
---      - Si no tiene base o es rotativo → SIN_HORARIO
---   3. EventosCalendario (DIA_FERIADO) → sobreescribe LABORAL a FERIADO
---
--- Se puede usar directamente en cualquier consulta:
---   SELECT * FROM dbo.fn_Empleados_GetCalendarioDias(445, '2026-04-01', '2026-04-30')
--- ──────────────────────────────────────────────────────────────────────
 
+SET ANSI_NULLS ON;
+GO
+SET QUOTED_IDENTIFIER ON;
+GO
 CREATE OR ALTER FUNCTION [dbo].[fn_Empleados_GetCalendarioDias]
 (
     @EmpleadoId  INT,
@@ -34,11 +24,11 @@ RETURNS @Result TABLE
 )
 AS
 BEGIN
-    -- NOTA: No se puede usar SET DATEFIRST dentro de una función.
-    -- Usamos fórmula determinista: ((DATEPART(dw, @Fecha) + @@DATEFIRST - 2) % 7) + 1
+    -- NOTA: No se puede usar SET DATEFIRST dentro de una funciÃ³n.
+    -- Usamos fÃ³rmula determinista: ((DATEPART(dw, @Fecha) + @@DATEFIRST - 2) % 7) + 1
     -- Esto siempre da 1=Lun ... 7=Dom sin importar DATEFIRST del servidor.
 
-    -- ── 1. Datos del empleado ──────────────────────────────────────────
+    -- â”€â”€ 1. Datos del empleado â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     DECLARE @HorarioBaseId  INT;
     DECLARE @BaseEsRotativo BIT;
 
@@ -49,7 +39,7 @@ BEGIN
     LEFT JOIN dbo.CatalogoHorarios h ON h.HorarioId = e.HorarioIdPredeterminado
     WHERE e.EmpleadoId = @EmpleadoId;
 
-    -- ── 2. Iteración día a día ─────────────────────────────────────────
+    -- â”€â”€ 2. IteraciÃ³n dÃ­a a dÃ­a â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
     DECLARE @FechaActual    DATE = @FechaInicio;
     DECLARE @ConvDiaSemana  INT;      -- 1=Lun ... 7=Dom (determinista)
     DECLARE @HorarioIdDia   INT;
@@ -71,7 +61,7 @@ BEGIN
         SET @TipoDiaFinal   = NULL;
         SET @OrigenFinal    = 'NINGUNO';
 
-        -- ── 2a. Buscar en HorariosTemporales (prioridad máxima) ────────
+        -- â”€â”€ 2a. Buscar en HorariosTemporales (prioridad mÃ¡xima) â”€â”€â”€â”€â”€â”€â”€â”€
         SELECT TOP 1
             @HorarioIdDia   = ht.HorarioId,
             @HorarioDetId   = ht.HorarioDetalleId,
@@ -82,13 +72,13 @@ BEGIN
 
         IF @TipoAsignacion IS NOT NULL
         BEGIN
-            -- ── 'D' = Descanso explícito ───────────────────────────────
+            -- â”€â”€ 'D' = Descanso explÃ­cito â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             IF @TipoAsignacion = 'D'
             BEGIN
                 SET @TipoDiaFinal = 'DESCANSO';
                 SET @OrigenFinal  = 'TEMPORAL_D';
             END
-            -- ── 'T' = Turno específico (usa HorarioDetalleId directo) ──
+            -- â”€â”€ 'T' = Turno especÃ­fico (usa HorarioDetalleId directo) â”€â”€
             ELSE IF @TipoAsignacion = 'T' AND @HorarioDetId IS NOT NULL
             BEGIN
                 SET @OrigenFinal = 'TEMPORAL_T';
@@ -100,7 +90,7 @@ BEGIN
                 IF @EsDiaLaboral IS NULL SET @EsDiaLaboral = 1;
                 SET @TipoDiaFinal = CASE WHEN @EsDiaLaboral = 1 THEN 'LABORAL' ELSE 'DESCANSO' END;
             END
-            -- ── 'H' = Horario completo asignado ────────────────────────
+            -- â”€â”€ 'H' = Horario completo asignado â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             ELSE IF @TipoAsignacion = 'H' AND @HorarioIdDia IS NOT NULL
             BEGIN
                 SET @OrigenFinal = 'TEMPORAL_H';
@@ -111,7 +101,7 @@ BEGIN
 
                 IF @EsRotativoDia = 1
                 BEGIN
-                    -- Rotativo con HorarioDetalleId → buscar el detalle exacto
+                    -- Rotativo con HorarioDetalleId â†’ buscar el detalle exacto
                     IF @HorarioDetId IS NOT NULL
                     BEGIN
                         SELECT @EsDiaLaboral = hd.EsDiaLaboral
@@ -123,13 +113,13 @@ BEGIN
                     END
                     ELSE
                     BEGIN
-                        -- Rotativo SIN detalle puntual → no sabemos
+                        -- Rotativo SIN detalle puntual â†’ no sabemos
                         SET @TipoDiaFinal = 'SIN_HORARIO';
                     END
                 END
                 ELSE
                 BEGIN
-                    -- No rotativo → buscar por DiaSemana en su detalle
+                    -- No rotativo â†’ buscar por DiaSemana en su detalle
                     SELECT TOP 1 @EsDiaLaboral = hd.EsDiaLaboral
                     FROM dbo.CatalogoHorariosDetalle hd
                     WHERE hd.HorarioId = @HorarioIdDia
@@ -141,13 +131,13 @@ BEGIN
             END
             ELSE
             BEGIN
-                -- TipoAsignacion presente pero sin datos válidos
+                -- TipoAsignacion presente pero sin datos vÃ¡lidos
                 SET @TipoDiaFinal = 'SIN_HORARIO';
             END
         END
         ELSE
         BEGIN
-            -- ── 2b. Sin horario temporal → usar horario base ───────────
+            -- â”€â”€ 2b. Sin horario temporal â†’ usar horario base â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             IF @HorarioBaseId IS NULL OR @BaseEsRotativo = 1
             BEGIN
                 SET @TipoDiaFinal = 'SIN_HORARIO';
@@ -166,7 +156,7 @@ BEGIN
             END
         END
 
-        -- ── 3. Feriado (solo sobreescribe día LABORAL) ─────────────────
+        -- â”€â”€ 3. Feriado (solo sobreescribe dÃ­a LABORAL) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         IF @TipoDiaFinal = 'LABORAL'
         BEGIN
             IF EXISTS (
@@ -180,7 +170,7 @@ BEGIN
             END
         END
 
-        -- ── 4. Insertar resultado ──────────────────────────────────────
+        -- â”€â”€ 4. Insertar resultado â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         INSERT INTO @Result (Fecha, TipoDia, OrigenHorario)
         VALUES (@FechaActual, @TipoDiaFinal, @OrigenFinal);
 

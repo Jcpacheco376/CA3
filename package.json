@@ -15,7 +15,11 @@
     "deploy:installer": "node scripts/export-sql.js && node scripts/extract-seeds.js && node scripts/increment-version.js && npm run build:all && node scripts/packager.js",
     "deploy:installer:exe": "node scripts/export-sql.js && node scripts/extract-seeds.js && node scripts/increment-version.js && npm run build:all && node scripts/packager.js --exe",
     "deploy:prod": "echo 'Despliegue a producción (Render) se maneja automáticamente al hacer push a la rama main.'",
-    "build:all": "npm run build --workspaces"
+    "build:all": "npm run build --workspaces",
+    "deploy:full": "npm run deploy:installer:exe -- --edition=FULL",
+    "deploy:lame": "npm run deploy:installer:exe -- --edition=LAME",
+    "deploy:full:zip": "npm run deploy:installer -- --edition=FULL",
+    "deploy:lame:zip": "npm run deploy:installer -- --edition=LAME"
   },
   "devDependencies": {
     "@types/node-cron": "^3.0.11",

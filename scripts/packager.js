@@ -27,7 +27,8 @@ try {
 }
 
 // ── Configuración ────────────────────────────────────────────────────────
-const OUTPUT_DIR = path.join(__dirname, '../release');
+const BASE_OUTPUT_DIR = path.join(__dirname, '../release');
+const OUTPUT_DIR = APP_EDITION_BUILD === 'FULL' ? BASE_OUTPUT_DIR : path.join(BASE_OUTPUT_DIR, APP_EDITION_BUILD);
 const fileNamePrefix = IS_EXE_MODE ? 'Instalador_Asistencia_EXE_v' : 'Instalador_Asistencia_v';
 const OUTPUT_FILE = path.join(OUTPUT_DIR, `${fileNamePrefix}${appVersion}.zip`);
 const FRONT_DIST = path.join(FRONTEND_WS, 'dist');
@@ -35,16 +36,34 @@ const BACK_DIST = path.join(BACKEND_WS, 'dist');
 
 console.log(`\n📦 deploy:installer [MODO: ${IS_EXE_MODE ? 'EXE/PRO' : 'SCRIPT/OPEN'}] — Generando paquete v${appVersion}...\n`);
 
+function isOlder(a, b) {
+    const pa = a.split('.').map(Number);
+    const pb = b.split('.').map(Number);
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+        const na = pa[i] || 0;
+        const nb = pb[i] || 0;
+        if (na < nb) return true;
+        if (na > nb) return false;
+    }
+    return false;
+}
+
 // 1. Limpiar Release y Binarios de trabajo para evitar duplicados
 if (!fs.existsSync(OUTPUT_DIR)) {
-    fs.mkdirSync(OUTPUT_DIR);
+    fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 } else {
     const files = fs.readdirSync(OUTPUT_DIR);
+    const currentParts = appVersion.split('.');
     for (const file of files) {
         if (file.startsWith(fileNamePrefix) && file.endsWith('.zip')) {
             const fileVerStr = file.replace(fileNamePrefix, '').replace('.zip', '');
-            if (fileVerStr < appVersion) {
-                console.log(`🧹 Eliminando versión anterior obsoleta: ${file}`);
+            const fileParts = fileVerStr.split('.');
+
+            // Solo eliminar si pertenecen al mismo segmento (Mayor.Menor)
+            const sameSegment = currentParts[0] === fileParts[0] && currentParts[1] === fileParts[1];
+
+            if (sameSegment && isOlder(fileVerStr, appVersion)) {
+                console.log(`🧹 Eliminando versión anterior del mismo segmento: ${file}`);
                 fs.unlinkSync(path.join(OUTPUT_DIR, file));
             }
         }
@@ -121,9 +140,12 @@ if (IS_EXE_MODE) {
     archive.file(path.join(BACKEND_WS, 'package.json'), { name: 'app/api-asistencia/package.json' });
 }
 
-// ── C. Scripts SQL ───────────────────────────────────────────────────────
+// ── C. Scripts SQL y Semillas ───────────────────────────────────────────
 const sqlDir = path.join(REPO_ROOT, 'SQL');
 if (fs.existsSync(sqlDir)) archive.directory(sqlDir, 'database/sql');
+
+const seedsDir = path.join(REPO_ROOT, 'installer/database/seeds');
+if (fs.existsSync(seedsDir)) archive.directory(seedsDir, 'database/seeds');
 
 // ── D. Wizard de instalación ─────────────────────────────────────────────
 if (IS_EXE_MODE) {

@@ -1,18 +1,15 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Vacaciones_GenerarSaldosBase]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.5.22
--- Compilado:           02/04/2026, 14:20:17
+-- Versión de Paquete:  v1.6.12
+-- Compilado:           07/04/2026, 11:26:15
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
--- ──────────────────────────────────────────────────────────────────────
--- Stored Procedure: [dbo].[sp_Vacaciones_GenerarSaldosBase]
--- Base de Datos:       CA
--- Versión de Paquete:  v1.5.20
--- Compilado:           25/03/2026, 11:52:51
--- Sistema:             CA3 Control de Asistencia
--- ──────────────────────────────────────────────────────────────────────
+SET ANSI_NULLS ON;
+GO
+SET QUOTED_IDENTIFIER ON;
+GO
 CREATE OR ALTER PROCEDURE sp_Vacaciones_GenerarSaldosBase
                 @AnioActual INT,
                 @EmpleadoId INT = NULL
@@ -23,15 +20,17 @@ CREATE OR ALTER PROCEDURE sp_Vacaciones_GenerarSaldosBase
                 -- DiasOtorgados se calcula usando fn_Vacaciones_GetDiasOtorgados con la FechaFinPeriodo
                 -- del aniversario correspondiente. La FechaFinPeriodo es siempre un día antes del
                 -- siguiente aniversario: DATEADD(DAY, -1, DATEADD(YEAR, @AnioActual, FechaIngreso))
-                INSERT INTO VacacionesSaldos (EmpleadoId, Anio, DiasOtorgados, DiasDisfrutados)
+                INSERT INTO VacacionesSaldos (EmpleadoId, Anio, DiasOtorgados, DiasDisfrutados, FechaInicioPeriodo, FechaFinPeriodo)
                 SELECT 
                     e.EmpleadoId, 
                     @AnioActual, 
                     dbo.fn_Vacaciones_GetDiasOtorgados(
-                        DATEADD(DAY, -1, DATEADD(YEAR, @AnioActual, e.FechaIngreso)), -- FechaFinPeriodo
-                        @AnioActual                                                     -- AnioAntiguedad
+                        DATEADD(DAY, -1, DATEADD(YEAR, @AnioActual, e.FechaIngreso)),
+                        @AnioActual
                     ),
-                    0
+                    0,
+                    DATEADD(YEAR, @AnioActual - 1, e.FechaIngreso),
+                    DATEADD(DAY, -1, DATEADD(YEAR, @AnioActual, e.FechaIngreso))
                 FROM Empleados e
                 WHERE e.Activo = 1 
                   AND (@EmpleadoId IS NULL OR e.EmpleadoId = @EmpleadoId)

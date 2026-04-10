@@ -340,5 +340,17 @@
     "NombrePermiso": "asistencia.regenerar",
     "Descripcion": "Capacidad de regenerar fichas de asistencia desde la auditoria",
     "Activo": true
+  },
+  {
+    "PermisoId": 58,
+    "NombrePermiso": "procesos.read",
+    "Descripcion": "Configuración de procesos automáticos",
+    "Activo": true
+  },
+  {
+    "PermisoId": 59,
+    "NombrePermiso": "procesos.manage",
+    "Descripcion": "Ejecutar y modificar procesos automáticos",
+    "Activo": true
   }
 ]

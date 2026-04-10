@@ -27,6 +27,7 @@ const REPO_ROOT = path.join(__dirname, '..');
 const SQL_DIR = path.join(REPO_ROOT, 'SQL');
 const PROCS_DIR = path.join(SQL_DIR, 'procedimientos');
 const TABLES_DIR = path.join(SQL_DIR, 'tablas');
+const FUNCTIONS_DIR = path.join(SQL_DIR, 'funciones');
 
 const DRY_RUN = process.argv.includes('--dry-run');
 
@@ -106,6 +107,56 @@ function buildHeader({ type, name, schema, databaseName, version, exportedAt }) 
     ].join('\n');
 }
 
+// ── Exportar Funciones ────────────────────────────────────────────────────
+async function exportFunctions(pool, cfg, meta) {
+    const res = await pool.request().query(`
+    SELECT
+      s.name          AS SchemaName,
+      o.name          AS FuncName,
+      m.definition    AS Definition
+    FROM sys.objects o
+    JOIN sys.schemas s ON s.schema_id = o.schema_id
+    JOIN sys.sql_modules m ON m.object_id = o.object_id
+    WHERE o.type IN ('FN', 'IF', 'TF', 'FS', 'FT') -- FN = Escalar, IF = Tabla en línea, TF = Tabla multivalor
+      AND o.is_ms_shipped = 0
+    ORDER BY s.name, o.name
+  `);
+
+    const funcs = res.recordset;
+    let exported = 0;
+
+    if (!DRY_RUN) {
+        fs.mkdirSync(FUNCTIONS_DIR, { recursive: true });
+    }
+
+    for (const func of funcs) {
+        const fullName = `${func.SchemaName}.${func.FuncName}`;
+
+        const header = buildHeader({
+            type: 'function',
+            name: func.FuncName,
+            schema: func.SchemaName,
+            databaseName: cfg.DEV_DB_DATABASE,
+            version: meta.version,
+            exportedAt: meta.exportedAt,
+        });
+
+        // Forzar CREATE OR ALTER
+        const definition = header + '\nSET ANSI_NULLS ON;\nGO\nSET QUOTED_IDENTIFIER ON;\nGO\n' + forceCreateOrAlter(normalizeSQL(func.Definition));
+
+        const fileName = `${func.SchemaName}.${func.FuncName}.sql`;
+        const filePath = path.join(FUNCTIONS_DIR, fileName);
+
+        if (!DRY_RUN) {
+            fs.writeFileSync(filePath, definition, 'utf8');
+        }
+        console.log(`  ✅ Función exportada: ${fullName}`);
+        exported++;
+    }
+
+    return { exported, total: funcs.length };
+}
+
 // ── Limpiar definición del objeto (normalizar GO) ─────────────────────────
 function normalizeSQL(definition) {
     // Asegurar que termina con GO
@@ -157,7 +208,7 @@ async function exportProcedures(pool, cfg, meta) {
         });
 
         // Forzar CREATE OR ALTER para que sea idempotente
-        const definition = header + '\n' + forceCreateOrAlter(normalizeSQL(proc.Definition));
+        const definition = header + '\nSET ANSI_NULLS ON;\nGO\nSET QUOTED_IDENTIFIER ON;\nGO\n' + forceCreateOrAlter(normalizeSQL(proc.Definition));
 
         const fileName = `${proc.SchemaName}.${proc.ProcName}.sql`;
         const filePath = path.join(PROCS_DIR, fileName);
@@ -309,7 +360,10 @@ function forceCreateOrAlter(sqlText) {
     return sqlText
         .replace(/\bCREATE\s+OR\s+ALTER\s+PROC(EDURE)?\b/gi, 'CREATE OR ALTER PROCEDURE')
         .replace(/\bALTER\s+PROC(EDURE)?\b/gi, 'CREATE OR ALTER PROCEDURE')
-        .replace(/\bCREATE\s+PROC(EDURE)?\b/gi, 'CREATE OR ALTER PROCEDURE');
+        .replace(/\bCREATE\s+PROC(EDURE)?\b/gi, 'CREATE OR ALTER PROCEDURE')
+        .replace(/\bCREATE\s+OR\s+ALTER\s+FUNCTION\b/gi, 'CREATE OR ALTER FUNCTION')
+        .replace(/\bALTER\s+FUNCTION\b/gi, 'CREATE OR ALTER FUNCTION')
+        .replace(/\bCREATE\s+FUNCTION\b/gi, 'CREATE OR ALTER FUNCTION');
 }
 
 function loadExclusions() {
@@ -367,12 +421,17 @@ async function main() {
         const tblResult = await exportTables(pool, cfg, meta);
         console.log(`   → ${tblResult.exported} exportadas (de ${tblResult.total} total)\n`);
 
+        console.log('ƒ  Exportando funciones...');
+        const funcResult = await exportFunctions(pool, cfg, meta);
+        console.log(`   → ${funcResult.exported} exportadas (de ${funcResult.total} total)\n`);
+
         await pool.close();
 
         if (!DRY_RUN) {
             console.log('✅ Exportación completa.');
             console.log(`   SPs   → ${PROCS_DIR}`);
             console.log(`   Tablas → ${TABLES_DIR}`);
+            console.log(`   Funcs → ${FUNCTIONS_DIR}`);
         }
         console.log('');
     } catch (err) {

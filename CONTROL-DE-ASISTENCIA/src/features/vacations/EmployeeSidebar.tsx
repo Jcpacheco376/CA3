@@ -71,12 +71,15 @@ export const EmployeeSidebar: React.FC<EmployeeSidebarProps> = ({
                                                 {emp.NombreCompleto}
                                             </div>
                                             <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                                <button
+                                                <div
+                                                    role="button"
+                                                    tabIndex={0}
                                                     onClick={(e) => { e.stopPropagation(); onViewProfile(emp.EmpleadoId); }}
+                                                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); onViewProfile(emp.EmpleadoId); } }}
                                                     className="p-1 rounded-md text-slate-400 hover:text-[--theme-600] hover:bg-[--theme-50] cursor-pointer block transition-colors"
                                                 >
                                                     <Contact size={14} />
-                                                </button>
+                                                </div>
                                             </div>
                                         </div>
                                         {(() => {

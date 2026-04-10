@@ -77,6 +77,7 @@ async function analyzeDatabase(cfg, baseDir) {
     const dbDir = path.join(pkgRoot, 'database', 'sql');
     const tablasDir = path.join(dbDir, 'tablas');
     const procsDir = path.join(dbDir, 'procedimientos');
+    const funcDir = path.join(dbDir, 'funciones');
     const exclusions = loadExclusions(pkgRoot);
 
     let pool;
@@ -153,6 +154,20 @@ async function analyzeDatabase(cfg, baseDir) {
             }
         }
 
+        // ── Cargar todas las funciones del paquete ────────────────────────────
+        const functionsToApply = [];
+        if (fs.existsSync(funcDir)) {
+            const funcFiles = fs.readdirSync(funcDir).filter(f => f.endsWith('.sql'));
+            for (const file of funcFiles) {
+                const parts = file.replace('.sql', '').split('.');
+                const schemaName = parts[0] || 'dbo';
+                const funcName = parts.slice(1).join('.');
+                const fullName = `${schemaName}.${funcName}`;
+                const sqlContent = fs.readFileSync(path.join(funcDir, file), 'utf8');
+                functionsToApply.push({ name: fullName, file, sql: sqlContent, filePath: path.join(funcDir, file) });
+            }
+        }
+
         const isFirstInstall = destTables.size === 0;
 
         // ── Leer versión instalada en BD usando Propiedades Extendidas (Nativo) ──
@@ -197,12 +212,14 @@ async function analyzeDatabase(cfg, baseDir) {
             tablesToCreate,
             columnsToAdd,
             spsToApply,
+            functionsToApply,
             exclusions,
             versionInfo,
             summary: {
                 tablas: tablesToCreate.length,
                 columnas: columnsToAdd.length,
                 procedimientos: spsToApply.length,
+                funciones: functionsToApply.length,
                 excluidos: exclusions.length,
                 versionInstalada: installedVersion,
                 versionPaquete: pkgVersion,

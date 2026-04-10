@@ -5,7 +5,7 @@ import path from 'path';
 import fs from 'fs';
 import { PORT, LOCAL_IP, ALLOWED_ORIGINS } from './config';
 import apiRouter from './api/routes';
-import { startSyncScheduler } from './api/services/sync/SyncScheduler'; // <--- IMPORTAR
+import { jobScheduler } from './api/services/jobs/JobScheduler'; // <--- IMPORTAR ORQUESTADOR DE TAREAS
 
 const app = express();
 
@@ -93,7 +93,8 @@ process.on('unhandledRejection', (reason, promise) => {
     console.error('⚠️ ALERTA: Promesa rechazada no manejada:', reason);
 });
 // =================================================================
-startSyncScheduler();
+// Iniciar orquestador de procesos en segundo plano
+jobScheduler.initialize();
 
 
 app.listen(PORT, '0.0.0.0', () => {

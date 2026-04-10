@@ -7,6 +7,7 @@ import { UsersPage } from '../../features/admin/UsersPage';
 import { RolesPage } from '../../features/admin/RolesPage';
 import { CatalogLayout } from '../../features/admin/CatalogLayout';
 import { CatalogosPage } from '../../features/admin/CatalogosPage';
+import { ProcesosPage } from '../../features/admin/procesos/ProcesosPage';
 import { EmpleadosPage } from '../../features/admin/EmpleadosPage';
 import { CalendarEventsPage } from '../../features/admin/CalendarEventsPage';
 import { UserProfileModal } from '../../features/auth/UserProfileModal';
@@ -14,7 +15,7 @@ import { ProfessionalSidebar } from './ProfessionalSidebar';
 import { AppHeader } from './AppHeader';
 import {
     BarChartBig, Users, Shield, Folder, FileText, CalendarClock, Calendar,
-    AlertTriangle, Lock, LayoutDashboard, Monitor, Palmtree, ChevronsUp
+    AlertTriangle, Lock, LayoutDashboard, Monitor, Palmtree, ChevronsUp, Server
 } from 'lucide-react';
 import { SchedulePage } from '../../features/attendance/SchedulePage';
 import { ReportsHub } from '../../features/reports/ReportsHub';
@@ -60,12 +61,13 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
                 can('calendario.read') && { id: 'admin_calendar_events', label: 'Eventos y Feriados', icon: <Calendar size={20} /> },
             ].filter(Boolean)
         },
-        (can('usuarios.read') || can('roles.manage') || can('catalogo.departamentos.read') || can('catalogo.gruposNomina.read') || can('catalogo.estatusAsistencia.read') || can('catalogo.horarios.read') || can('catalogo.establecimientos.read') || can('catalogo.puestos.read') || can('dispositivos.read')) && {
+        (can('usuarios.read') || can('roles.manage') || can('procesos.read') || can('catalogo.departamentos.read') || can('catalogo.gruposNomina.read') || can('catalogo.estatusAsistencia.read') || can('catalogo.horarios.read') || can('catalogo.establecimientos.read') || can('catalogo.puestos.read') || can('dispositivos.read')) && {
             section: 'Administración',
             items: [
                 can('usuarios.read') && { id: 'admin_users', label: 'Usuarios', icon: <Users size={20} /> },
                 can('roles.manage') && { id: 'admin_roles', label: 'Roles', icon: <Shield size={20} /> },
                 can('dispositivos.read') && { id: 'devices', label: 'Checadores', icon: <Monitor size={20} /> },
+                can('procesos.read') && { id: 'admin_procesos', label: 'Procesos Automáticos', icon: <Server size={20} /> },
                 (can('catalogo.departamentos.read') || can('catalogo.gruposNomina.read') || can('catalogo.estatusAsistencia.read') || can('catalogo.horarios.read') || can('catalogo.establecimientos.read') || can('catalogo.puestos.read')) && { id: 'admin_catalogs', label: 'Catálogos', icon: <Folder size={20} /> }
             ].filter(Boolean)
         },
@@ -100,6 +102,8 @@ export const MainLayout = ({ user, onLogout, activeView, setActiveView, setTheme
             case 'admin_puestos':
             case 'admin_devices':
                 return <CatalogLayout activeView={activeView} setActiveView={setActiveView} />;
+            case 'admin_procesos':
+                return <ProcesosPage />;
             case 'attendance_reports':
                 return <ReportsHub setActiveView={setActiveView} />; // El Hub debe tener sus propios permisos internos para cada tarjeta/link
             case 'report_kardex':

@@ -51,7 +51,7 @@
     "Activo": true,
     "DiasRegistroFuturo": 365,
     "PermiteComentario": false,
-    "TipoCalculoId": "NINGUNO",
+    "TipoCalculoId": "VACACIONES",
     "CodRef": "2",
     "ConceptoNominaId": 2
   },
@@ -135,7 +135,7 @@
     "Activo": true,
     "DiasRegistroFuturo": 0,
     "PermiteComentario": true,
-    "TipoCalculoId": "NINGUNO",
+    "TipoCalculoId": "DESCANSO_LABORADO",
     "CodRef": null,
     "ConceptoNominaId": null
   },
@@ -154,7 +154,7 @@
     "ConceptoNominaId": null
   },
   {
-    "EstatusId": 15,
+    "EstatusId": 12,
     "Abreviatura": "IMSS",
     "Descripcion": "IMSS",
     "ColorUI": "emerald",
@@ -168,7 +168,7 @@
     "ConceptoNominaId": null
   },
   {
-    "EstatusId": 17,
+    "EstatusId": 13,
     "Abreviatura": "PPD",
     "Descripcion": "DEFUNCIÓN",
     "ColorUI": "slate",
@@ -178,6 +178,48 @@
     "DiasRegistroFuturo": 0,
     "PermiteComentario": true,
     "TipoCalculoId": "NINGUNO",
+    "CodRef": null,
+    "ConceptoNominaId": null
+  },
+  {
+    "EstatusId": 14,
+    "Abreviatura": "DF",
+    "Descripcion": "Día Feriado",
+    "ColorUI": "red",
+    "ValorNomina": 0,
+    "VisibleSupervisor": true,
+    "Activo": true,
+    "DiasRegistroFuturo": 0,
+    "PermiteComentario": false,
+    "TipoCalculoId": "DIA_FERIADO",
+    "CodRef": null,
+    "ConceptoNominaId": null
+  },
+  {
+    "EstatusId": 15,
+    "Abreviatura": "FL",
+    "Descripcion": "Feriado Laborado",
+    "ColorUI": "orange",
+    "ValorNomina": 1,
+    "VisibleSupervisor": true,
+    "Activo": true,
+    "DiasRegistroFuturo": 0,
+    "PermiteComentario": true,
+    "TipoCalculoId": "FERIADO_LABORADO",
+    "CodRef": null,
+    "ConceptoNominaId": null
+  },
+  {
+    "EstatusId": 16,
+    "Abreviatura": "SA",
+    "Descripcion": "Salida Anticipada",
+    "ColorUI": "amber",
+    "ValorNomina": 1,
+    "VisibleSupervisor": true,
+    "Activo": true,
+    "DiasRegistroFuturo": 0,
+    "PermiteComentario": true,
+    "TipoCalculoId": "SALIDA_ANTICIPADA",
     "CodRef": null,
     "ConceptoNominaId": null
   }

@@ -11,7 +11,7 @@ export const EDITIONS: { [key: string]: EditionConfig } = {
     BASIC: {
         allowedClassifiers: ['Core']
     },
-    MERA: {
+    LAME: {
         excludedPerms: ['vacaciones.*', 'calendario.*'],
         allowedClassifiers: ['*']
     },

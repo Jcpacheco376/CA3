@@ -317,10 +317,47 @@ export const recalculate = async (req: any, res: Response) => {
     }
     try {
         const pool = await sql.connect(dbConfig);
+
+        // ── PASO 1: Generar periodos de aniversario faltantes ──────────────────
+        // SOLO si el empleado no tiene NINGÚN registro en VacacionesSaldos.
+        // Si ya tiene registros (en cualquier formato de Anio), no tocamos nada
+        // para evitar duplicar datos.
+        const countRes = await pool.request()
+            .input('EmpleadoId', sql.Int, empleadoId)
+            .query('SELECT COUNT(*) AS Total FROM VacacionesSaldos WHERE EmpleadoId = @EmpleadoId');
+
+        const totalRegistros = countRes.recordset[0]?.Total ?? 0;
+
+        if (totalRegistros === 0) {
+            const empRes = await pool.request()
+                .input('EmpleadoId', sql.Int, empleadoId)
+                .query('SELECT FechaIngreso FROM Empleados WHERE EmpleadoId = @EmpleadoId AND Activo = 1');
+
+            if (empRes.recordset.length > 0 && empRes.recordset[0].FechaIngreso) {
+                const fechaIngreso = new Date(empRes.recordset[0].FechaIngreso);
+                const hoy = new Date();
+
+                // Aniversario 1 empieza en FechaIngreso. Aniversario N empieza N-1 años después.
+                // Siempre hay al menos el Aniversario 1 aunque no se haya cumplido aún.
+                const msPerYear = 365.25 * 24 * 60 * 60 * 1000;
+                const aniosTranscurridos = Math.floor((hoy.getTime() - fechaIngreso.getTime()) / msPerYear);
+                const totalAniversarios = aniosTranscurridos + 1;
+
+                for (let anio = 1; anio <= totalAniversarios; anio++) {
+                    await pool.request()
+                        .input('AnioActual', sql.Int, anio)
+                        .input('EmpleadoId', sql.Int, empleadoId)
+                        .execute('sp_Vacaciones_GenerarSaldosBase');
+                }
+            }
+        }
+
+        // ── PASO 2: Recalcular sumatorias desde VacacionesSaldosDetalle ────────
         await pool.request()
             .input('EmpleadoId', sql.Int, empleadoId)
             .execute('sp_Vacaciones_Recalcular');
-        res.json({ message: 'Saldos recalculados correctamente desde VacacionesSaldosDetalle.' });
+
+        res.json({ message: 'Saldos recalculados correctamente.' });
     } catch (err: any) {
         res.status(500).json({ message: err.message || 'Error al recalcular saldos.' });
     }

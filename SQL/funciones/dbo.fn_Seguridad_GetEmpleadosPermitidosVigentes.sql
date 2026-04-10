@@ -1,11 +1,16 @@
 -- ──────────────────────────────────────────────────────────────────────
--- Función: [dbo].[fn_Seguridad_GetEmpleadosPermitidosVigentes]
+-- Tabla: [dbo].[fn_Seguridad_GetEmpleadosPermitidosVigentes]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.5.20
+-- Versión de Paquete:  v1.6.12
+-- Compilado:           07/04/2026, 11:26:15
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
-CREATE FUNCTION [dbo].[fn_Seguridad_GetEmpleadosPermitidosVigentes]
+SET ANSI_NULLS ON;
+GO
+SET QUOTED_IDENTIFIER ON;
+GO
+CREATE OR ALTER FUNCTION [dbo].[fn_Seguridad_GetEmpleadosPermitidosVigentes]
 (
     @UsuarioId INT,
     @FechaInicio DATE = NULL,
@@ -21,9 +26,8 @@ RETURN
             CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroGruposNominaActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT) as FiltroGrupos,
             CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroPuestosActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT) as FiltroPuestos,
             CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroEstablecimientosActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT) as FiltroEstabs
-        FROM dbo.ConfiguracionSistema
+        FROM dbo.SISConfiguracion
     )
-
     SELECT e.EmpleadoId
     FROM dbo.Empleados e
     CROSS JOIN Config c

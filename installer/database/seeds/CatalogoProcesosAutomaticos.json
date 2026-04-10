@@ -1,0 +1,23 @@
+[
+    {
+        "Nombre": "Sincronización de Checadores (Biométricos)",
+        "KeyInterna": "SYNC_CHECADORES",
+        "Descripcion": "Descarga las checadas nuevas desde los relojes biométricos conectados por red.",
+        "CronExpression": "* * * * *",
+        "Activo": 1
+    },
+    {
+        "Nombre": "Generación de Fichas de Asistencia",
+        "KeyInterna": "GENERACION_ASISTENCIA",
+        "Descripcion": "Procesa pre-fichas y evalúa retardos, ausencias u horas extra del día en curso.",
+        "CronExpression": "0 * * * *",
+        "Activo": 1
+    },
+    {
+        "Nombre": "Recálculo de Vacaciones (Aniversarios)",
+        "KeyInterna": "CALCULO_ANIVERSARIOS",
+        "Descripcion": "Otorga días de vacaciones automáticamente a los empleados que cumplen años trabajando.",
+        "CronExpression": "0 2 * * *",
+        "Activo": 1
+    }
+]

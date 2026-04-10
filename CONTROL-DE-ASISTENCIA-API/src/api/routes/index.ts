@@ -14,6 +14,7 @@ import dashboardRoutes from './dashboard.routes';
 import deviceRoutes from './device.routes';
 import calendarEventsRoutes from './calendar-events.routes';
 import vacationRoutes from './vacation.routes';
+import processesRoutes from './processes.routes';
 
 const router = Router();
 
@@ -31,5 +32,6 @@ router.use('/dashboard', dashboardRoutes);
 router.use('/devices', deviceRoutes);
 router.use('/calendar-events', calendarEventsRoutes);
 router.use('/vacations', vacationRoutes);
+router.use('/processes', processesRoutes);
 
 export default router;

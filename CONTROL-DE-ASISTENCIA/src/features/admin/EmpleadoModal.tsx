@@ -92,6 +92,31 @@ const CatalogSection = ({ title, icon, items, selectedItems, onItemsChange, keyF
     );
 };
 
+const InputGroup = ({ label, children, className = "" }: any) => (
+    <div className={`space-y-1 ${className}`}>
+        <label className="text-xs font-medium text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
+            {label}
+        </label>
+        {children}
+    </div>
+);
+
+const ModernInput = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
+    <input
+        {...props}
+        className={`w-full bg-white text-slate-900 text-sm rounded-lg border border-slate-200 px-3 py-2 
+        focus:outline-none focus:border-[--theme-500] 
+        transition-all duration-200 placeholder:text-slate-400 font-normal hover:border-slate-300 ${props.className}`}
+    />
+);
+
+const SectionHeader = ({ title, icon: Icon }: any) => (
+    <div className="flex items-center gap-2 pb-2 border-b border-slate-100 mb-4">
+        <Icon size={18} className="text-[--theme-600]" />
+        <h3 className="text-base font-semibold text-slate-800">{title}</h3>
+    </div>
+);
+
 export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, onSave, empleado }) => {
     const { getToken, user } = useAuth();
     const [formData, setFormData] = useState<any>({
@@ -127,7 +152,8 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
     const [sortedZonas, setSortedZonas] = useState<Zone[]>([]);
     const [systemConfig, setSystemConfig] = useState<any>({}); // Store system config
 
-    const [isLoading, setIsLoading] = useState(false);
+    const [isFetching, setIsFetching] = useState(false); // carga inicial de datos del empleado
+    const [isSaving, setIsSaving] = useState(false);     // guardado del formulario
     const [error, setError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const hasSortedRef = useRef(false);
@@ -145,7 +171,7 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
 
         // Wait for catalogs and employee data loading (if editing)
         if (zonas.length === 0) return;
-        if (!isNew && isLoading) return;
+        if (!isNew && isFetching) return;
 
         // Check if we already sorted for this session to prevent re-sorting on user interaction
         if (hasSortedRef.current) return;
@@ -164,7 +190,7 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
         setSortedZonas([...assigned, ...unassigned]);
         hasSortedRef.current = true;
 
-    }, [isOpen, isLoading, zonas, formData.Zonas, isNew]);
+    }, [isOpen, isFetching, zonas, formData.Zonas, isNew]);
 
     useEffect(() => {
         if (isOpen) {
@@ -180,8 +206,8 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
                 }));
 
                 // Fetch full details
-                setIsLoading(true);
-                fetch(`${API_BASE_URL}/employees/${empleado.EmpleadoId}`, {
+                setIsFetching(true);
+                fetch(`${API_BASE_URL}/employees/${empleado.EmpleadoId}/profile`, {
                     headers: { 'Authorization': `Bearer ${getToken()}` }
                 })
                     .then(res => res.ok ? res.json() : Promise.reject(res))
@@ -206,7 +232,7 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
                         console.error("Error fetching full details", err);
                         setError("Error al cargar detalles del empleado.");
                     })
-                    .finally(() => setIsLoading(false));
+                    .finally(() => setIsFetching(false));
 
             } else {
                 setFormData({
@@ -307,7 +333,7 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        setIsLoading(true);
+        setIsSaving(true);
         setError(null);
         const token = getToken();
 
@@ -353,42 +379,18 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
         } catch (err: any) {
             setError(err.message);
         } finally {
-            setIsLoading(false);
+            setIsSaving(false);
         }
     };
 
     // --- UI Helpers ---
 
-    const InputGroup = ({ label, children, className = "" }: any) => (
-        <div className={`space-y-1 ${className}`}>
-            <label className="text-xs font-medium text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
-                {label}
-            </label>
-            {children}
-        </div>
-    );
-
-    const ModernInput = (props: React.InputHTMLAttributes<HTMLInputElement>) => (
-        <input
-            {...props}
-            className={`w-full bg-white text-slate-900 text-sm rounded-lg border border-slate-200 px-3 py-2 
-            focus:outline-none focus:border-[--theme-500] 
-            transition-all duration-200 placeholder:text-slate-400 font-normal hover:border-slate-300 ${props.className}`}
-        />
-    );
-
-    const SectionHeader = ({ title, icon: Icon }: any) => (
-        <div className="flex items-center gap-2 pb-2 border-b border-slate-100 mb-4">
-            <Icon size={18} className="text-[--theme-600]" />
-            <h3 className="text-base font-semibold text-slate-800">{title}</h3>
-        </div>
-    );
-
     const footer = (
         <div className="flex justify-end items-center w-full gap-2">
-            <Button variant="secondary" onClick={onClose} disabled={isLoading}>Cancelar</Button>
-            <Button onClick={handleSubmit} disabled={isLoading}>
-                {isLoading ? 'Guardando...' : 'Guardar'}
+            {isFetching && <span className="text-xs text-slate-400 mr-auto flex items-center gap-1.5"><span className="w-3 h-3 border-2 border-slate-300 border-t-slate-500 rounded-full animate-spin inline-block" />Cargando datos...</span>}
+            <Button variant="secondary" onClick={onClose} disabled={isSaving}>Cancelar</Button>
+            <Button onClick={handleSubmit} disabled={isSaving || isFetching}>
+                {isSaving ? 'Guardando...' : 'Guardar'}
             </Button>
         </div>
     );
@@ -513,7 +515,7 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
                                 <InputGroup label="Fecha Nacimiento">
                                     <ModernDatePicker
                                         value={formData.FechaNacimiento}
-                                        onChange={(date) => setFormData(prev => ({
+                                        onChange={(date) => setFormData((prev: any) => ({
                                             ...prev,
                                             FechaNacimiento: date ? date.toISOString().split('T')[0] : null
                                         }))}
@@ -567,7 +569,7 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
                                 <InputGroup label="Fecha Ingreso">
                                     <ModernDatePicker
                                         value={formData.FechaIngreso}
-                                        onChange={(date) => setFormData(prev => ({
+                                        onChange={(date) => setFormData((prev: any) => ({
                                             ...prev,
                                             FechaIngreso: date ? date.toISOString().split('T')[0] : null
                                         }))}

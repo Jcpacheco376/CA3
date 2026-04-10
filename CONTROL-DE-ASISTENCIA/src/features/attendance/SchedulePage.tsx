@@ -23,6 +23,7 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { TableSkeleton } from '../../components/ui/TableSkeleton';
 import { AttendanceToolbarProvider, useAttendanceToolbarContext } from './AttendanceToolbarContext';
 import { ConfirmationModal } from '../../components/ui/ConfirmationModal';
+import { CalendarEventList } from '../../components/CalendarEventTag';
 
 // --- Helpers ---
 const isBirthdayInPeriod = (birthDateStr: string, period: Date[]): boolean => {
@@ -80,6 +81,7 @@ const SchedulePageContent = () => {
     // Estados Locales
     const [employees, setEmployees] = useState<any[]>([]);
     const [scheduleCatalog, setScheduleCatalog] = useState<any[]>([]);
+    const [calendarEvents, setCalendarEvents] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [assignFixedModalInfo, setAssignFixedModalInfo] = useState<{ employeeId: number, employeeName: string } | null>(null);
@@ -318,9 +320,10 @@ const SchedulePageContent = () => {
         });
 
         try {
-            const [assignmentsRes, schedulesRes] = await Promise.all([
+            const [assignmentsRes, schedulesRes, eventsRes] = await Promise.all([
                 fetch(`${API_BASE_URL}/schedules/assignments`, { method: 'POST', headers, body }),
-                fetch(`${API_BASE_URL}/schedules`, { headers })
+                fetch(`${API_BASE_URL}/schedules`, { headers }),
+                fetch(`${API_BASE_URL}/calendar-events`, { headers })
             ]);
 
             if (!assignmentsRes.ok) {
@@ -334,6 +337,7 @@ const SchedulePageContent = () => {
 
             setScheduleCatalog(catalogData);
             setEmployees(assignmentsData);
+            if (eventsRes.ok) setCalendarEvents(await eventsRes.json());
 
         } catch (err: any) {
             console.error("Error en fetchData:", err);
@@ -642,6 +646,8 @@ const SchedulePageContent = () => {
                                 <div onMouseDown={handleResizeMouseDown} className="absolute right-0 top-0 h-full w-2.5 cursor-col-resize group flex items-center justify-center"><GripVertical className="h-5 text-slate-300 group-hover:text-[--theme-500] transition-colors" /></div>
                             </th>
                             {dateRange.map((day, dayIndex) => {
+                                const dayStr = format(day, 'yyyy-MM-dd');
+                                const dayEvents = calendarEvents.filter((e: any) => (e.Fecha || e.fecha)?.substring(0, 10) === dayStr);
                                 const startOfWeekForDay = startOfWeek(day, { weekStartsOn: effectiveWeekStartDay as any });
                                 const isActiveWeek = activeWeekStartDate && isSameDay(startOfWeekForDay, activeWeekStartDate);
                                 const isFirstDay = dayIndex === 0;
@@ -662,7 +668,14 @@ const SchedulePageContent = () => {
                                         title="Click para seleccionar esta semana"
                                     >
                                         <span className="capitalize text-base">{format(day, 'eee', { locale: es })}</span>
-                                        <span className="block text-xl font-bold text-slate-800">{format(day, 'dd')}</span>
+                                        <div className="flex items-center justify-center gap-1 relative">
+                                            <span className="block text-xl font-bold text-slate-800">{format(day, 'dd')}</span>
+                                            {dayEvents.length > 0 && (
+                                                <div className="flex items-center gap-0.5 ml-0.5">
+                                                    <CalendarEventList events={dayEvents} size={15} />
+                                                </div>
+                                            )}
+                                        </div>
                                         {isActiveWeek && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[--theme-500]"></div>}
                                     </th>
                                 );

@@ -1,10 +1,15 @@
 -- ──────────────────────────────────────────────────────────────────────
--- Función: [dbo].[fn_Seguridad_GetUsuariosPermitidosPorEmpleado]
+-- Tabla: [dbo].[fn_Seguridad_GetUsuariosPermitidosPorEmpleado]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.5.21
+-- Versión de Paquete:  v1.6.12
+-- Compilado:           07/04/2026, 11:26:15
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
+SET ANSI_NULLS ON;
+GO
+SET QUOTED_IDENTIFIER ON;
+GO
 CREATE OR ALTER FUNCTION [dbo].[fn_Seguridad_GetUsuariosPermitidosPorEmpleado]
 (
     @EmpleadoId INT
@@ -19,7 +24,7 @@ RETURN
             CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroGruposNominaActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT) as FiltroGrupos,
             CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroPuestosActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT) as FiltroPuestos,
             CAST(ISNULL(MAX(CASE WHEN ConfigKey = 'FiltroEstablecimientosActivo' THEN ConfigValue ELSE 'false' END), 'false') AS BIT) as FiltroEstabs
-        FROM dbo.ConfiguracionSistema
+        FROM dbo.SISConfiguracion
     ),
     EmpData AS (
         SELECT DepartamentoId, GrupoNominaId, PuestoId, EstablecimientoId
