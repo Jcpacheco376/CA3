@@ -1,0 +1,51 @@
+services:
+  # 1. API: CA3 Backend (Node.js)
+  - type: web
+    name: ca3-api-demo
+    env: node
+    region: ohio
+    plan: free
+    # Usamos la carpeta de la API como raíz
+    rootDir: CONTROL-DE-ASISTENCIA-API
+    # Instalar dependencias y transpilar TypeScript
+    buildCommand: npm install && npm run build
+    # Iniciar la app compilada
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: "10000"
+      - key: DB_SERVER
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_DATABASE
+        sync: false
+      - key: DB_ENCRYPT
+        value: "true"
+      - key: DB_TRUST_SERVER_CERTIFICATE
+        value: "true"
+
+  # 2. Frontend: CA3 Static Site (React - Vite)
+  - type: web
+    name: ca3-web-demo
+    env: static
+    region: ohio
+    # Usamos la carpeta del Frontend
+    rootDir: CONTROL-DE-ASISTENCIA
+    # Construir con Vite
+    buildCommand: npm install && npm run build
+    # Renderizar el build (dist)
+    publishPath: dist
+    pullRequestPreviewsEnabled: false
+    # Routing para aplicaciones Single Page (React Router, prevendría errores 404 en refrescos)
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      # Vite detectará esta variable al construirse.
+      # Usamos el internal de Render o deberías colocar aquí la URL completa cuando el servicio nazca.
+      - key: VITE_API_URL
+        value: "https://ca3-api-demo.onrender.com/api"

@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node dist/index.js",
     "dev": "nodemon src/index.ts",
-    "build": "tsc"
+    "build": "tsc",
+    "seed:demo": "ts-node scripts/seed-demo.ts"
   },
   "keywords": [],
   "author": "",
@@ -25,6 +26,7 @@
     "zkteco-js": "^1.7.1"
   },
   "devDependencies": {
+    "@faker-js/faker": "^10.4.0",
     "@types/cors": "^2.8.13",
     "@types/express": "^4.17.17",
     "@types/mssql": "^8.1.2",
