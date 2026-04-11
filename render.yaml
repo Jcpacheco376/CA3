@@ -31,7 +31,6 @@ services:
   - type: web
     name: ca3-web-demo
     runtime: static
-    region: ohio
     # Usamos la carpeta del Frontend
     rootDir: CONTROL-DE-ASISTENCIA
     # Construir con Vite
