@@ -2,7 +2,7 @@ services:
   # 1. API: CA3 Backend (Node.js)
   - type: web
     name: ca3-api-demo
-    env: node
+    runtime: node
     region: ohio
     plan: free
     # Usamos la carpeta de la API como raíz
@@ -30,14 +30,14 @@ services:
   # 2. Frontend: CA3 Static Site (React - Vite)
   - type: web
     name: ca3-web-demo
-    env: static
+    runtime: static
     region: ohio
     # Usamos la carpeta del Frontend
     rootDir: CONTROL-DE-ASISTENCIA
     # Construir con Vite
     buildCommand: npm install && npm run build
     # Renderizar el build (dist)
-    publishPath: dist
+    staticPublishPath: dist
     pullRequestPreviewsEnabled: false
     # Routing para aplicaciones Single Page (React Router, prevendría errores 404 en refrescos)
     routes:
