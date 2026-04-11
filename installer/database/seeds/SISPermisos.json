@@ -344,7 +344,7 @@
   {
     "PermisoId": 58,
     "NombrePermiso": "procesos.read",
-    "Descripcion": "Configuración de procesos automáticos",
+    "Descripcion": "Permite configurar los procesos automáticos",
     "Activo": true
   },
   {

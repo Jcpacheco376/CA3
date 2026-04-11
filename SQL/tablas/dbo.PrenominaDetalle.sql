@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Tabla: [dbo].[PrenominaDetalle]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.6.12
--- Compilado:           07/04/2026, 11:26:15
+-- Versión de Paquete:  v1.6.14
+-- Compilado:           11/04/2026, 13:57:04
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 

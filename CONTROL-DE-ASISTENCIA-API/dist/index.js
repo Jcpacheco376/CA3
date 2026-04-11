@@ -10,7 +10,7 @@ const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const config_1 = require("./config");
 const routes_1 = __importDefault(require("./api/routes"));
-const SyncScheduler_1 = require("./api/services/sync/SyncScheduler"); // <--- IMPORTAR
+const JobScheduler_1 = require("./api/services/jobs/JobScheduler"); // <--- IMPORTAR ORQUESTADOR DE TAREAS
 const app = (0, express_1.default)();
 // --- CONFIGURACIÓN DE ORIGEN (CORS) ---
 // Generamos la URL propia para auto-autorizarnos
@@ -86,7 +86,8 @@ process.on('unhandledRejection', (reason, promise) => {
     console.error('⚠️ ALERTA: Promesa rechazada no manejada:', reason);
 });
 // =================================================================
-(0, SyncScheduler_1.startSyncScheduler)();
+// Iniciar orquestador de procesos en segundo plano
+JobScheduler_1.jobScheduler.initialize();
 app.listen(config_1.PORT, '0.0.0.0', () => {
     console.log(`🚀 Servidor corriendo en http://${config_1.LOCAL_IP}:${config_1.PORT}`);
     if (frontendPath) {

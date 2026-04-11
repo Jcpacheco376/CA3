@@ -18,9 +18,11 @@ const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const database_1 = require("../../config/database");
 const config_1 = require("../../config");
 const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    const { username, password } = req.body;
+    const { Identificador, Password, username, password } = req.body;
+    const loginUser = Identificador || username;
+    const loginPass = Password || password;
     // Lógica del "super admin"
-    if (username === 'admin' && password === 'admin') {
+    if (loginUser === 'admin' && loginPass === 'admin') {
         try {
             const pool = yield mssql_1.default.connect(database_1.dbConfig);
             const adminCheckResult = yield pool.request()
@@ -41,10 +43,10 @@ const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const pool = yield mssql_1.default.connect(database_1.dbConfig);
         const loginResult = yield pool.request()
-            .input('Identificador', mssql_1.default.NVarChar, username)
-            .input('Password', mssql_1.default.NVarChar, password)
+            .input('Identificador', mssql_1.default.NVarChar, loginUser)
+            .input('Password', mssql_1.default.NVarChar, loginPass)
             .execute('sp_Usuario_ValidarLogin');
-        if (loginResult.recordset.length === 0) {
+        if (!loginResult.recordset || loginResult.recordset.length === 0) {
             return res.status(401).json({ message: 'Credenciales inválidas' });
         }
         const loggedInUser = loginResult.recordset[0];
@@ -81,7 +83,7 @@ const login = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     }
     catch (err) {
         console.error('Error en el login:', err);
-        res.status(500).json({ message: 'Error interno del servidor.' });
+        res.status(500).json({ message: err.message || 'Error interno del servidor.', stack: err.stack });
     }
 });
 exports.login = login;

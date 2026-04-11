@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_FichasAsistencia_GetDataByRange]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.6.12
--- Compilado:           07/04/2026, 11:26:15
+-- Versión de Paquete:  v1.6.14
+-- Compilado:           11/04/2026, 13:57:04
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -31,7 +31,6 @@ BEGIN
 		else
 		begin
 			DECLARE @CurrentDate DATE = @FechaInicio;
-
 			WHILE @CurrentDate <= @FechaFin
 			BEGIN
 				-- Verificar si YA existe ficha para este usuario y esta fecha exacta
@@ -45,7 +44,6 @@ BEGIN
 						  AND fa.Fecha = @CurrentDate
 					)
 				)
-
 				BEGIN
 					-- Procesar solo este d�a faltante
 					EXEC [dbo].[sp_FichasAsistencia_ProcesarChecadas] 
@@ -53,7 +51,6 @@ BEGIN
 						@CurrentDate, 
 						@UsuarioId; 
 				END
-
 				-- Avanzar al siguiente d�a
 				SET @CurrentDate = DATEADD(DAY, 1, @CurrentDate);
 			END
@@ -64,7 +61,6 @@ BEGIN
     DECLARE @Grupos TABLE (Id INT); IF @GrupoNominaFiltro IS NOT NULL AND @GrupoNominaFiltro <> '[]' INSERT INTO @Grupos SELECT Id FROM OPENJSON(@GrupoNominaFiltro) WITH (Id INT '$');
     DECLARE @Puestos TABLE (Id INT); IF @PuestoFiltro IS NOT NULL AND @PuestoFiltro <> '[]' INSERT INTO @Puestos SELECT Id FROM OPENJSON(@PuestoFiltro) WITH (Id INT '$');
     DECLARE @Estabs TABLE (Id INT); IF @EstablecimientoFiltro IS NOT NULL AND @EstablecimientoFiltro <> '[]' INSERT INTO @Estabs SELECT Id FROM OPENJSON(@EstablecimientoFiltro) WITH (Id INT '$');
-
     -- 3. Consulta Principal
     SELECT 
         e.EmpleadoId, 
@@ -78,7 +74,6 @@ BEGIN
         e.DepartamentoId, e.GrupoNominaId, e.PuestoId, e.EstablecimientoId, e.FechaNacimiento,
         
         ISNULL(JsonData.FichasSemana, '[]') AS FichasSemana
-
     FROM dbo.Empleados e
     INNER JOIN dbo.fn_Seguridad_GetEmpleadosPermitidos(@UsuarioId) perm ON e.EmpleadoId = perm.EmpleadoId
     LEFT JOIN dbo.CatalogoDepartamentos d ON e.DepartamentoId = d.DepartamentoId
@@ -105,7 +100,6 @@ BEGIN
                       AND hd.HoraInicioComida IS NOT NULL 
                       AND hd.HoraFinComida IS NOT NULL
                 ), 0) as MinutosComida,
-
                 -- Info Visual de Estatus
                 estChec.Abreviatura as EstatusChecadorAbrev, 
                 estChec.ColorUI as EstatusChecadorColor,
@@ -123,11 +117,9 @@ BEGIN
                     WHEN ISNULL(estMan.TipoCalculoId, estChec.TipoCalculoId) = 'SALIDA_ANTICIPADA' THEN 'S'
                     ELSE 'O'
                 END as Clasificacion,
-
                 'Auto' as TipoEntrada, 
                 'Auto' as TipoSalida, 
                 'Pendiente' as EstatusAutorizacion
-
             FROM dbo.FichaAsistencia fa
             INNER JOIN dbo.fn_Seguridad_GetEmpleadosPermitidos(@UsuarioId) perm ON e.EmpleadoId = perm.EmpleadoId
             LEFT JOIN dbo.CatalogoEstatusAsistencia estMan ON fa.EstatusManualId = estMan.EstatusId
@@ -138,7 +130,6 @@ BEGIN
             FOR JSON PATH
         ) AS FichasSemana
     ) AS JsonData
-
     WHERE e.Activo = 1
       AND ((SELECT COUNT(*) FROM @Deptos) = 0 OR e.DepartamentoId IN (SELECT Id FROM @Deptos))
       AND ((SELECT COUNT(*) FROM @Grupos) = 0 OR e.GrupoNominaId IN (SELECT Id FROM @Grupos))

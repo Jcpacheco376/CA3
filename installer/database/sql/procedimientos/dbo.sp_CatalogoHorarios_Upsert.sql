@@ -1,0 +1,153 @@
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_CatalogoHorarios_Upsert]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.6.12
+-- Compilado:           07/04/2026, 11:26:15
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+SET ANSI_NULLS ON;
+GO
+SET QUOTED_IDENTIFIER ON;
+GO
+CREATE OR ALTER PROCEDURE [dbo].[sp_CatalogoHorarios_Upsert]
+    @HorarioId INT,
+    @CodRef NVARCHAR(10),
+    @Abreviatura NVARCHAR(10),
+    @Nombre NVARCHAR(100),
+    @MinutosTolerancia INT,
+    @ColorUI NVARCHAR(50),
+    @Activo BIT, 
+    @esRotativo BIT,
+    @DetallesJSON NVARCHAR(MAX)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @CalculatedTurno CHAR(1) = '';
+    BEGIN TRY
+        BEGIN TRANSACTION;
+        
+        -- 1. Validacin de duplicados
+        IF EXISTS (
+            SELECT 1 
+            FROM dbo.CatalogoHorarios 
+            WHERE Abreviatura = @Abreviatura 
+              AND HorarioId != ISNULL(@HorarioId, 0) 
+              AND LTRIM(RTRIM(@Abreviatura)) <> ''
+              AND Activo = 1 
+        )
+        BEGIN
+            PRINT 'ERROR: Conflicto de abreviatura encontrada.';
+            ROLLBACK;
+            RAISERROR ('La abreviatura del horario ya esta en uso por otro horario activo.', 16, 1);
+            RETURN;
+        END
+        -- 2. Upsert en Cabecera Local
+        IF @HorarioId IS NOT NULL AND @HorarioId > 0
+        BEGIN
+            UPDATE dbo.CatalogoHorarios 
+            SET CodRef = @CodRef,
+                Abreviatura = LTRIM(RTRIM(@Abreviatura)), 
+                Nombre = @Nombre, 
+                MinutosTolerancia = @MinutosTolerancia, 
+                ColorUI = @ColorUI, 
+                Activo = @Activo, 
+                EsRotativo = @esRotativo 
+            WHERE HorarioId = @HorarioId;
+        END
+        ELSE
+        BEGIN
+            INSERT INTO dbo.CatalogoHorarios (CodRef, Abreviatura, Nombre, MinutosTolerancia, ColorUI, Activo, EsRotativo) 
+            VALUES (@CodRef, LTRIM(RTRIM(@Abreviatura)), @Nombre, @MinutosTolerancia, @ColorUI, @Activo, @esRotativo);
+            SET @HorarioId = SCOPE_IDENTITY();
+        END
+        -- 3. Actualizacin de Detalles Locales
+        DELETE FROM dbo.CatalogoHorariosDetalle WHERE HorarioId = @HorarioId;
+            
+        INSERT INTO dbo.CatalogoHorariosDetalle (HorarioId, DiaSemana, EsDiaLaboral, HoraEntrada, HoraSalida, HoraInicioComida, HoraFinComida) 
+        SELECT
+            @HorarioId,
+            j.DiaSemana,
+            j.EsDiaLaboral,
+            CASE WHEN j.EsDiaLaboral = 1 THEN j.HoraEntrada ELSE NULL END,
+            CASE WHEN j.EsDiaLaboral = 1 THEN j.HoraSalida ELSE NULL END,
+            CASE WHEN j.EsDiaLaboral = 1 AND j.TieneComida = 1 AND j.HoraInicioComida <> '00:00:00' THEN j.HoraInicioComida ELSE NULL END,
+            CASE WHEN j.EsDiaLaboral = 1 AND j.TieneComida = 1 AND j.HoraFinComida <> '00:00:00' THEN j.HoraFinComida ELSE NULL END
+        FROM OPENJSON(@DetallesJSON)
+        WITH (
+            DiaSemana INT '$.DiaSemana', 
+            EsDiaLaboral BIT '$.EsDiaLaboral', 
+            TieneComida BIT '$.TieneComida', 
+            HoraEntrada TIME '$.HoraEntrada', 
+            HoraSalida TIME '$.HoraSalida', 
+            HoraInicioComida TIME '$.HoraInicioComida', 
+            HoraFinComida TIME '$.HoraFinComida'
+        ) AS j;
+        -- 4. C�lculo de Turno Autom�tico
+        SET @CalculatedTurno = NULL;
+        DECLARE @DistinctTurnos INT = 0;
+        
+        IF @esRotativo = 0
+        BEGIN
+             WITH DailyTurnos AS (
+                 SELECT 
+                     CASE 
+                         WHEN DATEPART(HOUR, HoraEntrada) >= 5 AND DATEPART(HOUR, HoraEntrada) < 12 THEN 'M' 
+                         WHEN DATEPART(HOUR, HoraEntrada) >= 12 AND DATEPART(HOUR, HoraEntrada) < 20 THEN 'V' 
+                         WHEN DATEPART(HOUR, HoraEntrada) >= 20 OR DATEPART(HOUR, HoraEntrada) < 5 THEN 'N' 
+                         ELSE NULL 
+                     END AS DiaTurno
+                 FROM dbo.CatalogoHorariosDetalle 
+                 WHERE HorarioId = @HorarioId 
+                   AND EsDiaLaboral = 1 
+                   AND HoraEntrada IS NOT NULL
+             )
+             SELECT 
+                 @DistinctTurnos = COUNT(DISTINCT DiaTurno),
+                 @CalculatedTurno = CASE WHEN COUNT(DISTINCT DiaTurno) = 1 THEN MIN(DiaTurno) ELSE NULL END
+             FROM DailyTurnos;
+        END
+        
+        IF @CalculatedTurno IS NULL AND (SELECT IS_NULLABLE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'CatalogoHorarios' AND COLUMN_NAME = 'turno') = 'NO'
+        BEGIN 
+            SET @CalculatedTurno = ''; 
+        END
+        UPDATE dbo.CatalogoHorarios SET turno = @CalculatedTurno WHERE HorarioId = @HorarioId;
+        -- =========================================================================
+        -- 5. SINCRONIZACIN
+        -- =========================================================================
+        IF (SELECT ConfigValue FROM dbo.SISConfiguracion WHERE ConfigKey = 'SyncHorarios') = 'true'
+        BEGIN
+            PRINT 'Paso Sync: Sincronizacion (PUSH) de Horario habilitada.';
+            DECLARE @SyncStatus CHAR(1) = CASE WHEN @Activo = 1 THEN 'V' ELSE 'C' END;
+            EXEC [dbo].[sp_SyncToExternal_Horario] 
+                @CodRef = @CodRef, 
+                @Nombre = @Nombre, 
+                @MinutosTolerancia = @MinutosTolerancia, 
+                @Status = @SyncStatus, 
+                @Detalles = @DetallesJSON;
+        END
+        ELSE
+        BEGIN
+             PRINT 'Paso Sync: Sincronizacion (PUSH) deshabilitada.';
+        END
+        COMMIT TRANSACTION;
+        
+        -- Retorno de datos a la UI/API
+        SELECT H.HorarioId, H.CodRef, H.turno, H.EsRotativo, H.Nombre, H.Abreviatura, H.ColorUI 
+        FROM dbo.CatalogoHorarios H 
+        WHERE H.HorarioId = @HorarioId;
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0 
+        BEGIN
+            PRINT 'Rollback Transaction...';
+            ROLLBACK TRANSACTION;
+            PRINT 'Transaction Rolled Back.';
+        END
+        
+        PRINT 'Error en sp_CatalogoHorarios_Upsert: ' + ERROR_MESSAGE();
+        THROW; 
+    END CATCH
+END
+GO

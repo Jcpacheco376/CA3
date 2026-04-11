@@ -7,8 +7,8 @@ exports.APP_EDITION = exports.ALLOWED_ORIGINS = exports.LOCAL_IP = exports.JWT_S
 // src/config/index.ts
 const dotenv_1 = __importDefault(require("dotenv"));
 dotenv_1.default.config();
-// CORREGIDO: Convertimos el puerto a número con parseInt()
-exports.PORT = parseInt(process.env.API_PORT || '3001', 10);
+// CORREGIDO: Soporte para variable PORT de Render o API_PORT local
+exports.PORT = parseInt(process.env.PORT || process.env.API_PORT || '3001', 10);
 exports.JWT_SECRET = process.env.JWT_SECRET || 'ESTE_ES_MI_JWT_SECRETO_SUPER_SEGURO_IMPOSIBLE_DE_ADIVINAR456285';
 exports.LOCAL_IP = process.env.LOCAL_IP || 'localhost';
 //export const CORS_ORIGIN = process.env.FRONTEND_URL;

@@ -6,12 +6,27 @@
   },
   {
     "TipoCalculoId": "DESCANSO",
-    "Descripcion": "Día de descanso o festivo",
+    "Descripcion": "Día de descanso",
+    "EsSistema": true
+  },
+  {
+    "TipoCalculoId": "DESCANSO_LABORADO",
+    "Descripcion": "Descanso laborado",
+    "EsSistema": true
+  },
+  {
+    "TipoCalculoId": "DIA_FERIADO",
+    "Descripcion": "Día feriado",
     "EsSistema": true
   },
   {
     "TipoCalculoId": "FALTA",
     "Descripcion": "Cuenta como falta (ausencia)",
+    "EsSistema": true
+  },
+  {
+    "TipoCalculoId": "FERIADO_LABORADO",
+    "Descripcion": "Día feriado laborado",
     "EsSistema": true
   },
   {
@@ -27,6 +42,11 @@
   {
     "TipoCalculoId": "RETARDO",
     "Descripcion": "Cuenta como retardo (llegada tarde)",
+    "EsSistema": true
+  },
+  {
+    "TipoCalculoId": "SALIDA_ANTICIPADA",
+    "Descripcion": "Salida antes de lo indicado por horario",
     "EsSistema": true
   },
   {

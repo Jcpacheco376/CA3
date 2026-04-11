@@ -12,7 +12,7 @@ export const EDITIONS: { [key: string]: EditionConfig } = {
         allowedClassifiers: ['Core']
     },
     LAME: {
-        excludedPerms: ['vacaciones.*', 'calendario.*'],
+        excludedPerms: ['procesos.*'],
         allowedClassifiers: ['*']
     },
     FULL: {

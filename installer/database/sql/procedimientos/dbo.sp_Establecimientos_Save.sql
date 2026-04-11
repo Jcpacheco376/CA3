@@ -1,0 +1,76 @@
+-- ──────────────────────────────────────────────────────────────────────
+-- Stored Procedure: [dbo].[sp_Establecimientos_Save]
+-- Base de Datos:       CA
+-- Versión de Paquete:  v1.6.12
+-- Compilado:           07/04/2026, 11:26:15
+-- Sistema:             CA3 Control de Asistencia
+-- ──────────────────────────────────────────────────────────────────────
+
+SET ANSI_NULLS ON;
+GO
+SET QUOTED_IDENTIFIER ON;
+GO
+CREATE OR ALTER PROCEDURE [dbo].[sp_Establecimientos_Save]
+    @EstablecimientoId INT, 
+    @CodRef NVARCHAR(50),
+    @Nombre NVARCHAR(100),
+    @Abreviatura NVARCHAR(50),
+    @Activo BIT
+AS
+BEGIN
+    SET NOCOUNT ON;
+    
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        -- --- PASO 1: Guardado Local ---
+        MERGE dbo.CatalogoEstablecimientos AS Target
+        USING (
+            SELECT @EstablecimientoId AS EstablecimientoId
+        ) AS Source ON Target.EstablecimientoId = Source.EstablecimientoId
+        WHEN MATCHED THEN
+            UPDATE SET 
+                CodRef = @CodRef,
+                Nombre = @Nombre,
+                Abreviatura = @Abreviatura,
+                Activo = @Activo
+        WHEN NOT MATCHED BY TARGET THEN
+            INSERT (EstablecimientoId, CodRef, Nombre, Abreviatura, Activo)
+            VALUES (@EstablecimientoId, @CodRef, @Nombre, @Abreviatura, @Activo);
+        
+        PRINT 'Paso 1: Guardado local de Establecimiento completado.';
+
+        -- --- PASO 2: Verificar Configuracion de Sincronizacion ---
+        IF (SELECT ConfigValue FROM dbo.SISConfiguracion WHERE ConfigKey = 'SyncEstablecimientos') = 'true'
+        BEGIN
+            PRINT 'Paso 2: Sincronizacion (PUSH) habilitada. Intentando...';
+            
+            -- --- PASO 3: Intentar el "Push" Externo ---
+            DECLARE @Status CHAR(1) = CASE WHEN @Activo = 1 THEN 'V' ELSE 'C' END;
+            
+            EXEC [dbo].[sp_SyncToExternal_Establecimiento]
+                @CodRef = @CodRef,
+                @Nombre = @Nombre,
+                @Abreviatura = @Abreviatura,
+                @Status = @Status;
+                
+            PRINT 'Paso 3: Llamada a sp_SyncToExternal_Establecimiento finalizada.';
+        END
+        ELSE
+        BEGIN
+            PRINT 'Paso 2: Sincronizacion (PUSH) deshabilitada. Omitiendo.';
+        END
+
+        COMMIT TRANSACTION;
+        PRINT 'Transaccion local completada (COMMIT).';
+
+    END TRY
+    BEGIN CATCH
+        IF @@TRANCOUNT > 0
+            ROLLBACK TRANSACTION;
+        
+        PRINT 'Error en sp_Establecimientos_Save: ' + ERROR_MESSAGE();
+        THROW;
+    END CATCH
+END
+GO

@@ -193,8 +193,14 @@ async function execScript(pool, sqlText, cfg, filePath) {
     }
 
     // Fallback: mssql.batch — a diferencia de query(), batch() soporta y divide por GO
-    // manteniendo la misma sesión (connection) para que SET QUOTED_IDENTIFIER persista
-    await pool.request().batch(sqlText);
+    // Pero como falló, dividimos manualmente
+    const chunks = sqlText.split(/(?:\r?\n)\s*GO\s*(?:\r?\n|$)/i);
+    for (let chunk of chunks) {
+        chunk = chunk.trim();
+        if (chunk) {
+            await pool.request().query(chunk);
+        }
+    }
 }
 
 /**
