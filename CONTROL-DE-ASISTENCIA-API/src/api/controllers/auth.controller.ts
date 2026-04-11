@@ -5,10 +5,12 @@ import { dbConfig } from '../../config/database';
 import { JWT_SECRET } from '../../config';
 
 export const login = async (req: Request, res: Response) => {
-    const { username, password } = req.body;
+    const { Identificador, Password, username, password } = req.body;
+    const loginUser = Identificador || username;
+    const loginPass = Password || password;
 
     // Lógica del "super admin"
-    if (username === 'admin' && password === 'admin') {
+    if (loginUser === 'admin' && loginPass === 'admin') {
         try {
             const pool = await sql.connect(dbConfig);
             const adminCheckResult = await pool.request()
@@ -28,11 +30,11 @@ export const login = async (req: Request, res: Response) => {
     try {
         const pool = await sql.connect(dbConfig);
         const loginResult = await pool.request()
-            .input('Identificador', sql.NVarChar, username)
-            .input('Password', sql.NVarChar, password)
+            .input('Identificador', sql.NVarChar, loginUser)
+            .input('Password', sql.NVarChar, loginPass)
             .execute('sp_Usuario_ValidarLogin');
 
-        if (loginResult.recordset.length === 0) {
+        if (!loginResult.recordset || loginResult.recordset.length === 0) {
             return res.status(401).json({ message: 'Credenciales inválidas' });
         }
 
@@ -94,9 +96,9 @@ export const login = async (req: Request, res: Response) => {
             }
         });
 
-    } catch (err) {
+    } catch (err: any) {
         console.error('Error en el login:', err);
-        res.status(500).json({ message: 'Error interno del servidor.' });
+        res.status(500).json({ message: err.message || 'Error interno del servidor.', stack: err.stack });
     }
 };
 
