@@ -18,10 +18,10 @@ export const canAssignStatusToDate = (
   // Normalizamos ambas fechas a medianoche para comparación correcta
   const normalizedTarget = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
   const normalizedCurrent = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
-  
+
   const diffInMs = normalizedTarget.getTime() - normalizedCurrent.getTime();
   const diffInDays = Math.floor(diffInMs / (1000 * 60 * 60 * 24));
-  
+
   return diffInDays <= status.DiasRegistroFuturo;
 };
 
@@ -44,7 +44,7 @@ export const getRestrictionMessage = (
 
   const normalizedTarget = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
   const normalizedCurrent = new Date(currentDate.getFullYear(), currentDate.getMonth(), currentDate.getDate());
-  
+
   const diffInMs = normalizedTarget.getTime() - normalizedCurrent.getTime();
   const diffInDays = Math.ceil(diffInMs / (1000 * 60 * 60 * 24));
 
@@ -53,4 +53,36 @@ export const getRestrictionMessage = (
   }
 
   return `Solo se permite asignar hasta ${status.DiasRegistroFuturo} días adelante`;
+};
+
+/**
+ * Parsea una fecha en formato YYYY-MM-DD a un objeto Date local
+ * (evitando el desfase de zona horaria de UTC).
+ */
+export const parseLocal = (dateStr: string): Date => {
+  const p = dateStr.substring(0, 10).split('-');
+  return new Date(parseInt(p[0]), parseInt(p[1]) - 1, parseInt(p[2]));
+};
+
+/**
+ * Verifica si una fecha específica está dentro del rango de empleo.
+ */
+export const isDateWithinEmploymentRange = (
+  targetDate: Date,
+  fechaIngreso?: string | null,
+  fechaBaja?: string | null
+): boolean => {
+  const normalizedTarget = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate());
+
+  if (fechaIngreso) {
+    const normalizedIng = parseLocal(fechaIngreso);
+    if (normalizedTarget < normalizedIng) return false;
+  }
+
+  if (fechaBaja) {
+    const normalizedBaj = parseLocal(fechaBaja);
+    if (normalizedTarget > normalizedBaj) return false;
+  }
+
+  return true;
 };

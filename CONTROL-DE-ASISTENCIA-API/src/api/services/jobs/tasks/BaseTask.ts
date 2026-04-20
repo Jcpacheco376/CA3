@@ -1,5 +1,5 @@
 import sql from 'mssql';
-import { dbConfig } from '../../../../config/database';
+import { poolPromise } from '../../../../config/database';
 
 export abstract class BaseTask {
     protected abstract keyInterna(): string;
@@ -10,7 +10,7 @@ export abstract class BaseTask {
         try {
             console.log(`⏱️ Iniciando Proceso: ${this.keyInterna()}...`);
 
-            const pool = await sql.connect(dbConfig);
+            const pool = await poolPromise;
 
             // Log Start
             const request = pool.request()
@@ -19,7 +19,7 @@ export abstract class BaseTask {
                 .output('BitacoraId', sql.Int);
 
             const logResult = await request.execute('sp_BitacoraProcesosAutomaticos_LogStart');
-            bitacoraId = request.parameters.BitacoraId.value;
+            bitacoraId = logResult.output?.BitacoraId || request.parameters?.BitacoraId?.value || null;
 
             // Do the specific work
             const logMessage = await this.doExecute();
@@ -40,7 +40,7 @@ export abstract class BaseTask {
 
             if (bitacoraId) {
                 try {
-                    const pool = await sql.connect(dbConfig);
+                    const pool = await poolPromise;
                     await pool.request()
                         .input('BitacoraId', sql.Int, bitacoraId)
                         .input('Estatus', sql.NVarChar, 'Error')

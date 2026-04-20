@@ -1,0 +1,10 @@
+[
+    {
+        "RolNombre": "Administrador",
+        "PermisoNombre": "procesos.read"
+    },
+    {
+        "RolNombre": "Administrador",
+        "PermisoNombre": "procesos.manage"
+    }
+]

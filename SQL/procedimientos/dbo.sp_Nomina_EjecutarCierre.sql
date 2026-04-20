@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Nomina_EjecutarCierre]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.6.14
--- Compilado:           11/04/2026, 13:57:04
+-- Versión de Paquete:  v1.6.19
+-- Compilado:           15/04/2026, 16:13:04
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -45,6 +45,8 @@ BEGIN
         INNER JOIN dbo.fn_Seguridad_GetEmpleadosPermitidosVigentes(@UsuarioId, @FechaInicio, @FechaFin) perm ON e.EmpleadoId = perm.EmpleadoId
         WHERE e.GrupoNominaId = @GrupoNominaId
           AND f.Fecha BETWEEN @FechaInicio AND @FechaFin
+          AND f.Fecha >= ISNULL(e.FechaIngreso, '1900-01-01')
+          AND f.Fecha <= ISNULL(e.FechaBaja, '2099-12-31')
           AND f.Estado = 'VALIDADO' -- Solo cerramos las que estén validadas
           -- SI VIENE EMPLEADOID, SOLO AFECTA A ESE; SI NO, APLICA FILTROS MULTIPLES
           AND (@EmpleadoId IS NULL OR e.EmpleadoId = @EmpleadoId)

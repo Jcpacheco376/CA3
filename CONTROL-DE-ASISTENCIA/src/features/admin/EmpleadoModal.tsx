@@ -157,6 +157,7 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
     const [error, setError] = useState<string | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const hasSortedRef = useRef(false);
+    const isInitializedRef = useRef(false);
 
     const isNew = !empleado;
     const theme = themes[user?.Theme as keyof typeof themes] || themes.indigo;
@@ -195,17 +196,19 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
     useEffect(() => {
         if (isOpen) {
             fetchCatalogs();
+
+            // Only initialize data if NOT already initialized for this open session
+            if (isInitializedRef.current) return;
+
             if (empleado) {
                 // Initialize with available data (light)
                 setFormData((prev: any) => ({
                     ...prev,
                     ...empleado,
-                    // If image is already here (from list), use it initially to prevent flickering
                     Imagen: empleado.Imagen ? arrayBufferToBase64(empleado.Imagen) : null,
                     Zonas: Array.isArray(empleado.Zonas) ? empleado.Zonas : []
                 }));
 
-                // Fetch full details
                 setIsFetching(true);
                 fetch(`${API_BASE_URL}/employees/${empleado.EmpleadoId}/profile`, {
                     headers: { 'Authorization': `Bearer ${getToken()}` }
@@ -258,6 +261,10 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
                     Zonas: []
                 });
             }
+            isInitializedRef.current = true;
+        } else {
+            // Reset initialization ref when closed
+            isInitializedRef.current = false;
         }
     }, [isOpen, empleado]);
 
@@ -388,8 +395,8 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
     const footer = (
         <div className="flex justify-end items-center w-full gap-2">
             {isFetching && <span className="text-xs text-slate-400 mr-auto flex items-center gap-1.5"><span className="w-3 h-3 border-2 border-slate-300 border-t-slate-500 rounded-full animate-spin inline-block" />Cargando datos...</span>}
-            <Button variant="secondary" onClick={onClose} disabled={isSaving}>Cancelar</Button>
-            <Button onClick={handleSubmit} disabled={isSaving || isFetching}>
+            <Button variant="secondary" type="button" onClick={onClose} disabled={isSaving}>Cancelar</Button>
+            <Button type="submit" form="employee-form" disabled={isSaving || isFetching}>
                 {isSaving ? 'Guardando...' : 'Guardar'}
             </Button>
         </div>
@@ -399,7 +406,7 @@ export const EmpleadoModal: React.FC<EmpleadoModalProps> = ({ isOpen, onClose, o
         <Modal isOpen={isOpen} onClose={onClose} title={isNew ? 'Nuevo Colaborador' : 'Editar Colaborador'} footer={footer} size="5xl">
             {error && <div className="mb-6 bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg flex items-center gap-3 text-sm"><div className="w-1.5 h-1.5 bg-red-500 rounded-full" />{error}</div>}
 
-            <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+            <form id="employee-form" onSubmit={handleSubmit} className="flex flex-col gap-6">
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
 

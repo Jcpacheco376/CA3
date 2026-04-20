@@ -777,6 +777,8 @@ const SchedulePageContent = () => {
                                                 canAssign={canAssign} viewMode={viewMode} className={tdClasses}
                                                 isRotativoEmployee={isRotativoEmployee}
                                                 existingFichaStatus={fichaStatus}
+                                                fechaIngreso={emp.FechaIngreso}
+                                                fechaBaja={emp.FechaBaja}
                                             />
                                         );
                                     })}

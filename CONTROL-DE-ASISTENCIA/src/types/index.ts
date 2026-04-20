@@ -81,10 +81,11 @@ export interface AttendanceStatus {
     ValorNomina: number;
     VisibleSupervisor: boolean;
     Activo: boolean;
-    tipoCalculoId: string; // 'ASISTENCIA', 'FALTA', etc. 
+    TipoCalculoId: string; // 'ASISTENCIA', 'FALTA', etc. 
     DiasRegistroFuturo: number;
     PermiteComentario: boolean;
     ConceptoNominaId?: number | null;
+    Esdefault?: boolean;
 }
 export type AttendanceStatusCode = string;
 

@@ -14,7 +14,8 @@ import * as LucideIcons from 'lucide-react';
 import {
     Loader2, ClipboardCheck, Briefcase, Building, Cake, GripVertical,
     Contact, CalendarOff, ListTodo, Tag, MapPin, AlertTriangle, RotateCcw, Unlock, Lock,
-    HelpCircle, Info, Star, PartyPopper, Gift, Bell, CalendarDays, ArrowUpCircle, ArrowDownCircle, ScanSearch
+    HelpCircle, Info, Star, PartyPopper, Gift, Bell, CalendarDays, ArrowUpCircle, ArrowDownCircle, ScanSearch,
+    UserPlus, UserMinus
 } from 'lucide-react';
 import { AttendanceCell } from './AttendanceCell';
 import { Button, Modal } from '../../components/ui/Modal';
@@ -25,7 +26,7 @@ import { AuditTimelineModal } from './AuditTimelineModal';
 import { AttendanceToolbar } from './AttendanceToolbar';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { TableSkeleton } from '../../components/ui/TableSkeleton';
-import { canAssignStatusToDate } from '../../utils/attendanceValidation';
+import { canAssignStatusToDate, isDateWithinEmploymentRange } from '../../utils/attendanceValidation';
 import { AttendanceToolbarProvider, useAttendanceToolbarContext } from './AttendanceToolbarContext';
 import { Checkbox } from '../../components/ui/xx_Checkbox';
 import { CalendarEventTag, CalendarEventList } from '../../components/CalendarEventTag';
@@ -171,6 +172,31 @@ const AttendancePageContent = () => {
     const [calendarEvents, setCalendarEvents] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+
+    // --- Helpers Internos ---
+    const isHolidayFicha = useCallback((f: any) => {
+        if (!f || !f.Fecha) return false;
+        const fichaDateStr = f.Fecha.substring(0, 10);
+        return calendarEvents.some((e: any) => {
+            const eventDateStr = (e.Fecha || e.fecha || '').substring(0, 10);
+            if (eventDateStr !== fichaDateStr) return false;
+
+            const name = (e.Nombre || e.nombre || '').toLowerCase();
+            const type = (e.TipoEventoId || e.tipoEventoId || '').toUpperCase();
+
+            // Detección robusta de feriados (por tipo o por palabras clave en nombre)
+            return type === 'DIA_FERIADO' ||
+                type === 'FERIADO' ||
+                name.includes('feriado') ||
+                name.includes('natalicio') ||
+                name.includes('batalla') ||
+                name.includes('constitucion') ||
+                name.includes('independencia') ||
+                name.includes('aniversario');
+        });
+    }, [calendarEvents]);
+
+
 
     const [showOnlyNoSchedule, setShowOnlyNoSchedule] = useState(false);
     const [showOnlyIncomplete, setShowOnlyIncomplete] = useState(false);
@@ -393,6 +419,12 @@ const AttendancePageContent = () => {
         setEmployees(prevEmployees => {
             const updatesMap = new Map<number, { fecha: Date; estatus: string | null; comentarios?: string }[]>();
             updates.forEach(u => {
+                // Rango check extra en frontend
+                const emp = prevEmployees.find(e => e.EmpleadoId === u.empleadoId);
+                if (emp && !isDateWithinEmploymentRange(u.fecha, emp.FechaIngreso, emp.FechaBaja)) {
+                    return;
+                }
+
                 if (!updatesMap.has(u.empleadoId)) updatesMap.set(u.empleadoId, []);
                 updatesMap.get(u.empleadoId)!.push(u);
             });
@@ -629,34 +661,49 @@ const AttendancePageContent = () => {
         const updates = employee.FichasSemana
             .filter((f: any) => {
                 const dateObj = safeDate(f.Fecha);
+                const checadorAbrev = f.EstatusChecadorAbrev || f.estatusChecadorAbrev;
+                const manualAbrev = f.EstatusManualAbrev || f.estatusManualAbrev;
+                const estado = (f.Estado || f.estado || '').toUpperCase();
 
                 // REGLAS DE APROBACIÓN:
-                // A. No aprobar fechas futuras (no tienen checadas reales aún)
+                // A. No aprobar fechas futuras
                 if (isAfter(dateObj, today)) return false;
 
-                // B. Solo aprobar si hay una sugerencia del sistema (Checador)
-                if (!f.EstatusChecadorAbrev) return false;
+                // B. Detección de Feriado
+                const isHoliday = isHolidayFicha(f);
 
-                // C. Solo si está pendiente (no tiene estatus manual aún)
-                if (f.EstatusManualAbrev) return false;
+                // C. Solo aprobar si hay sugerencia del checador O es un día Feriado
+                if (!checadorAbrev && !isHoliday) return false;
 
-                // D. Solo si está en estado BORRADOR
-                if (f.Estado !== 'BORRADOR') return false;
-                // D. No tocar días bloqueados o sin horario
-                // if (f.Estado === 'BLOQUEADO' || f.Estado === 'SIN_HORARIO') return false;
+                // D. Solo si está pendiente (sin estatus manual)
+                if (manualAbrev) return false;
 
-                // E. (Opcional) Ignorar descansos si así lo prefieres, 
-                // pero usualmente se aprueban si el sistema los sugiere.
-                // if (isRestDay(employee.horario, dateObj)) return false; 
+                // E. Permitir BORRADOR y CALCULO_EVENTO (feriados calculados por el SP)
+                if (estado !== 'BORRADOR' && estado !== 'CALCULO_EVENTO') return false;
+
+                // F. Verificación de Rango de Empleo
+                if (!isDateWithinEmploymentRange(dateObj, employee.FechaIngreso, employee.FechaBaja)) return false;
 
                 return true;
             })
-            .map((f: any) => ({
-                empleadoId: employee.EmpleadoId,
-                fecha: safeDate(f.Fecha),
-                estatus: f.EstatusChecadorAbrev, // <--- APLICAMOS LA SUGERENCIA
-                comentarios: null
-            }));
+            .map((f: any) => {
+                const isHoliday = isHolidayFicha(f);
+                const checadorAbrev = f.EstatusChecadorAbrev || f.estatusChecadorAbrev;
+
+                // Si es feriado y no hay sugerencia, buscamos el código "DF" o el más parecido en el catálogo
+                let fallbackStatus = null;
+                if (isHoliday && !checadorAbrev) {
+                    fallbackStatus = statusCatalog.find(s => s.Abreviatura === 'DF' || s.Descripcion.toLowerCase().includes('feriado'))?.Abreviatura || 'DF';
+                }
+
+                return {
+                    empleadoId: employee.EmpleadoId,
+                    fecha: safeDate(f.Fecha),
+                    estatus: checadorAbrev || fallbackStatus,
+                    comentarios: (isHoliday && !checadorAbrev) ? 'Aprobación automática (Feriado)' : null
+                };
+            })
+            .filter((f: any) => f.estatus !== null);
 
         if (updates.length === 0) {
             addNotification('Info', 'No hay sugerencias pendientes aplicables en este periodo.', 'info');
@@ -677,6 +724,10 @@ const AttendancePageContent = () => {
 
                 // B. solo si está en estado VALIDADO
                 if (f.Estado !== 'VALIDADO') return false;
+
+                // C. Rango check
+                const dateObj = safeDate(f.Fecha);
+                if (!isDateWithinEmploymentRange(dateObj, employee.FechaIngreso, employee.FechaBaja)) return false;
 
                 return true;
             })
@@ -741,6 +792,7 @@ const AttendancePageContent = () => {
                 if (!employee || isRestDay(employee.horario, dateRange[dayIndex])) return null;
                 const ficha = employee.FichasSemana.find((f: any) => f.Fecha.substring(0, 10) === format(dateRange[dayIndex], 'yyyy-MM-dd'));
                 if (ficha?.Estado === 'BLOQUEADO' || ficha?.Estado === 'EN_PROCESO' || ficha?.Estado === 'SIN_HORARIO') return null;
+                if (!isDateWithinEmploymentRange(dateRange[dayIndex], employee.FechaIngreso, employee.FechaBaja)) return null;
                 if (draggedStatusConfig && !canAssignStatusToDate(draggedStatusConfig, dateRange[dayIndex])) return null;
                 return { empleadoId, fecha: dateRange[dayIndex], estatus: dragInfo.status };
             }).filter(Boolean) as any[];
@@ -869,8 +921,17 @@ const AttendancePageContent = () => {
                                         return dateRange.some(d => format(d, 'yyyy-MM-dd') === fichaDateStr);
                                     });
 
-                                    // 1. Contar fichas "Borrador" (condición: Estado='BORRADOR' y HorarioId en la propia ficha).
-                                    const draftCount = generatedFichasInPeriod.filter((f: any) => f.Estado === 'BORRADOR' && f.HorarioId).length;
+                                    // 1. Contar fichas "Pendientes" (BORRADOR o CALCULO_EVENTO con horario, sugerencia o feriado).
+                                    const draftCount = generatedFichasInPeriod.filter((f: any) => {
+                                        const estado = (f.Estado || f.estado || '').toUpperCase();
+                                        if (estado !== 'BORRADOR' && estado !== 'CALCULO_EVENTO') return false;
+
+                                        const horarioId = f.HorarioId || f.horarioId;
+                                        const checadorAbrev = f.EstatusChecadorAbrev || f.estatusChecadorAbrev;
+
+                                        // Un día es "aprobarle" si tiene horario, sugerencia o es feriado
+                                        return horarioId || checadorAbrev || isHolidayFicha(f);
+                                    }).length;
 
                                     // 2. Contar fichas "Procesadas" (Validadas o Bloqueadas).
                                     const processedCount = generatedFichasInPeriod.filter((f: any) => f.Estado === 'VALIDADO' || f.Estado === 'BLOQUEADO').length;
@@ -986,6 +1047,7 @@ const AttendancePageContent = () => {
                                                         onDragEnter={() => handleDragEnter(emp.EmpleadoId, i)}
                                                         isBeingDragged={draggedCells.includes(cellId)} isAnyCellOpen={openCellId !== null}
                                                         statusCatalog={statusCatalog} fecha={day}
+                                                        fechaIngreso={emp.FechaIngreso} fechaBaja={emp.FechaBaja}
                                                     />
                                                 );
                                             })}
@@ -1026,6 +1088,7 @@ const AttendancePageContent = () => {
                     }}
                     getToken={getToken}
                     statusCatalog={statusCatalog}
+                    scheduleCatalog={scheduleCatalog}
                     onRegenerated={handleAttendanceRegenerated}
                 />
             )}

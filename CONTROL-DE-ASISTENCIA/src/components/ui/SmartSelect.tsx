@@ -25,6 +25,7 @@ interface SmartSelectProps {
     noneLabel?: string;
     maxHeightClass?: string;
     searchThreshold?: number; // Show search when options exceed this count
+    showButtonSubtitle?: boolean;
 }
 
 export const SmartSelect: React.FC<SmartSelectProps> = ({
@@ -42,6 +43,7 @@ export const SmartSelect: React.FC<SmartSelectProps> = ({
     noneLabel = 'Ninguno / Sin Efecto',
     maxHeightClass = 'max-h-72',
     searchThreshold = 6,
+    showButtonSubtitle = true,
 }) => {
     const [isOpen, setIsOpen] = useState(false);
     const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
@@ -129,11 +131,11 @@ export const SmartSelect: React.FC<SmartSelectProps> = ({
                             {ButtonIcon && value !== undefined && (
                                 <ButtonIcon size={16} className={`${colors.buttonIcon} shrink-0`} />
                             )}
-                            <span className="font-semibold text-slate-800 truncate">
+                            <span className="font-semibold text-slate-800 truncate shrink-0">
                                 {selectedOption.title}
                             </span>
-                            {selectedOption.subtitle && (
-                                <span className="text-slate-500 text-xs truncate ml-2">
+                            {selectedOption.subtitle && showButtonSubtitle && (
+                                <span className="text-slate-500 text-xs truncate ml-2 flex-1">
                                     ({selectedOption.subtitle})
                                 </span>
                             )}
@@ -188,11 +190,11 @@ export const SmartSelect: React.FC<SmartSelectProps> = ({
                                             className={`cursor-pointer select-none relative py-2.5 pl-3 pr-9 transition-colors border-b border-slate-50 last:border-0 ${isSelected ? colors.selectedBg : 'hover:bg-slate-50'}`}
                                         >
                                             <div className="flex items-center gap-x-2 min-w-0">
-                                                <span className={`block truncate ${isSelected ? colors.titleSelected : 'font-medium text-slate-800'}`}>
+                                                <span className={`block truncate shrink-0 ${isSelected ? colors.titleSelected : 'font-medium text-slate-800'}`}>
                                                     {option.title}
                                                 </span>
                                                 {option.subtitle && (
-                                                    <span className={`truncate text-xs ${isSelected ? colors.subtitleSelected : 'text-slate-400'}`}>
+                                                    <span className={`truncate text-xs flex-1 ${isSelected ? colors.subtitleSelected : 'text-slate-400'}`}>
                                                         ({option.subtitle})
                                                     </span>
                                                 )}

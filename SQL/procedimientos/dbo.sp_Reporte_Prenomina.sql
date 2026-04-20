@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Reporte_Prenomina]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.6.14
--- Compilado:           11/04/2026, 13:57:04
+-- Versión de Paquete:  v1.6.19
+-- Compilado:           15/04/2026, 16:13:04
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -73,6 +73,8 @@ BEGIN
         INNER JOIN dbo.fn_Seguridad_GetEmpleadosPermitidosVigentes(@UsuarioId, @FechaInicio, @FechaFin) perm ON e.EmpleadoId = perm.EmpleadoId
         LEFT JOIN CatalogoEstatusAsistencia ea ON f.EstatusManualId = ea.EstatusId
         WHERE f.Fecha BETWEEN @FechaInicio AND @FechaFin
+          AND f.Fecha >= ISNULL(e.FechaIngreso, '1900-01-01')
+          AND f.Fecha <= ISNULL(e.FechaBaja, '2099-12-31')
           AND e.GrupoNominaId = @GrupoNominaId
           AND ea.ConceptoNominaId IS NOT NULL;
         -- Transacción de guardado

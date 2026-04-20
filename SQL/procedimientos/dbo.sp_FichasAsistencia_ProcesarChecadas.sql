@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_FichasAsistencia_ProcesarChecadas]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.6.14
--- Compilado:           11/04/2026, 13:57:04
+-- Versión de Paquete:  v1.6.19
+-- Compilado:           15/04/2026, 16:13:04
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -33,14 +33,17 @@ BEGIN
         DepartamentoId INT,
         GrupoNominaId INT,
         PuestoId INT,
-        EstablecimientoId INT
+        EstablecimientoId INT,
+        FechaIngreso DATE,
+        FechaBaja DATE
     );
     
-    INSERT INTO @EmpleadosAProcesar (EmpleadoId, CodRef, HorarioIdPredeterminado, DepartamentoId, GrupoNominaId, PuestoId, EstablecimientoId)
-    SELECT EmpleadoId, CodRef, HorarioIdPredeterminado, DepartamentoId, GrupoNominaId, PuestoId, EstablecimientoId 
+    INSERT INTO @EmpleadosAProcesar (EmpleadoId, CodRef, HorarioIdPredeterminado, DepartamentoId, GrupoNominaId, PuestoId, EstablecimientoId, FechaIngreso, FechaBaja)
+    SELECT EmpleadoId, CodRef, HorarioIdPredeterminado, DepartamentoId, GrupoNominaId, PuestoId, EstablecimientoId, FechaIngreso, FechaBaja 
     FROM dbo.Empleados 
-    WHERE Activo = 1
-      AND (@EmpleadoId IS NULL OR EmpleadoId = @EmpleadoId);
+    WHERE (@EmpleadoId IS NOT NULL AND EmpleadoId = @EmpleadoId)
+       OR (Activo = 1)
+       OR (FechaBaja IS NOT NULL AND FechaBaja >= @FechaInicio);
     IF NOT EXISTS (SELECT 1 FROM @EmpleadosAProcesar) RETURN;
     
     -- 3. IDs DE ESTATUS
@@ -62,6 +65,9 @@ BEGIN
     -------------------------------------------------------------------
     -- 4. CALCULO CON ARITMITICA  
     -------------------------------------------------------------------
+    -- Limpieza defensiva antes del CTE: si la sesión del pool reutilizó una conexión
+    -- donde #SourceData ya existe por un THROW previo, la eliminamos.
+    IF OBJECT_ID('tempdb..#SourceData') IS NOT NULL DROP TABLE #SourceData;
     ;WITH 
     FechasDelRango AS (
         SELECT CAST(DATEADD(DAY, number, @FechaInicio) AS DATE) AS Fecha
@@ -81,6 +87,8 @@ BEGIN
             CASE WHEN ht.TipoAsignacion = 'D' THEN 1 ELSE 0 END AS EsDescansoAsignado
         FROM @EmpleadosAProcesar e CROSS JOIN FechasDelRango fr
         LEFT JOIN dbo.HorariosTemporales ht ON e.EmpleadoId = ht.EmpleadoId AND fr.Fecha = ht.Fecha
+        WHERE fr.Fecha >= ISNULL(e.FechaIngreso, '1900-01-01')
+          AND fr.Fecha <= ISNULL(e.FechaBaja, '2099-12-31')
     ),
     -- B. Ventanas Calculadas 
     VentanasCalculadas AS (
@@ -291,7 +299,7 @@ BEGIN
             USING #SourceData AS Source
             ON (Target.EmpleadoId = Source.EmpleadoId AND Target.Fecha = Source.Fecha)
             WHEN MATCHED 
-                 AND Target.Estado IN ('BORRADOR', 'SIN_HORARIO', 'EN_PROCESO') THEN
+                 AND Target.Estado IN ('BORRADOR', 'SIN_HORARIO', 'EN_PROCESO', 'CALCULO_EVENTO') THEN
                 UPDATE SET
                     Target.HoraEntrada = Source.Checada_Entrada,
                     Target.HoraSalida = Source.Checada_Salida,

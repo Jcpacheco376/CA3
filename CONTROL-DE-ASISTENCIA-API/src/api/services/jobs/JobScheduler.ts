@@ -25,7 +25,7 @@ class JobScheduler {
             let activos = 0;
 
             for (const proceso of procesos) {
-                if (proceso.Activo === 1) {
+                if (proceso.Activo) {
                     const taskInstance = this.getTaskInstance(proceso.KeyInterna);
                     if (taskInstance) {
                         if (cron.validate(proceso.CronExpression)) {

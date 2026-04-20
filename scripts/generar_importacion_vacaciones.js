@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 /**
- * Script Generador de Importación de Vacaciones CONTPAQi
+ * Script Generador de Importación de Vacaciones CONTPAQi (CORREGIDO)
  * Uso: node scripts/generar_importacion_vacaciones.js <ruta_al_excel>
  */
 
@@ -32,7 +32,6 @@ try {
 
     function excelDateToSql(serial) {
         if (!serial || isNaN(serial)) return null;
-        // Excel dates are days since 1899-12-30
         const date = new Date((serial - 25569) * 86400 * 1000);
         return date.toISOString().split('T')[0];
     }
@@ -41,26 +40,28 @@ try {
         const mainCol = row['CONTPAQi'];
         if (!mainCol) return;
 
-        // Detectar línea de empleado: "0001.NOMBRE"
         const empMatch = mainCol.match(/^(\d{4})\.(.+)$/);
         if (empMatch) {
-            currentEmpPim = empMatch[1]; // Tomamos el código de 4 dígitos como PIM
+            currentEmpPim = empMatch[1];
             return;
         }
 
         if (!currentEmpPim) return;
 
-        // Filtrar transacciones de consumo
         if (mainCol === 'Vacaciones tomadas' || mainCol === 'Vac. tomadas antes del registro del empleado') {
-            const cant = row['__EMPTY_3']; // Columna de Tomadas
-            let fecha = excelDateToSql(row['__EMPTY']); // Fecha registro
-            if (!fecha) fecha = excelDateToSql(row['__EMPTY_1']); // Fallback a Fecha inicial
+            const cant = row['__EMPTY_3'];
+            let fecha = excelDateToSql(row['__EMPTY']);
+            if (!fecha) fecha = excelDateToSql(row['__EMPTY_1']);
 
             if (cant && cant > 0) {
-                const desc = mainCol === 'Vacaciones tomadas' ? 'Vacaciones tomadas' : 'Saldo inicial (CONTPAQi)';
+                // Lógica de Tipos según USER:
+                // "Vac. tomadas antes..." -> Ajuste
+                // Todo lo demás -> Saldos Iniciales
+                const tipo = mainCol === 'Vac. tomadas antes del registro del empleado' ? 'Ajuste' : 'Saldos Iniciales';
+                const desc = mainCol === 'Vac. tomadas antes del registro del empleado' ? 'Saldo inicial (CONTPAQi)' : 'Vacaciones tomadas';
                 const sqlDate = fecha ? `'${fecha}'` : 'GETDATE()';
 
-                inserts.push(`INSERT INTO #TmpImportacion (PIM, Cantidad, Fecha, Descripcion) VALUES ('${currentEmpPim}', ${cant}, ${sqlDate}, '${desc}');`);
+                inserts.push(`INSERT INTO #TmpImportacion (PIM, Cantidad, Fecha, Descripcion, Tipo) VALUES ('${currentEmpPim}', ${cant}, ${sqlDate}, '${desc}', '${tipo}');`);
             }
         }
     });
@@ -69,10 +70,9 @@ try {
         console.warn('Advertencia: No se encontraron registros de vacaciones tomadas en el archivo.');
     }
 
-    const sqlScript = `-- ─── IMPORTACIÓN DE VACACIONES DESDE EXCEL CONTPAQi (GENERADO) ────────────────
+    const sqlScript = `-- ─── IMPORTACIÓN DE VACACIONES DESDE EXCEL CONTPAQi (CORREGIDO) ───────────────
 -- Archivo origen: ${path.basename(excelPath)}
 -- Generado el: ${new Date().toLocaleString()}
--- NOTA: Este script utiliza el campo PIM para asociar los empleados.
 
 SET NOCOUNT ON;
 
@@ -84,7 +84,6 @@ IF CURSOR_STATUS('global','cur_recalc') >= 0 BEGIN CLOSE cur_recalc; DEALLOCATE 
 IF OBJECT_ID('tempdb..#TmpImportacion') IS NOT NULL DROP TABLE #TmpImportacion;
 IF OBJECT_ID('tempdb..#SaldosDisponibles') IS NOT NULL DROP TABLE #SaldosDisponibles;
 
--- Limpiar saldos actuales para re-importación limpia
 DELETE FROM VacacionesSaldosDetalle;
 DELETE FROM VacacionesSaldos;
 DBCC CHECKIDENT ('VacacionesSaldos', RESEED, 0);
@@ -97,7 +96,8 @@ CREATE TABLE #TmpImportacion (
     PIM         VARCHAR(50),
     Cantidad    DECIMAL(10,2),
     Fecha       DATE,
-    Descripcion VARCHAR(255)
+    Descripcion VARCHAR(255),
+    Tipo        VARCHAR(50)
 );
 
 CREATE TABLE #SaldosDisponibles (
@@ -107,28 +107,29 @@ CREATE TABLE #SaldosDisponibles (
 );
 GO
 
--- ─── 2. CARGA DE DATOS (GENERADO AUTOMÁTICAMENTE) ───────────────────────────
-${inserts.join('\n')}
+-- ─── 2. CARGA DE DATOS (ORDENADO: AJUSTES PRIMERO) ──────────────────────────
+-- Se ordenan para que los ajustes (saldo inicial) consuman las bolsas más viejas primero
+${inserts.sort((a, b) => a.indexOf('\'Ajuste\'') > -1 ? -1 : 1).join('\n')}
 GO
 
--- ─── 3. GENERACIÓN DE BOLSAS DE SALDO (SHELL) ───────────────────────────────
+-- ─── 3. GENERACIÓN DE BOLSAS DE SALDO (EXTENDIDO) ───────────────────────────
 DECLARE @EmpId_Loop INT, @FI_Loop DATE;
 DECLARE cur_emps CURSOR FOR 
     SELECT DISTINCT e.EmpleadoId, e.FechaIngreso 
     FROM #TmpImportacion t
-    JOIN Empleados e ON e.pim = t.PIM; -- BUSQUEDA POR PIM
+    JOIN Empleados e ON e.pim = t.PIM;
 OPEN cur_emps;
 FETCH NEXT FROM cur_emps INTO @EmpId_Loop, @FI_Loop;
 WHILE @@FETCH_STATUS = 0
 BEGIN
     DECLARE @Anio_Indice INT = 1;
+    -- Generamos hasta la fecha actual para evitar crear bolsas a futuro que sp_Vacaciones_Recalcular borrará
     WHILE DATEADD(YEAR, @Anio_Indice - 1, @FI_Loop) <= GETDATE()
     BEGIN
         DECLARE @F_Inicio DATE = DATEADD(YEAR, @Anio_Indice - 1, @FI_Loop);
         DECLARE @F_Fin DATE = DATEADD(DAY, -1, DATEADD(YEAR, @Anio_Indice, @FI_Loop));
         
-        -- Obtener días según ley para este aniversario
-        DECLARE @DiasOtorgados INT = dbo.fn_Vacaciones_GetDiasOtorgados(@F_Fin, @Anio_Indice);
+        DECLARE @DiasOtorgados INT = ISNULL(dbo.fn_Vacaciones_GetDiasOtorgados(@F_Fin, @Anio_Indice), 0);
 
         INSERT INTO VacacionesSaldos (EmpleadoId, Anio, DiasOtorgados, DiasDisfrutados, FechaInicioPeriodo, FechaFinPeriodo)
         VALUES (@EmpId_Loop, @Anio_Indice, @DiasOtorgados, 0, @F_Inicio, @F_Fin);
@@ -146,15 +147,15 @@ DEALLOCATE cur_emps;
 GO
 
 -- ─── 4. PROCESAMIENTO FIFO (CONSUMO DE SALDOS) ──────────────────────────────
-DECLARE @Imp_Id INT, @Imp_PIM VARCHAR(50), @Imp_Cant DECIMAL(10,2), @Imp_Fec DATE, @Imp_Des VARCHAR(255);
+DECLARE @Imp_Id INT, @Imp_PIM VARCHAR(50), @Imp_Cant DECIMAL(10,2), @Imp_Fec DATE, @Imp_Des VARCHAR(255), @Imp_Tipo VARCHAR(50);
 DECLARE cur_fifo CURSOR FOR 
-    SELECT ImportId, PIM, Cantidad, Fecha, Descripcion FROM #TmpImportacion ORDER BY ImportId;
+    SELECT ImportId, PIM, Cantidad, Fecha, Descripcion, Tipo FROM #TmpImportacion ORDER BY ImportId;
 OPEN cur_fifo;
-FETCH NEXT FROM cur_fifo INTO @Imp_Id, @Imp_PIM, @Imp_Cant, @Imp_Fec, @Imp_Des;
+FETCH NEXT FROM cur_fifo INTO @Imp_Id, @Imp_PIM, @Imp_Cant, @Imp_Fec, @Imp_Des, @Imp_Tipo;
 WHILE @@FETCH_STATUS = 0
 BEGIN
     DECLARE @Emp_ID_Int INT;
-    SELECT @Emp_ID_Int = EmpleadoId FROM Empleados WHERE pim = @Imp_PIM; -- BUSQUEDA POR PIM
+    SELECT @Emp_ID_Int = EmpleadoId FROM Empleados WHERE pim = @Imp_PIM;
     
     WHILE @Imp_Cant > 0
     BEGIN
@@ -183,18 +184,19 @@ BEGIN
         DECLARE @Dias_Work DECIMAL(10,2) = CASE WHEN @Imp_Cant <= @Cap_Res THEN @Imp_Cant ELSE @Cap_Res END;
         
         INSERT INTO VacacionesSaldosDetalle (SaldoId, Fecha, Dias, Descripcion, Tipo)
-        VALUES (@Target_SID, @Imp_Fec, @Dias_Work, @Imp_Des, 'Migración CONTPAQi');
+        VALUES (@Target_SID, @Imp_Fec, @Dias_Work, @Imp_Des, @Imp_Tipo);
         
         UPDATE #SaldosDisponibles SET Restante = Restante - @Dias_Work WHERE SaldoId = @Target_SID;
         SET @Imp_Cant = @Imp_Cant - @Dias_Work;
     END
-    FETCH NEXT FROM cur_fifo INTO @Imp_Id, @Imp_PIM, @Imp_Cant, @Imp_Fec, @Imp_Des;
+    FETCH NEXT FROM cur_fifo INTO @Imp_Id, @Imp_PIM, @Imp_Cant, @Imp_Fec, @Imp_Des, @Imp_Tipo;
 END
 CLOSE cur_fifo;
 DEALLOCATE cur_fifo;
 GO
 
 -- ─── 5. RECALCULO FINAL ─────────────────────────────────────────────────────
+-- Esto asegura que los días disfrutados en VacacionesSaldos se actualicen
 DECLARE @Recalc_Id INT;
 DECLARE cur_recalc CURSOR FOR SELECT DISTINCT EmpleadoId FROM #SaldosDisponibles;
 OPEN cur_recalc;
@@ -210,7 +212,7 @@ GO
 
 IF OBJECT_ID('tempdb..#TmpImportacion') IS NOT NULL DROP TABLE #TmpImportacion;
 IF OBJECT_ID('tempdb..#SaldosDisponibles') IS NOT NULL DROP TABLE #SaldosDisponibles;
-PRINT 'Importación FIFO desde Excel CONTPAQi completada exitosamente.';
+PRINT 'Importación FIFO corregida completada exitosamente.';
 `;
 
     const outputPath = path.join(__dirname, '../SQL/import_vacations_contpaq_excel.sql');

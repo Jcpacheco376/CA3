@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_FichasAsistencia_GetDataByRange]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.6.14
--- Compilado:           11/04/2026, 13:57:04
+-- Versión de Paquete:  v1.6.19
+-- Compilado:           15/04/2026, 16:13:04
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -23,7 +23,7 @@ BEGIN
     SET NOCOUNT ON;
     SET DATEFIRST 1; -- Lunes = 1
 		
-		-- 1. Auto-Generaci�n inteligente 
+		-- 1. Auto-Generación inteligente 
 		IF NOT EXISTS (SELECT 1 FROM dbo.FichaAsistencia WHERE Fecha BETWEEN @FechaInicio AND @FechaFin)
         begin 
 			EXEC [dbo].[sp_FichasAsistencia_ProcesarChecadas] @FechaInicio, @FechaFin, @UsuarioId;
@@ -36,7 +36,7 @@ BEGIN
 				-- Verificar si YA existe ficha para este usuario y esta fecha exacta
 				IF EXISTS (
 					SELECT 1
-					FROM dbo.fn_Seguridad_GetEmpleadosPermitidos(@UsuarioId) se
+					FROM dbo.fn_Seguridad_GetEmpleadosPermitidosVigentes(@UsuarioId, @FechaInicio, @FechaFin) se
 					WHERE NOT EXISTS (
 						SELECT 1
 						FROM dbo.FichaAsistencia fa
@@ -45,13 +45,13 @@ BEGIN
 					)
 				)
 				BEGIN
-					-- Procesar solo este d�a faltante
+					-- Procesar solo este día faltante
 					EXEC [dbo].[sp_FichasAsistencia_ProcesarChecadas] 
 						@CurrentDate, 
 						@CurrentDate, 
 						@UsuarioId; 
 				END
-				-- Avanzar al siguiente d�a
+				-- Avanzar al siguiente día
 				SET @CurrentDate = DATEADD(DAY, 1, @CurrentDate);
 			END
 	  end
@@ -72,10 +72,11 @@ BEGIN
         ISNULL(d.Nombre, 'Sin Depto.') AS departamento_nombre, 
         ISNULL(p.Nombre, 'Sin Puesto') AS puesto_descripcion, 
         e.DepartamentoId, e.GrupoNominaId, e.PuestoId, e.EstablecimientoId, e.FechaNacimiento,
+        e.FechaIngreso, e.FechaBaja,
         
         ISNULL(JsonData.FichasSemana, '[]') AS FichasSemana
     FROM dbo.Empleados e
-    INNER JOIN dbo.fn_Seguridad_GetEmpleadosPermitidos(@UsuarioId) perm ON e.EmpleadoId = perm.EmpleadoId
+    INNER JOIN dbo.fn_Seguridad_GetEmpleadosPermitidosVigentes(@UsuarioId, @FechaInicio, @FechaFin) perm ON e.EmpleadoId = perm.EmpleadoId
     LEFT JOIN dbo.CatalogoDepartamentos d ON e.DepartamentoId = d.DepartamentoId
     LEFT JOIN dbo.CatalogoPuestos p ON e.PuestoId = p.PuestoId
     LEFT JOIN dbo.CatalogoHorarios h ON e.HorarioIdPredeterminado = h.HorarioId
@@ -91,7 +92,7 @@ BEGIN
                 fa.IncidenciaActivaId,
                 fa.Estado,
                 
-                -- C�lculo de Minutos de Comida
+                -- Cálculo de Minutos de Comida
                 ISNULL((
                     SELECT DATEDIFF(MINUTE, hd.HoraInicioComida, hd.HoraFinComida)
                     FROM dbo.CatalogoHorariosDetalle hd
@@ -121,16 +122,18 @@ BEGIN
                 'Auto' as TipoSalida, 
                 'Pendiente' as EstatusAutorizacion
             FROM dbo.FichaAsistencia fa
-            INNER JOIN dbo.fn_Seguridad_GetEmpleadosPermitidos(@UsuarioId) perm ON e.EmpleadoId = perm.EmpleadoId
+            INNER JOIN dbo.fn_Seguridad_GetEmpleadosPermitidosVigentes(@UsuarioId, @FechaInicio, @FechaFin) perm ON e.EmpleadoId = perm.EmpleadoId
             LEFT JOIN dbo.CatalogoEstatusAsistencia estMan ON fa.EstatusManualId = estMan.EstatusId
             LEFT JOIN dbo.CatalogoEstatusAsistencia estChec ON fa.EstatusChecadorId = estChec.EstatusId
             WHERE fa.EmpleadoId = e.EmpleadoId 
               AND fa.Fecha BETWEEN @FechaInicio AND @FechaFin
+              AND fa.Fecha >= ISNULL(e.FechaIngreso, '1900-01-01')
+              AND fa.Fecha <= ISNULL(e.FechaBaja, '2099-12-31')
             ORDER BY fa.Fecha
             FOR JSON PATH
         ) AS FichasSemana
     ) AS JsonData
-    WHERE e.Activo = 1
+    WHERE 1 = 1
       AND ((SELECT COUNT(*) FROM @Deptos) = 0 OR e.DepartamentoId IN (SELECT Id FROM @Deptos))
       AND ((SELECT COUNT(*) FROM @Grupos) = 0 OR e.GrupoNominaId IN (SELECT Id FROM @Grupos))
       AND ((SELECT COUNT(*) FROM @Puestos) = 0 OR e.PuestoId IN (SELECT Id FROM @Puestos))

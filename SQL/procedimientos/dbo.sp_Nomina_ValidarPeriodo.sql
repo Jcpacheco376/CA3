@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Nomina_ValidarPeriodo]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.6.14
--- Compilado:           11/04/2026, 13:57:04
+-- Versión de Paquete:  v1.6.19
+-- Compilado:           15/04/2026, 16:13:04
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -35,7 +35,7 @@ BEGIN
     INSERT INTO @EmpleadosFiltrados (EmpleadoId)
     SELECT e.EmpleadoId FROM dbo.Empleados e
     INNER JOIN dbo.fn_Seguridad_GetEmpleadosPermitidosVigentes(@UsuarioId, @FechaInicio, @FechaFin) perm ON e.EmpleadoId = perm.EmpleadoId
-    WHERE e.Activo = 1 
+    WHERE 1 = 1 
       AND ((SELECT COUNT(*) FROM @Deptos) = 0 OR e.DepartamentoId IN (SELECT Id FROM @Deptos))
       AND ((SELECT COUNT(*) FROM @Grupos) = 0 OR e.GrupoNominaId IN (SELECT Id FROM @Grupos))
       AND ((SELECT COUNT(*) FROM @Puestos) = 0 OR e.PuestoId IN (SELECT Id FROM @Puestos))
@@ -56,8 +56,11 @@ BEGIN
         @FichasSinHorario = SUM(CASE WHEN f.Estado = 'SIN_HORARIO' THEN 1 ELSE 0 END)
     FROM dbo.FichaAsistencia f
     JOIN @EmpleadosFiltrados ef ON f.EmpleadoId = ef.EmpleadoId
+    JOIN dbo.Empleados e ON f.EmpleadoId = e.EmpleadoId
     --LEFT JOIN dbo.CatalogoEstatusAsistencia cea ON cea.EstatusId = ISNULL(f.EstatusManualId, f.EstatusChecadorId)
-    WHERE f.Fecha BETWEEN @FechaInicio AND @FechaFin;
+    WHERE f.Fecha BETWEEN @FechaInicio AND @FechaFin
+      AND f.Fecha >= ISNULL(e.FechaIngreso, '1900-01-01')
+      AND f.Fecha <= ISNULL(e.FechaBaja, '2099-12-31');
     -- 4. SEMaFORO
     DECLARE @Semaforo VARCHAR(20) = 'VERDE';
     DECLARE @Msg VARCHAR(255) = 'Periodo listo para procesar.';

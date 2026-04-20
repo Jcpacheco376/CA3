@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { format, startOfDay, addDays, isAfter } from 'date-fns';
+import { format, startOfDay, addDays, isAfter, getDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import * as LucideIcons from 'lucide-react';
 import {
@@ -26,6 +26,7 @@ interface AuditTimelineModalProps {
     onClose: () => void;
     getToken: () => string | null;
     statusCatalog?: any[]; // Prop crucial para no harcodear nombres
+    scheduleCatalog?: any[]; // <--- NUEVA PROP para enriquecimiento
     /** Callback opcional que se invoca al terminar una regeneración exitosa */
     onRegenerated?: (employeeId: number, startDate: Date, endDate: Date) => void;
 }
@@ -49,8 +50,103 @@ const timeToPercent = (timeStr: string, addMinutes: number = 0) => {
     return (totalMinutes / (24 * 60)) * 100;
 };
 
+const calculateScheduledHours = (turno: any) => {
+    if (!turno || !turno.HoraEntrada || !turno.HoraSalida) return 0;
+    try {
+        const [hE, mE] = turno.HoraEntrada.split(':').map(Number);
+        const [hS, mS] = turno.HoraSalida.split(':').map(Number);
+        let startMin = hE * 60 + mE;
+        let endMin = hS * 60 + mS;
+
+        if (endMin <= startMin) endMin += 1440; // Turno nocturno
+        let duration = endMin - startMin;
+
+        // Comida
+        const hIni = turno.HoraInicioComida || turno.horaInicioComida || turno.HoraComidaInicio;
+        const hFin = turno.HoraFinComida || turno.horaFinComida || turno.HoraComidaFin;
+        const hasMeal = !!(turno.TieneComida || turno.tieneComida || (hIni && hIni !== '00:00:00' && hIni !== '00:00'));
+
+        if (hasMeal && hIni && hFin) {
+            const [hCi, mCi] = hIni.split(':').map(Number);
+            const [hCf, mCf] = hFin.split(':').map(Number);
+            let cStartMin = hCi * 60 + mCi;
+            let cEndMin = hCf * 60 + mCf;
+
+            // Ajuste nocturno para la comida
+            if (endMin > 1440 && cStartMin < startMin) {
+                cStartMin += 1440;
+                cEndMin += 1440;
+            }
+            if (cEndMin < cStartMin) cEndMin += 1440;
+
+            if (cStartMin >= startMin && cEndMin <= endMin) {
+                duration -= (cEndMin - cStartMin);
+            }
+        }
+        return Math.max(0, duration / 60);
+    } catch { return 0; }
+};
+
+const calculateWorkedHours = (turno: any, dayChecadas: any[]) => {
+    if (!turno || !turno.HoraEntrada || !turno.HoraSalida) return 0;
+    try {
+        const [hE, mE] = turno.HoraEntrada.split(':').map(Number);
+        const [hS, mS] = turno.HoraSalida.split(':').map(Number);
+        let entProg = hE * 60 + mE;
+        let salProg = hS * 60 + mS;
+        if (salProg <= entProg) salProg += 1440;
+
+        const minAntes = turno.MinutosAntesEntrada || 0;
+        const minDespues = turno.MinutosDespuesSalida || 0;
+
+        const winStart = entProg - minAntes;
+        const winEnd = salProg + minDespues;
+
+        const checadasEnTurno = dayChecadas.filter(c => {
+            if (!c.timePart) return false;
+            const [h, m] = c.timePart.split(':').map(Number);
+            let checkMin = h * 60 + m;
+            if (salProg > 1440 && checkMin < (entProg - 120)) checkMin += 1440;
+            return checkMin >= winStart && checkMin <= winEnd;
+        }).map(c => {
+            const [h, m] = c.timePart.split(':').map(Number);
+            let checkMin = h * 60 + m;
+            if (salProg > 1440 && checkMin < (entProg - 120)) checkMin += 1440;
+            return checkMin;
+        });
+
+        if (checadasEnTurno.length < 2) return 0;
+
+        const realEnt = Math.min(...checadasEnTurno);
+        const realSal = Math.max(...checadasEnTurno);
+        let duration = realSal - realEnt;
+
+        // Restar comida
+        const hIni = turno.HoraInicioComida || turno.horaInicioComida || turno.HoraComidaInicio;
+        const hFin = turno.HoraFinComida || turno.horaFinComida || turno.HoraComidaFin;
+        const hasMeal = !!(turno.TieneComida || turno.tieneComida || (hIni && hIni !== '00:00:00' && hIni !== '00:00'));
+
+        if (hasMeal && hIni && hFin) {
+            const [hCi, mCi] = hIni.split(':').map(Number);
+            const [hCf, mCf] = hFin.split(':').map(Number);
+            let cStartMin = hCi * 60 + mCi;
+            let cEndMin = hCf * 60 + mCf;
+            if (salProg > 1440 && cStartMin < entProg) {
+                cStartMin += 1440;
+                cEndMin += 1440;
+            }
+            if (cEndMin < cStartMin) cEndMin += 1440;
+            // Solo descontar si el periodo de comida está entre la entrada y salida real detectada
+            if (cStartMin >= realEnt && cEndMin <= realSal) {
+                duration -= (cEndMin - cStartMin);
+            }
+        }
+        return Math.max(0, duration / 60);
+    } catch { return 0; }
+};
+
 export const AuditTimelineModal: React.FC<AuditTimelineModalProps> = ({
-    employeeId, employeeName, employeeFicha, startDate, endDate, onClose, getToken, statusCatalog = [], onRegenerated
+    employeeId, employeeName, employeeFicha, startDate, endDate, onClose, getToken, statusCatalog = [], scheduleCatalog = [], onRegenerated
 }) => {
     const { can } = useAuth();
     const [isLoading, setIsLoading] = useState(true);
@@ -61,8 +157,8 @@ export const AuditTimelineModal: React.FC<AuditTimelineModalProps> = ({
     const [calendarEvents, setCalendarEvents] = useState<any[]>([]);
     const [activeChecadaId, setActiveChecadaId] = useState<number | null>(null);
     const [isRegenerating, setIsRegenerating] = useState(false);
-    // date: día específico a regenerar (si aplica); manualDays: fechas con ajuste manual que se perderán
-    const [confirmRegenerate, setConfirmRegenerate] = useState<{ isOpen: boolean; date?: string; manualDays?: string[] }>({ isOpen: false });
+    // date: día específico a regenerar (si aplica); manualDays: fechas con ajuste manual; validadoDays: fechas en VALIDADO sin manual
+    const [confirmRegenerate, setConfirmRegenerate] = useState<{ isOpen: boolean; date?: string; manualDays?: string[]; validadoDays?: string[] }>({ isOpen: false });
 
     const { addNotification } = useNotification();
 
@@ -115,31 +211,36 @@ export const AuditTimelineModal: React.FC<AuditTimelineModalProps> = ({
     }, [fetchData]);
 
     /**
-     * Determina qué días dentro del rango a regenerar tienen ajuste manual
-     * (EstatusManualAbrev con valor), para advertir al usuario antes de continuar.
+     * Determina qué días dentro del rango tienen ajuste manual O están en estado VALIDADO.
+     * Ambos tipos necesitan ser limpiados antes de que el SP pueda re-procesar la ficha.
      */
-    const getManualDaysInRange = (specificDateStr?: string): string[] => {
-        return fichas
-            .filter(f => {
-                if (!f.EstatusManualAbrev) return false;
-                const fichaDate = f.Fecha?.substring(0, 10);
-                if (!fichaDate) return false;
-                if (specificDateStr) return fichaDate === specificDateStr;
-                // Rango completo: comparar contra startDate..endDate
-                return fichaDate >= format(startDate, 'yyyy-MM-dd') && fichaDate <= format(endDate, 'yyyy-MM-dd');
-            })
-            .map(f => f.Fecha.substring(0, 10));
-    };
+    const getDaysToResetInRange = (specificDateStr?: string): { manual: string[]; validado: string[] } => {
+        const manual: string[] = [];
+        const validado: string[] = [];
+        fichas.forEach(f => {
+            const fichaDate = f.Fecha?.substring(0, 10);
+            if (!fichaDate) return;
+            if (specificDateStr && fichaDate !== specificDateStr) return;
+            if (!specificDateStr && (fichaDate < format(startDate, 'yyyy-MM-dd') || fichaDate > format(endDate, 'yyyy-MM-dd'))) return;
 
-    /** Paso 1: El usuario pide regenerar — detectar manuales y pedir confirmación */
+            if (f.EstatusManualAbrev) manual.push(fichaDate);
+            if ((f.Estado || f.estado) === 'VALIDADO') validado.push(fichaDate);
+        });
+        return { manual, validado };
+    };
+    // Alias para la llamada existente de manualDays en confirmRegenerate
+    const getManualDaysInRange = (specificDateStr?: string): string[] =>
+        getDaysToResetInRange(specificDateStr).manual;
+
+    /** Paso 1: El usuario pide regenerar — detectar manuales/validados y pedir confirmación */
     const requestRegenerate = (specificDateStr?: string) => {
-        const manualDays = getManualDaysInRange(specificDateStr);
-        setConfirmRegenerate({ isOpen: true, date: specificDateStr, manualDays });
+        const { manual: manualDays, validado: validadoDays } = getDaysToResetInRange(specificDateStr);
+        setConfirmRegenerate({ isOpen: true, date: specificDateStr, manualDays, validadoDays });
     };
 
-    /** Paso 2: El usuario confirma — limpiar manuales si los hay, luego regenerar */
+    /** Paso 2: El usuario confirma — limpiar manuales y validados si los hay, luego regenerar */
     const handleRegenerate = async () => {
-        const { date: specificDateStr, manualDays = [] } = confirmRegenerate;
+        const { date: specificDateStr, manualDays = [], validadoDays = [] } = confirmRegenerate;
         const token = getToken();
         if (!token) return;
 
@@ -147,11 +248,12 @@ export const AuditTimelineModal: React.FC<AuditTimelineModalProps> = ({
         setConfirmRegenerate({ isOpen: false });
 
         try {
-            // --- PASO A: Limpiar ajustes manuales si los hay ---
-            // Usamos el endpoint /attendance (sp_FichasAsistencia_SaveManual) con estatusManual=null
-            // para dejar la ficha en estado BORRADOR antes de regenerar.
-            if (manualDays.length > 0) {
-                const clearRequests = manualDays.map(dateStr =>
+            // --- PASO A: Limpiar todas las fichas que bloquean el re-proceso ---
+            // Incluye: días con ajuste manual (EstatusManualAbrev) Y días en VALIDADO sin manual
+            // Ambos tipos quedan en BORRADOR tras el SaveManual con estatusManual=null
+            const allDaysToReset = Array.from(new Set([...manualDays, ...validadoDays]));
+            if (allDaysToReset.length > 0) {
+                const clearRequests = allDaysToReset.map(dateStr =>
                     fetch(`${API_BASE_URL}/attendance`, {
                         method: 'POST',
                         headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -166,7 +268,7 @@ export const AuditTimelineModal: React.FC<AuditTimelineModalProps> = ({
                 const clearResults = await Promise.all(clearRequests);
                 const failedClears = clearResults.filter(r => !r.ok);
                 if (failedClears.length > 0) {
-                    throw new Error(`No se pudieron limpiar ${failedClears.length} ajuste(s) manual(es) antes de regenerar.`);
+                    throw new Error(`No se pudieron limpiar ${failedClears.length} ficha(s) antes de regenerar.`);
                 }
             }
 
@@ -188,7 +290,7 @@ export const AuditTimelineModal: React.FC<AuditTimelineModalProps> = ({
 
             addNotification(
                 'Regeneración exitosa',
-                `Se han reprocesado las fichas de asistencia correctamente${specificDateStr ? ` para el día ${specificDateStr}` : ' para el periodo completo'}${manualDays.length > 0 ? ` (${manualDays.length} ajuste(s) manual(es) limpiado(s))` : ''}.`,
+                `Se han reprocesado las fichas de asistencia correctamente${specificDateStr ? ` para el día ${specificDateStr}` : ' para el periodo completo'}${allDaysToReset.length > 0 ? ` (${allDaysToReset.length} ficha(s) restablecida(s))` : ''}.`,
                 'success'
             );
 
@@ -215,8 +317,22 @@ export const AuditTimelineModal: React.FC<AuditTimelineModalProps> = ({
         for (let i = 0; i < diffDays; i++) {
             const date = addDays(startOfDay(startDate), i);
             const dateStr = format(date, 'yyyy-MM-dd');
+            const diaSemana = getDay(date) === 0 ? 7 : getDay(date);
 
-            const dayShifts = schedules.filter((s: any) => s.Fecha?.startsWith(dateStr));
+            const dayShifts = schedules.filter((s: any) => s.Fecha?.startsWith(dateStr)).map((turno: any) => {
+                // ENRIQUECIMIENTO: Si el API de auditoría no trae comida, la buscamos en el catálogo
+                const horarioId = turno.HorarioId || turno.HorarioIdAplicable;
+                if (horarioId && scheduleCatalog.length > 0) {
+                    const catalogueHorario = scheduleCatalog.find(h => h.HorarioId === horarioId);
+                    if (catalogueHorario?.Turnos) {
+                        const detail = catalogueHorario.Turnos.find((t: any) => t.DiaSemana === diaSemana);
+                        if (detail) {
+                            return { ...detail, ...turno }; // El turno de auditoría manda en horas, el catálogo rellena el resto
+                        }
+                    }
+                }
+                return turno;
+            });
             const dayFicha = fichas.find((f: any) => f.Fecha?.startsWith(dateStr));
 
             const dayChecadas = rawChecadas
@@ -237,7 +353,7 @@ export const AuditTimelineModal: React.FC<AuditTimelineModalProps> = ({
                         if (winRight < winLeft) return timePercent >= winLeft || timePercent <= winRight;
                         return timePercent >= winLeft && timePercent <= winRight;
                     });
-                    return { ...c, isOutOfSchedule: !isAtLeastInOneShift };
+                    return { ...c, timePart, isOutOfSchedule: !isAtLeastInOneShift };
                 })
                 .sort((a: any, b: any) => {
                     if (!a.FechaHora || !b.FechaHora) return 0;
@@ -249,6 +365,8 @@ export const AuditTimelineModal: React.FC<AuditTimelineModalProps> = ({
                 checadas: dayChecadas,
                 ficha: dayFicha,
                 shifts: dayShifts,
+                scheduledHours: dayShifts.reduce((acc: number, s: any) => acc + calculateScheduledHours(s), 0),
+                workedHours: dayShifts.reduce((acc: number, s: any) => acc + calculateWorkedHours(s, dayChecadas), 0),
                 outOfScheduleCount: dayChecadas.filter((c: any) => c.isOutOfSchedule).length,
                 events: (calendarEvents || []).filter((e: any) => {
                     const eDate = e.Fecha || e.fecha;
@@ -309,7 +427,7 @@ export const AuditTimelineModal: React.FC<AuditTimelineModalProps> = ({
                 onClose={() => setConfirmRegenerate({ isOpen: false })}
                 onConfirm={handleRegenerate}
                 title={confirmRegenerate.date ? "Recalcular Día" : "Recalcular Periodo"}
-                variant={(confirmRegenerate.manualDays?.length ?? 0) > 0 ? 'warning' : 'info'}
+                variant={(confirmRegenerate.manualDays?.length ?? 0) > 0 || (confirmRegenerate.validadoDays?.length ?? 0) > 0 ? 'warning' : 'info'}
                 confirmText={isRegenerating ? "Procesando..." : "Sí, recalcular"}
                 cancelText="Cancelar"
             >
@@ -317,21 +435,20 @@ export const AuditTimelineModal: React.FC<AuditTimelineModalProps> = ({
                     <p className="font-medium text-slate-800">
                         ¿Deseas recalcular la asistencia {confirmRegenerate.date ? `del día ${confirmRegenerate.date}` : 'del periodo actual'}?
                     </p>
-                    {(confirmRegenerate.manualDays?.length ?? 0) > 0 ? (
+                    {((confirmRegenerate.manualDays?.length ?? 0) > 0 || (confirmRegenerate.validadoDays?.length ?? 0) > 0) ? (
                         <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5">
                             <AlertTriangle size={16} className="text-amber-500 shrink-0 mt-0.5" />
                             <div className="text-xs text-amber-800 space-y-1">
                                 <p className="font-bold">
-                                    {confirmRegenerate.date
-                                        ? 'Este día tiene un ajuste manual que se eliminará antes de regenerar.'
-                                        : `${confirmRegenerate.manualDays!.length} día(s) tienen ajustes manuales que se eliminarán antes de regenerar:`}
+                                    Las siguientes fichas se restablecerán a Borrador antes de regenerar:
                                 </p>
-                                {!confirmRegenerate.date && (
-                                    <ul className="list-disc list-inside space-y-0.5 font-mono">
-                                        {confirmRegenerate.manualDays!.map(d => <li key={d}>{d}</li>)}
-                                    </ul>
+                                {(confirmRegenerate.validadoDays?.length ?? 0) > 0 && (
+                                    <p>• <strong>{confirmRegenerate.validadoDays!.length} día(s) ya aprobados</strong> (VALIDADO) volverán a estado Borrador.</p>
                                 )}
-                                <p>La asistencia quedará en estado <strong>Borrador</strong> y el sistema volverá a evaluarla desde las checadas originales.</p>
+                                {(confirmRegenerate.manualDays?.length ?? 0) > 0 && (
+                                    <p>• <strong>{confirmRegenerate.manualDays!.length} ajuste(s) manual(es)</strong> serán eliminados.</p>
+                                )}
+                                <p className="mt-1">El sistema volverá a evaluar las checadas originales.</p>
                             </div>
                         </div>
                     ) : (
@@ -439,77 +556,134 @@ export const AuditTimelineModal: React.FC<AuditTimelineModalProps> = ({
                                                 {/* Shifts Bars */}
                                                 {shifts?.map((turno: any, tIdx: number) => {
                                                     if (turno.EsDescansoAsignado || !turno.EsDiaLaboral || !turno.HoraEntrada || !turno.HoraSalida) return null;
+
                                                     const colors = getColorClasses(turno.ColorUI || turno.Color || 'slate');
                                                     const tolerance = turno.MinutosTolerancia || 0;
                                                     const minAntes = turno.MinutosAntesEntrada || 0;
                                                     const minDespues = turno.MinutosDespuesSalida || 0;
 
-                                                    const left = timeToPercent(turno.HoraEntrada);
-                                                    const right = timeToPercent(turno.HoraSalida);
-                                                    const captureLeft = timeToPercent(turno.HoraEntrada, -minAntes);
-                                                    const captureRight = timeToPercent(turno.HoraSalida, minDespues);
+                                                    const entMin = timeToPercent(turno.HoraEntrada);
+                                                    let salMin = timeToPercent(turno.HoraSalida);
+
+                                                    // Determinar si cruza medianoche
+                                                    const crossMidnight = salMin <= entMin;
+
+                                                    // Definir los fragmentos a dibujar (si cruza, son dos)
+                                                    const fragments = crossMidnight
+                                                        ? [{ l: entMin, w: 100 - entMin, type: 'start' }, { l: 0, w: salMin, type: 'end' }]
+                                                        : [{ l: entMin, w: salMin - entMin, type: 'full' }];
 
                                                     return (
-                                                        <div key={tIdx} className="absolute inset-0 z-20 pointer-events-none">
-                                                            {/* Capture Window (Margins) - Color matching shift but lighter */}
-                                                            {(minAntes > 0 || minDespues > 0) && (
-                                                                <div
-                                                                    className="absolute top-1/2 -translate-y-1/2 h-32 pointer-events-auto"
-                                                                    style={{ left: `${captureLeft}%`, width: `${captureRight - captureLeft}%` }}
-                                                                >
-                                                                    <Tooltip
-                                                                        text={`Ventana de captura: -${minAntes}m a +${minDespues}m`}
-                                                                        placement="top" offset={12}
-                                                                        triggerClassName="w-full h-full block"
+                                                        <React.Fragment key={tIdx}>
+                                                            {fragments.map((frag, fIdx) => (
+                                                                <div key={fIdx} className="absolute inset-0 z-20 pointer-events-none">
+                                                                    {/* Capture Window (Margins) */}
+                                                                    {(minAntes > 0 || minDespues > 0) && (
+                                                                        <div
+                                                                            className="absolute top-1/2 -translate-y-1/2 h-32 pointer-events-auto"
+                                                                            style={{
+                                                                                left: `${frag.l - (frag.type === 'start' || frag.type === 'full' ? timeToPercent('00:00', minAntes) : 0)}%`,
+                                                                                width: `${frag.w + (frag.type === 'start' ? timeToPercent('00:00', minAntes) : frag.type === 'end' ? timeToPercent('00:00', minDespues) : timeToPercent('00:00', minAntes + minDespues))}%`
+                                                                            }}
+                                                                        >
+                                                                            <Tooltip text={`Ventana de captura: -${minAntes}m a +${minDespues}m`} placement="top" offset={12} triggerClassName="w-full h-full block">
+                                                                                <div className={`w-full h-full ${colors.bg} bg-opacity-10 border-x-2 border-slate-200`} />
+                                                                            </Tooltip>
+                                                                        </div>
+                                                                    )}
+
+                                                                    {/* Main Shift Block */}
+                                                                    <div
+                                                                        className="absolute top-1/2 -translate-y-1/2 h-32 pointer-events-auto overflow-hidden"
+                                                                        style={{ left: `${frag.l}%`, width: `${frag.w}%` }}
                                                                     >
-                                                                        <div className={`w-full h-full ${colors.bg} bg-opacity-20 border-x-2 border-slate-300`} />
-                                                                    </Tooltip>
-                                                                </div>
-                                                            )}
+                                                                        <Tooltip
+                                                                            text={`${turno.NombreHorario || turno.Nombre || 'Turno'}: ${turno.HoraEntrada} - ${turno.HoraSalida}`}
+                                                                            placement="top" offset={12} triggerClassName="w-full h-full block"
+                                                                        >
+                                                                            <div className={`w-full h-full ${colors.bg} border-2 ${colors.border} shadow-md flex flex-col relative`}>
+                                                                                {/* Lunch Block (if exists) */}
+                                                                                {(() => {
+                                                                                    // Detección ultra-flexible
+                                                                                    const hIni = turno.HoraInicioComida || turno.horaInicioComida || turno.HoraComidaInicio;
+                                                                                    const hFin = turno.HoraFinComida || turno.horaFinComida || turno.HoraComidaFin;
+                                                                                    const hasMeal = !!(turno.TieneComida || turno.tieneComida || (hIni && hIni !== '00:00:00' && hIni !== '00:00'));
 
-                                                            {/* Main Shift Block - Proportional scale h-32 */}
-                                                            <div
-                                                                className="absolute top-1/2 -translate-y-1/2 h-32 pointer-events-auto"
-                                                                style={{ left: `${left}%`, width: `${right - left}%` }}
-                                                            >
-                                                                <Tooltip
-                                                                    text={`${turno.NombreHorario || turno.Nombre || 'Turno'}: ${turno.HoraEntrada} - ${turno.HoraSalida}`}
-                                                                    placement="top" offset={12}
-                                                                    triggerClassName="w-full h-full block"
-                                                                >
-                                                                    <div className={`w-full h-full ${colors.bg} border-2 ${colors.border} shadow-md flex flex-col`}>
-                                                                        {/* Hour Content */}
-                                                                        <div className="flex-1 flex flex-col items-center justify-around p-1.5">
-                                                                            <div className="flex flex-col items-center">
-                                                                                <span className="text-[7px] font-bold text-white/50 uppercase mb-0.5">Inicio</span>
-                                                                                <span className="text-xs font-black text-white leading-none">{turno.HoraEntrada}</span>
+                                                                                    if (!hasMeal || !hIni || !hFin) return null;
+                                                                                    if (hIni === '00:00:00' || hIni === '00:00') return null;
+
+                                                                                    let cStart = timeToPercent(hIni);
+                                                                                    let cEnd = timeToPercent(hFin);
+
+                                                                                    if (crossMidnight && frag.type === 'start' && cStart < entMin) {
+                                                                                        cStart += 100;
+                                                                                        cEnd += 100;
+                                                                                    }
+                                                                                    if (crossMidnight && frag.type === 'end' && cEnd > salMin) {
+                                                                                        cStart -= 100;
+                                                                                        cEnd -= 100;
+                                                                                    }
+
+                                                                                    if (cEnd < cStart) cEnd += 100;
+
+                                                                                    const intersectL = Math.max(frag.l, cStart);
+                                                                                    const intersectR = Math.min(frag.l + frag.w, cEnd);
+
+                                                                                    if (intersectR <= intersectL + 0.1) return null;
+
+                                                                                    return (
+                                                                                        <div
+                                                                                            key={0}
+                                                                                            className="absolute inset-y-1.5 bg-slate-900/40 backdrop-blur-[2px] border border-white/30 rounded-md flex items-center justify-center z-[5] shadow-inner group/meal overflow-hidden"
+                                                                                            style={{
+                                                                                                left: `${((intersectL - frag.l) / frag.w) * 100}%`,
+                                                                                                width: `${((intersectR - intersectL) / frag.w) * 100}%`,
+                                                                                                minWidth: '16px'
+                                                                                            }}
+                                                                                        >
+                                                                                            <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'linear-gradient(45deg, #fff 25%, transparent 25%, transparent 50%, #fff 50%, #fff 75%, transparent 75%, transparent)', backgroundSize: '8px 8px' }} />
+                                                                                            <Tooltip text={`Periodo de Comida: ${hIni} - ${hFin}`}>
+                                                                                                <div className="w-full h-full flex items-center justify-center relative">
+                                                                                                    <Coffee size={16} className="text-white opacity-80 group-hover/meal:scale-110 transition-transform drop-shadow-sm" />
+                                                                                                </div>
+                                                                                            </Tooltip>
+                                                                                        </div>
+                                                                                    );
+                                                                                })()}
+
+                                                                                {tolerance > 0 && (frag.type === 'start' || frag.type === 'full') && (
+                                                                                    <div
+                                                                                        className="absolute top-0 bottom-0 bg-white/30 border-r border-white/50 z-10"
+                                                                                        style={{ left: 0, width: `${(tolerance / (frag.w * 14.4)) * 100}%` }}
+                                                                                    >
+                                                                                        <div className="h-full w-full flex items-end p-0.5 overflow-hidden">
+                                                                                            <span className="text-[7px] text-white/70 font-bold whitespace-nowrap">+{tolerance}m</span>
+                                                                                        </div>
+                                                                                    </div>
+                                                                                )}
+
+                                                                                {(frag.type === 'start' || frag.type === 'full') && (
+                                                                                    <div className="flex-1 flex flex-col items-center justify-center p-1 text-white select-none">
+                                                                                        <span className="text-[8px] font-bold uppercase opacity-60 tracking-tighter">Inicio</span>
+                                                                                        <span className="text-[11px] font-black leading-none">{turno.HoraEntrada}</span>
+                                                                                    </div>
+                                                                                )}
+                                                                                {(frag.type === 'end' || frag.type === 'full') && (
+                                                                                    <div className="flex-1 flex flex-col items-center justify-center p-1 text-white border-t border-white/20 select-none bg-black/5">
+                                                                                        <span className="text-[11px] font-black leading-none">{turno.HoraSalida}</span>
+                                                                                        <span className="text-[8px] font-bold uppercase opacity-60 tracking-tighter">Fin</span>
+                                                                                    </div>
+                                                                                )}
                                                                             </div>
-
-                                                                            {(right - left > 15) && (turno.HoraInicioComida && <Coffee size={14} className="text-white opacity-40 shrink-0" />)}
-
-                                                                            <div className="flex flex-col items-center">
-                                                                                <span className="text-xs font-black text-white leading-none">{turno.HoraSalida}</span>
-                                                                                <span className="text-[7px] font-bold text-white/50 uppercase mt-0.5">Fin</span>
-                                                                            </div>
-                                                                        </div>
-
-                                                                        {/* Shift Name - Now below the block as requested */}
-                                                                        <div className="absolute top-full left-0 right-0 -mt-1.5 text-center whitespace-nowrap overflow-hidden text-ellipsis">
-                                                                            <span className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">
-                                                                                {turno.HorarioNombre || turno.NombreHorario || turno.Abreviatura || turno.Nombre || 'Horario'}
-                                                                            </span>
-                                                                        </div>
+                                                                        </Tooltip>
                                                                     </div>
-                                                                </Tooltip>
-                                                            </div>
-                                                        </div>
+                                                                </div>
+                                                            ))}
+                                                        </React.Fragment>
                                                     );
                                                 })}
 
-                                                {/* Checadas (Dots) */}
-                                                <div
-                                                    className="absolute inset-0 z-30 pointer-events-none"
-                                                >
+                                                <div className="absolute inset-0 z-30 pointer-events-none">
                                                     {checadas.map((c: any, cIdx: number) => {
                                                         if (!c.FechaHora) return null;
                                                         const timePart = c.FechaHora.replace('T', ' ').split(' ')[1];
@@ -519,7 +693,6 @@ export const AuditTimelineModal: React.FC<AuditTimelineModalProps> = ({
                                                         const left = ((hours * 60 + minutes) / (24 * 60)) * 100;
                                                         const timeFormat = `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 
-                                                        // Stagger vertically so they don't overlap easily
                                                         const isTop = cIdx % 2 === 0;
                                                         const isCurrentlyActive = activeChecadaId === c.ChecadaId;
 
@@ -535,10 +708,7 @@ export const AuditTimelineModal: React.FC<AuditTimelineModalProps> = ({
                                                             >
                                                                 <Tooltip text={`${c.isOutOfSchedule ? 'Fuera de horario' : 'En rango'} - ${timeFormat} (${c.Dispositivo || c.Checador || 'Reloj'})`} placement="top" offset={12}>
                                                                     <div className={`absolute left-0 flex ${isTop ? 'flex-col-reverse bottom-0' : 'flex-col top-0'} items-center -translate-x-1/2`}>
-                                                                        {/* Stem - First element in flex flow to touch the axis point */}
                                                                         <div className={`w-0.5 h-20 ${c.isOutOfSchedule ? 'bg-red-600' : 'bg-emerald-600'} opacity-100 shadow-sm`} />
-
-                                                                        {/* Time Label (Pill) */}
                                                                         <div className={`px-2 py-0.5 rounded-full text-[10px] font-black border-2 shadow-lg transition-transform hover:scale-110 z-10 ${c.isOutOfSchedule
                                                                             ? 'bg-red-50 text-red-700 border-red-600'
                                                                             : 'bg-white text-emerald-700 border-emerald-600'
@@ -546,9 +716,7 @@ export const AuditTimelineModal: React.FC<AuditTimelineModalProps> = ({
                                                                             {timeFormat}
                                                                         </div>
                                                                     </div>
-                                                                    {/* Center Dot - Highest precision z-50 */}
-                                                                    <div className={`absolute w-3.5 h-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-md z-50 ${c.isOutOfSchedule ? 'bg-red-600' : 'bg-emerald-600'
-                                                                        }`} />
+                                                                    <div className={`absolute w-3.5 h-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white shadow-md z-50 ${c.isOutOfSchedule ? 'bg-red-600' : 'bg-emerald-600'}`} />
                                                                 </Tooltip>
                                                             </div>
                                                         );
@@ -556,9 +724,7 @@ export const AuditTimelineModal: React.FC<AuditTimelineModalProps> = ({
                                                 </div>
                                             </div>
 
-                                            {/* Footer per day */}
-                                            <div className="mt-auto px-3 py-4 border-t border-slate-200 bg-slate-50 min-h-[90px] flex flex-col justify-center gap-2">
-                                                {/* Top row: Statuses R/M */}
+                                            <div className="mt-auto px-3 py-3 border-t border-slate-200 bg-slate-50 flex flex-col justify-center gap-1.5">
                                                 <div className="flex flex-nowrap items-center justify-between gap-4">
                                                     <div className="flex flex-nowrap gap-4 ml-2">
                                                         {ficha?.EstatusChecadorAbrev && (
@@ -593,7 +759,6 @@ export const AuditTimelineModal: React.FC<AuditTimelineModalProps> = ({
                                                         )}
                                                     </div>
 
-                                                    {/* Badge de Estado global del día */}
                                                     {(ficha?.Estado || ficha?.estado) && (
                                                         <span className={`px-2.5 py-1 rounded-md text-[10px] font-bold border-2 uppercase tracking-tight ${getEstadoStyle(ficha.Estado || ficha.estado)}`}>
                                                             {(ficha.Estado || ficha.estado).replace('_', ' ')}
@@ -601,9 +766,25 @@ export const AuditTimelineModal: React.FC<AuditTimelineModalProps> = ({
                                                     )}
                                                 </div>
 
-                                                {/* Bottom row: Warnings */}
+                                                {!isRestDay && (
+                                                    <div className="flex items-center justify-between mt-1 px-1 border-t border-slate-200/60 pt-1.5 opacity-60 text-[9px] uppercase font-bold tracking-tight">
+                                                        <Tooltip text={`${groupedData[idx].scheduledHours.toFixed(1)}h programadas`}>
+                                                            <div className="flex items-center gap-1.5 text-slate-500 cursor">
+                                                                <span className="opacity-70">Jornada:</span>
+                                                                <span className="text-slate-700 font-black">{groupedData[idx].scheduledHours.toFixed(1)}h</span>
+                                                            </div>
+                                                        </Tooltip>
+                                                        <Tooltip text={`${groupedData[idx].workedHours.toFixed(1)}h laboradas`}>
+                                                            <div className={`flex items-center gap-1.5 cursor ${groupedData[idx].workedHours >= groupedData[idx].scheduledHours ? 'text-emerald-600' : 'text-amber-600'}`}>
+                                                                <span className="opacity-70">Laborado:</span>
+                                                                <span className="font-black">{groupedData[idx].workedHours.toFixed(1)}h</span>
+                                                            </div>
+                                                        </Tooltip>
+                                                    </div>
+                                                )}
+
                                                 {outOfScheduleCount > 0 && (
-                                                    <div className="flex items-center justify-center gap-1.5 w-full bg-red-50 text-red-700 border-2 border-red-200 py-1.5 px-3 rounded-lg">
+                                                    <div className="flex items-center justify-center gap-1.5 w-full bg-red-50 text-red-700 border-2 border-red-200 py-1.5 px-3 rounded-lg mt-1">
                                                         <AlertTriangle size={14} className="shrink-0" />
                                                         <span className="text-[11px] font-black">{outOfScheduleCount} checada(s) fuera de rango</span>
                                                     </div>
@@ -615,7 +796,6 @@ export const AuditTimelineModal: React.FC<AuditTimelineModalProps> = ({
                             </div>
                         </div>
 
-                        {/* Flat Legend */}
                         <div className="border-t border-slate-200 bg-white p-3 flex flex-wrap items-center justify-center gap-6">
                             <div className="flex items-center gap-1.5">
                                 <div className="w-4 h-2 bg-slate-100 border border-slate-300 border-dashed rounded-sm" />

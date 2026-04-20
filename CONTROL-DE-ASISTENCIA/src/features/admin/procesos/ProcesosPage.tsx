@@ -57,6 +57,7 @@ const humanizeCron = (cron: string) => {
 export const ProcesosPage = () => {
     const [processes, setProcesses] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [executingIds, setExecutingIds] = useState<number[]>([]);
     const [selectedProceso, setSelectedProceso] = useState<any | null>(null);
     const [viewingHistory, setViewingHistory] = useState<any | null>(null);
     const { getToken, can } = useAuth();
@@ -84,26 +85,24 @@ export const ProcesosPage = () => {
     }, []);
 
     const handleExecuteManual = async (id: number) => {
+        const proc = processes.find(p => p.ProcesoId === id);
+        if (!proc) return;
+        setExecutingIds(prev => [...prev, id]);
         try {
-            const proc = processes.find(p => p.ProcesoId === id);
-            if (!proc) return;
-            const res = await fetch(`${API_BASE_URL}/processes/execute`, {
+            const res = await fetch(`${API_BASE_URL}/processes/${id}/run`, {
                 method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${getToken()}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ keyInterna: proc.KeyInterna })
+                headers: { 'Authorization': `Bearer ${getToken()}` }
             });
-            if (!res.ok) throw new Error('Error trigger');
+
+            if (!res.ok) throw new Error('Error al ejecutar proceso');
 
             addNotification('Proceso Iniciado', `La ejecución de "${proc.Nombre}" comenzó en segundo plano`, 'success');
-
-            // Refrescar para ver el estado "En Progreso" si aplica
             fetchProcesses();
         } catch (error) {
             console.error('Error executing manual run', error);
             addNotification('Error', 'No se pudo iniciar la ejecución manual', 'error');
+        } finally {
+            setExecutingIds(prev => prev.filter(x => x !== id));
         }
     };
 
@@ -160,7 +159,7 @@ export const ProcesosPage = () => {
                                 {proceso.UltimaEjecucion ? (
                                     <div className="flex items-center gap-2">
                                         <span className="text-xs font-semibold text-slate-500">
-                                            {new Date(proceso.UltimaEjecucion).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                            {new Date(proceso.UltimaEjecucion.replace('Z', '')).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                         </span>
                                         <div className={`px-1.5 py-0.5 rounded text-[8px] font-black uppercase ${proceso.UltimoEstatus === 'Exito' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'}`}>
                                             {proceso.UltimoEstatus === 'Exito' ? 'Éxito' : 'Error'}
@@ -196,9 +195,19 @@ export const ProcesosPage = () => {
                                 <Button
                                     onClick={() => handleExecuteManual(proceso.ProcesoId)}
                                     size="sm"
+                                    disabled={executingIds.includes(proceso.ProcesoId)}
                                 >
-                                    <Play size={12} fill="currentColor" />
-                                    Ejecutar
+                                    {executingIds.includes(proceso.ProcesoId) ? (
+                                        <>
+                                            <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                            Iniciando...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Play size={12} fill="currentColor" />
+                                            Ejecutar
+                                        </>
+                                    )}
                                 </Button>
                             )}
                         </div>
@@ -206,21 +215,25 @@ export const ProcesosPage = () => {
                 ))}
             </div>
 
-            {selectedProceso && (
-                <ConfigurarProcesoModal
-                    proceso={selectedProceso}
-                    onClose={() => setSelectedProceso(null)}
-                    onSuccess={() => { setSelectedProceso(null); fetchProcesses(); }}
-                />
-            )}
+            {
+                selectedProceso && (
+                    <ConfigurarProcesoModal
+                        proceso={selectedProceso}
+                        onClose={() => setSelectedProceso(null)}
+                        onSuccess={() => { setSelectedProceso(null); fetchProcesses(); }}
+                    />
+                )
+            }
 
-            {viewingHistory && (
-                <BitacoraProcesosModal
-                    procesoId={viewingHistory.ProcesoId}
-                    procesoNombre={viewingHistory.Nombre}
-                    onClose={() => setViewingHistory(null)}
-                />
-            )}
-        </div>
+            {
+                viewingHistory && (
+                    <BitacoraProcesosModal
+                        procesoId={viewingHistory.ProcesoId}
+                        procesoNombre={viewingHistory.Nombre}
+                        onClose={() => setViewingHistory(null)}
+                    />
+                )
+            }
+        </div >
     );
 };

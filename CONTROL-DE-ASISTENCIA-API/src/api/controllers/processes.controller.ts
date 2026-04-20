@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import sql from 'mssql';
-import { dbConfig } from '../../config/database';
+import { poolPromise } from '../../config/database';
 import { jobScheduler } from '../services/jobs/JobScheduler';
 
 export const getAllProcesses = async (req: any, res: Response) => {
@@ -10,7 +10,7 @@ export const getAllProcesses = async (req: any, res: Response) => {
     }
 
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await poolPromise;
         const result = await pool.request().execute('sp_CatalogoProcesosAutomaticos_GetAll');
         res.json(result.recordset);
     } catch (err: any) {
@@ -26,7 +26,7 @@ export const getProcessHistory = async (req: any, res: Response) => {
     const { procesoId } = req.params;
 
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await poolPromise;
         const result = await pool.request()
             .input('ProcesoId', sql.Int, procesoId)
             .execute('sp_BitacoraProcesosAutomaticos_GetByProceso');
@@ -46,7 +46,7 @@ export const updateProcess = async (req: any, res: Response) => {
     const { Nombre, KeyInterna, Descripcion, CronExpression, Activo } = req.body;
 
     try {
-        const pool = await sql.connect(dbConfig);
+        const pool = await poolPromise;
         await pool.request()
             .input('ProcesoId', sql.Int, procesoId)
             .input('Nombre', sql.NVarChar, Nombre)

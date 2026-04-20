@@ -142,6 +142,40 @@ async function seedDatabase(dbConfig, baseDir, log) {
             }
         }
 
+        // ── Procesar TIPO C: Asignaciones de permisos a Roles (Idempotente por nombre) ────────
+        // Lee SISRolesPermisos_defaults.json y asigna permisos a roles por nombre.
+        // Se ejecuta en CADA instalación/actualización para garantizar que permisos nuevos queden asignados.
+        const rolesPermisosFile = path.join(seedsDir, 'SISRolesPermisos_defaults.json');
+        if (fs.existsSync(rolesPermisosFile)) {
+            const assignments = JSON.parse(fs.readFileSync(rolesPermisosFile, 'utf8'));
+            if (assignments.length > 0) {
+                log(`   ↳ Verificando asignaciones de permisos a roles (${assignments.length} reglas)...`);
+                let assignedCount = 0;
+                for (const a of assignments) {
+                    try {
+                        const result = await pool.request().query(`
+                            DECLARE @RolId INT  = (SELECT TOP 1 RolId FROM SISRoles WHERE NombreRol = '${a.RolNombre.replace(/'/g, "''")}');
+                            DECLARE @PermId INT = (SELECT TOP 1 PermisoId FROM SISPermisos WHERE NombrePermiso = '${a.PermisoNombre.replace(/'/g, "''")}');
+                            IF @RolId IS NOT NULL AND @PermId IS NOT NULL
+                               AND NOT EXISTS (SELECT 1 FROM SISRolesPermisos WHERE RolId = @RolId AND PermisoId = @PermId)
+                            BEGIN
+                               INSERT INTO SISRolesPermisos (RolId, PermisoId) VALUES (@RolId, @PermId);
+                               SELECT 1 AS inserted;
+                            END
+                            ELSE SELECT 0 AS inserted;
+                        `);
+                        if (result.recordset[0]?.inserted === 1) assignedCount++;
+                    } catch (e) {
+                        log(`     ⚠️ Error asignando ${a.PermisoNombre} a ${a.RolNombre}: ${e.message}`);
+                    }
+                }
+                if (assignedCount > 0)
+                    log(`     ✅ ${assignedCount} asignaciones de permisos nuevas aplicadas.`);
+                else
+                    log(`     ⏭️  Asignaciones de permisos ya al corriente.`);
+            }
+        }
+
         log('--- 📥 Siembra de Datos Completada ---');
 
     } catch (err) {

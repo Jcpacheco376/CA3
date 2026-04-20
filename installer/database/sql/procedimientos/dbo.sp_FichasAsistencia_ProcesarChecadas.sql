@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_FichasAsistencia_ProcesarChecadas]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.6.12
--- Compilado:           07/04/2026, 11:26:15
+-- Versión de Paquete:  v1.6.15
+-- Compilado:           15/04/2026, 11:00:00
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -33,20 +33,23 @@ BEGIN
         DepartamentoId INT,
         GrupoNominaId INT,
         PuestoId INT,
-        EstablecimientoId INT
+        EstablecimientoId INT,
+        FechaIngreso DATE,
+        FechaBaja DATE
     );
     
-    INSERT INTO @EmpleadosAProcesar (EmpleadoId, CodRef, HorarioIdPredeterminado, DepartamentoId, GrupoNominaId, PuestoId, EstablecimientoId)
-    SELECT EmpleadoId, CodRef, HorarioIdPredeterminado, DepartamentoId, GrupoNominaId, PuestoId, EstablecimientoId 
+    INSERT INTO @EmpleadosAProcesar (EmpleadoId, CodRef, HorarioIdPredeterminado, DepartamentoId, GrupoNominaId, PuestoId, EstablecimientoId, FechaIngreso, FechaBaja)
+    SELECT EmpleadoId, CodRef, HorarioIdPredeterminado, DepartamentoId, GrupoNominaId, PuestoId, EstablecimientoId, FechaIngreso, FechaBaja 
     FROM dbo.Empleados 
-    WHERE Activo = 1
-      AND (@EmpleadoId IS NULL OR EmpleadoId = @EmpleadoId);
+    WHERE (@EmpleadoId IS NOT NULL AND EmpleadoId = @EmpleadoId)
+       OR (Activo = 1)
+       OR (FechaBaja IS NOT NULL AND FechaBaja >= @FechaInicio);
+
     IF NOT EXISTS (SELECT 1 FROM @EmpleadosAProcesar) RETURN;
     
     -- 3. IDs DE ESTATUS
     DECLARE @IdFalta INT, @IdAsistencia INT, @IdRetardo INT, @IdIncompleta INT, @IdDescanso INT, @IdSinHorario INT;
     DECLARE @IdDiaFeriado INT, @IdFeriadoLaborado INT, @IdSalidaAnticipada INT, @IdVacaciones INT, @IdDescansoLaborado INT;
-
     SELECT  @IdFalta      = EstatusId FROM dbo.CatalogoEstatusAsistencia WHERE TipoCalculoId = 'FALTA'       AND Activo = 1;
     SELECT  @IdAsistencia = EstatusId FROM dbo.CatalogoEstatusAsistencia WHERE TipoCalculoId = 'ASISTENCIA'  AND Activo = 1;
     SELECT  @IdRetardo    = EstatusId FROM dbo.CatalogoEstatusAsistencia WHERE TipoCalculoId = 'RETARDO'     AND Activo = 1;
@@ -58,13 +61,14 @@ BEGIN
     SELECT  @IdSalidaAnticipada = EstatusId FROM dbo.CatalogoEstatusAsistencia WHERE TipoCalculoId = 'SALIDA_ANTICIPADA' AND Activo = 1;
     SELECT  @IdVacaciones = EstatusId FROM dbo.CatalogoEstatusAsistencia WHERE TipoCalculoId = 'VACACIONES' AND Activo = 1;
     SELECT  @IdDescansoLaborado = EstatusId FROM dbo.CatalogoEstatusAsistencia WHERE TipoCalculoId = 'DESCANSO_LABORADO' AND Activo = 1;
-
-
     IF @IdFalta IS NULL SET @IdFalta = 1; 
     IF @IdSinHorario IS NULL SET @IdSinHorario = @IdFalta;
     -------------------------------------------------------------------
     -- 4. CALCULO CON ARITMITICA  
     -------------------------------------------------------------------
+    -- Limpieza defensiva antes del CTE: si la sesión del pool reutilizó una conexión
+    -- donde #SourceData ya existe por un THROW previo, la eliminamos.
+    IF OBJECT_ID('tempdb..#SourceData') IS NOT NULL DROP TABLE #SourceData;
     ;WITH 
     FechasDelRango AS (
         SELECT CAST(DATEADD(DAY, number, @FechaInicio) AS DATE) AS Fecha
@@ -84,6 +88,8 @@ BEGIN
             CASE WHEN ht.TipoAsignacion = 'D' THEN 1 ELSE 0 END AS EsDescansoAsignado
         FROM @EmpleadosAProcesar e CROSS JOIN FechasDelRango fr
         LEFT JOIN dbo.HorariosTemporales ht ON e.EmpleadoId = ht.EmpleadoId AND fr.Fecha = ht.Fecha
+        WHERE fr.Fecha >= ISNULL(e.FechaIngreso, '1900-01-01')
+          AND fr.Fecha <= ISNULL(e.FechaBaja, '2099-12-31')
     ),
     -- B. Ventanas Calculadas 
     VentanasCalculadas AS (
@@ -232,10 +238,8 @@ BEGIN
                         -- Cualquier otro caso -> Día Feriado (perdona falta)
                         ELSE @IdDiaFeriado
                     END
-
                 -- Prioridad 2: VACACIONES (si no es feriado)
                 WHEN va.SolicitudId IS NOT NULL THEN @IdVacaciones
-
                 -- Prioridad 3: Cálculo Normal con modificaciones de evento
                 WHEN df.EsDiaLaboral = 0 AND df.Checada_Entrada IS NOT NULL THEN @IdDescansoLaborado
                 WHEN df.EsDiaLaboral = 0 THEN @IdDescanso

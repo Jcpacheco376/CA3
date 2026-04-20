@@ -38,7 +38,7 @@ const formatTitle = (id: string) => {
 export const EstatusAsistenciaModal = ({ isOpen, onClose, onSave, status }: { isOpen: boolean; onClose: () => void; onSave: (status: AttendanceStatus) => void; status: AttendanceStatus | null; }) => {
     const { getToken } = useAuth();
     const [formData, setFormData] = useState<Partial<AttendanceStatus>>({});
-    
+
     // Estados para Catálogos
     const [calculationTypes, setCalculationTypes] = useState<{ TipoCalculoId: string, Descripcion: string }[]>([]);
     const [payrollConcepts, setPayrollConcepts] = useState<{ ConceptoId: number, Nombre: string, CodRef: string, Abreviatura: string }[]>([]);
@@ -160,7 +160,7 @@ export const EstatusAsistenciaModal = ({ isOpen, onClose, onSave, status }: { is
                     <h3 className="text-md font-bold text-slate-800 mb-4">Configuración de Comportamiento</h3>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
-                        
+
                         {/* COLUMNA 1: LÓGICA Y NÓMINA */}
                         <div className="space-y-6">
 
@@ -199,7 +199,7 @@ export const EstatusAsistenciaModal = ({ isOpen, onClose, onSave, status }: { is
                                         </label>
                                     </Tooltip>
                                 }
-                                value={formData.ConceptoNominaId}
+                                value={formData.ConceptoNominaId ?? undefined}
                                 options={payrollConcepts.map(c => ({
                                     value: c.ConceptoId,
                                     title: c.Abreviatura,
@@ -214,6 +214,7 @@ export const EstatusAsistenciaModal = ({ isOpen, onClose, onSave, status }: { is
                                 colorScheme="emerald"
                                 includeNoneOption={true}
                                 noneLabel="Ninguno / Sin Efecto en Nómina"
+                                showButtonSubtitle={false}
                                 maxHeightClass="max-h-60"
                             />
 
@@ -243,7 +244,7 @@ export const EstatusAsistenciaModal = ({ isOpen, onClose, onSave, status }: { is
                                 <Tooltip text="Disponible para uso general."><span className="font-medium text-slate-700">Estatus Activo</span></Tooltip>
                                 <Toggle enabled={formData.Activo !== false} onChange={(val) => handleToggleChange('Activo', val)} />
                             </div>
-                            
+
                             <div className="flex items-center justify-between border-t border-slate-100 pt-4 mt-4">
                                 <Tooltip text="Días a futuro permitidos (0 = Solo hoy/pasado).">
                                     <span className="text-sm font-medium text-slate-700">Días Registro Futuro</span>

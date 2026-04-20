@@ -78,10 +78,13 @@ const parseToUnified = (cron: string): UnifiedCronState => {
             const [start, end] = range.split('-');
             base.startHour = start.padStart(2, '0'); base.endHour = end.padStart(2, '0');
             if (minPart.startsWith('*/')) { base.intervalUnit = 'minutes'; base.intervalValue = parseInt(minPart.replace('*/', '')); }
+            else if (minPart === '*') { base.intervalUnit = 'minutes'; base.intervalValue = 1; }
             else if (minPart === '0') { base.intervalUnit = 'hours'; base.intervalValue = step ? parseInt(step) : 1; }
         } else {
             if (minPart.startsWith('*/')) { base.intervalUnit = 'minutes'; base.intervalValue = parseInt(minPart.replace('*/', '')); }
+            else if (minPart === '*') { base.intervalUnit = 'minutes'; base.intervalValue = 1; }
             else if (hourPart.startsWith('*/')) { base.intervalUnit = 'hours'; base.intervalValue = parseInt(hourPart.replace('*/', '')); }
+            else if (hourPart === '*' && minPart === '0') { base.intervalUnit = 'hours'; base.intervalValue = 1; }
         }
     }
     return base;
@@ -110,7 +113,7 @@ export const ConfigurarProcesoModal: React.FC<ConfigurarProcesoModalProps> = ({ 
     const { getToken } = useAuth();
     const [loading, setLoading] = useState(false);
     const [state, setState] = useState<UnifiedCronState>(() => parseToUnified(proceso.CronExpression));
-    const [activo, setActivo] = useState(proceso.Activo);
+    const [activo, setActivo] = useState<boolean>(proceso.Activo === true || proceso.Activo === 1);
 
     const handleSave = async () => {
         setLoading(true);
@@ -237,8 +240,10 @@ export const ConfigurarProcesoModal: React.FC<ConfigurarProcesoModalProps> = ({ 
                     <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
                         <ToggleSwitch checked={activo} onChange={setActivo} themeColor="#10b981" />
                         <div>
-                            <span className="block text-sm font-bold text-slate-700">Estado del Orquestador</span>
-                            <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-tight">Activa o pausa la automatización</span>
+                            <span className="block text-sm font-bold text-slate-700">Automatización</span>
+                            <span className={`block text-[10px] font-bold uppercase tracking-wider transition-colors ${activo ? 'text-emerald-500' : 'text-slate-400'}`}>
+                                {activo ? 'Habilitada' : 'Pausada'}
+                            </span>
                         </div>
                     </div>
                     <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 flex items-center justify-between">

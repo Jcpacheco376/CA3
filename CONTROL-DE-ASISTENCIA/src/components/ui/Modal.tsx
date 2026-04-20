@@ -57,7 +57,7 @@ export const Modal = ({ isOpen, onClose, title, children, footer, footerActions,
             <div className={`bg-white rounded-xl shadow-2xl z-10 w-full transform ${sizeClasses[size] || 'max-w-md'} ${panelAnimationClass} flex flex-col max-h-[90vh]`}>
                 <div className="flex justify-between items-center p-4 border-b shrink-0">
                     <h3 className="text-lg font-semibold text-slate-800">{title}</h3>
-                    <button onClick={onClose} className="p-1 rounded-full hover:bg-gray-200 text-slate-500 transition-colors">
+                    <button type="button" onClick={onClose} className="p-1 rounded-full hover:bg-gray-200 text-slate-500 transition-colors">
                         <X size={20} />
                     </button>
                 </div>

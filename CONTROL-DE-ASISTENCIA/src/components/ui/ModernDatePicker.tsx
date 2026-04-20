@@ -328,6 +328,7 @@ export const ModernDatePicker: React.FC<ModernDatePickerProps> = ({
 
                 {selectedDate && !disabled && !isGhost && (
                     <button
+                        type="button"
                         onClick={handleClear}
                         className="ml-2 p-0.5 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
                     >

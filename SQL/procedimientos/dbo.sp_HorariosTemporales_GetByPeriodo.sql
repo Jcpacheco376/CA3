@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_HorariosTemporales_GetByPeriodo]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.6.14
--- Compilado:           11/04/2026, 13:57:04
+-- Versión de Paquete:  v1.6.19
+-- Compilado:           15/04/2026, 16:13:04
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -36,23 +36,23 @@ BEGIN
     -- ---------------------------------------------------------
     ;WITH EmpleadosNormalizados AS (
         SELECT 
-            e.EmpleadoId,
-            e.CodRef,
-            e.NombreCompleto,
-            e.HorarioIdPredeterminado,
-            e.FechaNacimiento,
-            e.Activo,
-            d.DepartamentoId AS Real_DepartamentoId,
-            COALESCE(d.Nombre, 'Sin Departamento') AS DepartamentoNombre,
-            p.PuestoId AS Real_PuestoId,
-            COALESCE(p.Nombre, 'Sin Puesto') AS PuestoNombre,
-            g.GrupoNominaId AS Real_GrupoNominaId,
-            s.EstablecimientoId AS Real_EstablecimientoId
-        FROM dbo.Empleados e
-        LEFT JOIN dbo.CatalogoDepartamentos d ON e.DepartamentoId = d.DepartamentoId
-        LEFT JOIN dbo.CatalogoPuestos p ON e.PuestoId = p.PuestoId
-        LEFT JOIN dbo.CatalogoGruposNomina g ON e.GrupoNominaId = g.GrupoNominaId
-        LEFT JOIN dbo.CatalogoEstablecimientos s ON e.EstablecimientoId = s.EstablecimientoId
+        e.EmpleadoId,
+        e.CodRef,
+        e.NombreCompleto,
+        e.HorarioIdPredeterminado AS HorarioDefaultId,
+        e.DepartamentoId AS Real_DepartamentoId,
+        COALESCE(d.Nombre, 'Sin Departamento') AS departamento_nombre,
+        e.PuestoId AS Real_PuestoId,
+        COALESCE(p.Nombre, 'Sin Puesto') AS puesto_descripcion,
+        e.GrupoNominaId AS Real_GrupoNominaId,
+        e.EstablecimientoId AS Real_EstablecimientoId,
+        e.FechaNacimiento,
+        e.FechaIngreso,
+        e.FechaBaja
+    FROM dbo.Empleados e
+    INNER JOIN dbo.fn_Seguridad_GetEmpleadosPermitidosVigentes(@UsuarioId, @FechaInicio, @FechaFin) p_sec ON e.EmpleadoId = p_sec.EmpleadoId
+    LEFT JOIN dbo.CatalogoDepartamentos d ON e.DepartamentoId = d.DepartamentoId
+    LEFT JOIN dbo.CatalogoPuestos p ON e.PuestoId = p.PuestoId
     )
 
     -- 2. CONSULTA PRINCIPAL
@@ -60,10 +60,12 @@ BEGIN
         e.EmpleadoId,
         e.CodRef,
         e.NombreCompleto,
-        e.HorarioIdPredeterminado AS HorarioDefaultId,
-        e.DepartamentoNombre AS departamento_nombre,
-        e.PuestoNombre AS puesto_descripcion,
+        e.HorarioDefaultId,
+        e.departamento_nombre,
+        e.puesto_descripcion,
         e.FechaNacimiento,
+        e.FechaIngreso,
+        e.FechaBaja,
         
         -- A) Subconsulta de Horarios Temporales (Asignaciones)
         (
@@ -91,14 +93,8 @@ BEGIN
         ) AS FichasExistentes
 
     FROM EmpleadosNormalizados e 
-    WHERE e.Activo = 1
-    
-    -- FILTROS DE SEGURIDAD E INTERFAZ
-    AND (@SeguridadDepts = 0 OR e.Real_DepartamentoId IN (SELECT DepartamentoId FROM dbo.UsuariosDepartamentos WHERE UsuarioId = @UsuarioId))
-    AND (@SeguridadGrupos = 0 OR e.Real_GrupoNominaId IN (SELECT GrupoNominaId FROM dbo.UsuariosGruposNomina WHERE UsuarioId = @UsuarioId))
-    AND (@SeguridadPuestos = 0 OR e.Real_PuestoId IN (SELECT PuestoId FROM dbo.UsuariosPuestos WHERE UsuarioId = @UsuarioId))
-    AND (@SeguridadEstabs = 0 OR e.Real_EstablecimientoId IN (SELECT EstablecimientoId FROM dbo.UsuariosEstablecimientos WHERE UsuarioId = @UsuarioId))
-
+    WHERE 1=1
+    -- FILTROS DE INTERFAZ (La seguridad ya se aplic en la CTE)
     AND (
         @DepartamentoFiltro IS NULL OR @DepartamentoFiltro = '[]' 
         OR e.Real_DepartamentoId IN (SELECT value FROM OPENJSON(@DepartamentoFiltro))

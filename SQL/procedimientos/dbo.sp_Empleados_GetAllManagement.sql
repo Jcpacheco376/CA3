@@ -1,8 +1,8 @@
 -- ──────────────────────────────────────────────────────────────────────
 -- Stored Procedure: [dbo].[sp_Empleados_GetAllManagement]
 -- Base de Datos:       CA
--- Versión de Paquete:  v1.6.14
--- Compilado:           11/04/2026, 13:57:04
+-- Versión de Paquete:  v1.6.19
+-- Compilado:           15/04/2026, 16:13:04
 -- Sistema:             CA3 Control de Asistencia
 -- ──────────────────────────────────────────────────────────────────────
 
@@ -15,7 +15,9 @@ CREATE OR ALTER PROCEDURE [dbo].[sp_Empleados_GetAllManagement]
     @IncluirInactivos BIT = 0
 AS
 BEGIN
-    SET NOCOUNT ON;
+    -- Rango de fechas para visibilidad basado en IncluirInactivos
+    DECLARE @FechaIni DATE = CASE WHEN @IncluirInactivos = 1 THEN '1900-01-01' ELSE NULL END;
+    DECLARE @FechaFin DATE = CASE WHEN @IncluirInactivos = 1 THEN '2099-12-31' ELSE NULL END;
     SELECT 
         e.EmpleadoId, e.CodRef, e.Pim, 
         e.Nombres, e.ApellidoPaterno, e.ApellidoMaterno, e.NombreCompleto,
@@ -52,7 +54,7 @@ BEGIN
             FOR JSON PATH, WITHOUT_ARRAY_WRAPPER
         ) as VacacionesSummary
     FROM Empleados e
-    LEFT JOIN dbo.fn_Seguridad_GetEmpleadosPermitidos(@UsuarioId) p_perm ON e.EmpleadoId = p_perm.EmpleadoId
+    LEFT JOIN dbo.fn_Seguridad_GetEmpleadosPermitidosVigentes(@UsuarioId, @FechaIni, @FechaFin) p_perm ON e.EmpleadoId = p_perm.EmpleadoId
     LEFT JOIN CatalogoDepartamentos d ON e.DepartamentoId = d.DepartamentoId
     LEFT JOIN CatalogoPuestos p_cat ON e.PuestoId = p_cat.PuestoId
     LEFT JOIN CatalogoHorarios h ON e.HorarioIdPredeterminado = h.HorarioId
