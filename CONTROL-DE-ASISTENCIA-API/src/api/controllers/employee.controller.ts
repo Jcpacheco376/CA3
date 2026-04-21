@@ -32,6 +32,12 @@ export const getEmployeeProfile = async (req: any, res: Response) => {
             employee.Zonas = [];
         }
 
+        // Condese massive SQL VarBinary Buffers to Base64 strings explicitly before transmission.
+        // Prevents Network payload bloating (34,000 int arrays) which hangs the Render interface
+        if (employee.Imagen && Buffer.isBuffer(employee.Imagen)) {
+            employee.Imagen = employee.Imagen.toString('base64');
+        }
+
         res.json(employee);
     } catch (err: any) {
         res.status(500).json({ message: err.message || 'Error al obtener la información del empleado.' });
