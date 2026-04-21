@@ -32,6 +32,11 @@ export const getEmployeeProfile = async (req: any, res: Response) => {
             employee.Zonas = [];
         }
 
+        // Fix: Prevent the massive Image VarBinary Buffer from serializing into a 34,000 element JSON array 
+        // which causes deep-cloning libraries (or React state) to completely freeze the frontend.
+        // The image is correctly handled by a dedicated endpoint `getEmployeePhoto`.
+        delete employee.Imagen;
+
         res.json(employee);
     } catch (err: any) {
         res.status(500).json({ message: err.message || 'Error al obtener la información del empleado.' });
